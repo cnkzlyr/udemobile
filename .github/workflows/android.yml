@@ -1,0 +1,60 @@
+name: Build Android APK
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-android:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Frontend Dependencies
+        run: |
+          cd frontend
+          npm install
+          npm run build
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android, armv7-linux-androideabi
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android NDK
+        run: sdkmanager "ndk;26.1.10909125"
+
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli --version "^2.0.0-rc"
+
+      - name: Initialize Android Project
+        run: CI=true cargo tauri android init
+        working-directory: src-tauri
+        env:
+          NDK_HOME: /usr/local/lib/android/sdk/ndk/26.1.10909125
+
+      - name: Build APK
+        run: cargo tauri android build
+        working-directory: src-tauri
+        env:
+          NDK_HOME: /usr/local/lib/android/sdk/ndk/26.1.10909125
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: UYAP-Editor-APK
+          path: src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk

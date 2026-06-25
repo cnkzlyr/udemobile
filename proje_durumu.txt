@@ -1,0 +1,332 @@
+=== DİZİN YAPISI ===
+./.gitignore
+./Cargo.toml
+./src/main.rs
+./src/udf_manager.rs
+./Cargo.lock
+./frontend/.gitignore
+./frontend/index.html
+./frontend/public/favicon.svg
+./frontend/public/icons.svg
+./frontend/src/assets/hero.png
+./frontend/src/assets/typescript.svg
+./frontend/src/assets/vite.svg
+./frontend/src/counter.ts
+./frontend/src/main.ts
+./frontend/src/style.css
+./frontend/tsconfig.json
+./frontend/package.json
+./frontend/package-lock.json
+./proje_durumu.txt
+
+=== Cargo.toml ===
+[package]
+name = "uyap-server"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+axum = "0.8.9"
+quick-xml = "0.40.1"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.150"
+tokio = { version = "1.52.3", features = ["full"] }
+tower-http = { version = "0.7.0", features = ["fs", "cors"] }
+zip = "8.6.0"
+
+=== src/main.rs ===
+mod udf_manager;
+
+use axum::{
+    routing::{get, post},
+    Json, Router,
+};
+use serde::{Deserialize, Serialize};
+use std::net::SocketAddr;
+use tower_http::cors::CorsLayer;
+
+#[derive(Deserialize)]
+struct UdfRequest {
+    file_path: String,
+}
+
+#[derive(Deserialize)]
+struct UdfSaveRequest {
+    file_path: String,
+    new_xml_content: String,
+}
+
+#[derive(Serialize)]
+struct UdfResponse {
+    success: bool,
+    content: Option<String>,
+    error: Option<String>,
+}
+
+// Ön yüzden dosya yolu geldiğinde udf_manager'ı çalıştıran API noktası
+async fn load_udf_handler(Json(payload): Json<UdfRequest>) -> Json<UdfResponse> {
+    match udf_manager::extract_content_xml(&payload.file_path) {
+        Ok(xml) => Json(UdfResponse {
+            success: true,
+            content: Some(xml),
+            error: None,
+        }),
+        Err(e) => Json(UdfResponse {
+            success: false,
+            content: None,
+            error: Some(e.to_string()),
+        }),
+    }
+}
+
+// Ön yüzden düzenlenen yeni XML geldiğinde bunu UDF olarak diske yazan API noktası
+async fn save_udf_handler(Json(payload): Json<UdfSaveRequest>) -> Json<UdfResponse> {
+    match udf_manager::save_content_xml(&payload.file_path, &payload.new_xml_content) {
+        Ok(_) => Json(UdfResponse {
+            success: true,
+            content: Some("Dosya başarıyla kaydedildi!".to_string()),
+            error: None,
+        }),
+        Err(e) => Json(UdfResponse {
+            success: false,
+            content: None,
+            error: Some(e.to_string()),
+        }),
+    }
+}
+
+#[tokio::main]
+async fn main() {
+    // CORS ekleyerek frontend'in (Vite) API'ye sorunsuz bağlanmasını sağlıyoruz
+    let app = Router::new()
+        .route("/api/load_udf", post(load_udf_handler))
+	.route("/api/save_udf", post(save_udf_handler)) // BU SATIR EKLENDİ
+        .layer(CorsLayer::permissive());
+
+    let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
+    println!("UYAP Çekirdek Sunucusu çalışıyor: http://{}", addr);
+    
+    let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
+    axum::serve(listener, app).await.unwrap();
+}
+
+=== src/udf_manager.rs ===
+use std::fs::File;
+use std::io::Read;
+use zip::ZipArchive;
+
+// 1. UDF dosyasını ZIP olarak açıp içinden content.xml'i çıkaran fonsksiyon
+pub fn extract_content_xml(file_path: &str) -> Result<String, Box<dyn std::error::Error>> {
+    let file = File::open(file_path)?;
+    let mut archive = ZipArchive::new(file)?;
+
+    // UDF'nin kalbi
+    let mut content_file = archive.by_name("content.xml")?;
+    let mut xml_content = String::new();
+    content_file.read_to_string(&mut xml_content)?;
+
+    Ok(xml_content)
+}
+
+// 2. DİNAMİK OFSET YÖNETİCİSİ (TEMEL)
+pub struct OffsetManager {
+    pub original_cdata: String,
+}
+
+impl OffsetManager {
+    pub fn new(cdata: String) -> Self {
+        Self { original_cdata: cdata }
+    }
+
+    pub fn insert_text(&mut self, insert_index: usize, new_text: &str) {
+        self.original_cdata.insert_str(insert_index, new_text);
+        let shift_amount = new_text.chars().count(); 
+    }
+}
+
+use std::io::Write;
+use zip::write::FileOptions;
+
+// 3. UDF KAYDETME MOTORU
+// Güncellenmiş XML metnini alıp tekrar .udf (ZIP) olarak sıkıştırır
+pub fn save_content_xml(file_path: &str, xml_content: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let file = File::create(file_path)?;
+    let mut zip = zip::ZipWriter::new(file);
+
+    // UYAP UDF'leri standart deflate sıkıştırması kullanır
+    let options = FileOptions::default()
+        .compression_method(zip::CompressionMethod::Deflated)
+        .unix_permissions(0o755);
+
+    zip.start_file("content.xml", options)?;
+    zip.write_all(xml_content.as_bytes())?;
+    zip.finish()?;
+
+    Ok(())
+}
+
+=== frontend/index.html ===
+<!DOCTYPE html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>UYAP Editör</title>
+    <style>
+      body { 
+        font-family: 'Times New Roman', serif; 
+        background-color: #f0f2f5; 
+        padding: 20px; 
+        margin: 0;
+      }
+      .container { 
+        max-width: 900px; 
+        margin: 0 auto; 
+        background: white; 
+        padding: 30px; 
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1); 
+        border-radius: 8px;
+      }
+      #editor { 
+        min-height: 500px; 
+        border: 1px solid #ccc; 
+        padding: 42.52px 28.35px; /* UYAP varsayılan A4 kenar boşlukları */
+        margin-top: 20px; 
+        outline: none; 
+        background: white;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+      }
+      .toolbar {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 15px;
+      }
+      input { 
+        flex: 1; 
+        padding: 10px; 
+        border: 1px solid #ccc;
+        border-radius: 4px;
+      }
+      button { 
+        padding: 10px 20px; 
+        background-color: #c4291c; /* UYAP Kırmızısı */
+        color: white; 
+        border: none; 
+        border-radius: 4px;
+        cursor: pointer; 
+        font-weight: bold;
+      }
+      button:hover { background-color: #a02015; }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h2>UYAP UDF Editör</h2>
+      <div class="toolbar">
+        <input type="text" id="filePath" placeholder="Dosya yolu (Örn: /sdcard/Download/dilekce.udf)" />
+        <button id="loadBtn">UDF Yükle</button>
+      </div>
+      <div id="editor" contenteditable="true">
+        Sistemi test etmek için dosya yolunu girip "UDF Yükle" butonuna basın...
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
+
+=== frontend/src/main.ts ===
+document.getElementById('loadBtn')?.addEventListener('click', async () => {
+  const filePathInput = document.getElementById('filePath') as HTMLInputElement;
+  const editor = document.getElementById('editor');
+
+  if (!filePathInput || !editor) return;
+
+  const filePath = filePathInput.value.trim();
+  if (!filePath) {
+    alert("Lütfen geçerli bir dosya yolu girin.");
+    return;
+  }
+
+  editor.innerText = "Sunucuya bağlanılıyor, UDF dosyası ayrıştırılıyor...";
+
+  try {
+    const response = await fetch('http://127.0.0.1:3000/api/load_udf', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ file_path: filePath })
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      // 1. XML PARSER BAŞLIYOR
+      const parser = new DOMParser();
+      const xmlDoc = parser.parseFromString(data.content, "application/xml");
+
+      // 2. CDATA (Ham Metin) Havuzunu Al ve Rune (Karakter) Dizisine Çevir
+      const rawContentNode = xmlDoc.querySelector("template > content");
+      if (!rawContentNode) throw new Error("Geçerli bir UDF formatı değil.");
+      const rawText = rawContentNode.textContent || "";
+      
+      // TÜRKÇE KARAKTER VE EMOJİLER İÇİN HAYATİ ADIM (Rune bazlı parçalama)
+      const runes = Array.from(rawText); 
+
+      // 3. Editörü Temizle (Ham XML'i siliyoruz)
+      editor.innerHTML = "";
+
+      // 4. Stilleri ve Paragrafları Ayrıştır
+      const elements = xmlDoc.querySelector("elements");
+      if (elements) {
+        Array.from(elements.children).forEach(child => {
+          // Şimdilik Başlık, Altbilgi ve Paragrafları düz paragraf olarak alıyoruz
+          if (child.tagName === "paragraph" || child.tagName === "header" || child.tagName === "footer") {
+            const p = document.createElement("p");
+            p.style.margin = "0"; // UYAP satır aralıkları için sıfırlama
+
+            // Hizalama (Alignment: 0=sol, 1=orta, 2=sağ, 3=iki yana yasla)
+            const align = child.getAttribute("Alignment");
+            if (align === "1") p.style.textAlign = "center";
+            else if (align === "2") p.style.textAlign = "right";
+            else if (align === "3") p.style.textAlign = "justify";
+
+            // Girintiler
+            const leftIndent = child.getAttribute("LeftIndent");
+            if (leftIndent) p.style.marginLeft = `${leftIndent}pt`;
+
+            // Paragraf içindeki metin parçacıkları (<content> etiketleri)
+            const contents = child.querySelectorAll("content");
+            contents.forEach(ct => {
+              const start = parseInt(ct.getAttribute("startOffset") || "0");
+              const len = parseInt(ct.getAttribute("length") || "0");
+
+              if (len > 0) {
+                // Sadece ilgili ofset aralığındaki kelimeleri çek
+                const textSegment = runes.slice(start, start + len).join("");
+                const span = document.createElement("span");
+                span.textContent = textSegment;
+
+                // Biçimlendirmeleri Uygula
+                if (ct.getAttribute("bold") === "true") span.style.fontWeight = "bold";
+                if (ct.getAttribute("italic") === "true") span.style.fontStyle = "italic";
+                if (ct.getAttribute("underline") === "true") span.style.textDecoration = "underline";
+
+                const size = ct.getAttribute("size");
+                if (size) span.style.fontSize = `${size}pt`;
+
+                p.appendChild(span);
+              }
+            });
+
+            // Paragrafı editöre ekle
+            editor.appendChild(p);
+          }
+        });
+      }
+    } else {
+      editor.innerText = "Bir hata oluştu:\n" + data.error;
+    }
+  } catch (err) {
+    editor.innerText = "Sunucuya bağlanılamadı. Hata detayı: " + err;
+  }
+});
