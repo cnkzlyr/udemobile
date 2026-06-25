@@ -1,4 +1,7 @@
 {
+  "productName": "UYAP Editör",
+  "version": "0.1.0",
+  "identifier": "com.uyap.editor",
   "build": {
     "beforeDevCommand": "npm run dev",
     "beforeBuildCommand": "npm run build",
@@ -6,9 +9,6 @@
     "frontendDist": "../frontend/dist"
   },
   "app": {
-    "withGlobalTauri": true,
-    "identifier": "com.uyap.editor",
-    "version": "0.1.0",
-    "name": "UYAP Editör"
+    "withGlobalTauri": true
   }
 }
