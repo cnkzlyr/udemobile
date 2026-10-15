@@ -3,16 +3,16 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>UYAP &amp; Word Mobil Editör</title>
+  <title>UdeMobile - Profesyonel UYAP &amp; Word Editörü</title>
   <link rel="stylesheet" href="editor.css">
 </head>
 <body>
 
-  <!-- Mobil Google Dokümanlar Stili Biçimlendirme Araç Çubuğu -->
+  <!-- Mobil Google Dokümanlar & Word Stili Zengin Biçimlendirme Araç Çubuğu -->
   <div id="toolbar-container">
     <div class="toolbar-scroll">
       
-      <!-- Görünüm Modu Değiştirici (Kağıt / Mobil) -->
+      <!-- 1. Görünüm Modu Değiştirici -->
       <div class="tool-group">
         <button type="button" id="btn-toggle-view" class="tool-btn view-toggle-btn" onclick="toggleViewMode()" title="Görünüm Değiştir">
           📱 Mobil Mod
@@ -21,10 +21,10 @@
 
       <div class="divider"></div>
 
-      <!-- Hızlı Dilekçe Şablonları Menüsü -->
+      <!-- 2. Hızlı Dilekçe Şablonları Menüsü -->
       <div class="tool-group">
         <select id="select-template" onchange="insertTemplate(this.value); this.selectedIndex=0;" title="Resmi Dilekçe Şablonları">
-          <option value="" disabled selected>⚖️ Şablon Seç...</option>
+          <option value="" disabled selected>⚖️ Dilekçe Şablonları...</option>
           <option value="dava">Dava Dilekçesi</option>
           <option value="cevap">Cevap Dilekçesi</option>
           <option value="sure">Süre Uzatım Talebi (HMK 127)</option>
@@ -36,10 +36,10 @@
 
       <div class="divider"></div>
 
-      <!-- Yazı Tipi Ailesi -->
+      <!-- 3. Yazı Tipi Ailesi -->
       <div class="tool-group">
         <select id="select-font-family" onchange="changeFontFamily(this.value)" title="Yazı Tipi">
-          <option value="'Times New Roman', Times, serif" selected>Times New Roman</option>
+          <option value="'Times New Roman', Times, serif" selected>Times New Roman (UYAP)</option>
           <option value="Arial, Helvetica, sans-serif">Arial</option>
           <option value="Calibri, sans-serif">Calibri</option>
           <option value="Georgia, serif">Georgia</option>
@@ -49,7 +49,7 @@
 
       <div class="divider"></div>
 
-      <!-- Yazı Boyutu -->
+      <!-- 4. Yazı Boyutu -->
       <div class="tool-group">
         <button type="button" class="tool-btn" onclick="adjustFontSize(-1)" title="Yazıyı Küçült">A-</button>
         <span id="font-size-label">12pt</span>
@@ -58,7 +58,7 @@
 
       <div class="divider"></div>
 
-      <!-- Temel Biçimlendirme -->
+      <!-- 5. Temel Biçimlendirme -->
       <div class="tool-group">
         <button type="button" id="btn-bold" class="tool-btn" onclick="format('bold')" title="Kalın (Ctrl+B)"><b>B</b></button>
         <button type="button" id="btn-italic" class="tool-btn" onclick="format('italic')" title="İtalik (Ctrl+I)"><i>I</i></button>
@@ -68,13 +68,13 @@
 
       <div class="divider"></div>
 
-      <!-- Renk Seçiciler -->
+      <!-- 6. Renk & Vurgu Seçiciler -->
       <div class="tool-group">
         <select id="select-text-color" onchange="format('foreColor', this.value); this.selectedIndex=0;" title="Yazı Rengi">
           <option value="" disabled selected>🎨 Renk</option>
-          <option value="#000000" style="color: black;">Siyah (Varsayılan)</option>
-          <option value="#1565C0" style="color: #1565C0;">Koyu Mavi</option>
-          <option value="#C62828" style="color: #C62828;">Kırmızı (İhtar/Vurgu)</option>
+          <option value="#000000" style="color: black;">Siyah (Standart)</option>
+          <option value="#1565C0" style="color: #1565C0;">Koyu Mavi (Adli)</option>
+          <option value="#C62828" style="color: #C62828;">Kırmızı (İhtar)</option>
           <option value="#2E7D32" style="color: #2E7D32;">Koyu Yeşil</option>
         </select>
 
@@ -89,12 +89,12 @@
 
       <div class="divider"></div>
 
-      <!-- Hizalama Araçları -->
+      <!-- 7. Paragraf Hizalama -->
       <div class="tool-group">
         <button type="button" id="btn-align-left" class="tool-btn" onclick="format('justifyLeft')" title="Sola Yasla">
           <svg viewBox="0 0 24 24"><path d="M3 5h18v2H3V5zm0 4h12v2H3V9zm0 4h18v2H3v-2zm0 4h12v2H3v-2z"/></svg>
         </button>
-        <button type="button" id="btn-align-center" class="tool-btn" onclick="format('justifyCenter')" title="Ortala (Başlıklar)">
+        <button type="button" id="btn-align-center" class="tool-btn" onclick="format('justifyCenter')" title="Ortala (Mahkeme Başlıkları)">
           <svg viewBox="0 0 24 24"><path d="M4 5h16v2H4V5zm3 4h10v2H7V9zm-3 4h16v2H4v-2zm3 4h10v2H7v-2z"/></svg>
         </button>
         <button type="button" id="btn-align-right" class="tool-btn" onclick="format('justifyRight')" title="Sağa Yasla (İmza/Tarih)">
@@ -107,20 +107,72 @@
 
       <div class="divider"></div>
 
-      <!-- Listeler & Tablo -->
+      <!-- 8. Paragraf Boşlukları & Satır Aralığı (UYAP Standardı) -->
       <div class="tool-group">
-        <button type="button" class="tool-btn" onclick="format('insertOrderedList')" title="Numaralı Liste (1, 2, 3)">123</button>
-        <button type="button" class="tool-btn" onclick="format('insertUnorderedList')" title="Madde İmleri (•)">•••</button>
-        <button type="button" class="tool-btn text-btn" onclick="insertTable()" title="Tablo Ekle (2x3)">📊 Tablo</button>
+        <select id="select-line-spacing" onchange="changeLineSpacing(this.value); this.selectedIndex=0;" title="Satır Aralığı">
+          <option value="" disabled selected>↕️ Satır Aralığı</option>
+          <option value="1.0">Tek (1.0)</option>
+          <option value="1.15">1.15</option>
+          <option value="1.35">1.35 (UYAP Standart)</option>
+          <option value="1.5">1.5 Geniş</option>
+          <option value="2.0">Çift (2.0)</option>
+        </select>
+
+        <select id="select-paragraph-spacing" onchange="changeParagraphSpacing(this.value); this.selectedIndex=0;" title="Paragraf Boşluğu">
+          <option value="" disabled selected>⇕ Paragraf Boşluğu</option>
+          <option value="0">Boşluk Yok (0 pt)</option>
+          <option value="4">Küçük (4 pt)</option>
+          <option value="8">Standart UYAP (8 pt)</option>
+          <option value="12">Geniş (12 pt)</option>
+        </select>
       </div>
 
       <div class="divider"></div>
 
-      <!-- Girintiler & İmza Bloğu -->
+      <!-- 9. Gelişmiş Numaralandırma & Madde İşaretleri -->
+      <div class="tool-group">
+        <select id="select-list-style" onchange="insertCustomList(this.value); this.selectedIndex=0;" title="Maddeleme ve Numaralandırma">
+          <option value="" disabled selected>🔢 Numaralandırma...</option>
+          <option value="decimal">1., 2., 3. (Standart)</option>
+          <option value="legal">1.1, 1.2, 1.3 (Dava Maddeleri)</option>
+          <option value="roman">I., II., III. (Roma Rakamları)</option>
+          <option value="alpha">a), b), c) (Harfli Maddeler)</option>
+          <option value="disc">• Daire Madde İmi</option>
+          <option value="square">■ Kare Madde İmi</option>
+          <option value="arrow">➢ Ok Madde İmi</option>
+        </select>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- 10. Girintiler, Tablo, Resim & Sayfa No -->
       <div class="tool-group">
         <button type="button" class="tool-btn" onclick="format('outdent')" title="Girinti Azalt">⇤</button>
         <button type="button" class="tool-btn" onclick="format('indent')" title="Girinti Artır (Tab)">⇥</button>
-        <button type="button" class="tool-btn text-btn" onclick="insertSignature()" title="E-İmza Alanı Ekle">✍️ E-İmza</button>
+        <button type="button" class="tool-btn text-btn" onclick="insertTable()" title="Delil / Hesap Tablosu Ekle">📊 Tablo</button>
+        <button type="button" class="tool-btn text-btn" onclick="triggerImagePicker()" title="Dilekçeye Delil / Resim Ekle">🖼️ Resim</button>
+        <button type="button" class="tool-btn text-btn" onclick="insertPageNumber()" title="Altbilgiye Sayfa No Ekle">🔢 Sayfa No</button>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- 11. Üstbilgi / Altbilgi Aç-Kapat -->
+      <div class="tool-group">
+        <button type="button" id="btn-toggle-header-footer" class="tool-btn text-btn" onclick="toggleHeaderFooter()" title="Üstbilgi ve Altbilgiyi Aç/Kapat">
+          📑 Üst/Altbilgi
+        </button>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- 12. E-İmza & Mobil İmza Butonları -->
+      <div class="tool-group">
+        <button type="button" class="tool-btn sign-btn text-btn" onclick="openMobileSignModal()" title="Turkcell, Vodafone, TT Mobil İmza">
+          📱 Mobil İmza
+        </button>
+        <button type="button" class="tool-btn sign-btn text-btn" onclick="openSmartCardSignModal()" title="USB Akıllı Kart / E-İmza">
+          ✍️ USB E-İmza
+        </button>
       </div>
 
     </div>
@@ -129,21 +181,100 @@
   <!-- A4 Kağıt / Mobil Görünüm Konteyneri -->
   <div id="page-wrapper" class="paper-view">
     <div id="a4-sheet">
+
+      <!-- Üstbilgi Alanı (Header) -->
+      <div id="doc-header" class="header-footer-box" contenteditable="true" spellcheck="false">
+        <span class="placeholder-label">T.C. İSTANBUL ANADOLU 1. ASLİYE HUKUK MAHKEMESİ — Dosya No: 2026/.... Esas</span>
+      </div>
+
+      <!-- Ana Editör İçeriği -->
       <div id="editor-content" contenteditable="true" spellcheck="true" autocomplete="off" autocapitalize="sentences">
-        <!-- Varsayılan Dilekçe Başlangıcı -->
         <p style="text-align: center;"><strong>... NÖBETÇİ ASLİYE HUKUK MAHKEMESİ HÂKİMLİĞİ'NE</strong></p>
         <p style="text-align: justify;"><br></p>
-        <p style="text-align: justify;"><strong>DAVACI :</strong> </p>
-        <p style="text-align: justify;"><strong>VEKİLİ :</strong> Av. </p>
-        <p style="text-align: justify;"><strong>DAVALI :</strong> </p>
-        <p style="text-align: justify;"><strong>DAVA KONUSU :</strong> </p>
+        <p style="text-align: justify;"><strong>DOSYA NO :</strong> 2026/.... Esas</p>
+        <p style="text-align: justify;"><strong>DAVACI :</strong> [Davacı Adı Soyadı / Ünvanı - TCKN / VKN]</p>
+        <p style="text-align: justify;"><strong>VEKİLİ :</strong> Av. [Vekil Adı Soyadı] - Baro Sicil No / UETS</p>
+        <p style="text-align: justify;"><strong>DAVALI :</strong> [Davalı Adı Soyadı / Ünvanı]</p>
+        <p style="text-align: justify;"><strong>DAVA KONUSU :</strong> [Davanın Konusu ve Talebin Özeti]</p>
         <p style="text-align: justify;"><br></p>
         <p style="text-align: justify;"><strong>AÇIKLAMALAR :</strong></p>
-        <p style="text-align: justify; text-indent: 28px;">Dilekçenizi buraya yazabilir veya üstteki şablonlardan birini seçebilirsiniz...</p>
+        <p style="text-align: justify; text-indent: 28px;">1.1-) Müvekkil ile davalı taraf arasındaki hukuki ilişki çerçevesinde ...</p>
+        <p style="text-align: justify; text-indent: 28px;">1.2-) Davalı taraf edimlerini usul ve yasaya aykırı şekilde ifa etmemiştir ...</p>
         <p style="text-align: justify;"><br></p>
-        <p style="text-align: justify;"><strong>NETİCE-İ TALEP :</strong> Yukarıda arz ve izah edilen nedenlerle talebimizin kabulünü saygıyla vekâleten arz ve talep ederiz.</p>
+        <p style="text-align: justify;"><strong>HUKUKİ SEBEPLER :</strong> 6100 sayılı HMK, 6098 sayılı TBK, TTK ve ilgili mevzuat.</p>
+        <p style="text-align: justify;"><strong>DELİLLER :</strong> Fatura, banka dekontları, tanık, bilirkişi raporu, yemin ve her türlü yasal delil.</p>
+        <p style="text-align: justify;"><br></p>
+        <p style="text-align: justify;"><strong>NETİCE-İ TALEP :</strong> Yukarıda arz ve izah edilen nedenlerle haklı davamızın kabulüne, yargılama giderleri ile vekâlet ücretinin davalıya tahmiline karar verilmesini saygıyla vekâleten arz ve talep ederiz.</p>
         <p style="text-align: right;"><br></p>
-        <p style="text-align: right;"><strong>Davacı Vekili</strong><br>Av. [Ad Soyad]<br><em>(5070 S.K. Uyarınca E-İmzalıdır)</em></p>
+        <p style="text-align: right;"><strong>Davacı Vekili</strong><br>Av. [Adınız Soyadınız]<br><em>(5070 Sayılı Kanun Uyarınca E-İmzalıdır)</em></p>
+      </div>
+
+      <!-- Altbilgi Alanı (Footer) -->
+      <div id="doc-footer" class="header-footer-box" contenteditable="true" spellcheck="false">
+        <span class="placeholder-label">Adres: [Büro Adresi / Telefon / UETS Adresi] &nbsp;|&nbsp; Sayfa: 1 / 1</span>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- MOBİL İMZA MODAL PENCERESİ -->
+  <div id="modal-mobile-sign" class="modal-backdrop">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>📱 Mobil İmzalama (M-İmza)</h3>
+        <button class="modal-close" onclick="closeModal('modal-mobile-sign')">✕</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-desc">5070 Sayılı Elektronik İmza Kanunu uyarınca SIM kartınız üzerinden güvenli mobil imza başlatılır.</p>
+        
+        <label class="modal-label">GSM Operatörünüz:</label>
+        <select id="msign-operator" class="modal-input">
+          <option value="TURKCELL">Turkcell Mobil İmza</option>
+          <option value="VODAFONE">Vodafone Mobil İmza</option>
+          <option value="TURK_TELEKOM">Türk Telekom Mobil İmza</option>
+        </select>
+
+        <label class="modal-label">Cep Telefonu Numaranız:</label>
+        <input type="tel" id="msign-phone" class="modal-input" placeholder="05XXXXXXXXX" maxlength="11">
+
+        <label class="modal-label">T.C. Kimlik Numaranız:</label>
+        <input type="number" id="msign-tckn" class="modal-input" placeholder="11 Haneli TCKN" maxlength="11">
+
+        <div id="msign-status" class="modal-status"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="modal-btn secondary" onclick="closeModal('modal-mobile-sign')">İptal</button>
+        <button class="modal-btn primary" onclick="startMobileSign()">İmzala &amp; Damgala</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- USB AKILLI KART / E-İMZA MODAL PENCERESİ -->
+  <div id="modal-smartcard-sign" class="modal-backdrop">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>✍️ USB Akıllı Kart E-İmza</h3>
+        <button class="modal-close" onclick="closeModal('modal-smartcard-sign')">✕</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-desc">Type-C OTG adaptörü ile telefona takılı USB e-imza token'ı (TÜRKTRUST, e-Tuğra, Kamu SM, AKİS) üzerinden imzalanır.</p>
+        
+        <label class="modal-label">E-İmza Sağlayıcınız / Kart Tipi:</label>
+        <select id="sc-provider" class="modal-input">
+          <option value="AKIS">AKİS / Kamu SM Kartı</option>
+          <option value="TURKTRUST">TÜRKTRUST Akıllı Kart</option>
+          <option value="ETUGRA">e-Tuğra Token</option>
+          <option value="EBG">E-İmzaTR / EBG Bilişim</option>
+        </select>
+
+        <label class="modal-label">Kart PIN Kodunuz:</label>
+        <input type="password" id="sc-pin" class="modal-input" placeholder="Kart PIN Kodu" maxlength="8">
+
+        <div id="sc-status" class="modal-status"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="modal-btn secondary" onclick="closeModal('modal-smartcard-sign')">İptal</button>
+        <button class="modal-btn primary" onclick="startSmartCardSign()">Kartla İmzala</button>
       </div>
     </div>
   </div>

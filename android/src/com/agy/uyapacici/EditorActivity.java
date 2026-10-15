@@ -4,12 +4,15 @@ import android.app.Activity;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Environment;
 import android.print.PrintAttributes;
 import android.print.PrintDocumentAdapter;
 import android.print.PrintManager;
+import android.util.Base64;
 import android.view.View;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebChromeClient;
@@ -25,7 +28,9 @@ import com.agy.telemetry.CrashReporter;
 
 import org.json.JSONObject;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.InputStream;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
@@ -35,6 +40,7 @@ import java.util.Locale;
 public class EditorActivity extends Activity {
 
     public static final String EXTRA_FILE_PATH = "extra_file_path";
+    private static final int REQUEST_PICK_IMAGE = 3001;
 
     private WebView editorWebView;
     private EditText etDocTitle;
@@ -201,7 +207,6 @@ public class EditorActivity extends Activity {
                     String baseTitle = etDocTitle.getText().toString().trim();
                     if (baseTitle.isEmpty()) baseTitle = "Yeni_Dilekce";
 
-                    // Uzantıyı ayarla
                     if (baseTitle.toLowerCase().endsWith(".udf") || baseTitle.toLowerCase().endsWith(".docx")) {
                         baseTitle = baseTitle.substring(0, baseTitle.lastIndexOf('.'));
                     }
@@ -264,7 +269,6 @@ public class EditorActivity extends Activity {
 
     private void shareCurrentDocument() {
         if (currentFile == null || !currentFile.exists()) {
-            // Önce kaydet sonra paylaş
             saveDocument(false, false);
             Toast.makeText(this, "Önce belge kaydedildi. Tekrar 'Paylaş'a dokunun.", Toast.LENGTH_SHORT).show();
             return;
@@ -310,12 +314,70 @@ public class EditorActivity extends Activity {
         } catch (Exception ignored) {}
     }
 
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQUEST_PICK_IMAGE && resultCode == RESULT_OK && data != null) {
+            Uri imageUri = data.getData();
+            if (imageUri != null) {
+                processAndInsertImage(imageUri);
+            }
+        }
+    }
+
+    private void processAndInsertImage(Uri uri) {
+        new Thread(() -> {
+            try (InputStream is = getContentResolver().openInputStream(uri)) {
+                Bitmap bitmap = BitmapFactory.decodeStream(is);
+                if (bitmap != null) {
+                    // Maksimum genişlik 1000px olacak şekilde ölçekle (belge boyutu şişmesin)
+                    if (bitmap.getWidth() > 1000) {
+                        float ratio = 1000f / bitmap.getWidth();
+                        int newHeight = Math.round(bitmap.getHeight() * ratio);
+                        bitmap = Bitmap.createScaledBitmap(bitmap, 1000, newHeight, true);
+                    }
+
+                    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                    bitmap.compress(Bitmap.CompressFormat.JPEG, 85, baos);
+                    byte[] imageBytes = baos.toByteArray();
+                    String base64 = "data:image/jpeg;base64," + Base64.encodeToString(imageBytes, Base64.NO_WRAP);
+
+                    runOnUiThread(() -> {
+                        editorWebView.evaluateJavascript("insertImageBase64('" + base64 + "');", null);
+                        Toast.makeText(EditorActivity.this, "✓ Resim dilekçeye eklendi", Toast.LENGTH_SHORT).show();
+                    });
+                }
+            } catch (Exception e) {
+                runOnUiThread(() -> {
+                    Toast.makeText(EditorActivity.this, "Resim ekleme hatası: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                });
+            }
+        }).start();
+    }
+
     private class EditorBridge {
         @JavascriptInterface
         public void onContentChanged(int wordCount, int charCount) {
             runOnUiThread(() -> {
                 tvWordCount.setText(wordCount + " kelime • " + charCount + " karakter");
                 tvSaveStatus.setText("● Düzenleniyor");
+            });
+        }
+
+        @JavascriptInterface
+        public void pickImage() {
+            runOnUiThread(() -> {
+                Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
+                intent.setType("image/*");
+                startActivityForResult(Intent.createChooser(intent, "Dilekçe İçin Resim Seç"), REQUEST_PICK_IMAGE);
+            });
+        }
+
+        @JavascriptInterface
+        public void onDocumentSigned(String type, String provider, String hash) {
+            runOnUiThread(() -> {
+                Toast.makeText(EditorActivity.this, "✓ " + type + " Başarılı! (" + provider + ")", Toast.LENGTH_LONG).show();
+                saveDocument(false, false);
             });
         }
     }

@@ -15,7 +15,7 @@ body {
   overflow: hidden;
 }
 
-/* Üst Biçimlendirme Araç Çubuğu (Google Dokümanlar Stili) */
+/* Üst Biçimlendirme Araç Çubuğu (Google Dokümanlar & Word Stili) */
 #toolbar-container {
   background-color: #FFFFFF;
   border-bottom: 1px solid #DADCE0;
@@ -101,6 +101,12 @@ body {
   font-weight: bold;
 }
 
+.sign-btn {
+  background-color: #E8F5E9 !important;
+  color: #2E7D32 !important;
+  border: 1px solid #C8E6C9 !important;
+}
+
 #font-size-label {
   font-size: 12px;
   font-weight: bold;
@@ -131,7 +137,7 @@ select {
   transition: all 0.2s ease-in-out;
 }
 
-/* 1. KAĞIT GÖRÜNÜMÜ MODU (A4 Sabit Düzen) */
+/* 1. KAĞIT GÖRÜNÜMÜ MODU (A4 Düzeni) */
 #page-wrapper.paper-view {
   padding: 16px 12px 60px 12px;
   background-color: #F0F2F5;
@@ -144,10 +150,12 @@ select {
   min-height: 1100px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.05);
   border-radius: 2px;
-  padding: 36px 28px;
+  padding: 32px 28px;
+  display: flex;
+  flex-direction: column;
 }
 
-/* 2. MOBİL GÖRÜNÜM MODU (Telefona Tam Oturan Rahat Okuma/Yazma) */
+/* 2. MOBİL GÖRÜNÜM MODU (Telefona Tam Oturan Düzen) */
 #page-wrapper.mobile-view {
   padding: 0 0 60px 0;
   background-color: #FFFFFF;
@@ -161,20 +169,46 @@ select {
   box-shadow: none;
   border-radius: 0;
   padding: 16px 16px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Üstbilgi ve Altbilgi Kutuları */
+.header-footer-box {
+  font-size: 10pt;
+  color: #757575;
+  border-bottom: 1px dashed #B0BEC5;
+  padding-bottom: 8px;
+  margin-bottom: 16px;
+  outline: none;
+  display: none; /* Varsayılan gizli, butonla açılır */
+}
+
+#doc-footer {
+  border-bottom: none;
+  border-top: 1px dashed #B0BEC5;
+  padding-top: 8px;
+  margin-top: 24px;
+  margin-bottom: 0;
+}
+
+.header-footer-box.visible {
+  display: block;
 }
 
 /* Editör İçeriği & Tipografi */
 #editor-content {
+  flex: 1;
   outline: none;
   font-family: "Times New Roman", Times, Georgia, serif;
   font-size: 12pt;
-  line-height: 1.45;
+  line-height: 1.35;
   color: #000000;
   min-height: 600px;
 }
 
 #editor-content p {
-  margin-bottom: 6px;
+  margin-bottom: 8px;
   text-align: justify;
   text-justify: inter-word;
   word-break: break-word;
@@ -188,11 +222,51 @@ select {
   text-align: right;
 }
 
-/* Tablo Stilleri */
+/* Resimler */
+#editor-content img {
+  max-width: 100%;
+  height: auto;
+  border: 1px solid #CFD8DC;
+  border-radius: 4px;
+  margin: 10px 0;
+  display: block;
+}
+
+/* Resmi İmza & Sertifika Kaşesi */
+.official-signature-seal {
+  border: 2px double #1565C0;
+  background-color: #F8FAFC;
+  padding: 12px 16px;
+  margin: 16px 0;
+  border-radius: 6px;
+  font-family: -apple-system, sans-serif;
+  font-size: 11pt;
+  color: #1A237E;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.seal-icon {
+  font-size: 32px;
+}
+
+.seal-details {
+  flex: 1;
+  line-height: 1.3;
+}
+
+.seal-title {
+  font-weight: bold;
+  font-size: 12pt;
+  color: #0D47A1;
+}
+
+/* Tablolar */
 table {
   width: 100%;
   border-collapse: collapse;
-  margin: 10px 0;
+  margin: 12px 0;
   font-size: 11pt;
 }
 
@@ -212,7 +286,7 @@ th {
 
 /* Listeler */
 ol, ul {
-  padding-left: 24px;
+  padding-left: 28px;
   margin-bottom: 8px;
 }
 
@@ -220,15 +294,140 @@ li {
   margin-bottom: 4px;
 }
 
-::selection {
-  background-color: #B3D7FF;
+/* MODAL DİYALOGLARI (Mobil İmza & E-İmza) */
+.modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 16px;
 }
 
+.modal-backdrop.open {
+  display: flex;
+}
+
+.modal-card {
+  background-color: #FFFFFF;
+  border-radius: 12px;
+  width: 100%;
+  max-width: 420px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: modalIn 0.2s ease-out;
+}
+
+@keyframes modalIn {
+  from { transform: scale(0.92); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+.modal-header {
+  padding: 16px 20px;
+  background-color: #1565C0;
+  color: #FFFFFF;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.modal-header h3 {
+  font-size: 16px;
+  font-weight: bold;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  color: #FFFFFF;
+  font-size: 18px;
+  cursor: pointer;
+}
+
+.modal-body {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.modal-desc {
+  font-size: 12px;
+  color: #616161;
+  line-height: 1.4;
+  margin-bottom: 6px;
+}
+
+.modal-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #37474F;
+  margin-top: 4px;
+}
+
+.modal-input {
+  width: 100%;
+  height: 40px;
+  border: 1px solid #CFD8DC;
+  border-radius: 6px;
+  padding: 0 12px;
+  font-size: 14px;
+  outline: none;
+}
+
+.modal-input:focus {
+  border-color: #1565C0;
+}
+
+.modal-status {
+  font-size: 12px;
+  font-weight: bold;
+  padding: 6px 0;
+  min-height: 24px;
+}
+
+.modal-footer {
+  padding: 12px 20px;
+  background-color: #F5F7FA;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  border-top: 1px solid #ECEFF1;
+}
+
+.modal-btn {
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+}
+
+.modal-btn.primary {
+  background-color: #1565C0;
+  color: #FFFFFF;
+}
+
+.modal-btn.secondary {
+  background-color: #E0E0E0;
+  color: #424242;
+}
+
+/* Yazdırma Modu */
 @media print {
   body {
     background: none;
   }
-  #toolbar-container {
+  #toolbar-container, .modal-backdrop {
     display: none !important;
   }
   #page-wrapper {
@@ -238,5 +437,9 @@ li {
     box-shadow: none;
     max-width: 100%;
     padding: 20mm 15mm;
+  }
+  .header-footer-box {
+    display: block !important;
+    border: none;
   }
 }
