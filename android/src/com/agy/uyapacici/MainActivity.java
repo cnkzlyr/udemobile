@@ -22,6 +22,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import com.agy.telemetry.CrashReporter;
+import org.json.JSONObject;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -266,10 +267,24 @@ public class MainActivity extends Activity {
             try {
                 String displayName = getDisplayName(uri);
                 if (displayName == null || displayName.trim().isEmpty()) {
-                    displayName = "belge_" + System.currentTimeMillis() + ".udf";
+                    displayName = "belge_" + System.currentTimeMillis();
                 }
-                if (!displayName.toLowerCase().endsWith(".udf")) {
-                    displayName += ".udf";
+
+                String lowerName = displayName.toLowerCase(Locale.ROOT);
+                // Eğer daha önce hatalı olarak .docx.udf eklenmişse düzelt
+                if (lowerName.endsWith(".docx.udf")) {
+                    displayName = displayName.substring(0, displayName.length() - 4);
+                    lowerName = displayName.toLowerCase(Locale.ROOT);
+                }
+
+                // Bilinen uzantı yoksa MIME türüne göre belirle
+                if (!lowerName.endsWith(".udf") && !lowerName.endsWith(".docx")) {
+                    String mime = getContentResolver().getType(uri);
+                    if (mime != null && (mime.contains("word") || mime.contains("officedocument") || mime.contains("docx"))) {
+                        displayName += ".docx";
+                    } else {
+                        displayName += ".udf";
+                    }
                 }
 
                 File destDir = new File(Environment.getExternalStorageDirectory(), "Documents/UYAP_Belgelerim");
@@ -295,6 +310,15 @@ public class MainActivity extends Activity {
                     out.flush();
                 }
 
+                // Dosya içeriği DOCX ise ve uzantısı hatalıysa düzelt
+                if (DocxEngine.isDocxFile(destFile) && !destFile.getName().toLowerCase(Locale.ROOT).endsWith(".docx")) {
+                    String correctedName = destFile.getName().replaceAll("(?i)\\.udf$", "") + ".docx";
+                    File properFile = new File(destFile.getParentFile(), correctedName);
+                    if (destFile.renameTo(properFile)) {
+                        destFile = properFile;
+                    }
+                }
+
                 final File savedFile = destFile;
                 runOnUiThread(() -> {
                     currentDocFile = savedFile;
@@ -318,12 +342,17 @@ public class MainActivity extends Activity {
         cardActiveDoc.setVisibility(View.VISIBLE);
         tvDocName.setText(file.getName());
         long sizeKb = Math.max(1, file.length() / 1024);
-        UdfEngine.SignatureInfo sig = UdfEngine.verifySignature(file);
-        String sigBadge = "⚪ İmzasız";
-        if (sig.hasSignature) {
-            sigBadge = sig.isValid ? "🟢 GEÇERLİ E-İMZA (" + sig.signerName + ")" : "🔴 GEÇERSİZ İMZA (İçerik Uyuşmuyor)";
+
+        if (DocxEngine.isDocxFile(file)) {
+            tvDocDetails.setText("Boyut: " + sizeKb + " KB • 📄 Microsoft Word Belgesi (.docx)\nKonum: " + file.getAbsolutePath());
+        } else {
+            UdfEngine.SignatureInfo sig = UdfEngine.verifySignature(file);
+            String sigBadge = "⚪ İmzasız";
+            if (sig.hasSignature) {
+                sigBadge = sig.isValid ? "🟢 GEÇERLİ E-İMZA (" + sig.signerName + ")" : "🔴 GEÇERSİZ İMZA (İçerik Uyuşmuyor)";
+            }
+            tvDocDetails.setText("Boyut: " + sizeKb + " KB • " + sigBadge + "\nKonum: " + file.getAbsolutePath());
         }
-        tvDocDetails.setText("Boyut: " + sizeKb + " KB • " + sigBadge + "\nKonum: " + file.getAbsolutePath());
         loadRecentDocuments();
     }
 
@@ -334,9 +363,23 @@ public class MainActivity extends Activity {
         new Thread(() -> {
             String text = "Belge metni bulunamadı.";
             try {
-                String html = UdfEngine.readUdfToHtml(file);
-                // HTML etiketlerini ayıkla
-                text = html.replaceAll("<[^>]*>", " ").replaceAll("\\s+", " ").trim();
+                String payload;
+                if (DocxEngine.isDocxFile(file)) {
+                    payload = DocxEngine.readDocxToHtml(file);
+                } else {
+                    payload = UdfEngine.readUdfToHtml(file);
+                }
+
+                String htmlToClean = payload;
+                if (payload != null && payload.trim().startsWith("{")) {
+                    try {
+                        JSONObject obj = new JSONObject(payload);
+                        htmlToClean = obj.optString("html", payload);
+                    } catch (Exception ignored) {}
+                }
+
+                text = htmlToClean.replaceAll("<[^>]*>", " ").replaceAll("\\s+", " ").trim();
+                if (text.isEmpty()) text = "Belge içeriği boş.";
             } catch (Exception e) {
                 text = "Hızlı önizleme hatası: " + e.getMessage();
             }
@@ -479,31 +522,38 @@ public class MainActivity extends Activity {
             sub.setTextSize(11.5f);
             sub.setTextColor(0xFF555555);
 
-            // Havelsan UYAP elektronik imza kontrolü
-            UdfEngine.SignatureInfo sig = UdfEngine.verifySignature(f);
+            boolean isDocx = DocxEngine.isDocxFile(f);
             TextView tvSig = new TextView(this);
             tvSig.setTextSize(12);
             tvSig.setPadding(0, 4, 0, 0);
 
-            if (sig.hasSignature) {
-                if (sig.isValid) {
-                    String signer = sig.signerName.isEmpty() ? "Bilinmeyen İmzacı" : sig.signerName;
-                    String issuer = sig.issuer.isEmpty() ? "" : " (" + sig.issuer + ")";
-                    if (sig.signers.size() > 1) {
-                        tvSig.setText("🟢 " + sig.signers.size() + " GEÇERLİ İMZA: " + signer);
-                    } else {
-                        tvSig.setText("🟢 GEÇERLİ E-İMZA: " + signer + issuer);
-                    }
-                    tvSig.setTextColor(0xFF2E7D32); // Koyu yeşil
-                    tvSig.setTypeface(null, android.graphics.Typeface.BOLD);
-                } else {
-                    tvSig.setText("🔴 GEÇERSİZ İMZA (İçerik Özeti Uyuşmuyor veya Hatalı)");
-                    tvSig.setTextColor(0xFFC62828); // Koyu kırmızı
-                    tvSig.setTypeface(null, android.graphics.Typeface.BOLD);
-                }
+            if (isDocx) {
+                tvSig.setText("📄 Word Belgesi (.docx)");
+                tvSig.setTextColor(0xFF1976D2); // Mavi
+                tvSig.setTypeface(null, android.graphics.Typeface.BOLD);
             } else {
-                tvSig.setText("⚪ İmzasız Belge");
-                tvSig.setTextColor(0xFF757575); // Gri
+                // Havelsan UYAP elektronik imza kontrolü
+                UdfEngine.SignatureInfo sig = UdfEngine.verifySignature(f);
+                if (sig.hasSignature) {
+                    if (sig.isValid) {
+                        String signer = sig.signerName.isEmpty() ? "Bilinmeyen İmzacı" : sig.signerName;
+                        String issuer = sig.issuer.isEmpty() ? "" : " (" + sig.issuer + ")";
+                        if (sig.signers.size() > 1) {
+                            tvSig.setText("🟢 " + sig.signers.size() + " GEÇERLİ İMZA: " + signer);
+                        } else {
+                            tvSig.setText("🟢 GEÇERLİ E-İMZA: " + signer + issuer);
+                        }
+                        tvSig.setTextColor(0xFF2E7D32); // Koyu yeşil
+                        tvSig.setTypeface(null, android.graphics.Typeface.BOLD);
+                    } else {
+                        tvSig.setText("🔴 GEÇERSİZ İMZA (İçerik Özeti Uyuşmuyor veya Hatalı)");
+                        tvSig.setTextColor(0xFFC62828); // Koyu kırmızı
+                        tvSig.setTypeface(null, android.graphics.Typeface.BOLD);
+                    }
+                } else {
+                    tvSig.setText("⚪ İmzasız Belge");
+                    tvSig.setTextColor(0xFF757575); // Gri
+                }
             }
 
             itemLayout.addView(title);
@@ -523,8 +573,11 @@ public class MainActivity extends Activity {
             File[] files = dir.listFiles();
             if (files != null) {
                 for (File f : files) {
-                    if (f.isFile() && f.getName().toLowerCase().endsWith(".udf")) {
-                        list.add(f);
+                    if (f.isFile()) {
+                        String n = f.getName().toLowerCase(Locale.ROOT);
+                        if (n.endsWith(".udf") || n.endsWith(".docx")) {
+                            list.add(f);
+                        }
                     }
                 }
             }

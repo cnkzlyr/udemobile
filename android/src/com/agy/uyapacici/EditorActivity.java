@@ -165,21 +165,37 @@ public class EditorActivity extends Activity {
         if (path != null && !path.trim().isEmpty()) {
             currentFile = new File(path);
             if (currentFile.exists()) {
-                etDocTitle.setText(currentFile.getName());
+                String cleanTitle = currentFile.getName();
+                if (cleanTitle.toLowerCase(Locale.ROOT).endsWith(".docx.udf")) {
+                    cleanTitle = cleanTitle.substring(0, cleanTitle.length() - 4);
+                }
+                etDocTitle.setText(cleanTitle);
                 tvSaveStatus.setText("Belge okunuyor...");
 
                 new Thread(() -> {
                     try {
                         String payload;
                         String sigJsonStr = null;
-                        String lower = currentFile.getName().toLowerCase(Locale.ROOT);
-                        if (lower.endsWith(".docx")) {
+
+                        boolean isDocx = DocxEngine.isDocxFile(currentFile);
+                        if (isDocx) {
                             payload = DocxEngine.readDocxToHtml(currentFile);
                         } else {
                             payload = UdfEngine.readUdfToHtml(currentFile);
                             // Belge imzasını doğrudan Havelsan UYAP standardına göre incele
                             UdfEngine.SignatureInfo sigInfo = UdfEngine.verifySignature(currentFile);
                             sigJsonStr = sigInfo.toJson().toString();
+                        }
+
+                        // Eğer UdfEngine içeriği boş döndüyse ama dosya bir docx olabilirse fallback yap:
+                        if (!isDocx && (payload == null || payload.contains("Belge içeriği boş."))) {
+                            try {
+                                String docxAttempt = DocxEngine.readDocxToHtml(currentFile);
+                                if (docxAttempt != null && !docxAttempt.contains("Belge içeriği boş.")) {
+                                    payload = docxAttempt;
+                                    sigJsonStr = null;
+                                }
+                            } catch (Exception ignored) {}
                         }
 
                         final String fPayload = payload;
@@ -245,7 +261,7 @@ public class EditorActivity extends Activity {
     private File resolveTargetFile(String ext) {
         String baseTitle = etDocTitle.getText().toString().trim();
         if (baseTitle.isEmpty()) baseTitle = "Yeni_Dilekce";
-        if (baseTitle.toLowerCase(Locale.ROOT).endsWith(".udf") || baseTitle.toLowerCase(Locale.ROOT).endsWith(".docx")) {
+        while (baseTitle.toLowerCase(Locale.ROOT).endsWith(".udf") || baseTitle.toLowerCase(Locale.ROOT).endsWith(".docx") || baseTitle.toLowerCase(Locale.ROOT).endsWith(".pdf")) {
             baseTitle = baseTitle.substring(0, baseTitle.lastIndexOf('.'));
         }
         File targetDir;
@@ -314,13 +330,13 @@ public class EditorActivity extends Activity {
                     DocxEngine.saveStructuredToDocx(finalJson, targetFile);
                 } else {
                     UdfEngine.saveStructuredToUdf(finalJson, targetFile);
-                    currentFile = targetFile;
-                    markPristineOnUi();
                 }
+                currentFile = targetFile;
+                markPristineOnUi();
 
                 runOnUiThread(() -> {
+                    etDocTitle.setText(targetFile.getName());
                     if (!isDocx) {
-                        etDocTitle.setText(targetFile.getName());
                         editorWebView.evaluateJavascript("onDocumentSignatureChecked({hasSignature:false,isValid:false,signers:[]});", null);
                     }
                     String time = new SimpleDateFormat("HH:mm", Locale.getDefault()).format(new Date());
@@ -331,11 +347,10 @@ public class EditorActivity extends Activity {
                         openInDesktopUyap(targetFile.getAbsolutePath());
                     }
                 });
-
             } catch (Exception e) {
                 runOnUiThread(() -> {
-                    tvSaveStatus.setText("Kayıt Hatası");
                     Toast.makeText(EditorActivity.this, "Kayıt hatası: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                    tvSaveStatus.setText("Kayıt Hatası");
                 });
             }
         }).start();
@@ -445,7 +460,7 @@ public class EditorActivity extends Activity {
     private String getCleanDocBaseTitle() {
         String base = etDocTitle.getText().toString().trim();
         if (base.isEmpty()) base = "Dilekce";
-        if (base.toLowerCase().endsWith(".udf") || base.toLowerCase().endsWith(".docx") || base.toLowerCase().endsWith(".pdf")) {
+        while (base.toLowerCase(Locale.ROOT).endsWith(".udf") || base.toLowerCase(Locale.ROOT).endsWith(".docx") || base.toLowerCase(Locale.ROOT).endsWith(".pdf")) {
             base = base.substring(0, base.lastIndexOf('.'));
         }
         return base;
