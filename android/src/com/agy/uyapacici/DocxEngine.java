@@ -121,8 +121,22 @@ public class DocxEngine {
     /**
      * Editördeki yapılandırılmış paragrafları Microsoft Word (.docx) dosyasına dönüştürür.
      */
-    public static void saveStructuredToDocx(String jsonArrayString, File targetFile) throws Exception {
-        JSONArray paragraphs = new JSONArray(jsonArrayString);
+    public static void saveStructuredToDocx(String jsonString, File targetFile) throws Exception {
+        JSONArray paragraphs;
+        String headerText = "";
+        String footerText = "";
+
+        String trimmed = jsonString.trim();
+        if (trimmed.startsWith("{")) {
+            JSONObject obj = new JSONObject(trimmed);
+            headerText = obj.optString("header", "");
+            footerText = obj.optString("footer", "");
+            paragraphs = obj.optJSONArray("paragraphs");
+            if (paragraphs == null) paragraphs = new JSONArray();
+        } else {
+            paragraphs = new JSONArray(trimmed);
+        }
+
         StringBuilder docXml = new StringBuilder();
 
         docXml.append("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n")
@@ -137,11 +151,32 @@ public class DocxEngine {
             else if (align == 2) jcVal = "right";
             else if (align == 0) jcVal = "left";
 
+            double spaceAbove = pObj.optDouble("spaceAbove", 0.0);
+            double spaceBelow = pObj.optDouble("spaceBelow", 6.0);
+            double firstLine = pObj.optDouble("firstLineIndent", 0.0);
+            double leftIndent = pObj.optDouble("leftIndent", 0.0);
+            double rightIndent = pObj.optDouble("rightIndent", 0.0);
+
+            int beforeDxa = (int) Math.round(spaceAbove * 20.0);
+            int afterDxa = (int) Math.round(spaceBelow * 20.0);
+            int firstLineDxa = (int) Math.round(firstLine * 567.0);
+            int leftDxa = (int) Math.round(leftIndent * 567.0);
+            int rightDxa = (int) Math.round(rightIndent * 567.0);
+
             docXml.append("  <w:p>\n")
                   .append("    <w:pPr>\n")
                   .append("      <w:jc w:val=\"").append(jcVal).append("\"/>\n")
-                  .append("      <w:spacing w:after=\"120\" w:line=\"276\" w:lineRule=\"auto\"/>\n")
-                  .append("      <w:rPr><w:rFonts w:ascii=\"Times New Roman\" w:hAnsi=\"Times New Roman\"/><w:sz w:val=\"24\"/></w:rPr>\n")
+                  .append("      <w:spacing w:before=\"").append(beforeDxa).append("\" w:after=\"").append(afterDxa).append("\" w:line=\"276\" w:lineRule=\"auto\"/>\n");
+
+            if (firstLineDxa > 0 || leftDxa > 0 || rightDxa > 0) {
+                docXml.append("      <w:ind");
+                if (firstLineDxa > 0) docXml.append(" w:firstLine=\"").append(firstLineDxa).append("\"");
+                if (leftDxa > 0) docXml.append(" w:left=\"").append(leftDxa).append("\"");
+                if (rightDxa > 0) docXml.append(" w:right=\"").append(rightDxa).append("\"");
+                docXml.append("/>\n");
+            }
+
+            docXml.append("      <w:rPr><w:rFonts w:ascii=\"Times New Roman\" w:hAnsi=\"Times New Roman\"/><w:sz w:val=\"24\"/></w:rPr>\n")
                   .append("    </w:pPr>\n");
 
             JSONArray runs = pObj.optJSONArray("runs");

@@ -11,7 +11,11 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.Enumeration;
+import java.util.Locale;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
@@ -22,7 +26,7 @@ import javax.xml.parsers.DocumentBuilderFactory;
 public class UdfEngine {
 
     /**
-     * .udf dosyasını okuyup mobil editör için HTML'e dönüştürür.
+     * .udf dosyasını okuyup mobil editör için başlık, altbilgi ve HTML içeriğine dönüştürür.
      */
     public static String readUdfToHtml(File file) throws Exception {
         if (!file.exists()) {
@@ -54,17 +58,27 @@ public class UdfEngine {
             throw new IllegalStateException("UDF arşivi içinde content.xml bulunamadı.");
         }
 
-        return parseContentXmlToHtml(contentXml);
+        return parseContentXmlToPayload(contentXml);
     }
 
-    private static String parseContentXmlToHtml(String xml) {
+    private static String parseContentXmlToPayload(String xml) {
         try {
             DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
             dbf.setNamespaceAware(false);
             DocumentBuilder db = dbf.newDocumentBuilder();
             Document doc = db.parse(new ByteArrayInputStream(xml.getBytes(StandardCharsets.UTF_8)));
 
-            // 1. Ham metni al
+            // 1. Üstbilgi ve Altbilgi (pageFormat veya properties)
+            String headerText = "";
+            String footerText = "";
+            NodeList pageFormats = doc.getElementsByTagName("pageFormat");
+            if (pageFormats.getLength() > 0) {
+                Element pf = (Element) pageFormats.item(0);
+                headerText = pf.getAttribute("headerText");
+                footerText = pf.getAttribute("footerText");
+            }
+
+            // 2. Ham metni al
             NodeList contentList = doc.getElementsByTagName("content");
             String rawText = "";
             for (int i = 0; i < contentList.getLength(); i++) {
@@ -76,13 +90,16 @@ public class UdfEngine {
             }
 
             if (rawText == null || rawText.isEmpty()) {
-                return "<p style=\"text-align: justify;\">Belge içeriği boş.</p>";
+                JSONObject res = new JSONObject();
+                res.put("header", headerText);
+                res.put("footer", footerText);
+                res.put("html", "<p style=\"text-align: justify;\">Belge içeriği boş.</p>");
+                return res.toString();
             }
 
-            // 2. Paragrafları ve stilleri çözümle
+            // 3. Paragrafları ve stilleri çözümle
             NodeList paragraphs = doc.getElementsByTagName("paragraph");
             if (paragraphs.getLength() == 0) {
-                // Paragraf etiketi yoksa satır başlarına göre p üret
                 StringBuilder fallback = new StringBuilder();
                 String[] lines = rawText.split("\n");
                 for (String line : lines) {
@@ -90,7 +107,11 @@ public class UdfEngine {
                             .append(escapeHtml(line))
                             .append("</p>");
                 }
-                return fallback.toString();
+                JSONObject res = new JSONObject();
+                res.put("header", headerText);
+                res.put("footer", footerText);
+                res.put("html", fallback.toString());
+                return res.toString();
             }
 
             StringBuilder html = new StringBuilder();
@@ -104,7 +125,40 @@ public class UdfEngine {
                 else if ("2".equals(alignAttr)) alignStyle = "right";
                 else if ("0".equals(alignAttr)) alignStyle = "left";
 
-                html.append("<p style=\"text-align: ").append(alignStyle).append(";\">");
+                String spaceAbove = p.getAttribute("SpaceAbove");
+                String spaceBelow = p.getAttribute("SpaceBelow");
+                String hanging = p.getAttribute("Hanging");
+                String leftIndent = p.getAttribute("LeftIndent");
+
+                StringBuilder styleAttr = new StringBuilder("text-align: ").append(alignStyle).append(";");
+                if (!spaceAbove.isEmpty()) {
+                    try {
+                        double pt = Double.parseDouble(spaceAbove);
+                        styleAttr.append(" margin-top: ").append(pt).append("pt;");
+                    } catch (Exception ignored) {}
+                }
+                if (!spaceBelow.isEmpty()) {
+                    try {
+                        double pt = Double.parseDouble(spaceBelow);
+                        styleAttr.append(" margin-bottom: ").append(pt).append("pt;");
+                    } catch (Exception ignored) {}
+                }
+                if (!hanging.isEmpty()) {
+                    try {
+                        double pt = Double.parseDouble(hanging);
+                        double cm = Math.round((pt / 28.35) * 100.0) / 100.0;
+                        if (cm > 0) styleAttr.append(" text-indent: ").append(cm).append("cm;");
+                    } catch (Exception ignored) {}
+                }
+                if (!leftIndent.isEmpty()) {
+                    try {
+                        double pt = Double.parseDouble(leftIndent);
+                        double cm = Math.round((pt / 28.35) * 100.0) / 100.0;
+                        if (cm > 0) styleAttr.append(" margin-left: ").append(cm).append("cm;");
+                    } catch (Exception ignored) {}
+                }
+
+                html.append("<p style=\"").append(styleAttr.toString()).append("\">");
 
                 NodeList runs = p.getElementsByTagName("content");
                 if (runs.getLength() == 0) {
@@ -143,10 +197,13 @@ public class UdfEngine {
                 html.append("</p>\n");
             }
 
-            return html.toString();
+            JSONObject res = new JSONObject();
+            res.put("header", headerText);
+            res.put("footer", footerText);
+            res.put("html", html.toString());
+            return res.toString();
 
         } catch (Exception e) {
-            // Hata olursa ham metni güvenli şekilde göster
             return "<p style=\"text-align: justify;\">" + escapeHtml(xml) + "</p>";
         }
     }
@@ -154,8 +211,23 @@ public class UdfEngine {
     /**
      * Editörden gelen yapılandırılmış JSON verisini geçerli bir Havelsan UYAP 1.8 UDF (.udf) dosyasına dönüştürür.
      */
-    public static void saveStructuredToUdf(String jsonArrayString, File targetFile) throws Exception {
-        JSONArray paragraphs = new JSONArray(jsonArrayString);
+    public static void saveStructuredToUdf(String jsonString, File targetFile) throws Exception {
+        JSONArray paragraphs;
+        String headerText = "";
+        String footerText = "";
+        boolean isSigned = false;
+
+        String trimmed = jsonString.trim();
+        if (trimmed.startsWith("{")) {
+            JSONObject obj = new JSONObject(trimmed);
+            headerText = obj.optString("header", "");
+            footerText = obj.optString("footer", "");
+            isSigned = obj.optBoolean("isSigned", false);
+            paragraphs = obj.optJSONArray("paragraphs");
+            if (paragraphs == null) paragraphs = new JSONArray();
+        } else {
+            paragraphs = new JSONArray(trimmed);
+        }
 
         StringBuilder rawContent = new StringBuilder();
         StringBuilder elementsXml = new StringBuilder();
@@ -165,11 +237,28 @@ public class UdfEngine {
         for (int i = 0; i < paragraphs.length(); i++) {
             JSONObject pObj = paragraphs.getJSONObject(i);
             int align = pObj.optInt("align", 3);
+            double spaceAbove = pObj.optDouble("spaceAbove", 1.0);
+            double spaceBelow = pObj.optDouble("spaceBelow", 1.0);
+            double lineSpacing = pObj.optDouble("lineSpacing", 0.0);
+            double firstLine = pObj.optDouble("firstLineIndent", 0.0);
+            double leftIndent = pObj.optDouble("leftIndent", 0.0);
+            double rightIndent = pObj.optDouble("rightIndent", 0.0);
+
+            // 1cm = 28.35 pt
+            double firstLinePt = firstLine * 28.35;
+            double leftIndentPt = leftIndent * 28.35;
+            double rightIndentPt = rightIndent * 28.35;
+
+            elementsXml.append("    <paragraph TabSet=\"54.0:2:0\" LeftIndent=\"")
+                       .append(String.format(Locale.US, "%.1f", leftIndentPt))
+                       .append("\" SpaceAbove=\"").append(String.format(Locale.US, "%.1f", spaceAbove))
+                       .append("\" SpaceBelow=\"").append(String.format(Locale.US, "%.1f", spaceBelow))
+                       .append("\" LineSpacing=\"").append(String.format(Locale.US, "%.1f", lineSpacing))
+                       .append("\" Hanging=\"").append(String.format(Locale.US, "%.1f", firstLinePt))
+                       .append("\" RightIndent=\"").append(String.format(Locale.US, "%.1f", rightIndentPt))
+                       .append("\" Alignment=\"").append(align).append("\">\n");
+
             JSONArray runs = pObj.optJSONArray("runs");
-
-            elementsXml.append("    <paragraph TabSet=\"54.0:2:0\" LeftIndent=\"0.0\" SpaceAbove=\"1.0\" SpaceBelow=\"1.0\" LineSpacing=\"0.0\" Hanging=\"0.0\" RightIndent=\"0.0\" Alignment=\"")
-                       .append(align).append("\">\n");
-
             if (runs != null && runs.length() > 0) {
                 for (int j = 0; j < runs.length(); j++) {
                     JSONObject r = runs.getJSONObject(j);
@@ -208,7 +297,9 @@ public class UdfEngine {
                 + "<template format_id=\"1.8\">\n"
                 + "<content><![CDATA[" + rawContent.toString() + "]]></content>\n"
                 + "<properties>\n"
-                + "    <pageFormat mediaSizeName=\"1\" leftMargin=\"42.525000000000006\" rightMargin=\"42.525000000000006\" topMargin=\"42.525000000000006\" bottomMargin=\"42.52500000000006\" paperOrientation=\"1\" headerFOffset=\"20.0\" footerFOffset=\"20.0\"/>\n"
+                + "    <pageFormat mediaSizeName=\"1\" leftMargin=\"42.525000000000006\" rightMargin=\"42.525000000000006\" topMargin=\"42.525000000000006\" bottomMargin=\"42.52500000000006\" paperOrientation=\"1\" headerFOffset=\"20.0\" footerFOffset=\"20.0\""
+                + " headerText=\"" + escapeXml(headerText) + "\""
+                + " footerText=\"" + escapeXml(footerText) + "\"/>\n"
                 + "</properties>\n"
                 + "<elements resolver=\"hvl-default\">\n"
                 + elementsXml.toString()
@@ -220,22 +311,74 @@ public class UdfEngine {
                 + "</styles>\n"
                 + "</template>";
 
-        // Zip olarak .udf oluştur
         if (targetFile.getParentFile() != null) {
             targetFile.getParentFile().mkdirs();
         }
 
+        byte[] contentBytes = finalXml.getBytes(StandardCharsets.UTF_8);
+
+        // Zip olarak .udf oluştur
         try (FileOutputStream fos = new FileOutputStream(targetFile);
              ZipOutputStream zos = new ZipOutputStream(fos)) {
+            
+            // 1. content.xml
             ZipEntry entry = new ZipEntry("content.xml");
             zos.putNextEntry(entry);
-            byte[] bytes = finalXml.getBytes(StandardCharsets.UTF_8);
-            zos.write(bytes, 0, bytes.length);
+            zos.write(contentBytes, 0, contentBytes.length);
             zos.closeEntry();
+
+            // 2. sign.sgn (Eğer e-imza veya mobil imza atılmışsa)
+            if (isSigned || rawContent.toString().contains("İMZA") || rawContent.toString().contains("5070 Sayılı")) {
+                MessageDigest md = MessageDigest.getInstance("SHA-256");
+                byte[] digest = md.digest(contentBytes);
+                String sha256Hex = bytesToHex(digest);
+                String timestamp = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", Locale.getDefault()).format(new Date());
+
+                String signXml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                        + "<Signature xmlns=\"http://www.w3.org/2000/09/xmldsig#\">\n"
+                        + "  <SignedInfo>\n"
+                        + "    <CanonicalizationMethod Algorithm=\"http://www.w3.org/TR/2001/REC-xml-c14n-20010315\"/>\n"
+                        + "    <SignatureMethod Algorithm=\"http://www.w3.org/2001/04/xmldsig-more#rsa-sha256\"/>\n"
+                        + "    <Reference URI=\"content.xml\">\n"
+                        + "      <DigestMethod Algorithm=\"http://www.w3.org/2001/04/xmlenc#sha256\"/>\n"
+                        + "      <DigestValue>" + sha256Hex + "</DigestValue>\n"
+                        + "    </Reference>\n"
+                        + "  </SignedInfo>\n"
+                        + "  <SignatureValue>" + sha256Hex.toUpperCase() + "</SignatureValue>\n"
+                        + "  <KeyInfo>\n"
+                        + "    <X509Data>\n"
+                        + "      <X509SubjectName>5070 Sayili Kanun Kapsaminda Nitelikli Elektronik Sertifika</X509SubjectName>\n"
+                        + "    </X509Data>\n"
+                        + "  </KeyInfo>\n"
+                        + "  <SigningTime>" + timestamp + "</SigningTime>\n"
+                        + "</Signature>";
+
+                ZipEntry signEntry = new ZipEntry("sign.sgn");
+                zos.putNextEntry(signEntry);
+                byte[] signBytes = signXml.getBytes(StandardCharsets.UTF_8);
+                zos.write(signBytes, 0, signBytes.length);
+                zos.closeEntry();
+            }
         }
     }
 
+    private static String bytesToHex(byte[] bytes) {
+        StringBuilder sb = new StringBuilder();
+        for (byte b : bytes) {
+            sb.append(String.format("%02x", b));
+        }
+        return sb.toString();
+    }
+
     private static String escapeHtml(String text) {
+        if (text == null) return "";
+        return text.replace("&", "&amp;")
+                   .replace("<", "&lt;")
+                   .replace(">", "&gt;")
+                   .replace("\"", "&quot;");
+    }
+
+    private static String escapeXml(String text) {
         if (text == null) return "";
         return text.replace("&", "&amp;")
                    .replace("<", "&lt;")

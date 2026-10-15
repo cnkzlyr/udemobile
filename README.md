@@ -3,7 +3,7 @@
 [![Android](https://img.shields.io/badge/Platform-Android_8.0+-3DDC84.svg?logo=android&logoColor=white)](https://android.com)
 [![UYAP](https://img.shields.io/badge/Format-UYAP_UDF_v1.8-0D47A1.svg)](https://uyap.gov.tr)
 [![Word](https://img.shields.io/badge/Format-MS_DOCX_OpenXML-2B579A.svg?logo=microsoft-word&logoColor=white)](https://microsoft.com)
-[![Version](https://img.shields.io/badge/Version-v2.2-blue.svg)](release/udemobile-v2.2.apk)
+[![Version](https://img.shields.io/badge/Version-v2.3-blue.svg)](release/udemobile-v2.3.apk)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 **UdeMobile**, avukatlar, katipler ve hukukçular için geliştirilmiş; telefon ve tablette **Google Dokümanlar & Word konforunda** UYAP dilekçesi yazmayı, düzenlemeyi, okumayı ve imzalamayı sağlayan yeni nesil bir mobil hukuk editörüdür.
@@ -14,7 +14,32 @@ Artık telefonda UYAP belgelerini açmak için karmaşık X11 masaüstü pencere
 
 ## 🌟 Öne Çıkan Özellikler
 
-### 1. 📱 Google Dokümanlar Stili Mobil A4 Çalışma Alanı
+### 1. 📏 Etkileşimli A4 Cetveli (Ruler - Word & UYAP Stili)
+* **0 - 16 cm Hassas Milimetre Ölçeği:** A4 kağıt genişliğiyle birebir örtüşen yatay cetvel.
+* **İlk Satır Girintisi İmi (▼):** Dokunarak veya sürükleyerek seçili paragrafın ilk satır girintisini (0.5 cm, 1.0 cm, 1.25 cm UYAP standardı) canlı ayarlama.
+* **Sol / Asılı Girinti İmi (▲ + ▀):** Paragrafın sol kenarını ve asılı bendini ayarlama.
+* **Sağ Kenar İmi (▲):** Paragrafın sağ marjini kontrol etme.
+* **Otomatik Senkronizasyon:** İmleç hangi paragrafa gelirse cetvel imleri o paragrafın girintilerine anında konumlanır.
+
+### 2. 📐 Seçili Paragraftan Önce / Sonra Boşluk & Detaylı Ayar Modali
+* **Hedefli Paragraf Biçimlendirme:** Biçimlendirme tüm belgeyi bozmaz; doğrudan **seçili veya imlecin bulunduğu paragrafa** uygulanır.
+* **Paragraftan Önceki Boşluk (Space Above):** 0 pt, 2 pt, 4 pt, 6 pt, 12 pt veya özel pt değeri (+/− butonları ile).
+* **Paragraftan Sonraki Boşluk (Space Below):** 0 pt, 4 pt, 8 pt (Standart UYAP), 12 pt, 18 pt veya özel pt değeri.
+* **Satır Aralığı (Line Spacing):** Tek (1.0), 1.15, UYAP Standart (1.35), 1.5, Çift (2.0).
+* **Kapsam Seçimi:** Yapılan ayarları yalnızca geçerli paragrafa veya tüm belgeye uygulama seçeneği.
+* **Canlı Önizleme:** Modal içerisindeki önizleme kutusunda paragrafın nasıl görüneceğini anlık takip etme.
+
+### 3. 📑 Kalıcı Üstbilgi ve Altbilgi (Header & Footer)
+* **Asla Kaybolmayan Yapı:** Sayfa başı ve sayfa sonu kalıcı olarak görüntülenir, işlem yapıldığında kaybolmaz.
+* **Çift Yönlü UDF & DOCX Uyumluluğu:** Üstbilgi (Mahkeme adı, dosya no) ve altbilgi (iletişim, sayfa no) doğrudan UDF `<pageFormat>` ve DOCX yapısına kaydedilir, belge açıldığında geri yüklenir.
+* **Hızlı Sayfa No Ekleme:** Tek tıkla altbilgiye tarih ve `Sayfa 1 / 1` formatında resmi numaralandırma.
+
+### 4. 📱 Mobil İmza (M-İmza) & ✍️ USB E-İmza (sign.sgn Kriptografik Doğrulama)
+* **İmleç Konumu Koruma:** Mobil imza veya e-imza penceresi açıldığında imleç konumu kaybolmaz; imza mührü doğrudan seçili konuma eklenir ve ekranda merkeze kaydırılır.
+* **Gerçek UYAP `sign.sgn` Arşivi:** İmzalı belgeler kaydedildiğinde `.udf` arşivine SHA-256 özeti ve 5070 Sayılı Kanun uyumlu dijital imza bloğu (`sign.sgn`) eklenir. UYAP Editör tarafından resmi imzalı belge olarak tanınır.
+* **Operatör & Token Desteği:** Turkcell, Vodafone, Türk Telekom M-İmza ile TÜRKTRUST, Kamu SM, AKİS, e-Tuğra akıllı kartları.
+
+### 5. 📱 Google Dokümanlar Stili Mobil A4 Çalışma Alanı
 * **Görünüm Değiştirici (Kağıt / Mobil Mod):**
   * **📄 Kağıt Modu (A4):** Resmi dilekçe kenar boşlukları, gölgeli beyaz sayfa simülasyonu ve gerçek baskı önizlemesi.
   * **📱 Mobil Mod:** Küçük telefon ekranlarında tek elle rahat okuma ve yazma için kenarları dolduran esnek mobil düzen.
@@ -70,7 +95,7 @@ Artık telefonda UYAP belgelerini açmak için karmaşık X11 masaüstü pencere
 ## 🚀 Sıfırdan Kurulum Rehberi
 
 ### Adım 1: APK Kurulumu
-1. Bu depodaki [release/udemobile-v2.2.apk](release/udemobile-v2.2.apk) dosyasını telefonunuza indirin.
+1. Bu depodaki [release/udemobile-v2.3.apk](release/udemobile-v2.3.apk) dosyasını telefonunuza indirin.
 2. Dosyayı açıp **"Yükle"** onayına dokunun.
 
 ### Adım 2: İzinleri Ayarlama (Termux Entegrasyonu İçin)

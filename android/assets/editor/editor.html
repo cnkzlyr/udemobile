@@ -107,23 +107,29 @@
 
       <div class="divider"></div>
 
-      <!-- 8. Paragraf Boşlukları & Satır Aralığı (UYAP Standardı) -->
+      <!-- 8. Paragraf Boşlukları & Satır Aralığı (Seçili Paragrafa Özel) -->
       <div class="tool-group">
-        <select id="select-line-spacing" onchange="changeLineSpacing(this.value); this.selectedIndex=0;" title="Satır Aralığı">
+        <button type="button" class="tool-btn text-btn" onclick="openParagraphModal()" title="Seçili Paragraf Boşluk ve Girinti Ayarları">
+          📐 Paragraf
+        </button>
+
+        <select id="select-paragraph-spacing" onchange="changeParagraphSpacing(this.value); this.selectedIndex=0;" title="Hızlı Paragraf Boşluğu (Seçili Paragraf)">
+          <option value="" disabled selected>⇕ Paragraf Boşluğu</option>
+          <option value="0,0">Önce 0pt / Sonra 0pt</option>
+          <option value="0,4">Önce 0pt / Sonra 4pt</option>
+          <option value="2,6">Önce 2pt / Sonra 6pt</option>
+          <option value="4,8">Önce 4pt / Sonra 8pt (UYAP)</option>
+          <option value="6,12">Önce 6pt / Sonra 12pt</option>
+          <option value="custom">⚙️ Detaylı Aralık...</option>
+        </select>
+
+        <select id="select-line-spacing" onchange="changeLineSpacing(this.value); this.selectedIndex=0;" title="Satır Aralığı (Seçili Paragraf)">
           <option value="" disabled selected>↕️ Satır Aralığı</option>
           <option value="1.0">Tek (1.0)</option>
           <option value="1.15">1.15</option>
           <option value="1.35">1.35 (UYAP Standart)</option>
           <option value="1.5">1.5 Geniş</option>
           <option value="2.0">Çift (2.0)</option>
-        </select>
-
-        <select id="select-paragraph-spacing" onchange="changeParagraphSpacing(this.value); this.selectedIndex=0;" title="Paragraf Boşluğu">
-          <option value="" disabled selected>⇕ Paragraf Boşluğu</option>
-          <option value="0">Boşluk Yok (0 pt)</option>
-          <option value="4">Küçük (4 pt)</option>
-          <option value="8">Standart UYAP (8 pt)</option>
-          <option value="12">Geniş (12 pt)</option>
         </select>
       </div>
 
@@ -156,9 +162,12 @@
 
       <div class="divider"></div>
 
-      <!-- 11. Üstbilgi / Altbilgi Aç-Kapat -->
+      <!-- 11. Cetvel & Üstbilgi/Altbilgi -->
       <div class="tool-group">
-        <button type="button" id="btn-toggle-header-footer" class="tool-btn text-btn" onclick="toggleHeaderFooter()" title="Üstbilgi ve Altbilgiyi Aç/Kapat">
+        <button type="button" id="btn-toggle-ruler" class="tool-btn text-btn active" onclick="toggleRuler()" title="Etkileşimli Cetveli Göster/Gizle">
+          📏 Cetvel
+        </button>
+        <button type="button" id="btn-focus-header" class="tool-btn text-btn" onclick="focusHeaderFooter()" title="Üstbilgi veya Altbilgiye Git">
           📑 Üst/Altbilgi
         </button>
       </div>
@@ -180,42 +189,74 @@
 
   <!-- A4 Kağıt / Mobil Görünüm Konteyneri -->
   <div id="page-wrapper" class="paper-view">
-    <div id="a4-sheet">
+    <div id="sheet-container">
+      
+      <!-- ETKİLEŞİMLİ CETVEL (Word & UYAP Stili İlk Satır / Asılı / Sağ Girinti) -->
+      <div id="ruler-container" class="ruler-container">
+        <div id="ruler-body" class="ruler-body">
+          <!-- Sol Kenar Boşluğu Arka Planı -->
+          <div class="ruler-margin-left"></div>
 
-      <!-- Üstbilgi Alanı (Header) -->
-      <div id="doc-header" class="header-footer-box" contenteditable="true" spellcheck="false">
-        <span class="placeholder-label">T.C. İSTANBUL ANADOLU 1. ASLİYE HUKUK MAHKEMESİ — Dosya No: 2026/.... Esas</span>
+          <!-- Aktif Cetvel Ölçeği (0 - 16 cm) -->
+          <div id="ruler-scale" class="ruler-scale">
+            <!-- İlk Satır Girintisi İmi (Üst Üçgen) -->
+            <div id="marker-first-line" class="ruler-marker marker-first-line" title="İlk Satır Girintisi (Sürükleyin veya Dokunun)">
+              <div class="marker-triangle-down"></div>
+            </div>
+
+            <!-- Asılı / Sol Girinti İmi (Alt Üçgen + Kutu) -->
+            <div id="marker-left-indent" class="ruler-marker marker-left-indent" title="Sol Girinti / Asılı Girinti (Sürükleyin)">
+              <div class="marker-triangle-up"></div>
+              <div class="marker-box"></div>
+            </div>
+
+            <!-- Cetvel cm ve mm Çizgileri Dinamik Üretilir -->
+            <div id="ruler-ticks" class="ruler-ticks"></div>
+
+            <!-- Sağ Kenar Girinti İmi (Alt Üçgen) -->
+            <div id="marker-right-indent" class="ruler-marker marker-right-indent" title="Sağ Girinti (Sürükleyin)">
+              <div class="marker-triangle-up"></div>
+            </div>
+          </div>
+
+          <!-- Sağ Kenar Boşluğu Arka Planı -->
+          <div class="ruler-margin-right"></div>
+        </div>
       </div>
 
-      <!-- Ana Editör İçeriği -->
-      <div id="editor-content" contenteditable="true" spellcheck="true" autocomplete="off" autocapitalize="sentences">
-        <p style="text-align: center;"><strong>... NÖBETÇİ ASLİYE HUKUK MAHKEMESİ HÂKİMLİĞİ'NE</strong></p>
-        <p style="text-align: justify;"><br></p>
-        <p style="text-align: justify;"><strong>DOSYA NO :</strong> 2026/.... Esas</p>
-        <p style="text-align: justify;"><strong>DAVACI :</strong> [Davacı Adı Soyadı / Ünvanı - TCKN / VKN]</p>
-        <p style="text-align: justify;"><strong>VEKİLİ :</strong> Av. [Vekil Adı Soyadı] - Baro Sicil No / UETS</p>
-        <p style="text-align: justify;"><strong>DAVALI :</strong> [Davalı Adı Soyadı / Ünvanı]</p>
-        <p style="text-align: justify;"><strong>DAVA KONUSU :</strong> [Davanın Konusu ve Talebin Özeti]</p>
-        <p style="text-align: justify;"><br></p>
-        <p style="text-align: justify;"><strong>AÇIKLAMALAR :</strong></p>
-        <p style="text-align: justify; text-indent: 28px;">1.1-) Müvekkil ile davalı taraf arasındaki hukuki ilişki çerçevesinde ...</p>
-        <p style="text-align: justify; text-indent: 28px;">1.2-) Davalı taraf edimlerini usul ve yasaya aykırı şekilde ifa etmemiştir ...</p>
-        <p style="text-align: justify;"><br></p>
-        <p style="text-align: justify;"><strong>HUKUKİ SEBEPLER :</strong> 6100 sayılı HMK, 6098 sayılı TBK, TTK ve ilgili mevzuat.</p>
-        <p style="text-align: justify;"><strong>DELİLLER :</strong> Fatura, banka dekontları, tanık, bilirkişi raporu, yemin ve her türlü yasal delil.</p>
-        <p style="text-align: justify;"><br></p>
-        <p style="text-align: justify;"><strong>NETİCE-İ TALEP :</strong> Yukarıda arz ve izah edilen nedenlerle haklı davamızın kabulüne, yargılama giderleri ile vekâlet ücretinin davalıya tahmiline karar verilmesini saygıyla vekâleten arz ve talep ederiz.</p>
-        <p style="text-align: right;"><br></p>
-        <p style="text-align: right;"><strong>Davacı Vekili</strong><br>Av. [Adınız Soyadınız]<br><em>(5070 Sayılı Kanun Uyarınca E-İmzalıdır)</em></p>
-      </div>
+      <div id="a4-sheet">
 
-      <!-- Altbilgi Alanı (Footer) -->
-      <div id="doc-footer" class="header-footer-box" contenteditable="true" spellcheck="false">
-        <span class="placeholder-label">Adres: [Büro Adresi / Telefon / UETS Adresi] &nbsp;|&nbsp; Sayfa: 1 / 1</span>
-      </div>
+        <!-- Üstbilgi Alanı (Header) -->
+        <div id="doc-header" class="header-footer-box" contenteditable="true" spellcheck="false" data-placeholder="Üstbilgi eklemek için buraya dokunun (örn: Mahkeme Adı, Dosya No)...">T.C. İSTANBUL ANADOLU 1. ASLİYE HUKUK MAHKEMESİ — Dosya No: 2026/.... Esas</div>
 
-    </div>
-  </div>
+        <!-- Ana Editör İçeriği -->
+        <div id="editor-content" contenteditable="true" spellcheck="true" autocomplete="off" autocapitalize="sentences">
+          <p style="text-align: center;"><strong>... NÖBETÇİ ASLİYE HUKUK MAHKEMESİ HÂKİMLİĞİ'NE</strong></p>
+          <p style="text-align: justify;"><br></p>
+          <p style="text-align: justify;"><strong>DOSYA NO :</strong> 2026/.... Esas</p>
+          <p style="text-align: justify;"><strong>DAVACI :</strong> [Davacı Adı Soyadı / Ünvanı - TCKN / VKN]</p>
+          <p style="text-align: justify;"><strong>VEKİLİ :</strong> Av. [Vekil Adı Soyadı] - Baro Sicil No / UETS</p>
+          <p style="text-align: justify;"><strong>DAVALI :</strong> [Davalı Adı Soyadı / Ünvanı]</p>
+          <p style="text-align: justify;"><strong>DAVA KONUSU :</strong> [Davanın Konusu ve Talebin Özeti]</p>
+          <p style="text-align: justify;"><br></p>
+          <p style="text-align: justify;"><strong>AÇIKLAMALAR :</strong></p>
+          <p style="text-align: justify; text-indent: 28px; margin-top: 4pt; margin-bottom: 8pt;">1.1-) Müvekkil ile davalı taraf arasındaki hukuki ilişki çerçevesinde ...</p>
+          <p style="text-align: justify; text-indent: 28px; margin-top: 4pt; margin-bottom: 8pt;">1.2-) Davalı taraf edimlerini usul ve yasaya aykırı şekilde ifa etmemiştir ...</p>
+          <p style="text-align: justify;"><br></p>
+          <p style="text-align: justify;"><strong>HUKUKİ SEBEPLER :</strong> 6100 sayılı HMK, 6098 sayılı TBK, TTK ve ilgili mevzuat.</p>
+          <p style="text-align: justify;"><strong>DELİLLER :</strong> Fatura, banka dekontları, tanık, bilirkişi raporu, yemin ve her türlü yasal delil.</p>
+          <p style="text-align: justify;"><br></p>
+          <p style="text-align: justify;"><strong>NETİCE-İ TALEP :</strong> Yukarıda arz ve izah edilen nedenlerle haklı davamızın kabulüne, yargılama giderleri ile vekâlet ücretinin davalıya tahmiline karar verilmesini saygıyla vekâleten arz ve talep ederiz.</p>
+          <p style="text-align: right;"><br></p>
+          <p style="text-align: right;"><strong>Davacı Vekili</strong><br>Av. [Adınız Soyadınız]<br><em>(5070 Sayılı Kanun Uyarınca E-İmzalıdır)</em></p>
+        </div>
+
+        <!-- Altbilgi Alanı (Footer) -->
+        <div id="doc-footer" class="header-footer-box" contenteditable="true" spellcheck="false" data-placeholder="Altbilgi eklemek için buraya dokunun (örn: Büro Adresi, UETS, Sayfa No)...">Adres: [Büro Adresi / Telefon / UETS Adresi] &nbsp;|&nbsp; Sayfa: 1 / 1</div>
+
+      </div> <!-- #a4-sheet -->
+    </div> <!-- #sheet-container -->
+  </div> <!-- #page-wrapper -->
 
   <!-- MOBİL İMZA MODAL PENCERESİ -->
   <div id="modal-mobile-sign" class="modal-backdrop">
@@ -275,6 +316,129 @@
       <div class="modal-footer">
         <button class="modal-btn secondary" onclick="closeModal('modal-smartcard-sign')">İptal</button>
         <button class="modal-btn primary" onclick="startSmartCardSign()">Kartla İmzala</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PARAGRAF AYARLARI MODAL PENCERESİ (Word & UYAP Standartları) -->
+  <div id="modal-paragraph-settings" class="modal-backdrop">
+    <div class="modal-card modal-card-wide">
+      <div class="modal-header">
+        <h3>📐 Paragraf Biçimlendirme &amp; Boşlukları</h3>
+        <button class="modal-close" onclick="closeModal('modal-paragraph-settings')">✕</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-desc">İmlecin bulunduğu veya seçtiğiniz paragraf(lar) için özel boşluk, girinti ve satır aralığı belirleyin.</p>
+
+        <!-- Kapsam Seçimi -->
+        <div class="param-row scope-row">
+          <label class="modal-label">Uygulama Alanı:</label>
+          <div class="segmented-control">
+            <button type="button" class="segment-btn active" id="btn-scope-selected" onclick="setParagraphScope('selected')">Seçili Paragraf</button>
+            <button type="button" class="segment-btn" id="btn-scope-all" onclick="setParagraphScope('all')">Tüm Belge</button>
+          </div>
+        </div>
+
+        <!-- Paragraf Boşlukları (Önce & Sonra) -->
+        <div class="param-grid-2">
+          <div class="param-col">
+            <label class="modal-label">Önceki Boşluk (pt):</label>
+            <div class="stepper-box">
+              <button type="button" class="stepper-btn" onclick="stepParagraphValue('space-before', -2)">−</button>
+              <input type="number" id="p-space-before" class="stepper-input" value="4" min="0" max="72" step="2">
+              <button type="button" class="stepper-btn" onclick="stepParagraphValue('space-before', 2)">+</button>
+            </div>
+            <div class="quick-chips">
+              <span class="chip" onclick="setStepperVal('p-space-before', 0)">0 pt</span>
+              <span class="chip" onclick="setStepperVal('p-space-before', 2)">2 pt</span>
+              <span class="chip" onclick="setStepperVal('p-space-before', 4)">4 pt</span>
+              <span class="chip" onclick="setStepperVal('p-space-before', 6)">6 pt</span>
+            </div>
+          </div>
+
+          <div class="param-col">
+            <label class="modal-label">Sonraki Boşluk (pt):</label>
+            <div class="stepper-box">
+              <button type="button" class="stepper-btn" onclick="stepParagraphValue('space-after', -2)">−</button>
+              <input type="number" id="p-space-after" class="stepper-input" value="8" min="0" max="72" step="2">
+              <button type="button" class="stepper-btn" onclick="stepParagraphValue('space-after', 2)">+</button>
+            </div>
+            <div class="quick-chips">
+              <span class="chip" onclick="setStepperVal('p-space-after', 0)">0 pt</span>
+              <span class="chip" onclick="setStepperVal('p-space-after', 4)">4 pt</span>
+              <span class="chip" onclick="setStepperVal('p-space-after', 8)">8 pt (UYAP)</span>
+              <span class="chip" onclick="setStepperVal('p-space-after', 12)">12 pt</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Girintiler (İlk Satır / Asılı / Sol / Sağ) -->
+        <div class="param-grid-2" style="margin-top: 10px;">
+          <div class="param-col">
+            <label class="modal-label">İlk Satır Girintisi (cm):</label>
+            <div class="stepper-box">
+              <button type="button" class="stepper-btn" onclick="stepParagraphValue('first-line', -0.25)">−</button>
+              <input type="number" id="p-first-line" class="stepper-input" value="1.25" min="0" max="10" step="0.25">
+              <button type="button" class="stepper-btn" onclick="stepParagraphValue('first-line', 0.25)">+</button>
+            </div>
+            <div class="quick-chips">
+              <span class="chip" onclick="setStepperVal('p-first-line', 0)">0 cm</span>
+              <span class="chip" onclick="setStepperVal('p-first-line', 1.0)">1.0 cm</span>
+              <span class="chip" onclick="setStepperVal('p-first-line', 1.25)">1.25 cm</span>
+            </div>
+          </div>
+
+          <div class="param-col">
+            <label class="modal-label">Sol / Asılı Girinti (cm):</label>
+            <div class="stepper-box">
+              <button type="button" class="stepper-btn" onclick="stepParagraphValue('left-indent', -0.25)">−</button>
+              <input type="number" id="p-left-indent" class="stepper-input" value="0.00" min="0" max="10" step="0.25">
+              <button type="button" class="stepper-btn" onclick="stepParagraphValue('left-indent', 0.25)">+</button>
+            </div>
+            <div class="quick-chips">
+              <span class="chip" onclick="setStepperVal('p-left-indent', 0)">0 cm</span>
+              <span class="chip" onclick="setStepperVal('p-left-indent', 0.5)">0.5 cm</span>
+              <span class="chip" onclick="setStepperVal('p-left-indent', 1.0)">1.0 cm</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Satır Aralığı & Hizalama -->
+        <div class="param-grid-2" style="margin-top: 10px;">
+          <div class="param-col">
+            <label class="modal-label">Satır Aralığı:</label>
+            <select id="p-line-spacing" class="modal-input" onchange="updateParagraphPreview()">
+              <option value="1.0">1.0 (Tek)</option>
+              <option value="1.15">1.15</option>
+              <option value="1.35" selected>1.35 (UYAP Standart)</option>
+              <option value="1.5">1.5 (Geniş)</option>
+              <option value="2.0">2.0 (Çift)</option>
+            </select>
+          </div>
+
+          <div class="param-col">
+            <label class="modal-label">Paragraf Hizalaması:</label>
+            <div class="segmented-control">
+              <button type="button" class="align-btn" id="p-align-left" onclick="setPAlign('left')">⇤ Sol</button>
+              <button type="button" class="align-btn" id="p-align-center" onclick="setPAlign('center')">≡ Orta</button>
+              <button type="button" class="align-btn" id="p-align-right" onclick="setPAlign('right')">Sağ ⇥</button>
+              <button type="button" class="align-btn active" id="p-align-justify" onclick="setPAlign('justify')">Yassı</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Canlı Önizleme Kutusu -->
+        <div class="preview-box-container" style="margin-top: 12px;">
+          <label class="modal-label">Önizleme:</label>
+          <div id="p-live-preview" class="p-preview-box">
+            Bu metin, paragraf boşluk ve girintilerinin belgenizde nasıl görüneceğini gerçek zamanlı olarak temsil etmektedir.
+          </div>
+        </div>
+
+      </div>
+      <div class="modal-footer">
+        <button class="modal-btn secondary" onclick="closeModal('modal-paragraph-settings')">İptal</button>
+        <button class="modal-btn primary" onclick="applyParagraphSettings()">Uygula &amp; Kaydet</button>
       </div>
     </div>
   </div>
