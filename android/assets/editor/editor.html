@@ -28,7 +28,7 @@
 
       <div class="divider"></div>
 
-      <!-- Hızlı Dilekçe Şablonları Menüsü -->
+      <!-- Hızlı Dilekçe Şablonları Menüsü & AI Biçimlendirme -->
       <div class="tool-group">
         <select id="select-template" onchange="insertTemplate(this.value); this.selectedIndex=0;" title="Resmi Dilekçe Şablonları">
           <option value="" disabled selected>⚖️ Şablon</option>
@@ -41,6 +41,7 @@
           <option value="icra">İcraya İtiraz</option>
           <option value="ihtar">İhtarname</option>
         </select>
+        <button type="button" id="btn-ai-format" class="tool-btn text-btn ai-format-btn" onclick="openAiFormatModal()" title="AI Dilekçe Formatlama (Canlı AI & Hukuki Biçimlendirme)">🤖 AI Formatla</button>
       </div>
 
       <div class="divider"></div>
@@ -761,6 +762,60 @@
       </div>
       <div class="modal-footer">
         <button class="modal-btn primary" onclick="closeModal('modal-doc-stats')">Tamam</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- AI DİLEKÇE FORMATLAMA MODAL PENCERESİ -->
+  <div id="modal-ai-format" class="modal-backdrop">
+    <div class="modal-card">
+      <div class="modal-header ai-header">
+        <h3>🤖 AI Dilekçe Formatlama</h3>
+        <button class="modal-close" onclick="closeAiFormatModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-desc">Dilekçenizi resmi Türk yargı ve UYAP standartlarına göre otomatik olarak biçimlendirin. Mahkeme başlığı ortalanır, Dosya No/Sanık/Müdafi hizalamaları 5.0 cm sekme durağına oturtulur, paragraflar iki yana yaslanıp 1.0 cm girinti verilir, imza bloğu sağa yaslanır.</p>
+
+        <!-- SEÇENEK 1: Anında Hızlı Biçimlendirme (Çevrimdışı) -->
+        <div class="ai-option-card">
+          <div class="ai-card-title">
+            <span>⚡ Standart Hukuk Biçimlendirmesi</span>
+            <span class="ai-badge fast">Anında &amp; Çevrimdışı</span>
+          </div>
+          <p class="ai-card-desc">API anahtarı veya internet gerektirmez. Dilekçedeki mahkeme adını, dosya/taraf bloklarını, girintileri ve imzaları anında düzenler.</p>
+          <button type="button" class="modal-btn ai-btn-instant" style="width: 100%; margin-top: 4px;" onclick="executeDeterministicFormat()">⚡ Şimdi Biçimlendir</button>
+        </div>
+
+        <!-- SEÇENEK 2: Canlı Gemini AI Biçimlendirmesi -->
+        <div class="ai-option-card" style="margin-top: 6px;">
+          <div class="ai-card-title">
+            <span>✨ Gemini AI ile Akıllı Formatla</span>
+            <span class="ai-badge smart">Canlı Yapay Zeka</span>
+          </div>
+          <p class="ai-card-desc">Google'ın en hızlı ve en ekonomik <code>gemini-2.0-flash</code> yapay zekasını kullanarak dilekçenizi içeriğine göre analiz eder ve mükemmel UYAP şablonuna dönüştürür.</p>
+
+          <label class="modal-label" style="margin-top: 4px;">Gemini API Anahtarı:</label>
+          <div class="ai-key-group">
+            <input type="password" id="gemini-api-key-input" class="modal-input ai-key-input" placeholder="AIzaSy...">
+            <button type="button" class="modal-btn secondary" style="padding: 0 8px; font-size: 11px;" onclick="toggleApiKeyVisibility()" title="Göster / Gizle">👁️</button>
+            <button type="button" class="modal-btn primary" style="padding: 0 10px; font-size: 11px;" onclick="saveGeminiApiKey()">Kaydet</button>
+          </div>
+
+          <div style="display: flex; gap: 8px; align-items: center; margin-top: 2px;">
+            <label class="modal-label" style="margin-top: 0; min-width: 70px;">AI Model:</label>
+            <select id="gemini-model-select" class="modal-input" style="padding: 4px 8px; font-size: 11.5px; height: auto;">
+              <option value="gemini-2.0-flash" selected>gemini-2.0-flash (En Hızlı &amp; En Ucuz)</option>
+              <option value="gemini-1.5-flash">gemini-1.5-flash</option>
+            </select>
+          </div>
+
+          <button type="button" id="btn-run-gemini-ai" class="modal-btn ai-btn-gemini" style="width: 100%; margin-top: 6px;" onclick="executeGeminiFormat()">✨ Gemini ile Canlı Formatla</button>
+        </div>
+
+        <div id="ai-format-status" class="modal-status" style="margin-top: 8px;"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="modal-btn secondary" onclick="closeAiFormatModal()">Kapat</button>
       </div>
     </div>
   </div>

@@ -321,14 +321,15 @@ function updatePagination() {
     const headerArea = document.createElement('div');
     headerArea.className = 'page-break-header-area';
     const docHeader = document.getElementById('doc-header');
-    const hasHeader = docHeader && (docHeader.innerHTML.trim() || docHeader.innerText.trim()) && docHeader.style.display !== 'none';
+    const headerRawText = docHeader ? (docHeader.innerText || '').replace(/[\r\n\t\s]+/g, ' ').trim() : '';
+    const hasHeader = docHeader && headerRawText.length > 0 && docHeader.style.display !== 'none';
     if (hasHeader) {
       headerArea.classList.add('has-header');
       const hClone = document.createElement('div');
       hClone.className = 'header-footer-box';
       hClone.style.borderBottom = 'none';
       hClone.style.padding = '0';
-      hClone.style.marginBottom = '6px';
+      hClone.style.margin = '0';
       hClone.innerHTML = docHeader.innerHTML.trim();
       headerArea.appendChild(hClone);
     } else {
@@ -808,6 +809,10 @@ function initRuler() {
   setupMarkerDragging('marker-right-indent', 'rightIndent', activeCm);
 
   const rulerScale = document.getElementById('ruler-scale');
+  rulerScale.addEventListener('mousedown', (e) => {
+    // Editördeki metin seçiminin cetvele tıklanınca kaybolmaması için mousedown'u engelle
+    e.preventDefault();
+  });
   rulerScale.onclick = (e) => {
     if (activeDragMarker) return;
     
@@ -846,9 +851,53 @@ function removeTabStop(cm) {
 }
 
 function syncTabStopsToActiveParagraph() {
-  const p = getActiveParagraph();
-  if (p) {
-    p.dataset.tabStops = currentTabStops.join(',');
+  const targets = getSelectedParagraphs();
+  const val = currentTabStops.length > 0 ? currentTabStops.join(',') : '';
+  targets.forEach(p => {
+    if (val) {
+      p.dataset.tabStops = val;
+    } else {
+      delete p.dataset.tabStops;
+    }
+    realignTabsInParagraph(p);
+  });
+}
+
+function realignTabsInParagraph(p) {
+  if (!p) return;
+  const tabSpaces = Array.from(p.querySelectorAll('.udf-tab-space'));
+  const tabLabel = p.querySelector('.udf-tab-label');
+  if (tabSpaces.length === 0 && !tabLabel) return;
+
+  let stops = [];
+  if (p.dataset && p.dataset.tabStops) {
+    stops = p.dataset.tabStops.split(',').map(s => parseFloat(s)).filter(s => !isNaN(s)).sort((a, b) => a - b);
+  } else if (currentTabStops && currentTabStops.length > 0) {
+    stops = [...currentTabStops].sort((a, b) => a - b);
+  }
+
+  if (tabLabel && stops.length > 0) {
+    tabLabel.style.minWidth = Math.max(1.5, stops[0] - 0.5) + 'cm';
+    tabLabel.style.maxWidth = (stops[0] + 0.2) + 'cm';
+  }
+
+  if (tabSpaces.length > 0) {
+    try {
+      const pRect = p.getBoundingClientRect();
+      const pStyle = window.getComputedStyle(p);
+      const pLeft = pRect.left + (parseFloat(pStyle.paddingLeft) || 0);
+
+      tabSpaces.forEach((ts, idx) => {
+        const tsRect = ts.getBoundingClientRect();
+        const currentCm = Math.max(0, (tsRect.left - pLeft) / 37.795275);
+        let targetStop = stops[idx] !== undefined && stops[idx] > currentCm
+          ? stops[idx]
+          : (stops.find(s => s > currentCm + 0.1) || (Math.ceil((currentCm + 0.2) / 1.25) * 1.25));
+        const gap = Math.max(0.35, Math.round((targetStop - currentCm) * 100) / 100);
+        ts.style.width = gap + 'cm';
+        ts.dataset.targetStop = targetStop;
+      });
+    } catch(e) {}
   }
 }
 
@@ -885,7 +934,6 @@ function setupTabStopDragging(marker, originalCm, activeCm) {
       window.removeEventListener('touchend', upHandler);
 
       if (didMove) {
-        // Güncellenen durağı listeye uygula
         const idx = currentTabStops.indexOf(originalCm);
         if (idx !== -1) {
           currentTabStops[idx] = currentCm;
@@ -897,7 +945,6 @@ function setupTabStopDragging(marker, originalCm, activeCm) {
         renderTabStopsOnRuler();
         showEditorToast(`Sekme durağı taşındı: ${currentCm} cm`);
       } else {
-        // Sadece dokunulduysa kaldır
         removeTabStop(originalCm);
       }
       setTimeout(() => { activeDragMarker = null; }, 120);
@@ -937,34 +984,73 @@ function renderTabStopsOnRuler() {
 
 function handleTabAction() {
   const p = getActiveParagraph();
-  let targetWidthCm = 1.5;
+  if (!p) return;
+
+  const sel = window.getSelection();
+  if (!sel || sel.rangeCount === 0) return;
+
+  // Paragrafın ve cetvelin sekme duraklarını al
+  let stops = [];
   if (currentTabStops && currentTabStops.length > 0) {
-    targetWidthCm = currentTabStops[0];
-  } else if (p && p.dataset && p.dataset.tabStops) {
-    const stops = p.dataset.tabStops.split(',').map(s => parseFloat(s)).filter(s => !isNaN(s));
-    if (stops.length > 0) targetWidthCm = stops[0];
+    stops = [...currentTabStops].sort((a, b) => a - b);
+  } else if (p.dataset && p.dataset.tabStops) {
+    stops = p.dataset.tabStops.split(',').map(s => parseFloat(s)).filter(s => !isNaN(s)).sort((a, b) => a - b);
   }
+
+  const range = sel.getRangeAt(0);
+  range.deleteContents();
+
+  // İmlecin paragrafın sol kenarından itibaren yatay mesafesini hesapla
+  let currentCm = 0;
+  try {
+    const marker = document.createElement('span');
+    marker.textContent = '\u200B';
+    range.insertNode(marker);
+
+    const mRect = marker.getBoundingClientRect();
+    const pRect = p.getBoundingClientRect();
+    const pStyle = window.getComputedStyle(p);
+    const pLeft = pRect.left + (parseFloat(pStyle.paddingLeft) || 0);
+    currentCm = Math.max(0, (mRect.left - pLeft) / 37.795275);
+    marker.parentNode.removeChild(marker);
+  } catch (e) {
+    currentCm = 0;
+  }
+
+  // Bir sonraki sekme durağını belirle (Word / UYAP mantığı)
+  let nextStop = null;
+  if (stops.length > 0) {
+    nextStop = stops.find(s => s > (currentCm + 0.15));
+  }
+  if (!nextStop) {
+    // Varsayılan sekme aralığı: 1.25 cm katları
+    const defaultInterval = 1.25;
+    nextStop = Math.ceil((currentCm + 0.2) / defaultInterval) * defaultInterval;
+  }
+
+  const gapCm = Math.max(0.35, Math.round((nextStop - currentCm) * 100) / 100);
 
   const span = document.createElement('span');
   span.className = 'udf-tab-space';
   span.style.display = 'inline-block';
-  span.style.width = targetWidthCm + 'cm';
-  span.innerHTML = '&nbsp;&nbsp;&nbsp;&nbsp;';
+  span.style.width = gapCm + 'cm';
+  span.dataset.targetStop = nextStop;
+  span.innerHTML = '&nbsp;';
 
-  const sel = window.getSelection();
-  if (sel && sel.rangeCount > 0) {
-    const range = sel.getRangeAt(0);
-    range.deleteContents();
-    range.insertNode(span);
-    range.setStartAfter(span);
-    range.setEndAfter(span);
-    sel.removeAllRanges();
-    sel.addRange(range);
-  } else {
-    document.execCommand('insertHTML', false, span.outerHTML);
+  range.insertNode(span);
+  range.setStartAfter(span);
+  range.setEndAfter(span);
+  sel.removeAllRanges();
+  sel.addRange(range);
+
+  // Paragrafta sekme durakları varsa dataset'i güncelle
+  if (stops.length > 0 && (!p.dataset.tabStops || p.dataset.tabStops === '')) {
+    p.dataset.tabStops = stops.join(',');
   }
+
   updateCounts();
   debouncedPagination();
+  markDirty();
 }
 
 function setupMarkerDragging(markerId, type, activeCm) {
@@ -2315,6 +2401,263 @@ function updateCounts() {
 
   if (window.AndroidBridge && window.AndroidBridge.onContentChanged) {
     window.AndroidBridge.onContentChanged(wordCount, charCount);
+  }
+}
+
+// --- AI DİLEKÇE FORMATLAMA MOTORU (Canlı Gemini Flash + Çevrimdışı Standart Hukuk) ---
+
+function openAiFormatModal() {
+  saveCurrentSelection();
+  const modal = document.getElementById('modal-ai-format');
+  if (modal) {
+    const key = localStorage.getItem('gemini_api_key') || '';
+    const input = document.getElementById('gemini-api-key-input');
+    if (input) input.value = key;
+    const statusEl = document.getElementById('ai-format-status');
+    if (statusEl) statusEl.innerHTML = '';
+    modal.classList.add('open');
+  }
+}
+
+function closeAiFormatModal() {
+  closeModal('modal-ai-format');
+  setTimeout(restoreCurrentSelection, 50);
+}
+
+function toggleApiKeyVisibility() {
+  const input = document.getElementById('gemini-api-key-input');
+  if (input) {
+    input.type = input.type === 'password' ? 'text' : 'password';
+  }
+}
+
+function saveGeminiApiKey() {
+  const input = document.getElementById('gemini-api-key-input');
+  if (input) {
+    const key = (input.value || '').trim();
+    localStorage.setItem('gemini_api_key', key);
+    showEditorToast('Gemini API anahtarı kaydedildi!');
+  }
+}
+
+function executeDeterministicFormat() {
+  const editor = document.getElementById('editor-content');
+  if (!editor) return;
+
+  const paragraphs = Array.from(editor.querySelectorAll('p, blockquote, div'));
+  if (paragraphs.length === 0) {
+    showEditorToast('Biçimlendirilecek metin bulunamadı.');
+    return;
+  }
+
+  // Mahkeme başlığı tespiti:
+  const courtRegex = /(MAHKEMES[İI]'?NE|H[ÂA]K[İI]ML[İI][ĞG][İI]'?NE|BA[ŞS]SAVCILI[ĞG]I'?NA|DA[İI]RES[İI]'?NE|KOM[İI]SYONU'?NA|KURULU'?NA|BA[ŞS]KANLI[ĞG]I'?NA)$/i;
+  const dispatchRegex = /^(GÖNDERİLMEK|SUNULMAK)\s+ÜZERE$/i;
+  const metaRegex = /^(DOSYA\s+NO|ESAS\s+NO|KARAR\s+NO|SANIK|ŞÜPHELİ|MÜŞTEKİ|MAĞDUR|KATILAN|DAVACI|DAVALI|MÜDAFİ[İI]?|VEK[İI]L[İI]?|KONU|DAVA\s+KONUSU|SUÇ|TALEP\s+KONUSU|TEBLİĞ\s+TARİHİ)\b/i;
+  const salutationRegex = /^(SAYIN\s+BAŞKAN|SAYIN\s+H[ÂA]K[İI]M|SAYIN\s+HEYET|H[ÂA]K[İI]ML[İI]ĞE|BAŞKANLIĞA|YÜKSEK\s+MAHKEME)/i;
+  const sectionHeadingRegex = /^(AÇIKLAMALAR|HUKUK[İI]\s+NEDENLER|HUKUK[İI]\s+DEL[İI]LLER|DEL[İI]LLER|SONUÇ\s+VE\s+(TALEP|İSTEM)|NETİCE-İ\s+TALEP|TALEP|SAVUNMALARIMIZ|[I|V|X0-9]+\.\s+[A-ZÇĞİÖŞÜ\s]+)/i;
+  const sigRegex = /^(SANIK|DAVACI|DAVALI|MÜŞTEKİ|ŞÜPHELİ|MÜDAFİ[İI]?|VEK[İI]L[İI]?|AV\.\s+[A-ZÇĞİÖŞÜ\s]+|\(E-İMZALIDIR\)|\(İMZA\))/i;
+
+  const total = paragraphs.length;
+
+  paragraphs.forEach((p, index) => {
+    // Sayfa sonlarını ve boşlukları atla
+    if (p.classList && (p.classList.contains('page-break') || p.classList.contains('auto-page-break'))) return;
+
+    const rawText = (p.innerText || '').replace(/[\r\n\t\s]+/g, ' ').trim();
+    if (!rawText) return;
+
+    // 1. Dilekçe Sonu İmza Bloğu (Son 6 paragraf içindeki imza satırları)
+    if (index >= total - 6 && sigRegex.test(rawText)) {
+      p.style.textAlign = 'right';
+      p.style.textIndent = '0';
+      p.style.marginLeft = 'auto';
+      p.style.marginRight = '0';
+      p.style.marginTop = '1pt';
+      p.style.marginBottom = '1pt';
+      p.style.lineHeight = '1.2';
+      return;
+    }
+
+    // 2. Mahkeme / Makam Başlığı
+    if (courtRegex.test(rawText) || (index <= 4 && /(MAHKEMESİ|SAVCILIĞI|HÂKİMLİĞİ|DAİRESİ)/i.test(rawText))) {
+      p.style.textAlign = 'center';
+      p.style.textIndent = '0';
+      p.style.marginTop = '4pt';
+      p.style.marginBottom = '4pt';
+      p.style.lineHeight = '1.25';
+      p.innerHTML = '<strong>' + rawText.toLocaleUpperCase('tr-TR') + '</strong>';
+      return;
+    }
+
+    // 3. Gönderilmek / Sunulmak Üzere
+    if (dispatchRegex.test(rawText)) {
+      p.style.textAlign = 'center';
+      p.style.textIndent = '0';
+      p.style.marginTop = '2pt';
+      p.style.marginBottom = '2pt';
+      p.innerHTML = '<em>' + rawText + '</em>';
+      return;
+    }
+
+    // 4. Dosya / Taraf / Konu Satırları (5.0 cm sekme durağı ile UYAP hizalaması)
+    if (metaRegex.test(rawText)) {
+      p.style.textAlign = 'left';
+      p.style.textIndent = '0';
+      p.style.marginTop = '2pt';
+      p.style.marginBottom = '2pt';
+      p.dataset.tabStops = '5';
+
+      let parts = rawText.split(':');
+      let label = parts[0].trim().toLocaleUpperCase('tr-TR');
+      let val = parts.slice(1).join(':').trim();
+
+      p.innerHTML = `<span class="udf-tab-label"><strong>${label}</strong></span><span class="udf-colon">:</span> ${val}`;
+      return;
+    }
+
+    // 5. Hitap Satırı (Sayın Heyet, vb.)
+    if (salutationRegex.test(rawText)) {
+      p.style.textAlign = 'left';
+      p.style.textIndent = '0';
+      p.style.marginTop = '10pt';
+      p.style.marginBottom = '6pt';
+      p.innerHTML = '<strong>' + rawText + '</strong>';
+      return;
+    }
+
+    // 6. Bölüm Başlıkları (AÇIKLAMALAR, vb.)
+    if (sectionHeadingRegex.test(rawText)) {
+      p.style.textAlign = 'left';
+      p.style.textIndent = '0';
+      p.style.marginTop = '10pt';
+      p.style.marginBottom = '4pt';
+      p.innerHTML = '<strong>' + rawText + '</strong>';
+      return;
+    }
+
+    // 7. Standart Gövde Paragrafları
+    p.style.textAlign = 'justify';
+    p.style.textIndent = '1.0cm';
+    p.style.marginTop = '4pt';
+    p.style.marginBottom = '6pt';
+    p.style.lineHeight = '1.25';
+  });
+
+  closeAiFormatModal();
+  updatePagination();
+  markDirty();
+  showEditorToast('⚡ Dilekçe Türk yargı standartlarına göre formatlandı!');
+}
+
+async function executeGeminiFormat() {
+  const statusEl = document.getElementById('ai-format-status');
+  const keyInput = document.getElementById('gemini-api-key-input');
+  const modelSelect = document.getElementById('gemini-model-select');
+  const runBtn = document.getElementById('btn-run-gemini-ai');
+
+  let apiKey = (keyInput ? keyInput.value : '').trim() || localStorage.getItem('gemini_api_key') || '';
+  if (!apiKey) {
+    if (statusEl) {
+      statusEl.innerHTML = '<span style="color:#D32F2F; font-size:12px;">⚠️ Lütfen geçerli bir Gemini API anahtarı giriniz veya yukarıdaki çevrimdışı standardı kullanınız.</span>';
+    }
+    return;
+  }
+  localStorage.setItem('gemini_api_key', apiKey);
+
+  const model = modelSelect ? modelSelect.value : 'gemini-2.0-flash';
+  const editor = document.getElementById('editor-content');
+  if (!editor) return;
+
+  const petitionText = editor.innerText.trim();
+  if (!petitionText) {
+    if (statusEl) statusEl.innerHTML = '<span style="color:#D32F2F;">Formatlanacak metin bulunamadı.</span>';
+    return;
+  }
+
+  if (runBtn) {
+    runBtn.disabled = true;
+    runBtn.textContent = '⏳ Gemini ile analiz ediliyor...';
+  }
+  if (statusEl) {
+    statusEl.innerHTML = '<span style="color:#6200EA; font-size:12px;">🤖 Dilekçeniz Gemini ' + model + ' ile analiz ediliyor, lütfen bekleyiniz...</span>';
+  }
+
+  const systemInstruction = `Sen Türkiye Cumhuriyeti Adalet Bakanlığı, Havelsan UYAP ve Türk mahkemeleri formatlarına tam hâkim kıdemli bir avukat ve hukuk katipliği yapay zekasısın.
+Görevin: Verilen dilekçenin metin içeriğini, vakıalarını, taleplerini ve delillerini KESİNLİKLE değiştirmeden, UYAP kurallarına uygun HTML paragrafları olarak biçimlendirmek.
+
+UYAP Biçimlendirme Kuralları:
+1. Mahkeme/Savcılık Makam Başlığı: <p style="text-align: center;"><strong>...</strong></p>
+2. Dosya No, Sanık, Müdafi, Davacı, Vekili, Konu satırları:
+   <p style="text-align: left;" data-tab-stops="5"><span class="udf-tab-label"><strong>ETİKET</strong></span><span class="udf-colon">:</span> DEĞER</p>
+3. Hitap ve Bölüm Başlıkları (AÇIKLAMALAR, HUKUKİ NEDENLER, DELİLLER, SONUÇ VE İSTEM vb.):
+   <p style="text-align: left; margin-top: 10pt; margin-bottom: 4pt;"><strong>BAŞLIK</strong></p>
+4. Gövde Paragrafları:
+   <p style="text-align: justify; text-indent: 1.0cm; margin-top: 4pt; margin-bottom: 6pt; line-height: 1.25;">Metin...</p>
+5. Dilekçe Sonu İmza Bloğu:
+   <p style="text-align: right; text-indent: 0; margin: 1pt 0;"><strong>Vekil / Müdafi / Taraf</strong></p>
+   <p style="text-align: right; text-indent: 0; margin: 1pt 0;">Av. ...</p>
+   <p style="text-align: right; text-indent: 0; margin: 1pt 0;">(e-imzalıdır)</p>
+6. SADECE saf HTML (p etiketleri) döndür. Asla markdown \`\`\`html kodu veya giriş/çıkış açıklaması yazma.`;
+
+  try {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: [
+              {
+                text: `${systemInstruction}\n\nİşte biçimlendirilecek dilekçe:\n${petitionText}`
+              }
+            ]
+          }
+        ],
+        generationConfig: {
+          temperature: 0.1,
+          topP: 0.95
+        }
+      })
+    });
+
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error((errData.error && errData.error.message) || `API Hatası: HTTP ${response.status}`);
+    }
+
+    const resJson = await response.json();
+    const candidate = resJson.candidates && resJson.candidates[0];
+    let outputText = candidate && candidate.content && candidate.content.parts && candidate.content.parts[0] && candidate.content.parts[0].text;
+
+    if (!outputText) {
+      throw new Error('Gemini API boş yanıt döndürdü.');
+    }
+
+    // Markdown temizliği
+    outputText = outputText.replace(/^```html\s*/i, '').replace(/\s*```$/i, '').trim();
+
+    if (outputText.includes('<p') || outputText.includes('<div')) {
+      editor.innerHTML = outputText;
+      closeAiFormatModal();
+      updatePagination();
+      markDirty();
+      showEditorToast('✨ Dilekçe Gemini AI ile mükemmel şekilde formatlandı!');
+    } else {
+      throw new Error('Yapay zeka geçerli bir HTML yapısı oluşturamadı.');
+    }
+  } catch (err) {
+    if (statusEl) {
+      statusEl.innerHTML = `<span style="color:#D32F2F; font-size:11.5px;">❌ Hata: ${err.message}<br><a href="#" onclick="executeDeterministicFormat(); return false;" style="color:#1565C0; text-decoration:underline; font-weight:bold;">⚡ Yerel Standart Biçimlendirmeyi Kullan</a></span>`;
+    }
+  } finally {
+    if (runBtn) {
+      runBtn.disabled = false;
+      runBtn.textContent = '✨ Gemini ile Canlı Formatla';
+    }
   }
 }
 
