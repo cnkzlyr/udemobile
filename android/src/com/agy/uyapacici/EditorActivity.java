@@ -35,6 +35,8 @@ import org.json.JSONObject;
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
@@ -437,18 +439,7 @@ public class EditorActivity extends Activity {
     }
 
     private void shareAsPlainText() {
-        editorWebView.evaluateJavascript("getPlainText();", textJson -> {
-            try {
-                String plainText = cleanJsonString(textJson);
-                Intent shareIntent = new Intent(Intent.ACTION_SEND);
-                shareIntent.setType("text/plain");
-                shareIntent.putExtra(Intent.EXTRA_SUBJECT, etDocTitle.getText().toString());
-                shareIntent.putExtra(Intent.EXTRA_TEXT, plainText);
-                startActivity(Intent.createChooser(shareIntent, "Dilekçe Metnini Paylaş"));
-            } catch (Exception e) {
-                Toast.makeText(EditorActivity.this, "Metin paylaşım hatası: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-            }
-        });
+        editorWebView.evaluateJavascript("AndroidBridge.onPlainTextReadyForShare(getPlainText());", null);
     }
 
     private String getCleanDocBaseTitle() {
@@ -463,16 +454,40 @@ public class EditorActivity extends Activity {
     private void launchShareIntent(File file, String mimeType, String chooserTitle) {
         try {
             file.setReadable(true, false);
+
+            // Harici uygulamaların (WhatsApp, Gmail, Office) doğrudan erişebilmesi için public İndirilenler klasörüne de yedekle
+            try {
+                File pubDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "CanEditor");
+                pubDir.mkdirs();
+                File pubFile = new File(pubDir, file.getName());
+                copyFile(file, pubFile);
+                pubFile.setReadable(true, false);
+            } catch (Exception ignored) {}
+
             Intent shareIntent = new Intent(Intent.ACTION_SEND);
             shareIntent.setType(mimeType);
-            Uri fileUri = Uri.fromFile(file);
-            shareIntent.putExtra(Intent.EXTRA_STREAM, fileUri);
+
+            Uri contentUri = Uri.parse("content://" + CanFileProvider.AUTHORITY + file.getAbsolutePath());
+            shareIntent.putExtra(Intent.EXTRA_STREAM, contentUri);
             shareIntent.putExtra(Intent.EXTRA_SUBJECT, file.getName());
             shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            shareIntent.addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+
             startActivity(Intent.createChooser(shareIntent, chooserTitle));
         } catch (Exception e) {
             Toast.makeText(this, "Paylaşım başlatılamadı: " + e.getMessage(), Toast.LENGTH_SHORT).show();
         }
+    }
+
+    private static void copyFile(File src, File dst) {
+        try (InputStream in = new FileInputStream(src);
+             OutputStream out = new FileOutputStream(dst)) {
+            byte[] buf = new byte[8192];
+            int len;
+            while ((len = in.read(buf)) > 0) {
+                out.write(buf, 0, len);
+            }
+        } catch (Exception ignored) {}
     }
 
     private void openInDesktopUyap(String path) {
@@ -1133,6 +1148,21 @@ public class EditorActivity extends Activity {
             runOnUiThread(() -> {
                 tvWordCount.setText(wordCount + " kelime • " + charCount + " karakter");
                 tvSaveStatus.setText("● Düzenleniyor");
+            });
+        }
+
+        @JavascriptInterface
+        public void onPlainTextReadyForShare(String text) {
+            runOnUiThread(() -> {
+                try {
+                    Intent shareIntent = new Intent(Intent.ACTION_SEND);
+                    shareIntent.setType("text/plain");
+                    shareIntent.putExtra(Intent.EXTRA_SUBJECT, etDocTitle.getText().toString());
+                    shareIntent.putExtra(Intent.EXTRA_TEXT, text != null ? text : "");
+                    startActivity(Intent.createChooser(shareIntent, "Dilekçe Metnini Paylaş"));
+                } catch (Exception e) {
+                    Toast.makeText(EditorActivity.this, "Metin paylaşım hatası: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                }
             });
         }
 

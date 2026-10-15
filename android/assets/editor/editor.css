@@ -267,22 +267,33 @@ select {
   color: #424242;
 }
 
-/* UYAP Tab ve İki Nokta Hizalama Stili */
-.udf-tab-label {
-  display: inline-block;
-  min-width: 4.5cm;
-  max-width: 5.2cm;
-  text-indent: 0 !important;
-  vertical-align: baseline;
-  text-align: left;
+/* UYAP Tab ve İki Nokta Hizalama Stili (Asılı Girinti / Hanging Indent) */
+p:has(.udf-tab-label), p[data-tab-stops] {
+  padding-left: 5.0cm !important;
+  text-indent: -5.0cm !important;
+  margin-top: 2pt !important;
+  margin-bottom: 2pt !important;
+  text-align: left !important;
 }
 
-.udf-colon {
+p:has(.udf-tab-label) .udf-tab-label, p[data-tab-stops] .udf-tab-label {
+  display: inline-block;
+  width: 4.5cm;
+  min-width: 4.5cm;
+  max-width: 4.5cm;
+  text-indent: 0 !important;
+  vertical-align: top;
+  text-align: left;
+  font-weight: bold;
+}
+
+p:has(.udf-tab-label) .udf-colon, p[data-tab-stops] .udf-colon {
   display: inline-block;
   width: 0.5cm;
   text-align: center;
   margin-right: 2px;
-  vertical-align: baseline;
+  vertical-align: top;
+  font-weight: bold;
 }
 
 .udf-tab-space {
@@ -1018,6 +1029,10 @@ li {
 
 /* Yazdırma ve PDF Aktarım Modu (Android WebView Çoklu Sayfa Uyumlu) */
 @media print {
+  @page {
+    size: A4 portrait;
+    margin: 2.0cm 2.0cm 2.0cm 2.0cm;
+  }
   html, body {
     overflow: visible !important;
     height: auto !important;
@@ -1025,6 +1040,8 @@ li {
     max-height: none !important;
     display: block !important;
     background: #FFFFFF !important;
+    margin: 0 !important;
+    padding: 0 !important;
   }
   #toolbar-container, .modal-backdrop, #doc-signature-banner, #ruler-container, .page-break-desk-gap, #floating-zoom-bar, #fab-view-toggle, .scroll-blur-band, #floating-context-menu {
     display: none !important;
@@ -1044,18 +1061,15 @@ li {
     box-shadow: none !important;
     border: none !important;
   }
-  #a4-sheet {
-    padding: var(--page-margin-top, 2.5cm) var(--page-margin-right, 2.5cm) var(--page-margin-bottom, 2.5cm) var(--page-margin-left, 2.5cm) !important;
-  }
+  /* Ekran simülasyon ayrımı yazıcıda gizlenir, Chromium doğal A4 sayfalamasını uygular */
   .auto-page-break {
+    display: none !important;
+  }
+  /* Kullanıcının açıkça eklediği elle sayfa sonları yazıcıda sayfayı keser */
+  .page-break {
     display: block !important;
     break-after: page !important;
     page-break-after: always !important;
-    height: 0 !important;
-    min-height: 0 !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    border: none !important;
   }
   .page-break-footer-area, .page-break-header-area {
     display: none !important;
@@ -1063,6 +1077,10 @@ li {
   .header-footer-box {
     display: block !important;
     border: none !important;
+  }
+  p {
+    orphans: 2;
+    widows: 2;
   }
 }
 

@@ -230,9 +230,26 @@ public class DocxEngine {
                         if (bold) docXml.append("        <w:b/>\n");
                         if (italic) docXml.append("        <w:i/>\n");
                         if (underline) docXml.append("        <w:u w:val=\"single\"/>\n");
-                        docXml.append("      </w:rPr>\n")
-                              .append("      <w:t xml:space=\"preserve\">").append(escapeXml(text)).append("</w:t>\n")
-                              .append("    </w:r>\n");
+                        docXml.append("      </w:rPr>\n");
+
+                        // OpenXML Standardı: \t karakteri <w:t> içinde YASAKTIR, <w:tab/> olmalıdır. \n ise <w:br/> olmalıdır.
+                        String[] lines = text.split("\n", -1);
+                        for (int lIdx = 0; lIdx < lines.length; lIdx++) {
+                            if (lIdx > 0) {
+                                docXml.append("      <w:br/>\n");
+                            }
+                            String line = lines[lIdx];
+                            String[] tabParts = line.split("\t", -1);
+                            for (int tIdx = 0; tIdx < tabParts.length; tIdx++) {
+                                if (tIdx > 0) {
+                                    docXml.append("      <w:tab/>\n");
+                                }
+                                if (!tabParts[tIdx].isEmpty()) {
+                                    docXml.append("      <w:t xml:space=\"preserve\">").append(escapeXml(tabParts[tIdx])).append("</w:t>\n");
+                                }
+                            }
+                        }
+                        docXml.append("    </w:r>\n");
                     }
                 }
             }
@@ -264,6 +281,7 @@ public class DocxEngine {
                 + "  <Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/>\n"
                 + "  <Default Extension=\"xml\" ContentType=\"application/xml\"/>\n"
                 + "  <Override PartName=\"/word/document.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml\"/>\n"
+                + "  <Override PartName=\"/word/styles.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml\"/>\n"
                 + "</Types>";
 
         String rootRelsXml = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n"
@@ -273,7 +291,30 @@ public class DocxEngine {
 
         String docRelsXml = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n"
                 + "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">\n"
+                + "  <Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles\" Target=\"styles.xml\"/>\n"
                 + "</Relationships>";
+
+        String stylesXml = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n"
+                + "<w:styles xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\">\n"
+                + "  <w:docDefaults>\n"
+                + "    <w:rPrDefault>\n"
+                + "      <w:rPr>\n"
+                + "        <w:rFonts w:ascii=\"Times New Roman\" w:hAnsi=\"Times New Roman\" w:cs=\"Times New Roman\"/>\n"
+                + "        <w:sz w:val=\"24\"/>\n"
+                + "        <w:lang w:val=\"tr-TR\"/>\n"
+                + "      </w:rPr>\n"
+                + "    </w:rPrDefault>\n"
+                + "    <w:pPrDefault>\n"
+                + "      <w:pPr>\n"
+                + "        <w:spacing w:line=\"276\" w:lineRule=\"auto\"/>\n"
+                + "      </w:pPr>\n"
+                + "    </w:pPrDefault>\n"
+                + "  </w:docDefaults>\n"
+                + "  <w:style w:type=\"paragraph\" w:default=\"1\" w:styleId=\"Normal\">\n"
+                + "    <w:name w:val=\"Normal\"/>\n"
+                + "    <w:qFormat/>\n"
+                + "  </w:style>\n"
+                + "</w:styles>";
 
         if (targetFile.getParentFile() != null) {
             targetFile.getParentFile().mkdirs();
@@ -285,6 +326,7 @@ public class DocxEngine {
             writeZipEntry(zos, "[Content_Types].xml", contentTypesXml);
             writeZipEntry(zos, "_rels/.rels", rootRelsXml);
             writeZipEntry(zos, "word/document.xml", docXml.toString());
+            writeZipEntry(zos, "word/styles.xml", stylesXml);
             writeZipEntry(zos, "word/_rels/document.xml.rels", docRelsXml);
         }
     }

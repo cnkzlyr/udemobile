@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.agy.uyapacici"
-    android:versionCode="15"
-    android:versionName="3.3.2">
+    android:versionCode="16"
+    android:versionName="3.3.3">
 
     <uses-sdk
         android:minSdkVersion="21"
@@ -32,9 +32,15 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar"
         android:requestLegacyExternalStorage="true"
-        android:usesCleartextTraffic="true"
-        android:debuggable="true">
-        
+        android:usesCleartextTraffic="true">
+
+        <!-- Dosya Paylaşım Sağlayıcısı (WhatsApp, Word, Gmail, Telegram) -->
+        <provider
+            android:name=".CanFileProvider"
+            android:authorities="com.agy.uyapacici.fileprovider"
+            android:exported="true"
+            android:grantUriPermissions="true" />
+
         <!-- Ana Karşılama ve Dosya Köprüsü -->
         <activity
             android:name=".MainActivity"

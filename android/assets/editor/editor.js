@@ -2504,6 +2504,8 @@ function executeDeterministicFormat() {
     if (metaRegex.test(rawText)) {
       p.style.textAlign = 'left';
       p.style.textIndent = '0';
+      p.style.marginLeft = '0';
+      p.style.marginRight = '0';
       p.style.marginTop = '2pt';
       p.style.marginBottom = '2pt';
       p.dataset.tabStops = '5';
@@ -2513,6 +2515,18 @@ function executeDeterministicFormat() {
       let val = parts.slice(1).join(':').trim();
 
       p.innerHTML = `<span class="udf-tab-label"><strong>${label}</strong></span><span class="udf-colon">:</span> ${val}`;
+      return;
+    }
+
+    // 4b. Adres antettedir vb. taraf ek satırları
+    if (index <= 10 && /(antettedir|adres|tckn|vkn|baro|uets)/i.test(rawText)) {
+      p.style.textAlign = 'left';
+      p.style.textIndent = '0';
+      p.style.marginLeft = '5.0cm';
+      p.style.marginTop = '1pt';
+      p.style.marginBottom = '2pt';
+      p.style.fontSize = '10pt';
+      p.style.color = '#555555';
       return;
     }
 
@@ -2565,7 +2579,7 @@ async function executeGeminiFormat() {
   }
   localStorage.setItem('gemini_api_key', apiKey);
 
-  const model = modelSelect ? modelSelect.value : 'gemini-2.0-flash';
+  const model = modelSelect ? modelSelect.value : 'gemini-3.5-flash-lite';
   const editor = document.getElementById('editor-content');
   if (!editor) return;
 
@@ -2757,7 +2771,50 @@ function getHtmlContent() {
 }
 
 function getPlainText() {
-  return document.getElementById('editor-content').innerText || '';
+  const parts = [];
+  
+  // 1. Üstbilgi
+  const headerEl = document.getElementById('doc-header');
+  if (headerEl) {
+    const hText = (headerEl.innerText || '').trim();
+    if (hText) parts.push(hText + '\n');
+  }
+
+  // 2. Ana İçerik
+  const editor = document.getElementById('editor-content');
+  if (editor) {
+    const blocks = Array.from(editor.children);
+    for (let b of blocks) {
+      if (b.classList && (b.classList.contains('auto-page-break') || b.classList.contains('page-break') || b.classList.contains('page-break-desk-gap') || b.classList.contains('page-break-header-area') || b.classList.contains('page-break-footer-area'))) {
+        continue;
+      }
+      if (b.tagName && b.tagName.toLowerCase() === 'table') {
+        const rows = b.querySelectorAll('tr');
+        for (let row of rows) {
+          const cells = Array.from(row.querySelectorAll('th, td')).map(c => (c.innerText || '').trim());
+          if (cells.length > 0) parts.push(cells.join('\t'));
+        }
+        continue;
+      }
+
+      // Paragraf veya satır
+      const txt = (b.innerText || '').replace(/[\r\n]+/g, ' ').trim();
+      if (txt) {
+        parts.push(txt);
+      }
+    }
+  }
+
+  // 3. Altbilgi
+  const footerEl = document.getElementById('doc-footer');
+  if (footerEl) {
+    const fText = (footerEl.innerText || '').trim();
+    if (fText && !fText.toLowerCase().includes('sayfa')) {
+      parts.push('\n' + fText);
+    }
+  }
+
+  return parts.join('\n\n');
 }
 
 // Belgeyi Java UDF & DOCX Üreticileri için Üstbilgi, Altbilgi ve Paragraflar Olarak Çıkar
