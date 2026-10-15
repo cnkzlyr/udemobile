@@ -1,0 +1,409 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="#F4F6F9"
+    android:fitsSystemWindows="true">
+
+    <!-- Top App Bar -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:minHeight="60dp"
+        android:background="#1565C0"
+        android:orientation="vertical"
+        android:paddingStart="20dp"
+        android:paddingEnd="20dp"
+        android:paddingTop="12dp"
+        android:paddingBottom="12dp"
+        android:elevation="4dp">
+
+        <TextView
+            android:id="@+id/appTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="⚖️ UYAP Mobil Editör &amp; Açıcı"
+            android:textColor="#FFFFFF"
+            android:textSize="20sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Google Dokümanlar Stili Mobil UDF Düzenleyici"
+            android:textColor="#BBDEFB"
+            android:textSize="12sp"
+            android:layout_marginTop="2dp" />
+    </LinearLayout>
+
+    <!-- Main Scrollable Area -->
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:fillViewport="true">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <!-- AKTİF GELEN BELGE KARTI -->
+            <LinearLayout
+                android:id="@+id/cardActiveDoc"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="@drawable/card_bg"
+                android:padding="16dp"
+                android:layout_marginBottom="16dp"
+                android:visibility="gone">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="SEÇİLİ UDF BELGESİ"
+                        android:textSize="11sp"
+                        android:textStyle="bold"
+                        android:textColor="#1565C0"
+                        android:background="@drawable/badge_bg"
+                        android:paddingStart="8dp"
+                        android:paddingEnd="8dp"
+                        android:paddingTop="3dp"
+                        android:paddingBottom="3dp" />
+
+                    <View
+                        android:layout_width="0dp"
+                        android:layout_height="1dp"
+                        android:layout_weight="1" />
+
+                    <Button
+                        android:id="@+id/btnCloseActiveDoc"
+                        android:layout_width="wrap_content"
+                        android:layout_height="32dp"
+                        android:text="✕ Kapat"
+                        android:textSize="11sp"
+                        android:textColor="#D32F2F"
+                        android:background="@drawable/badge_bg"
+                        android:paddingStart="10dp"
+                        android:paddingEnd="10dp" />
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/tvDocName"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="dilekce.udf"
+                    android:textSize="17sp"
+                    android:textStyle="bold"
+                    android:textColor="#212121"
+                    android:layout_marginTop="10dp"
+                    android:ellipsize="middle"
+                    android:singleLine="true" />
+
+                <TextView
+                    android:id="@+id/tvDocDetails"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Boyut: 45 KB • UYAP_Belgelerim klasörüne hazırlandı"
+                    android:textSize="13sp"
+                    android:textColor="#616161"
+                    android:layout_marginTop="4dp"
+                    android:layout_marginBottom="16dp" />
+
+                <!-- Eylem Butonları -->
+                <Button
+                    android:id="@+id/btnOpenInEditor"
+                    android:layout_width="match_parent"
+                    android:layout_height="50dp"
+                    android:text="✍️ Mobil Editörde Aç &amp; Düzenle"
+                    android:textColor="#FFFFFF"
+                    android:textSize="15sp"
+                    android:textStyle="bold"
+                    android:background="@drawable/button_primary"
+                    android:layout_marginBottom="10dp" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+
+                    <Button
+                        android:id="@+id/btnQuickPreview"
+                        android:layout_width="0dp"
+                        android:layout_height="44dp"
+                        android:layout_weight="1"
+                        android:text="👁️ Önizle"
+                        android:textColor="#1565C0"
+                        android:textSize="13sp"
+                        android:background="@drawable/button_secondary"
+                        android:layout_marginEnd="6dp" />
+
+                    <Button
+                        android:id="@+id/btnDesktopUyapDoc"
+                        android:layout_width="0dp"
+                        android:layout_height="44dp"
+                        android:layout_weight="1"
+                        android:text="🖥️ Masaüstü X11"
+                        android:textColor="#424242"
+                        android:textSize="13sp"
+                        android:background="@drawable/button_secondary" />
+                </LinearLayout>
+
+            </LinearLayout>
+
+            <!-- ÖNİZLEME KARTI -->
+            <LinearLayout
+                android:id="@+id/cardPreview"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="@drawable/card_bg"
+                android:padding="16dp"
+                android:layout_marginBottom="16dp"
+                android:visibility="gone">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="10dp">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="📄 Belge Metin İçeriği"
+                        android:textSize="15sp"
+                        android:textStyle="bold"
+                        android:textColor="#212121" />
+
+                    <Button
+                        android:id="@+id/btnCopyText"
+                        android:layout_width="wrap_content"
+                        android:layout_height="36dp"
+                        android:text="📋 Kopyala"
+                        android:textSize="12sp"
+                        android:textColor="#FFFFFF"
+                        android:background="@drawable/button_accent"
+                        android:paddingStart="12dp"
+                        android:paddingEnd="12dp" />
+                </LinearLayout>
+
+                <ScrollView
+                    android:layout_width="match_parent"
+                    android:layout_height="200dp"
+                    android:background="@drawable/preview_bg"
+                    android:padding="12dp">
+
+                    <TextView
+                        android:id="@+id/tvPreviewContent"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Belge metni yükleniyor..."
+                        android:textColor="#37474F"
+                        android:textSize="14sp"
+                        android:lineSpacingExtra="4dp" />
+                </ScrollView>
+            </LinearLayout>
+
+            <!-- HIZLI EYLEMLER KARTI -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="@drawable/card_bg"
+                android:padding="16dp"
+                android:layout_marginBottom="16dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="⚡ Dilekçe &amp; Belge İşlemleri"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:textColor="#212121"
+                    android:layout_marginBottom="12dp" />
+
+                <!-- 1. Büyük Buton: Yeni Dilekçe Yaz -->
+                <Button
+                    android:id="@+id/btnNewDoc"
+                    android:layout_width="match_parent"
+                    android:layout_height="52dp"
+                    android:text="✍️ Yeni UDF Dilekçesi Yaz (Mobil Editör)"
+                    android:textColor="#FFFFFF"
+                    android:textSize="14sp"
+                    android:textStyle="bold"
+                    android:background="@drawable/button_accent"
+                    android:layout_marginBottom="10dp" />
+
+                <!-- 2. Belge Seç ve Aç -->
+                <Button
+                    android:id="@+id/btnPickFile"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:text="📂 Telefonumdan UDF Belgesi Seç ve Aç"
+                    android:textColor="#1565C0"
+                    android:textSize="14sp"
+                    android:textStyle="bold"
+                    android:background="@drawable/button_secondary"
+                    android:layout_marginBottom="10dp" />
+
+                <!-- 3. Alternatif: Masaüstü UYAP (Termux:X11) -->
+                <Button
+                    android:id="@+id/btnLaunchBlank"
+                    android:layout_width="match_parent"
+                    android:layout_height="44dp"
+                    android:text="🖥️ Masaüstü UYAP'ı Başlat (Termux:X11)"
+                    android:textColor="#555555"
+                    android:textSize="13sp"
+                    android:background="@drawable/button_secondary"
+                    android:layout_marginBottom="10dp" />
+
+                <!-- 4. UYAP'ı Kapat -->
+                <Button
+                    android:id="@+id/btnForceCloseUyap"
+                    android:layout_width="match_parent"
+                    android:layout_height="40dp"
+                    android:text="🛑 Açık Masaüstü UYAP'ı Kapat (Sıfırla)"
+                    android:textColor="#FFFFFF"
+                    android:textSize="12sp"
+                    android:textStyle="bold"
+                    android:background="@drawable/button_danger" />
+
+            </LinearLayout>
+
+            <!-- TERCİHLER KARTI -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="@drawable/card_bg"
+                android:padding="16dp"
+                android:layout_marginBottom="16dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="⚙️ Çalışma Tercihleri"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:textColor="#212121"
+                    android:layout_marginBottom="8dp" />
+
+                <Switch
+                    android:id="@+id/switchDirectOpen"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="UDF'ye tıklandığında doğrudan Mobil Editörü Aç"
+                    android:textSize="14sp"
+                    android:textColor="#424242"
+                    android:checked="true"
+                    android:paddingTop="6dp"
+                    android:paddingBottom="6dp" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Açıkken: Dosyaya dokunduğunuzda beklemeden Google Dokümanlar tarzı mobil UYAP editörü ekrana gelir."
+                    android:textSize="12sp"
+                    android:textColor="#757575"
+                    android:layout_marginTop="2dp" />
+
+            </LinearLayout>
+
+            <!-- SON AÇILAN BELGELER KARTI -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="@drawable/card_bg"
+                android:padding="16dp"
+                android:layout_marginBottom="16dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="🕒 Son UDF Belgelerim"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:textColor="#212121"
+                    android:layout_marginBottom="8dp" />
+
+                <LinearLayout
+                    android:id="@+id/containerRecentDocs"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:id="@+id/tvEmptyRecent"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Henüz açılan veya indirilen UDF belgesi bulunamadı."
+                        android:textColor="#9E9E9E"
+                        android:textSize="13sp"
+                        android:padding="8dp" />
+                </LinearLayout>
+
+            </LinearLayout>
+
+            <!-- SİSTEM KONTROL KARTI -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="@drawable/card_bg"
+                android:padding="16dp"
+                android:layout_marginBottom="24dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="🔍 Sistem Durumu &amp; Bağlantı"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:textColor="#212121"
+                    android:layout_marginBottom="10dp" />
+
+                <TextView
+                    android:id="@+id/tvStatusTermux"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="• Mobil UYAP Motoru: Aktif (A4 &amp; XML Hazır)"
+                    android:textSize="13sp"
+                    android:textColor="#2E7D32"
+                    android:layout_marginBottom="4dp" />
+
+                <TextView
+                    android:id="@+id/tvStatusX11"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="• Termux / Masaüstü Köprüsü: Hazır"
+                    android:textSize="13sp"
+                    android:textColor="#424242"
+                    android:layout_marginBottom="4dp" />
+
+                <TextView
+                    android:id="@+id/tvStatusScript"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="• UDF Standardı: Havelsan Format v1.8"
+                    android:textSize="13sp"
+                    android:textColor="#424242" />
+
+            </LinearLayout>
+
+        </LinearLayout>
+    </ScrollView>
+
+</LinearLayout>

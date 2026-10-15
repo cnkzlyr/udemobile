@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>UYAP &amp; Word Mobil Editör</title>
+  <link rel="stylesheet" href="editor.css">
+</head>
+<body>
+
+  <!-- Mobil Google Dokümanlar Stili Biçimlendirme Araç Çubuğu -->
+  <div id="toolbar-container">
+    <div class="toolbar-scroll">
+      
+      <!-- Görünüm Modu Değiştirici (Kağıt / Mobil) -->
+      <div class="tool-group">
+        <button type="button" id="btn-toggle-view" class="tool-btn view-toggle-btn" onclick="toggleViewMode()" title="Görünüm Değiştir">
+          📱 Mobil Mod
+        </button>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- Hızlı Dilekçe Şablonları Menüsü -->
+      <div class="tool-group">
+        <select id="select-template" onchange="insertTemplate(this.value); this.selectedIndex=0;" title="Resmi Dilekçe Şablonları">
+          <option value="" disabled selected>⚖️ Şablon Seç...</option>
+          <option value="dava">Dava Dilekçesi</option>
+          <option value="cevap">Cevap Dilekçesi</option>
+          <option value="sure">Süre Uzatım Talebi (HMK 127)</option>
+          <option value="beyan">Bilirkişiye Beyan / İtiraz</option>
+          <option value="istinaf">İstinaf Başvuru Dilekçesi</option>
+          <option value="ihtar">İhtarname / Fesih Metni</option>
+        </select>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- Yazı Tipi Ailesi -->
+      <div class="tool-group">
+        <select id="select-font-family" onchange="changeFontFamily(this.value)" title="Yazı Tipi">
+          <option value="'Times New Roman', Times, serif" selected>Times New Roman</option>
+          <option value="Arial, Helvetica, sans-serif">Arial</option>
+          <option value="Calibri, sans-serif">Calibri</option>
+          <option value="Georgia, serif">Georgia</option>
+          <option value="'Courier New', Courier, monospace">Daktilo / Courier</option>
+        </select>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- Yazı Boyutu -->
+      <div class="tool-group">
+        <button type="button" class="tool-btn" onclick="adjustFontSize(-1)" title="Yazıyı Küçült">A-</button>
+        <span id="font-size-label">12pt</span>
+        <button type="button" class="tool-btn" onclick="adjustFontSize(1)" title="Yazıyı Büyüt">A+</button>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- Temel Biçimlendirme -->
+      <div class="tool-group">
+        <button type="button" id="btn-bold" class="tool-btn" onclick="format('bold')" title="Kalın (Ctrl+B)"><b>B</b></button>
+        <button type="button" id="btn-italic" class="tool-btn" onclick="format('italic')" title="İtalik (Ctrl+I)"><i>I</i></button>
+        <button type="button" id="btn-underline" class="tool-btn" onclick="format('underline')" title="Altı Çizili (Ctrl+U)"><u>U</u></button>
+        <button type="button" id="btn-strike" class="tool-btn" onclick="format('strikeThrough')" title="Üstü Çizili"><s>S</s></button>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- Renk Seçiciler -->
+      <div class="tool-group">
+        <select id="select-text-color" onchange="format('foreColor', this.value); this.selectedIndex=0;" title="Yazı Rengi">
+          <option value="" disabled selected>🎨 Renk</option>
+          <option value="#000000" style="color: black;">Siyah (Varsayılan)</option>
+          <option value="#1565C0" style="color: #1565C0;">Koyu Mavi</option>
+          <option value="#C62828" style="color: #C62828;">Kırmızı (İhtar/Vurgu)</option>
+          <option value="#2E7D32" style="color: #2E7D32;">Koyu Yeşil</option>
+        </select>
+
+        <select id="select-highlight-color" onchange="format('hiliteColor', this.value); this.selectedIndex=0;" title="Fosforlu Vurgu">
+          <option value="" disabled selected>🖍️ Vurgu</option>
+          <option value="#FFF59D" style="background: #FFF59D;">Sarı Vurgu</option>
+          <option value="#A5D6A7" style="background: #A5D6A7;">Yeşil Vurgu</option>
+          <option value="#BBDEFB" style="background: #BBDEFB;">Mavi Vurgu</option>
+          <option value="transparent">Vurguyu Kaldır</option>
+        </select>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- Hizalama Araçları -->
+      <div class="tool-group">
+        <button type="button" id="btn-align-left" class="tool-btn" onclick="format('justifyLeft')" title="Sola Yasla">
+          <svg viewBox="0 0 24 24"><path d="M3 5h18v2H3V5zm0 4h12v2H3V9zm0 4h18v2H3v-2zm0 4h12v2H3v-2z"/></svg>
+        </button>
+        <button type="button" id="btn-align-center" class="tool-btn" onclick="format('justifyCenter')" title="Ortala (Başlıklar)">
+          <svg viewBox="0 0 24 24"><path d="M4 5h16v2H4V5zm3 4h10v2H7V9zm-3 4h16v2H4v-2zm3 4h10v2H7v-2z"/></svg>
+        </button>
+        <button type="button" id="btn-align-right" class="tool-btn" onclick="format('justifyRight')" title="Sağa Yasla (İmza/Tarih)">
+          <svg viewBox="0 0 24 24"><path d="M3 5h18v2H3V5zm6 4h12v2H9V9zm-6 4h18v2H3v-2zm6 4h12v2H9v-2z"/></svg>
+        </button>
+        <button type="button" id="btn-align-justify" class="tool-btn active" onclick="format('justifyFull')" title="İki Yana Yasla (UYAP Standardı)">
+          <svg viewBox="0 0 24 24"><path d="M3 5h18v2H3V5zm0 4h18v2H3V9zm0 4h18v2H3v-2zm0 4h18v2H3v-2z"/></svg>
+        </button>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- Listeler & Tablo -->
+      <div class="tool-group">
+        <button type="button" class="tool-btn" onclick="format('insertOrderedList')" title="Numaralı Liste (1, 2, 3)">123</button>
+        <button type="button" class="tool-btn" onclick="format('insertUnorderedList')" title="Madde İmleri (•)">•••</button>
+        <button type="button" class="tool-btn text-btn" onclick="insertTable()" title="Tablo Ekle (2x3)">📊 Tablo</button>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- Girintiler & İmza Bloğu -->
+      <div class="tool-group">
+        <button type="button" class="tool-btn" onclick="format('outdent')" title="Girinti Azalt">⇤</button>
+        <button type="button" class="tool-btn" onclick="format('indent')" title="Girinti Artır (Tab)">⇥</button>
+        <button type="button" class="tool-btn text-btn" onclick="insertSignature()" title="E-İmza Alanı Ekle">✍️ E-İmza</button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- A4 Kağıt / Mobil Görünüm Konteyneri -->
+  <div id="page-wrapper" class="paper-view">
+    <div id="a4-sheet">
+      <div id="editor-content" contenteditable="true" spellcheck="true" autocomplete="off" autocapitalize="sentences">
+        <!-- Varsayılan Dilekçe Başlangıcı -->
+        <p style="text-align: center;"><strong>... NÖBETÇİ ASLİYE HUKUK MAHKEMESİ HÂKİMLİĞİ'NE</strong></p>
+        <p style="text-align: justify;"><br></p>
+        <p style="text-align: justify;"><strong>DAVACI :</strong> </p>
+        <p style="text-align: justify;"><strong>VEKİLİ :</strong> Av. </p>
+        <p style="text-align: justify;"><strong>DAVALI :</strong> </p>
+        <p style="text-align: justify;"><strong>DAVA KONUSU :</strong> </p>
+        <p style="text-align: justify;"><br></p>
+        <p style="text-align: justify;"><strong>AÇIKLAMALAR :</strong></p>
+        <p style="text-align: justify; text-indent: 28px;">Dilekçenizi buraya yazabilir veya üstteki şablonlardan birini seçebilirsiniz...</p>
+        <p style="text-align: justify;"><br></p>
+        <p style="text-align: justify;"><strong>NETİCE-İ TALEP :</strong> Yukarıda arz ve izah edilen nedenlerle talebimizin kabulünü saygıyla vekâleten arz ve talep ederiz.</p>
+        <p style="text-align: right;"><br></p>
+        <p style="text-align: right;"><strong>Davacı Vekili</strong><br>Av. [Ad Soyad]<br><em>(5070 S.K. Uyarınca E-İmzalıdır)</em></p>
+      </div>
+    </div>
+  </div>
+
+  <script src="editor.js"></script>
+</body>
+</html>

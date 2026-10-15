@@ -1,0 +1,242 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  background-color: #F0F2F5;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  color: #1A1A1A;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Üst Biçimlendirme Araç Çubuğu (Google Dokümanlar Stili) */
+#toolbar-container {
+  background-color: #FFFFFF;
+  border-bottom: 1px solid #DADCE0;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  height: 48px;
+  display: flex;
+  align-items: center;
+}
+
+.toolbar-scroll {
+  display: flex;
+  align-items: center;
+  overflow-x: auto;
+  white-space: nowrap;
+  padding: 4px 8px;
+  width: 100%;
+  scrollbar-width: none;
+}
+
+.toolbar-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.tool-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.divider {
+  width: 1px;
+  height: 24px;
+  background-color: #E0E0E0;
+  margin: 0 6px;
+  flex-shrink: 0;
+}
+
+.tool-btn {
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  color: #444746;
+  cursor: pointer;
+  flex-shrink: 0;
+  font-weight: 500;
+}
+
+.tool-btn:active, .tool-btn.active {
+  background-color: #E8F0FE;
+  color: #1A73E8;
+  border-color: #D2E3FC;
+}
+
+.tool-btn svg {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+}
+
+.tool-btn.text-btn {
+  width: auto;
+  padding: 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.view-toggle-btn {
+  width: auto;
+  padding: 0 10px;
+  background-color: #EEF4FE;
+  color: #1A73E8;
+  border: 1px solid #D2E3FC;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+#font-size-label {
+  font-size: 12px;
+  font-weight: bold;
+  color: #1A73E8;
+  padding: 0 4px;
+  min-width: 30px;
+  text-align: center;
+}
+
+select {
+  height: 32px;
+  border-radius: 6px;
+  border: 1px solid #DADCE0;
+  background-color: #F8F9FA;
+  font-size: 12px;
+  font-weight: 500;
+  color: #1F1F1F;
+  padding: 0 6px;
+  outline: none;
+}
+
+/* Sayfa Konteyneri */
+#page-wrapper {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  justify-content: center;
+  transition: all 0.2s ease-in-out;
+}
+
+/* 1. KAĞIT GÖRÜNÜMÜ MODU (A4 Sabit Düzen) */
+#page-wrapper.paper-view {
+  padding: 16px 12px 60px 12px;
+  background-color: #F0F2F5;
+}
+
+#page-wrapper.paper-view #a4-sheet {
+  background: #FFFFFF;
+  width: 100%;
+  max-width: 800px;
+  min-height: 1100px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.05);
+  border-radius: 2px;
+  padding: 36px 28px;
+}
+
+/* 2. MOBİL GÖRÜNÜM MODU (Telefona Tam Oturan Rahat Okuma/Yazma) */
+#page-wrapper.mobile-view {
+  padding: 0 0 60px 0;
+  background-color: #FFFFFF;
+}
+
+#page-wrapper.mobile-view #a4-sheet {
+  background: #FFFFFF;
+  width: 100%;
+  max-width: 100%;
+  min-height: 100%;
+  box-shadow: none;
+  border-radius: 0;
+  padding: 16px 16px;
+}
+
+/* Editör İçeriği & Tipografi */
+#editor-content {
+  outline: none;
+  font-family: "Times New Roman", Times, Georgia, serif;
+  font-size: 12pt;
+  line-height: 1.45;
+  color: #000000;
+  min-height: 600px;
+}
+
+#editor-content p {
+  margin-bottom: 6px;
+  text-align: justify;
+  text-justify: inter-word;
+  word-break: break-word;
+}
+
+#editor-content p[style*="text-align: center"] {
+  text-align: center;
+}
+
+#editor-content p[style*="text-align: right"] {
+  text-align: right;
+}
+
+/* Tablo Stilleri */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 10px 0;
+  font-size: 11pt;
+}
+
+table, th, td {
+  border: 1px solid #B0BEC5;
+}
+
+th, td {
+  padding: 8px 10px;
+  text-align: left;
+}
+
+th {
+  background-color: #ECEFF1;
+  font-weight: bold;
+}
+
+/* Listeler */
+ol, ul {
+  padding-left: 24px;
+  margin-bottom: 8px;
+}
+
+li {
+  margin-bottom: 4px;
+}
+
+::selection {
+  background-color: #B3D7FF;
+}
+
+@media print {
+  body {
+    background: none;
+  }
+  #toolbar-container {
+    display: none !important;
+  }
+  #page-wrapper {
+    padding: 0;
+  }
+  #a4-sheet {
+    box-shadow: none;
+    max-width: 100%;
+    padding: 20mm 15mm;
+  }
+}
