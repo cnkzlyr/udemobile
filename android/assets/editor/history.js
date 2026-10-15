@@ -91,12 +91,13 @@
     H.timer = null;
     if (H.suppress || !ed()) return false;
     const html = cleanHtml();
+    if (!html && H.stack.length > 0) return false;
     const cur = H.stack[H.idx];
     if (cur && cur.html === html) {
       cur.sel = captureSelection() || cur.sel;
       return false;
     }
-    H.stack.length = H.idx + 1; // yinele dalını at
+    H.stack.length = H.idx + 1; // Yeni kullanıcı işlemi olduğunda yinele dalını kes
     H.stack.push({ html, sel: captureSelection() });
     if (H.stack.length > MAX_STEPS) H.stack.shift();
     H.idx = H.stack.length - 1;
@@ -111,22 +112,43 @@
 
   function apply(entry) {
     const e = ed();
+    if (!e || !entry) return;
     H.suppress = true;
+    clearTimeout(H.timer);
+    H.timer = null;
     try {
       e.innerHTML = entry.html;
       restoreSelection(entry.sel);
+      if (typeof realignAllTabs === 'function') realignAllTabs();
+      if (typeof updatePagination === 'function') updatePagination();
+      if (typeof updateRulerFromActiveParagraph === 'function') updateRulerFromActiveParagraph();
+      if (typeof updateCounts === 'function') updateCounts();
       if (H.observer) H.observer.takeRecords();
+    } catch (err) {
+      console.warn('History apply hatası:', err);
     } finally {
-      H.suppress = false;
+      // DOM güncellemelerinin MutationObserver tarafından sahte commit üretmesini önle
+      setTimeout(() => {
+        if (H.observer) H.observer.takeRecords();
+        H.suppress = false;
+      }, 80);
     }
-    try { if (typeof updatePagination === 'function') updatePagination(); } catch (x) {}
-    try { if (typeof updateRulerFromActiveParagraph === 'function') updateRulerFromActiveParagraph(); } catch (x) {}
-    try { if (typeof updateCounts === 'function') updateCounts(); } catch (x) {}
-    try { if (typeof showEditorToast === 'function') showEditorToast(H.idx === 0 ? '↶ En eski sürüme dönüldü' : '✓ Geri alındı / yinelendi'); } catch (x) {}
+    try {
+      if (typeof showEditorToast === 'function') {
+        const msg = H.idx === 0
+          ? '↶ En eski sürüme dönüldü'
+          : (H.idx === H.stack.length - 1 ? '↷ En son sürüme gelindi' : '✓ Adım geri / ileri alındı');
+        showEditorToast(msg);
+      }
+    } catch (x) {}
   }
 
   function undo() {
-    commit(); // bekleyen yazım varsa önce onu bir adım olarak kaydet
+    if (H.timer) {
+      clearTimeout(H.timer);
+      H.timer = null;
+      commit(); // Bekleyen yazım varsa önce onu kaydet
+    }
     if (H.idx <= 0) return false;
     H.idx--;
     apply(H.stack[H.idx]);
@@ -134,7 +156,11 @@
   }
 
   function redo() {
-    commit();
+    // Redo sırasında asla yeni commit çağrılmaz; aksi halde ileri dal silinir!
+    if (H.timer) {
+      clearTimeout(H.timer);
+      H.timer = null;
+    }
     if (H.idx >= H.stack.length - 1) return false;
     H.idx++;
     apply(H.stack[H.idx]);
@@ -143,6 +169,7 @@
 
   function reset() {
     clearTimeout(H.timer);
+    H.timer = null;
     H.stack = [];
     H.idx = -1;
     H.suppress = false;
@@ -195,7 +222,17 @@
     });
   }
 
-  window.CanHistory = { undo, redo, reset, commit, init, get size() { return H.stack.length; }, get index() { return H.idx; } };
+  window.CanHistory = {
+    undo,
+    redo,
+    reset,
+    commit,
+    init,
+    get size() { return H.stack.length; },
+    get index() { return H.idx; },
+    canUndo: () => H.idx > 0,
+    canRedo: () => H.idx < H.stack.length - 1
+  };
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();
