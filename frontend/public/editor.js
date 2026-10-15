@@ -2742,10 +2742,115 @@ function snapshotDocument() {
 }
 function markDocumentPristine() {
   window.__origDocSnapshot = snapshotDocument();
+  try { localStorage.removeItem(AUTOSAVE_STORAGE_KEY); } catch (x) {}
 }
 function isDocumentModified() {
   if (window.__origDocSnapshot === null) return true;
   return snapshotDocument() !== window.__origDocSnapshot;
+}
+
+// --- 30 Saniyede Bir Otomatik Taslak Kaydetme & Kurtarma ---
+const AUTOSAVE_STORAGE_KEY = 'caneditor_autosave_draft';
+
+function saveAutoDraft() {
+  try {
+    if (!isDocumentModified()) return;
+    const ed = document.getElementById('editor-content');
+    if (!ed) return;
+    const rawText = (ed.innerText || '').trim();
+    if (rawText.length < 15) return; // Boş veya anlamsız kısa belgeleri taslak yapma
+
+    const headerEl = document.getElementById('doc-header');
+    const footerEl = document.getElementById('doc-footer');
+    const payload = {
+      timestamp: Date.now(),
+      dateStr: new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }),
+      html: ed.innerHTML,
+      header: headerEl ? (headerEl.innerText || '').trim() : '',
+      footer: footerEl ? (footerEl.innerText || '').trim() : '',
+      margins: currentMargins
+    };
+    localStorage.setItem(AUTOSAVE_STORAGE_KEY, JSON.stringify(payload));
+  } catch (e) {
+    console.warn('Otomatik taslak kaydetme hatası:', e);
+  }
+}
+
+setInterval(saveAutoDraft, 30000);
+
+function checkAutoDraftRecovery() {
+  try {
+    const raw = localStorage.getItem(AUTOSAVE_STORAGE_KEY);
+    if (!raw) return;
+    const data = JSON.parse(raw);
+    if (!data || !data.html) return;
+    const ed = document.getElementById('editor-content');
+    const curLen = (ed ? ed.innerText : '').trim().length;
+    if (curLen > 30) return; // Halihazırda büyük bir dosya açıldıysa üzerine yazma
+
+    showAutoDraftModal(data);
+  } catch (e) {
+    console.warn('Taslak kontrol hatası:', e);
+  }
+}
+
+function showAutoDraftModal(draft) {
+  const existing = document.getElementById('modal-autodraft-recovery');
+  if (existing) existing.remove();
+
+  const modal = document.createElement('div');
+  modal.id = 'modal-autodraft-recovery';
+  modal.style.cssText = `
+    position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 999999;
+    display: flex; align-items: center; justify-content: center; backdrop-filter: blur(3px);
+  `;
+  modal.innerHTML = `
+    <div style="background:#fff; border-radius:12px; width:90%; max-width:440px; padding:22px; box-shadow:0 12px 36px rgba(0,0,0,0.3); font-family:system-ui,-apple-system,sans-serif; text-align:left;">
+      <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
+        <span style="font-size:24px;">💾</span>
+        <h3 style="margin:0; font-size:17px; color:#1a237e; font-weight:700;">Kurtarılabilir Taslak Bulundu</h3>
+      </div>
+      <p style="font-size:13px; color:#444; line-height:1.5; margin-bottom:16px;">
+        Önceki oturumunuzda kaydedilmemiş bir çalışma (Saat: <strong>\${draft.dateStr || ''}</strong>) tespit edildi. Belgenizi kaldığınız yerden devam ettirmek için kurtarmak ister misiniz?
+      </p>
+      <div style="display:flex; justify-content:flex-end; gap:8px;">
+        <button id="btn-draft-discard" style="padding:9px 15px; border-radius:6px; border:1px solid #ccc; background:#f5f5f5; color:#555; font-size:13px; cursor:pointer; font-weight:600;">Yoksay</button>
+        <button id="btn-draft-restore" style="padding:9px 18px; border-radius:6px; border:none; background:#1a237e; color:#fff; font-size:13px; cursor:pointer; font-weight:600;">Kurtar ve Aç</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+
+  document.getElementById('btn-draft-discard').onclick = () => {
+    localStorage.removeItem(AUTOSAVE_STORAGE_KEY);
+    modal.remove();
+  };
+
+  document.getElementById('btn-draft-restore').onclick = () => {
+    const ed = document.getElementById('editor-content');
+    if (ed) {
+      ed.innerHTML = draft.html;
+      const headerEl = document.getElementById('doc-header');
+      const footerEl = document.getElementById('doc-footer');
+      if (headerEl && draft.header) { headerEl.innerText = draft.header; headerEl.style.display = 'block'; }
+      if (footerEl && draft.footer) { footerEl.innerText = draft.footer; }
+      if (draft.margins) {
+        applyPageSetup(draft.margins.left, draft.margins.right, draft.margins.top, draft.margins.bottom, draft.margins.orientation);
+      }
+      realignAllTabs();
+      updatePagination();
+      updateCounts();
+      if (window.CanHistory) CanHistory.reset();
+      showEditorToast('✓ Taslak başarıyla kurtarıldı');
+    }
+    modal.remove();
+  };
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => setTimeout(checkAutoDraftRecovery, 1200));
+} else {
+  setTimeout(checkAutoDraftRecovery, 1200);
 }
 
 function setHtmlContent(content) {
