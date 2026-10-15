@@ -91,6 +91,12 @@ document.addEventListener('DOMContentLoaded', () => {
   editor.addEventListener('keyup', () => {
     recordCurrentSelection();
   });
+  editor.addEventListener('keydown', (e) => {
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      handleTabAction();
+    }
+  });
 
   // Tıklama ile aktif paragrafı algılama
   editor.addEventListener('click', () => {
@@ -224,13 +230,13 @@ function updatePagination() {
     const headerArea = document.createElement('div');
     headerArea.className = 'page-break-header-area';
     const docHeader = document.getElementById('doc-header');
-    if (docHeader && docHeader.innerText.trim() && docHeader.style.display !== 'none') {
+    if (docHeader && (docHeader.innerHTML.trim() || docHeader.innerText.trim()) && docHeader.style.display !== 'none') {
       const hClone = document.createElement('div');
       hClone.className = 'header-footer-box';
       hClone.style.borderBottom = 'none';
       hClone.style.padding = '0';
       hClone.style.marginBottom = '6px';
-      hClone.innerText = docHeader.innerText.trim();
+      hClone.innerHTML = docHeader.innerHTML.trim();
       headerArea.appendChild(hClone);
     }
     pageBreak.appendChild(headerArea);
@@ -690,13 +696,101 @@ function initRuler() {
   const rulerScale = document.getElementById('ruler-scale');
   rulerScale.onclick = (e) => {
     if (activeDragMarker) return;
+    
+    // Eğer tıklanan zaten bir sekme durağıysa kaldır
+    if (e.target && e.target.classList.contains('ruler-tab-stop')) {
+      const stopCm = parseFloat(e.target.dataset.cm);
+      removeTabStop(stopCm);
+      return;
+    }
+
     const rect = rulerScale.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const pct = Math.max(0, Math.min(1, x / rect.width));
-    const cm = Math.round((pct * activeCm) * 4) / 4;
-    setFirstLineIndent(cm);
-    updateRulerFromActiveParagraph();
+    const cm = Math.round((pct * activeCm) * 10) / 10;
+    
+    toggleTabStop(cm);
   };
+}
+
+let currentTabStops = [];
+
+function toggleTabStop(cm) {
+  const existingIdx = currentTabStops.findIndex(s => Math.abs(s - cm) < 0.35);
+  if (existingIdx !== -1) {
+    currentTabStops.splice(existingIdx, 1);
+  } else {
+    currentTabStops.push(cm);
+    currentTabStops.sort((a, b) => a - b);
+  }
+  syncTabStopsToActiveParagraph();
+  renderTabStopsOnRuler();
+}
+
+function removeTabStop(cm) {
+  currentTabStops = currentTabStops.filter(s => Math.abs(s - cm) >= 0.1);
+  syncTabStopsToActiveParagraph();
+  renderTabStopsOnRuler();
+}
+
+function syncTabStopsToActiveParagraph() {
+  const p = getActiveParagraph();
+  if (p) {
+    p.dataset.tabStops = currentTabStops.join(',');
+  }
+}
+
+function renderTabStopsOnRuler() {
+  const scale = document.getElementById('ruler-scale');
+  if (!scale) return;
+  scale.querySelectorAll('.ruler-tab-stop').forEach(el => el.remove());
+
+  const isLandscape = currentMargins.orientation === 'landscape';
+  const totalPageCm = isLandscape ? 29.7 : 21.0;
+  const activeCm = Math.max(5, totalPageCm - (currentMargins.left || 2.5) - (currentMargins.right || 2.5));
+
+  currentTabStops.forEach(cm => {
+    if (cm > activeCm || cm < 0) return;
+    const pct = (cm / activeCm) * 100;
+    const marker = document.createElement('div');
+    marker.className = 'ruler-tab-stop';
+    marker.dataset.cm = cm;
+    marker.style.left = pct + '%';
+    marker.title = `Sekme Durağı: ${cm} cm (Kaldırmak için dokunun)`;
+    scale.appendChild(marker);
+  });
+}
+
+function handleTabAction() {
+  const p = getActiveParagraph();
+  let targetWidthCm = 1.5;
+  if (currentTabStops && currentTabStops.length > 0) {
+    targetWidthCm = currentTabStops[0];
+  } else if (p && p.dataset && p.dataset.tabStops) {
+    const stops = p.dataset.tabStops.split(',').map(s => parseFloat(s)).filter(s => !isNaN(s));
+    if (stops.length > 0) targetWidthCm = stops[0];
+  }
+
+  const span = document.createElement('span');
+  span.className = 'udf-tab-space';
+  span.style.display = 'inline-block';
+  span.style.width = targetWidthCm + 'cm';
+  span.innerHTML = '&nbsp;&nbsp;&nbsp;&nbsp;';
+
+  const sel = window.getSelection();
+  if (sel && sel.rangeCount > 0) {
+    const range = sel.getRangeAt(0);
+    range.deleteContents();
+    range.insertNode(span);
+    range.setStartAfter(span);
+    range.setEndAfter(span);
+    sel.removeAllRanges();
+    sel.addRange(range);
+  } else {
+    document.execCommand('insertHTML', false, span.outerHTML);
+  }
+  updateCounts();
+  debouncedPagination();
 }
 
 function setupMarkerDragging(markerId, type, activeCm) {
@@ -783,6 +877,16 @@ function updateRulerFromActiveParagraph() {
   leftMarker.style.left = Math.min(100, Math.max(0, (leftCm / activeCm) * 100)) + '%';
   rightMarker.style.right = Math.min(100, Math.max(0, (rightCm / activeCm) * 100)) + '%';
   rightMarker.style.left = 'auto';
+
+  // Paragrafın sekme duraklarını güncelle
+  if (p.dataset && p.dataset.tabStops) {
+    currentTabStops = p.dataset.tabStops.split(',').map(s => parseFloat(s)).filter(s => !isNaN(s));
+  } else if (p.querySelector('.udf-tab-label')) {
+    currentTabStops = [4.94];
+  } else {
+    currentTabStops = [];
+  }
+  renderTabStopsOnRuler();
 }
 
 function parseToCm(valStr) {
@@ -2090,7 +2194,10 @@ function setHtmlContent(content) {
     try {
       const data = JSON.parse(trimmed);
       if (data && typeof data === 'object') {
-        if (data.header !== undefined && headerEl) {
+        if (data.headerHtml) {
+          headerEl.innerHTML = data.headerHtml;
+          headerEl.style.display = 'block';
+        } else if (data.header !== undefined && headerEl) {
           headerEl.innerText = data.header;
           headerEl.style.display = (data.header && data.header.trim()) ? 'block' : 'none';
         }

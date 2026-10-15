@@ -136,28 +136,70 @@ public class UdfEngine {
                 }
             }
 
+            // Header ve üstbilgi resmi/metni çözümleme
+            NodeList headers = doc.getElementsByTagName("header");
+            String headerHtml = "";
+            if (headers.getLength() > 0) {
+                Element headerElem = (Element) headers.item(0);
+                NodeList headerImgs = headerElem.getElementsByTagName("image");
+                if (headerImgs.getLength() > 0) {
+                    Element hImg = (Element) headerImgs.item(0);
+                    String hImgData = hImg.getAttribute("imageData");
+                    if (hImgData != null && !hImgData.trim().isEmpty()) {
+                        String hStr = hImg.getAttribute("height");
+                        double hCm = parsePtToCm(hStr, 1.76);
+                        headerHtml = "<div class=\"udf-header-layout\" style=\"text-align:center; padding-bottom:6px;\">" +
+                                     "<img class=\"udf-header-img\" src=\"data:image/png;base64," + hImgData.trim() + "\" style=\"max-height:" + (hCm > 0 ? hCm + "cm" : "50px") + "; width:auto; object-fit:contain;\" />" +
+                                     "</div>";
+                    }
+                }
+                if (headerHtml.isEmpty()) {
+                    String hText = headerElem.getTextContent();
+                    if (hText != null && !hText.trim().isEmpty()) {
+                        headerHtml = "<div class=\"udf-header-layout\" style=\"text-align:center;\">" + escapeHtml(hText.trim()) + "</div>";
+                    }
+                }
+            }
+            if (headerHtml.isEmpty() && headerText != null && !headerText.isEmpty()) {
+                headerHtml = "<div class=\"udf-header-layout\" style=\"text-align:center;\">" + escapeHtml(headerText) + "</div>";
+            }
+
             // Footer ve altbilgi resmi çözümleme
             NodeList footers = doc.getElementsByTagName("footer");
             String footerHtml = "";
             String footerForeStr = "Sayfa:";
             String footerSep = "/";
+            boolean hasPageNumber = false;
             if (footers.getLength() > 0) {
                 Element footerElem = (Element) footers.item(0);
                 if (footerElem.hasAttribute("pageNumber-foreStr")) {
                     footerForeStr = footerElem.getAttribute("pageNumber-foreStr");
+                    hasPageNumber = true;
                 }
                 if (footerElem.hasAttribute("pageNumber-seperator")) {
                     footerSep = footerElem.getAttribute("pageNumber-seperator");
+                    hasPageNumber = true;
+                }
+                if (footerElem.hasAttribute("pageNumber-spec")) {
+                    hasPageNumber = true;
                 }
                 NodeList footerImgs = footerElem.getElementsByTagName("image");
                 if (footerImgs.getLength() > 0) {
                     Element fImg = (Element) footerImgs.item(0);
                     String fImgData = fImg.getAttribute("imageData");
                     if (fImgData != null && !fImgData.trim().isEmpty()) {
-                        footerHtml = "<div class=\"udf-footer-layout\">" +
-                                     "<img class=\"udf-footer-img\" src=\"data:image/png;base64," + fImgData.trim() + "\" />" +
-                                     "<span class=\"udf-footer-page-label\">" + escapeHtml(footerForeStr) + " {PAGE_NUM} " + escapeHtml(footerSep) + " {TOTAL_PAGES}</span>" +
-                                     "</div>";
+                        String hStr = fImg.getAttribute("height");
+                        double hCm = parsePtToCm(hStr, 1.76);
+                        if (hasPageNumber) {
+                            footerHtml = "<div class=\"udf-footer-layout\">" +
+                                         "<img class=\"udf-footer-img\" src=\"data:image/png;base64," + fImgData.trim() + "\" style=\"max-height:" + (hCm > 0 ? hCm + "cm" : "50px") + "; width:auto;\" />" +
+                                         "<span class=\"udf-footer-page-label\">" + escapeHtml(footerForeStr) + " {PAGE_NUM} " + escapeHtml(footerSep) + " {TOTAL_PAGES}</span>" +
+                                         "</div>";
+                        } else {
+                            footerHtml = "<div class=\"udf-footer-layout full-banner\" style=\"justify-content:center; border-top:none;\">" +
+                                         "<img class=\"udf-footer-img\" src=\"data:image/png;base64," + fImgData.trim() + "\" style=\"max-height:" + (hCm > 0 ? hCm + "cm" : "50px") + "; max-width:100%; width:auto; object-fit:contain;\" />" +
+                                         "</div>";
+                        }
                     }
                 }
                 if (footerHtml.isEmpty()) {
@@ -165,7 +207,7 @@ public class UdfEngine {
                     if (fText != null && !fText.trim().isEmpty()) {
                         footerHtml = "<div class=\"udf-footer-layout\">" +
                                      "<span class=\"udf-footer-text\">" + escapeHtml(fText.trim()) + "</span>" +
-                                     "<span class=\"udf-footer-page-label\">" + escapeHtml(footerForeStr) + " {PAGE_NUM} " + escapeHtml(footerSep) + " {TOTAL_PAGES}</span>" +
+                                     (hasPageNumber ? "<span class=\"udf-footer-page-label\">" + escapeHtml(footerForeStr) + " {PAGE_NUM} " + escapeHtml(footerSep) + " {TOTAL_PAGES}</span>" : "") +
                                      "</div>";
                     }
                 }
@@ -191,6 +233,7 @@ public class UdfEngine {
             if (rawText == null || rawText.isEmpty()) {
                 JSONObject res = new JSONObject();
                 res.put("header", headerText);
+                res.put("headerHtml", headerHtml);
                 res.put("footer", footerText);
                 res.put("footerHtml", footerHtml);
                 res.put("leftMarginCm", leftMarginCm);
@@ -214,6 +257,7 @@ public class UdfEngine {
                 }
                 JSONObject res = new JSONObject();
                 res.put("header", headerText);
+                res.put("headerHtml", headerHtml);
                 res.put("footer", footerText);
                 res.put("footerHtml", footerHtml);
                 res.put("html", fallback.toString());
@@ -226,6 +270,13 @@ public class UdfEngine {
 
             for (int i = 0; i < paragraphs.getLength(); i++) {
                 Element p = (Element) paragraphs.item(i);
+                Node parent = p.getParentNode();
+                if (parent != null) {
+                    String pName = parent.getNodeName();
+                    if ("header".equalsIgnoreCase(pName) || "footer".equalsIgnoreCase(pName)) {
+                        continue; // Üstbilgi ve altbilgi paragrafları gövdeye dahil edilmez
+                    }
+                }
                 String alignAttr = p.getAttribute("Alignment");
                 String alignStyle = "justify";
                 if ("1".equals(alignAttr)) alignStyle = "center";
@@ -317,9 +368,19 @@ public class UdfEngine {
                         if ("image".equalsIgnoreCase(tagName)) {
                             String imgData = childElem.getAttribute("imageData");
                             if (imgData != null && !imgData.trim().isEmpty()) {
+                                String wStr = childElem.getAttribute("width");
+                                String hStr = childElem.getAttribute("height");
+                                double wCm = parsePtToCm(wStr, 0);
+                                double hCm = parsePtToCm(hStr, 0);
+                                StringBuilder imgStyle = new StringBuilder("display:block; margin:6px auto; object-fit:contain;");
+                                if (wCm > 0) imgStyle.append(" max-width:").append(wCm).append("cm; width:100%;");
+                                else imgStyle.append(" max-width:95%; width:auto;");
+                                if (hCm > 0) imgStyle.append(" max-height:").append(hCm).append("cm;");
+                                else imgStyle.append(" height:auto;");
+
                                 pContent.append("<img src=\"data:image/png;base64,")
                                         .append(imgData.trim())
-                                        .append("\" style=\"max-width:95%; height:auto; display:block; margin:6px auto;\" />");
+                                        .append("\" style=\"").append(imgStyle.toString()).append("\" />");
                                 hasContent = true;
                             }
                         } else if ("content".equalsIgnoreCase(tagName) || "space".equalsIgnoreCase(tagName)) {
@@ -374,6 +435,7 @@ public class UdfEngine {
 
             JSONObject res = new JSONObject();
             res.put("header", headerText);
+            res.put("headerHtml", headerHtml);
             res.put("footer", footerText);
             res.put("footerHtml", footerHtml);
             res.put("leftMarginCm", leftMarginCm);
@@ -388,7 +450,9 @@ public class UdfEngine {
             JSONObject err = new JSONObject();
             try {
                 err.put("header", "");
+                err.put("headerHtml", "");
                 err.put("footer", "");
+                err.put("footerHtml", "");
                 err.put("html", "<p style=\"text-align: justify;\">" + escapeHtml(xml) + "</p>");
             } catch (Exception ignored) {}
             return err.toString();
@@ -410,7 +474,7 @@ public class UdfEngine {
             String openColon = m.group(4) != null ? m.group(4) : "";
             String closeColon = m.group(5) != null ? m.group(5) : "";
             String rest = m.group(6);
-            return open1 + "<span class=\"udf-tab-label\">" + label.trim() + "</span>" + close1
+            return "<span class=\"udf-tab-label\">" + open1 + label.trim() + close1 + "</span>"
                  + openColon + "<span class=\"udf-colon\">:</span>" + closeColon + " " + rest;
         }
         return pHtml.replace("\t", "<span class=\"udf-tab-space\">&nbsp;&nbsp;&nbsp;&nbsp;</span>");
