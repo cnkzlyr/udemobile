@@ -59,13 +59,61 @@ function toggleViewMode() {
   if (isMobileView) {
     wrapper.classList.remove('paper-view');
     wrapper.classList.add('mobile-view');
-    btn.textContent = '📄 Kağıt Modu';
+    if (btn) btn.textContent = '📄';
+    const oldBreaks = document.querySelectorAll('.auto-page-break');
+    oldBreaks.forEach(b => b.remove());
   } else {
     wrapper.classList.remove('mobile-view');
     wrapper.classList.add('paper-view');
-    btn.textContent = '📱 Mobil Mod';
+    if (btn) btn.textContent = '📱';
     applyAutoFitZoom();
+    setTimeout(updatePagination, 100);
   }
+}
+
+// Otomatik A4 Sayfa Ayrımı (Baskı Düzeni)
+let paginationTimer = null;
+function updatePagination() {
+  if (isMobileView) return;
+  const editor = document.getElementById('editor-content');
+  if (!editor) return;
+
+  // Önceki otomatik sayfa bölücüleri temizle
+  const oldBreaks = editor.querySelectorAll('.auto-page-break');
+  oldBreaks.forEach(b => b.remove());
+
+  // A4 Sayfa kullanılabilir yükseklik hesabı:
+  const topCm = currentMargins.top || 2.5;
+  const bottomCm = currentMargins.bottom || 2.5;
+  const marginPx = (topCm + bottomCm) * 37.8; // cm to px
+  const printableHeight = Math.max(500, 1123 - marginPx);
+
+  let currentAccumHeight = 0;
+  let pageIndex = 1;
+  const children = Array.from(editor.children);
+
+  for (let i = 0; i < children.length; i++) {
+    const child = children[i];
+    if (child.classList && (child.classList.contains('auto-page-break') || child.classList.contains('page-break'))) continue;
+    const h = child.offsetHeight || 28;
+    currentAccumHeight += h;
+
+    if (currentAccumHeight >= printableHeight) {
+      pageIndex++;
+      const pageBreak = document.createElement('div');
+      pageBreak.className = 'auto-page-break';
+      pageBreak.setAttribute('contenteditable', 'false');
+      pageBreak.setAttribute('data-page-label', `Sayfa ${pageIndex}`);
+      
+      editor.insertBefore(pageBreak, child);
+      currentAccumHeight = h;
+    }
+  }
+}
+
+function debouncedPagination() {
+  clearTimeout(paginationTimer);
+  paginationTimer = setTimeout(updatePagination, 250);
 }
 
 // Üstbilgi ve Altbilgiye Odaklanma (Asla kaybolmaz, doğrudan düzenlenir)
@@ -1998,23 +2046,32 @@ function getStructuredDocument() {
   return docPayload;
 }
 
-function parseInlineRuns(element, runs, bold, italic, underline) {
+function parseInlineRuns(element, runs, bold, italic, underline, subscript, superscript, strikethrough) {
   for (let child of element.childNodes) {
     if (child.nodeType === Node.TEXT_NODE) {
       if (child.textContent) {
         runs.push({
           text: child.textContent,
-          bold: bold,
-          italic: italic,
-          underline: underline
+          bold: !!bold,
+          italic: !!italic,
+          underline: !!underline,
+          subscript: !!subscript,
+          superscript: !!superscript,
+          strikethrough: !!strikethrough
         });
       }
     } else if (child.nodeType === Node.ELEMENT_NODE) {
+      if (child.classList && child.classList.contains('auto-page-break')) {
+        continue;
+      }
       const tag = child.tagName.toLowerCase();
       const isB = bold || tag === 'b' || tag === 'strong' || (child.style && child.style.fontWeight === 'bold');
       const isI = italic || tag === 'i' || tag === 'em' || (child.style && child.style.fontStyle === 'italic');
       const isU = underline || tag === 'u' || (child.style && child.style.textDecoration && child.style.textDecoration.includes('underline'));
-      parseInlineRuns(child, runs, isB, isI, isU);
+      const isSub = subscript || tag === 'sub';
+      const isSup = superscript || tag === 'sup';
+      const isStrike = strikethrough || tag === 's' || tag === 'strike' || (child.style && child.style.textDecoration && child.style.textDecoration.includes('line-through'));
+      parseInlineRuns(child, runs, isB, isI, isU, isSub, isSup, isStrike);
     }
   }
 }

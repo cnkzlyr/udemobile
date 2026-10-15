@@ -35,6 +35,15 @@ public class UdfEngine {
     /**
      * .udf dosyasını okuyup mobil editör için başlık, altbilgi ve HTML içeriğine dönüştürür.
      */
+    private static String toRoman(int num) {
+        String[] m = {"", "M", "MM", "MMM"};
+        String[] c = {"", "C", "CC", "CCC", "CD", "D", "DC", "DCC", "DCCC", "CM"};
+        String[] x = {"", "X", "XX", "XXX", "XL", "L", "LX", "LXX", "LXXX", "XC"};
+        String[] i = {"", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX"};
+        if (num <= 0 || num > 3999) return String.valueOf(num);
+        return m[num / 1000] + c[(num % 1000) / 100] + x[(num % 100) / 10] + i[num % 10];
+    }
+
     public static String readUdfToHtml(File file) throws Exception {
         if (!file.exists()) {
             throw new IllegalArgumentException("Dosya bulunamadı: " + file.getAbsolutePath());
@@ -42,23 +51,44 @@ public class UdfEngine {
 
         String contentXml = null;
         try (ZipFile zip = new ZipFile(file)) {
+            ZipEntry contentEntry = zip.getEntry("content.xml");
+            if (contentEntry == null) {
+                contentEntry = zip.getEntry("Content.xml");
+            }
+        if (contentEntry == null) {
             Enumeration<? extends ZipEntry> entries = zip.entries();
             while (entries.hasMoreElements()) {
                 ZipEntry entry = entries.nextElement();
-                if (entry.getName().contains("content.xml") || entry.getName().endsWith(".xml")) {
-                    try (InputStream is = zip.getInputStream(entry)) {
-                        byte[] bytes = new byte[(int) entry.getSize()];
-                        int offset = 0;
-                        while (offset < bytes.length) {
-                            int read = is.read(bytes, offset, bytes.length - offset);
-                            if (read == -1) break;
-                            offset += read;
-                        }
-                        contentXml = new String(bytes, StandardCharsets.UTF_8);
-                        break;
-                    }
+                String name = entry.getName().toLowerCase();
+                if (name.endsWith("content.xml")) {
+                    contentEntry = entry;
+                    break;
                 }
             }
+        }
+        if (contentEntry == null) {
+            Enumeration<? extends ZipEntry> entries2 = zip.entries();
+            while (entries2.hasMoreElements()) {
+                ZipEntry entry = entries2.nextElement();
+                String name = entry.getName().toLowerCase();
+                if (name.endsWith(".xml") && !name.contains("documentproperties") && !name.contains("meta")) {
+                    contentEntry = entry;
+                    break;
+                }
+            }
+        }
+
+        if (contentEntry != null) {
+            try (InputStream is = zip.getInputStream(contentEntry)) {
+                ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                byte[] buf = new byte[8192];
+                int r;
+                while ((r = is.read(buf)) != -1) {
+                    baos.write(buf, 0, r);
+                }
+                contentXml = baos.toString("UTF-8");
+            }
+        }
         }
 
         if (contentXml == null) {
@@ -148,6 +178,7 @@ public class UdfEngine {
 
             StringBuilder html = new StringBuilder();
             int textLen = rawText.length();
+            java.util.Map<String, Integer> listCounters = new java.util.HashMap<>();
 
             for (int i = 0; i < paragraphs.getLength(); i++) {
                 Element p = (Element) paragraphs.item(i);
@@ -192,6 +223,31 @@ public class UdfEngine {
 
                 html.append("<p style=\"").append(styleAttr.toString()).append("\">");
 
+                // UYAP Numaralandırma & Maddeleme Kontrolü
+                boolean isNumbered = "true".equalsIgnoreCase(p.getAttribute("Numbered")) || "1".equals(p.getAttribute("Numbered"));
+                boolean isBulleted = "true".equalsIgnoreCase(p.getAttribute("Bulleted")) || "1".equals(p.getAttribute("Bulleted"));
+                if (isNumbered) {
+                    String listId = p.getAttribute("ListId");
+                    if (listId == null || listId.isEmpty()) listId = "default";
+                    int count = listCounters.getOrDefault(listId, 0) + 1;
+                    listCounters.put(listId, count);
+
+                    String numType = p.getAttribute("NumberType");
+                    String listPrefix = count + ". ";
+                    if (numType != null && numType.contains("ROMAN")) {
+                        listPrefix = toRoman(count) + ". ";
+                    } else if (numType != null && (numType.contains("CHAR_SMALL") || numType.contains("ALPHA"))) {
+                        char ch = (char) ('a' + ((count - 1) % 26));
+                        listPrefix = ch + ") ";
+                    } else if (numType != null && numType.contains("CHAR_BIG")) {
+                        char ch = (char) ('A' + ((count - 1) % 26));
+                        listPrefix = ch + ". ";
+                    }
+                    html.append("<span style=\"font-weight:bold; margin-right:4px;\">").append(escapeHtml(listPrefix)).append("</span>");
+                } else if (isBulleted) {
+                    html.append("<span style=\"font-weight:bold; margin-right:6px;\">•</span>");
+                }
+
                 NodeList runs = p.getElementsByTagName("content");
                 if (runs.getLength() == 0) {
                     html.append("<br>");
@@ -204,6 +260,9 @@ public class UdfEngine {
                         boolean bold = "true".equalsIgnoreCase(run.getAttribute("bold"));
                         boolean italic = "true".equalsIgnoreCase(run.getAttribute("italic"));
                         boolean underline = "true".equalsIgnoreCase(run.getAttribute("underline"));
+                        boolean subscript = "true".equalsIgnoreCase(run.getAttribute("subscript")) || "true".equalsIgnoreCase(run.getAttribute("Subscript"));
+                        boolean superscript = "true".equalsIgnoreCase(run.getAttribute("superscript")) || "true".equalsIgnoreCase(run.getAttribute("Superscript"));
+                        boolean strike = "true".equalsIgnoreCase(run.getAttribute("strikeThrough")) || "true".equalsIgnoreCase(run.getAttribute("strikethrough")) || "true".equalsIgnoreCase(run.getAttribute("StrikeThrough"));
 
                         if (!startStr.isEmpty() && !lenStr.isEmpty()) {
                             int start = Integer.parseInt(startStr);
@@ -225,6 +284,9 @@ public class UdfEngine {
                                     if (bold) escaped = "<strong>" + escaped + "</strong>";
                                     if (italic) escaped = "<em>" + escaped + "</em>";
                                     if (underline) escaped = "<u>" + escaped + "</u>";
+                                    if (subscript) escaped = "<sub>" + escaped + "</sub>";
+                                    if (superscript) escaped = "<sup>" + escaped + "</sup>";
+                                    if (strike) escaped = "<s>" + escaped + "</s>";
                                     html.append(escaped);
                                 }
                             }
@@ -429,6 +491,9 @@ public class UdfEngine {
                     boolean bold = r.optBoolean("bold", false);
                     boolean italic = r.optBoolean("italic", false);
                     boolean underline = r.optBoolean("underline", false);
+                    boolean subscript = r.optBoolean("subscript", false);
+                    boolean superscript = r.optBoolean("superscript", false);
+                    boolean strike = r.optBoolean("strikeThrough", false) || r.optBoolean("strikethrough", false);
 
                     int len = text.length();
                     if (len > 0) {
@@ -439,6 +504,9 @@ public class UdfEngine {
                         if (bold) elementsXml.append(" bold=\"true\"");
                         if (italic) elementsXml.append(" italic=\"true\"");
                         if (underline) elementsXml.append(" underline=\"true\"");
+                        if (subscript) elementsXml.append(" Subscript=\"true\"");
+                        if (superscript) elementsXml.append(" Superscript=\"true\"");
+                        if (strike) elementsXml.append(" StrikeThrough=\"true\"");
                         elementsXml.append(" resolver=\"hvl-default\"/>\n");
 
                         currentOffset += len;

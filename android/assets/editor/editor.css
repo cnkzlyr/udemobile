@@ -62,7 +62,7 @@ body {
   width: 1px;
   height: 24px;
   background-color: #E0E0E0;
-  margin: 0 6px;
+  margin: 0 3px;
   flex-shrink: 0;
 }
 
@@ -96,19 +96,18 @@ body {
 
 .tool-btn.text-btn {
   width: auto;
-  padding: 0 8px;
+  padding: 0 7px;
   font-size: 12px;
   font-weight: 600;
 }
 
 .view-toggle-btn {
-  width: auto;
-  padding: 0 10px;
+  width: 36px;
+  padding: 0;
   background-color: #EEF4FE;
   color: #1A73E8;
   border: 1px solid #D2E3FC;
-  font-size: 12px;
-  font-weight: bold;
+  font-size: 14px;
 }
 
 .sign-btn {
@@ -121,8 +120,8 @@ body {
   font-size: 12px;
   font-weight: bold;
   color: #1A73E8;
-  padding: 0 4px;
-  min-width: 30px;
+  padding: 0 2px;
+  min-width: 26px;
   text-align: center;
 }
 
@@ -134,8 +133,55 @@ select {
   font-size: 12px;
   font-weight: 500;
   color: #1F1F1F;
-  padding: 0 6px;
+  padding: 0 4px;
   outline: none;
+  max-width: 85px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#select-template { max-width: 82px; }
+#select-font-family { max-width: 90px; }
+#select-text-case { max-width: 48px; }
+#select-text-color { max-width: 44px; }
+#select-highlight-color { max-width: 44px; }
+#select-paragraph-spacing { max-width: 48px; }
+#select-line-spacing { max-width: 48px; }
+#select-list-style { max-width: 48px; }
+
+/* Çoklu A4 Sayfa Ayrımı (Google Dokümanlar & Word Stili) */
+.auto-page-break {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  margin: 36px calc(-1 * var(--page-margin-right, 2.5cm)) 36px calc(-1 * var(--page-margin-left, 2.5cm)) !important;
+  height: 28px;
+  background-color: #E8EAED;
+  border-top: 1px solid #D0D4DC;
+  border-bottom: 1px solid #D0D4DC;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.08);
+  user-select: none;
+  pointer-events: none;
+  position: relative;
+  width: var(--sheet-width, 794px);
+  box-sizing: border-box;
+}
+
+.auto-page-break::after {
+  content: attr(data-page-label);
+  font-size: 11px;
+  font-weight: 700;
+  color: #444746;
+  background: #FFFFFF;
+  padding: 2px 14px;
+  border-radius: 12px;
+  border: 1px solid #BDC1C6;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+  letter-spacing: 0.5px;
+}
+
+#page-wrapper.mobile-view .auto-page-break {
+  display: none !important;
 }
 
 /* Sayfa Konteyneri */

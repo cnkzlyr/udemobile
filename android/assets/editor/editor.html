@@ -11,12 +11,10 @@
   <!-- Mobil Google Dokümanlar & Word Stili Zengin Biçimlendirme Araç Çubuğu -->
   <div id="toolbar-container">
     <div class="toolbar-scroll">
-      
+
       <!-- 1. Görünüm Modu Değiştirici -->
       <div class="tool-group">
-        <button type="button" id="btn-toggle-view" class="tool-btn view-toggle-btn" onclick="toggleViewMode()" title="Görünüm Değiştir (Kağıt / Mobil)">
-          📱 Mobil Mod
-        </button>
+        <button type="button" id="btn-toggle-view" class="tool-btn view-toggle-btn" onclick="toggleViewMode()" title="Görünüm Değiştir (Kağıt / Mobil)">📱</button>
       </div>
 
       <div class="divider"></div>
@@ -24,15 +22,15 @@
       <!-- 2. Hızlı Dilekçe Şablonları Menüsü -->
       <div class="tool-group">
         <select id="select-template" onchange="insertTemplate(this.value); this.selectedIndex=0;" title="Resmi Dilekçe Şablonları">
-          <option value="" disabled selected>⚖️ Dilekçe Şablonları...</option>
-          <option value="dava">Dava Dilekçesi (Genel)</option>
+          <option value="" disabled selected>⚖️ Şablon</option>
+          <option value="dava">Dava Dilekçesi</option>
           <option value="cevap">Cevap Dilekçesi</option>
-          <option value="sure">Süre Uzatım Talebi (HMK 127)</option>
-          <option value="delil">Delil Listesi &amp; Açıklaması</option>
-          <option value="beyan">Bilirkişi Raporuna İtiraz / Beyan</option>
-          <option value="istinaf">İstinaf Başvuru Dilekçesi</option>
-          <option value="icra">İcra Emrine İtiraz Dilekçesi</option>
-          <option value="ihtar">İhtarname / Fesih Metni</option>
+          <option value="sure">Süre Uzatım (HMK 127)</option>
+          <option value="delil">Delil Listesi</option>
+          <option value="beyan">Bilirkişi Beyanı</option>
+          <option value="istinaf">İstinaf Başvurusu</option>
+          <option value="icra">İcraya İtiraz</option>
+          <option value="ihtar">İhtarname</option>
         </select>
       </div>
 
@@ -41,11 +39,11 @@
       <!-- 3. Yazı Tipi Ailesi -->
       <div class="tool-group">
         <select id="select-font-family" onchange="changeFontFamily(this.value)" title="Yazı Tipi">
-          <option value="'Times New Roman', Times, serif" selected>Times New Roman (UYAP)</option>
+          <option value="'Times New Roman', Times, serif" selected>Times New Roman</option>
           <option value="Arial, Helvetica, sans-serif">Arial</option>
           <option value="Calibri, sans-serif">Calibri</option>
           <option value="Georgia, serif">Georgia</option>
-          <option value="'Courier New', Courier, monospace">Daktilo / Courier</option>
+          <option value="'Courier New', Courier, monospace">Daktilo</option>
         </select>
       </div>
 
@@ -68,13 +66,13 @@
         <button type="button" id="btn-strike" class="tool-btn" onclick="format('strikeThrough')" title="Üstü Çizili"><s>S</s></button>
         <button type="button" class="tool-btn" onclick="format('superscript')" title="Üst Simge (x²)">x²</button>
         <button type="button" class="tool-btn" onclick="format('subscript')" title="Alt Simge (x₂)">x₂</button>
-        <button type="button" class="tool-btn" onclick="clearFormatting()" title="Biçimlendirmeyi Sıfırla (Temizle)">🧹</button>
+        <button type="button" class="tool-btn" onclick="clearFormatting()" title="Biçimlendirmeyi Temizle">🧹</button>
 
-        <select id="select-text-case" onchange="convertTextCase(this.value); this.selectedIndex=0;" title="Büyük / Küçük Harf Dönüştür (UYAP)">
-          <option value="" disabled selected>🔠 Harf...</option>
-          <option value="upper">TÜMÜ BÜYÜK (MAHKEME / DAVACI)</option>
+        <select id="select-text-case" onchange="convertTextCase(this.value); this.selectedIndex=0;" title="Büyük / Küçük Harf">
+          <option value="" disabled selected>🔠</option>
+          <option value="upper">TÜMÜ BÜYÜK</option>
           <option value="lower">tümü küçük</option>
-          <option value="title">Baş Harfleri Büyük</option>
+          <option value="title">İlk Harfler Büyük</option>
           <option value="sentence">Cümle düzeni</option>
         </select>
       </div>
@@ -84,19 +82,19 @@
       <!-- 6. Renk & Vurgu Seçiciler -->
       <div class="tool-group">
         <select id="select-text-color" onchange="format('foreColor', this.value); this.selectedIndex=0;" title="Yazı Rengi">
-          <option value="" disabled selected>🎨 Renk</option>
-          <option value="#000000" style="color: black;">Siyah (Standart)</option>
-          <option value="#1565C0" style="color: #1565C0;">Koyu Mavi (Adli)</option>
-          <option value="#C62828" style="color: #C62828;">Kırmızı (İhtar)</option>
-          <option value="#2E7D32" style="color: #2E7D32;">Koyu Yeşil</option>
+          <option value="" disabled selected>🎨</option>
+          <option value="#000000" style="color: black;">Siyah</option>
+          <option value="#1565C0" style="color: #1565C0;">Koyu Mavi</option>
+          <option value="#C62828" style="color: #C62828;">Kırmızı</option>
+          <option value="#2E7D32" style="color: #2E7D32;">Yeşil</option>
         </select>
 
         <select id="select-highlight-color" onchange="format('hiliteColor', this.value); this.selectedIndex=0;" title="Fosforlu Vurgu">
-          <option value="" disabled selected>🖍️ Vurgu</option>
-          <option value="#FFF59D" style="background: #FFF59D;">Sarı Vurgu</option>
-          <option value="#A5D6A7" style="background: #A5D6A7;">Yeşil Vurgu</option>
-          <option value="#BBDEFB" style="background: #BBDEFB;">Mavi Vurgu</option>
-          <option value="transparent">Vurguyu Kaldır</option>
+          <option value="" disabled selected>🖍️</option>
+          <option value="#FFF59D" style="background: #FFF59D;">Sarı</option>
+          <option value="#A5D6A7" style="background: #A5D6A7;">Yeşil</option>
+          <option value="#BBDEFB" style="background: #BBDEFB;">Mavi</option>
+          <option value="transparent">Vurgusuz</option>
         </select>
       </div>
 
@@ -107,116 +105,88 @@
         <button type="button" id="btn-align-left" class="tool-btn" onclick="format('justifyLeft')" title="Sola Yasla">
           <svg viewBox="0 0 24 24"><path d="M3 5h18v2H3V5zm0 4h12v2H3V9zm0 4h18v2H3v-2zm0 4h12v2H3v-2z"/></svg>
         </button>
-        <button type="button" id="btn-align-center" class="tool-btn" onclick="format('justifyCenter')" title="Ortala (Mahkeme Başlıkları)">
+        <button type="button" id="btn-align-center" class="tool-btn" onclick="format('justifyCenter')" title="Ortala">
           <svg viewBox="0 0 24 24"><path d="M4 5h16v2H4V5zm3 4h10v2H7V9zm-3 4h16v2H4v-2zm3 4h10v2H7v-2z"/></svg>
         </button>
-        <button type="button" id="btn-align-right" class="tool-btn" onclick="format('justifyRight')" title="Sağa Yasla (İmza/Tarih)">
+        <button type="button" id="btn-align-right" class="tool-btn" onclick="format('justifyRight')" title="Sağa Yasla">
           <svg viewBox="0 0 24 24"><path d="M3 5h18v2H3V5zm6 4h12v2H9V9zm-6 4h18v2H3v-2zm6 4h12v2H9v-2z"/></svg>
         </button>
-        <button type="button" id="btn-align-justify" class="tool-btn active" onclick="format('justifyFull')" title="İki Yana Yasla (UYAP Standardı)">
+        <button type="button" id="btn-align-justify" class="tool-btn active" onclick="format('justifyFull')" title="İki Yana Yasla (UYAP)">
           <svg viewBox="0 0 24 24"><path d="M3 5h18v2H3V5zm0 4h18v2H3V9zm0 4h18v2H3v-2zm0 4h18v2H3v-2z"/></svg>
         </button>
       </div>
 
       <div class="divider"></div>
 
-      <!-- 8. Paragraf Boşlukları & Satır Aralığı (Seçili Paragrafa Özel) -->
+      <!-- 8. Paragraf & Satır Aralığı -->
       <div class="tool-group">
-        <button type="button" class="tool-btn text-btn" onclick="openParagraphModal()" title="Seçili Paragraf Boşluk ve Girinti Ayarları">
-          📐 Paragraf
-        </button>
-
-        <select id="select-paragraph-spacing" onchange="changeParagraphSpacing(this.value); this.selectedIndex=0;" title="Hızlı Paragraf Boşluğu (Seçili Paragraf)">
-          <option value="" disabled selected>⇕ Paragraf Boşluğu</option>
-          <option value="0,0">Önce 0pt / Sonra 0pt</option>
-          <option value="0,4">Önce 0pt / Sonra 4pt</option>
-          <option value="2,6">Önce 2pt / Sonra 6pt</option>
-          <option value="4,8">Önce 4pt / Sonra 8pt (UYAP)</option>
-          <option value="6,12">Önce 6pt / Sonra 12pt</option>
-          <option value="custom">⚙️ Detaylı Aralık...</option>
+        <button type="button" class="tool-btn" onclick="openParagraphModal()" title="Paragraf Boşluk ve Girinti Ayarları">¶</button>
+        <select id="select-paragraph-spacing" onchange="changeParagraphSpacing(this.value); this.selectedIndex=0;" title="Paragraf Boşluğu">
+          <option value="" disabled selected>⇕</option>
+          <option value="0,0">0/0 pt</option>
+          <option value="0,4">0/4 pt</option>
+          <option value="2,6">2/6 pt</option>
+          <option value="4,8">4/8 pt (UYAP)</option>
+          <option value="6,12">6/12 pt</option>
+          <option value="custom">⚙️ Detaylı...</option>
         </select>
-
-        <select id="select-line-spacing" onchange="changeLineSpacing(this.value); this.selectedIndex=0;" title="Satır Aralığı (Seçili Paragraf)">
-          <option value="" disabled selected>↕️ Satır Aralığı</option>
-          <option value="1.0">Tek (1.0)</option>
+        <select id="select-line-spacing" onchange="changeLineSpacing(this.value); this.selectedIndex=0;" title="Satır Aralığı">
+          <option value="" disabled selected>↕️</option>
+          <option value="1.0">1.0</option>
           <option value="1.15">1.15</option>
-          <option value="1.35">1.35 (UYAP Standart)</option>
-          <option value="1.5">1.5 Geniş</option>
-          <option value="2.0">Çift (2.0)</option>
+          <option value="1.35">1.35 (UYAP)</option>
+          <option value="1.5">1.5</option>
+          <option value="2.0">2.0</option>
+        </select>
+        <select id="select-list-style" onchange="insertCustomList(this.value); this.selectedIndex=0;" title="Numaralandırma & Maddeleme">
+          <option value="" disabled selected>🔢</option>
+          <option value="decimal">1. Sayısal</option>
+          <option value="legal">1.1 Madde</option>
+          <option value="roman">I. Romen</option>
+          <option value="alpha">a) Harf</option>
+          <option value="disc">• Nokta</option>
+          <option value="square">■ Kare</option>
+          <option value="arrow">➢ Ok</option>
         </select>
       </div>
 
       <div class="divider"></div>
 
-      <!-- 9. Gelişmiş Numaralandırma & Madde İşaretleri -->
-      <div class="tool-group">
-        <select id="select-list-style" onchange="insertCustomList(this.value); this.selectedIndex=0;" title="Maddeleme ve Numaralandırma">
-          <option value="" disabled selected>🔢 Numaralandırma...</option>
-          <option value="decimal">1., 2., 3. (Standart)</option>
-          <option value="legal">1.1, 1.2, 1.3 (Dava Maddeleri)</option>
-          <option value="roman">I., II., III. (Roma Rakamları)</option>
-          <option value="alpha">a), b), c) (Harfli Maddeler)</option>
-          <option value="disc">• Daire Madde İmi</option>
-          <option value="square">■ Kare Madde İmi</option>
-          <option value="arrow">➢ Ok Madde İmi</option>
-        </select>
-      </div>
-
-      <div class="divider"></div>
-
-      <!-- 10. Girintiler, Tablo, Resim, Sayfa No & Sayfa Sonu -->
+      <!-- 9. Girintiler, Tablo, Resim, Sayfa No & Sayfa Sonu -->
       <div class="tool-group">
         <button type="button" class="tool-btn" onclick="format('outdent')" title="Girinti Azalt">⇤</button>
         <button type="button" class="tool-btn" onclick="format('indent')" title="Girinti Artır (Tab)">⇥</button>
-        <button type="button" class="tool-btn text-btn" onclick="insertTable()" title="Delil / Hesap Tablosu Ekle">📊 Tablo</button>
-        <button type="button" class="tool-btn text-btn" onclick="triggerImagePicker()" title="Dilekçeye Delil / Resim Ekle">🖼️ Resim</button>
-        <button type="button" class="tool-btn text-btn" onclick="insertPageNumber()" title="Altbilgiye Sayfa No Ekle">🔢 Sayfa No</button>
-        <button type="button" class="tool-btn text-btn" onclick="insertPageBreak()" title="Sayfa Kesmesi / Sayfa Sonu Ekle">📑 Sayfa Sonu</button>
+        <button type="button" class="tool-btn" onclick="insertTable()" title="Tablo Ekle">📊</button>
+        <button type="button" class="tool-btn" onclick="triggerImagePicker()" title="Resim / Delil Ekle">🖼️</button>
+        <button type="button" class="tool-btn" onclick="insertPageNumber()" title="Sayfa No Ekle">№</button>
+        <button type="button" class="tool-btn" onclick="insertPageBreak()" title="Sayfa Sonu / Kesmesi">📑</button>
       </div>
 
       <div class="divider"></div>
 
-      <!-- 11. Sayfa Yapısı, Kenar Boşlukları & Cetvel -->
+      <!-- 10. Sayfa Yapısı, Cetvel & Üstbilgi -->
       <div class="tool-group">
-        <button type="button" class="tool-btn text-btn" onclick="openPageSetupModal()" title="Sayfa Kenar Boşlukları (Sol/Sağ/Üst/Alt 2.5cm) ve Yönü">
-          📐 Kenar Boşluğu
-        </button>
-        <button type="button" id="btn-toggle-ruler" class="tool-btn text-btn active" onclick="toggleRuler()" title="Etkileşimli Cetveli Göster/Gizle">
-          📏 Cetvel
-        </button>
-        <button type="button" id="btn-focus-header" class="tool-btn text-btn" onclick="focusHeaderFooter()" title="Üstbilgi veya Altbilgiye Git">
-          📑 Üst/Altbilgi
-        </button>
+        <button type="button" class="tool-btn" onclick="openPageSetupModal()" title="Sayfa Kenar Boşlukları (Sol/Sağ/Üst/Alt 2.5cm) ve Yönü">📐</button>
+        <button type="button" id="btn-toggle-ruler" class="tool-btn active" onclick="toggleRuler()" title="Cetveli Göster/Gizle">📏</button>
+        <button type="button" id="btn-focus-header" class="tool-btn" onclick="focusHeaderFooter()" title="Üstbilgi veya Altbilgiye Git">🏷️</button>
       </div>
 
       <div class="divider"></div>
 
-      <!-- 12. UYAP Hukuk Araçları: Tarih, Bul/Değiştir & İstatistik -->
+      <!-- 11. UYAP Hukuk Araçları: Tarih, Bul/Değiştir & İstatistik -->
       <div class="tool-group">
-        <button type="button" class="tool-btn text-btn" onclick="insertOfficialDate()" title="Güncel Resmi Tarihi Ekle (GG.AA.YYYY)">
-          📅 Tarih
-        </button>
-        <button type="button" class="tool-btn text-btn" onclick="openFindReplaceModal()" title="Kelime Bul ve Değiştir (Ctrl+F / Ctrl+H)">
-          🔍 Bul/Değiştir
-        </button>
-        <button type="button" class="tool-btn text-btn" onclick="openDocStatsModal()" title="Kelime ve Karakter İstatistikleri">
-          📊 İstatistik
-        </button>
+        <button type="button" class="tool-btn" onclick="insertOfficialDate()" title="Resmi Tarihi Ekle (GG.AA.YYYY)">📅</button>
+        <button type="button" class="tool-btn" onclick="openFindReplaceModal()" title="Kelime Bul ve Değiştir (Ctrl+F)">🔍</button>
+        <button type="button" class="tool-btn" onclick="openDocStatsModal()" title="Kelime ve Karakter İstatistikleri">ℹ️</button>
       </div>
 
       <div class="divider"></div>
 
-      <!-- 13. E-İmza & Mobil İmza Butonları -->
+      <!-- 12. E-İmza & Mobil İmza Butonları -->
       <div class="tool-group">
-        <button type="button" class="tool-btn sign-btn text-btn" onclick="openMobileSignModal()" title="Turkcell, Vodafone, TT Mobil İmza">
-          📱 Mobil İmza
-        </button>
-        <button type="button" class="tool-btn sign-btn text-btn" onclick="openSmartCardSignModal()" title="USB Akıllı Kart / E-İmza">
-          ✍️ USB E-İmza
-        </button>
-        <button type="button" id="btn-verify-sig" class="tool-btn text-btn" onclick="checkDocumentSignature()" title="Belgedeki E-İmzayı ve Sertifikayı Doğrula">
-          🔍 İmza Kontrolü
-        </button>
+        <button type="button" class="tool-btn sign-btn text-btn" onclick="openMobileSignModal()" title="Mobil İmza">📱 Mobil</button>
+        <button type="button" class="tool-btn sign-btn text-btn" onclick="openSmartCardSignModal()" title="USB Akıllı Kart / E-İmza">✍️ E-İmza</button>
+        <button type="button" id="btn-verify-sig" class="tool-btn text-btn" onclick="checkDocumentSignature()" title="İmzayı Doğrula">🛡️ Doğrula</button>
       </div>
 
     </div>
