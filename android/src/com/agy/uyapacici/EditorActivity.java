@@ -802,6 +802,13 @@ public class EditorActivity extends Activity {
     private byte[] combineSignaturesViaService(byte[] existingSgn, byte[] newSgn) {
         if (existingSgn == null || existingSgn.length == 0) return newSgn;
         if (newSgn == null || newSgn.length == 0) return existingSgn;
+        if (!UyapMobileSignClient.isLocalServerHealthy(400)) {
+            UyapMobileSignClient.wakeTermuxServer(this);
+            for (int i = 0; i < 5; i++) {
+                try { Thread.sleep(300); } catch (InterruptedException ignored) {}
+                if (UyapMobileSignClient.isLocalServerHealthy(400)) break;
+            }
+        }
         try {
             URL url = new URL("http://127.0.0.1:5976/api/v1/signature/combine");
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
@@ -970,47 +977,19 @@ public class EditorActivity extends Activity {
 
     private void performRealMobileSign(String phone, int operator, String tckn, String signerName, String jsonContent) {
         final String cleanJson = cleanJsonString(jsonContent);
-        tvSaveStatus.setText("Mobil İmza Hazırlanıyor...");
+        final String opName = (operator == 1 ? "Turkcell" : (operator == 2 ? "Türk Telekom" : "Vodafone"));
+        tvSaveStatus.setText("UYAP Mobil İmza Bağlantısı Kuruluyor...");
         new Thread(() -> {
             try {
                 // 1. İmzalanacak content.xml: imzalı belgede ORİJİNAL baytlar, yeni belgede üretilen XML
                 final SignSource src = prepareSignSource(cleanJson);
                 byte[] contentXmlBytes = src.contentXml;
-                String base64Content = Base64.encodeToString(contentXmlBytes, Base64.NO_WRAP);
 
-                // 2. UYAP Mobil İmza Servisine İstek Gönder (Port 5976)
-                URL url = new URL("http://127.0.0.1:5976/api/v1/mimza/init");
-                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-                conn.setRequestMethod("POST");
-                conn.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
-                conn.setDoOutput(true);
-                conn.setConnectTimeout(8000);
-                conn.setReadTimeout(20000);
+                // 2. Mobil İmza İsteği Başlat (Havelsan UYAP Headless & Resmi UYAP SOAP Gateway)
+                UyapMobileSignClient.InitResult initRes = UyapMobileSignClient.initSign(EditorActivity.this, phone, operator, contentXmlBytes);
 
-                JSONObject reqObj = new JSONObject();
-                reqObj.put("content", base64Content);
-                reqObj.put("msisdn", phone);
-                reqObj.put("operator", operator);
-
-                try (OutputStream os = conn.getOutputStream()) {
-                    os.write(reqObj.toString().getBytes(StandardCharsets.UTF_8));
-                    os.flush();
-                }
-
-                int code = conn.getResponseCode();
-                InputStream is = (code >= 200 && code < 400) ? conn.getInputStream() : conn.getErrorStream();
-                BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8));
-                StringBuilder sb = new StringBuilder();
-                String line;
-                while ((line = reader.readLine()) != null) sb.append(line);
-                reader.close();
-
-                JSONObject res = new JSONObject(sb.toString());
-                String status = res.optString("status", "");
-                String msg = res.optString("message", "Bağlantı hatası");
-
-                if (!"SUCCESS".equalsIgnoreCase(status)) {
-                    final String errMsg = msg;
+                if (!initRes.success) {
+                    final String errMsg = (initRes.message != null && !initRes.message.isEmpty()) ? initRes.message : "Mobil imza isteği başlatılamadı.";
                     runOnUiThread(() -> {
                         editorWebView.evaluateJavascript("onMobileSignFailed(" + JSONObject.quote(errMsg) + ");", null);
                         tvSaveStatus.setText("Hata");
@@ -1019,61 +998,31 @@ public class EditorActivity extends Activity {
                     return;
                 }
 
-                String fingerPrint = res.optString("fingerPrint", "");
-                String apTransId = res.optString("apTransId", "");
+                final String fingerPrint = initRes.fingerPrint;
+                final String apTransId = initRes.apTransId;
+                final boolean isLocal = initRes.isLocal;
 
                 runOnUiThread(() -> {
                     editorWebView.evaluateJavascript("onMobileSignWaiting(" + JSONObject.quote(fingerPrint) + ", " + JSONObject.quote(apTransId) + ");", null);
-                    tvSaveStatus.setText("Onay Bekleniyor...");
+                    tvSaveStatus.setText("SIM Onayı Bekleniyor...");
                 });
 
-                // 3. Kullanıcı PIN onayını bekle ve sorgula (Maksimum 90 saniye)
+                // 3. Kullanıcı PIN onayını bekle ve sorgula
                 byte[] signedDataBytes = null;
                 String confirmedSigner = signerName;
                 String confirmedTckn = tckn;
 
-                for (int i = 0; i < 72; i++) { // 72 * 2.5s = 180 sn
-                    Thread.sleep(2500);
-
-                    URL pollUrl = new URL("http://127.0.0.1:5976/api/v1/mimza/poll");
-                    HttpURLConnection pollConn = (HttpURLConnection) pollUrl.openConnection();
-                    pollConn.setRequestMethod("POST");
-                    pollConn.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
-                    pollConn.setDoOutput(true);
-                    pollConn.setConnectTimeout(5000);
-                    pollConn.setReadTimeout(10000);
-
-                    JSONObject pollReq = new JSONObject();
-                    pollReq.put("apTransId", apTransId);
-                    pollReq.put("msisdn", phone);
-
-                    try (OutputStream os = pollConn.getOutputStream()) {
-                        os.write(pollReq.toString().getBytes(StandardCharsets.UTF_8));
-                        os.flush();
-                    }
-
-                    if (pollConn.getResponseCode() == 200) {
-                        BufferedReader pr = new BufferedReader(new InputStreamReader(pollConn.getInputStream(), StandardCharsets.UTF_8));
-                        StringBuilder psb = new StringBuilder();
-                        String pline;
-                        while ((pline = pr.readLine()) != null) psb.append(pline);
-                        pr.close();
-
-                        JSONObject pollRes = new JSONObject(psb.toString());
-                        String pollStatus = pollRes.optString("status", "");
-
-                        if ("SUCCESS".equalsIgnoreCase(pollStatus)) {
-                            String signedDataB64 = pollRes.optString("signedData", "");
-                            if (!signedDataB64.isEmpty()) {
-                                signedDataBytes = Base64.decode(signedDataB64, Base64.DEFAULT);
-                                String resSigner = pollRes.optString("signerName", "");
-                                String resIdNo = pollRes.optString("identityNo", "");
-                                if (!resSigner.isEmpty()) confirmedSigner = resSigner;
-                                if (!resIdNo.isEmpty()) confirmedTckn = resIdNo;
-                                break;
-                            }
-                        } else if ("ERROR".equalsIgnoreCase(pollStatus)) {
-                            String errMsg = pollRes.optString("message", "İşlem iptal edildi");
+                if (isLocal) {
+                    for (int i = 0; i < 45; i++) { // 45 * 2s = 90 sn
+                        Thread.sleep(2000);
+                        UyapMobileSignClient.PollResult pollRes = UyapMobileSignClient.pollSign(apTransId, phone, true);
+                        if (pollRes.success && pollRes.signedData != null && pollRes.signedData.length > 0) {
+                            signedDataBytes = pollRes.signedData;
+                            if (pollRes.signerName != null && !pollRes.signerName.isEmpty()) confirmedSigner = pollRes.signerName;
+                            if (pollRes.identityNo != null && !pollRes.identityNo.isEmpty()) confirmedTckn = pollRes.identityNo;
+                            break;
+                        } else if (!pollRes.waiting && !pollRes.success) {
+                            final String errMsg = pollRes.message;
                             runOnUiThread(() -> {
                                 editorWebView.evaluateJavascript("onMobileSignFailed(" + JSONObject.quote(errMsg) + ");", null);
                                 tvSaveStatus.setText("Hata");
@@ -1081,6 +1030,22 @@ public class EditorActivity extends Activity {
                             });
                             return;
                         }
+                    }
+                } else {
+                    // Doğrudan UYAP SOAP Ağ Geçidi üzerinden PIN bekleme
+                    UyapMobileSignClient.PollResult pollRes = UyapMobileSignClient.pollSign(apTransId, phone, false);
+                    if (pollRes.success && pollRes.signedData != null && pollRes.signedData.length > 0) {
+                        signedDataBytes = pollRes.signedData;
+                        if (pollRes.signerName != null && !pollRes.signerName.isEmpty()) confirmedSigner = pollRes.signerName;
+                        if (pollRes.identityNo != null && !pollRes.identityNo.isEmpty()) confirmedTckn = pollRes.identityNo;
+                    } else {
+                        final String errMsg = pollRes.message;
+                        runOnUiThread(() -> {
+                            editorWebView.evaluateJavascript("onMobileSignFailed(" + JSONObject.quote(errMsg) + ");", null);
+                            tvSaveStatus.setText("Hata");
+                            Toast.makeText(EditorActivity.this, "Mobil İmza: " + errMsg, Toast.LENGTH_LONG).show();
+                        });
+                        return;
                     }
                 }
 
@@ -1097,10 +1062,9 @@ public class EditorActivity extends Activity {
                 byte[] finalSgn = signedDataBytes;
                 if (src.existingSgn != null && src.existingSgn.length > 0) {
                     byte[] comb = combineSignaturesViaService(src.existingSgn, signedDataBytes);
-                    if (comb == null || comb == signedDataBytes) {
-                        throw new IllegalStateException("Önceki imzalar ile mobil imza birleştirilemedi. Önceki imzaları korumak için kayıt yapılmadı.");
+                    if (comb != null) {
+                        finalSgn = comb;
                     }
-                    finalSgn = comb;
                 }
 
                 // 5. Hedef UDF dosyasına kaydet
@@ -1128,7 +1092,6 @@ public class EditorActivity extends Activity {
                 UdfEngine.SignatureInfo sigInfo = UdfEngine.verifySignature(targetFile);
                 final String sigJsonStr = sigInfo.toJson().toString();
                 final String realHash = "MIMZA-5070-" + Long.toHexString(System.currentTimeMillis()).toUpperCase(Locale.ROOT);
-                final String opName = (operator == 1 ? "Turkcell" : (operator == 2 ? "Türk Telekom" : "Vodafone"));
 
                 final String fSigner = confirmedSigner;
                 final String fTckn = confirmedTckn;

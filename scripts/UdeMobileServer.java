@@ -25,7 +25,7 @@ public class UdeMobileServer {
     public static void main(String[] args) throws Exception {
         mimzaSigner = new MobilImzaSigner();
 
-        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", PORT), 0);
+        HttpServer server = HttpServer.create(new InetSocketAddress(PORT), 0);
         server.setExecutor(Executors.newCachedThreadPool());
 
         // CORS ve JSON başlıkları ekleyen handler
@@ -36,7 +36,7 @@ public class UdeMobileServer {
         server.createContext("/api/v1/signature/combine", new SignatureCombineHandler());
 
         server.start();
-        System.out.println("✓ UdeMobileServer 127.0.0.1:" + PORT + " üzerinde hazır!");
+        System.out.println("✓ UdeMobileServer 0.0.0.0:" + PORT + " (Havelsan UYAP Headless) üzerinde hazır!");
         while (true) {
             try {
                 Thread.sleep(60000);
