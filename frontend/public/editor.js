@@ -387,6 +387,16 @@ function insertPageNumber() {
 
 // Temel Biçimlendirme
 function format(cmd, val = null) {
+  // Geri al / yinele: tüm değişiklikleri (sekme, cetvel, biçim boyacısı...) kapsayan kendi geçmişimiz
+  if ((cmd === 'undo' || cmd === 'redo') && window.CanHistory) {
+    const a = document.activeElement;
+    const inHeaderFooter = a && (a.id === 'doc-header' || a.id === 'doc-footer');
+    if (!inHeaderFooter) {
+      cmd === 'undo' ? CanHistory.undo() : CanHistory.redo();
+      document.getElementById('editor-content').focus();
+      return;
+    }
+  }
   document.execCommand(cmd, false, val);
   document.getElementById('editor-content').focus();
   updateActiveButtons();
@@ -2715,6 +2725,7 @@ function setDocumentData(header, footer, htmlContent) {
     updateRulerFromActiveParagraph();
   }, 150);
   setTimeout(markDocumentPristine, 400);
+  setTimeout(() => { if (window.CanHistory) CanHistory.reset(); }, 450);
 }
 
 // --- Değişiklik takibi (imzalı belgelerde imzaları korumak için) ---
@@ -2772,6 +2783,7 @@ function setHtmlContent(content) {
             updatePagination();
           }, 200);
           setTimeout(markDocumentPristine, 400);
+  setTimeout(() => { if (window.CanHistory) CanHistory.reset(); }, 450);
           return;
         }
       }
@@ -2786,6 +2798,7 @@ function setHtmlContent(content) {
     updateRulerFromActiveParagraph();
     updatePagination();
   }, 200);
+  setTimeout(() => { if (window.CanHistory) CanHistory.reset(); }, 450);
 }
 
 function getHtmlContent() {
