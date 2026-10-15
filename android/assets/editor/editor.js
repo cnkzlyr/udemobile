@@ -9,14 +9,21 @@ let savedSelectionRange = null;
 let paragraphScope = 'selected';
 let currentPAlign = 'justify';
 
-// --- Sayfa Kenar Boşlukları ve Sayfa Yapısı Değişkenleri ---
 let currentMargins = {
   top: 2.5,
   right: 2.5,
   bottom: 2.5,
   left: 2.5,
+  header: 1.25,
+  footer: 1.25,
   orientation: 'portrait' // 'portrait' or 'landscape'
 };
+
+// --- Sayfa Numarası ve Biçim Boyacısı Durum Değişkenleri ---
+let currentDocPageNumberPos = 'bottom-right';
+let isFormatPainterActive = false;
+let isFormatPainterPersistent = false;
+let copiedFormat = null;
 
 // --- Google Dokümanlar Yazdırma Düzeni & Zoom Motoru ---
 let currentDocFooterTemplate = '';
@@ -68,6 +75,40 @@ function recordCurrentSelection() {
   } catch (e) {}
 }
 
+// --- BİLDİRİM VE TOAST MOTORU ---
+function showEditorToast(msg) {
+  let toast = document.getElementById('editor-toast-notification');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'editor-toast-notification';
+    toast.style.position = 'fixed';
+    toast.style.bottom = '46px';
+    toast.style.left = '50%';
+    toast.style.transform = 'translateX(-50%) translateY(20px)';
+    toast.style.backgroundColor = 'rgba(26, 43, 76, 0.94)';
+    toast.style.color = '#ffffff';
+    toast.style.padding = '8px 18px';
+    toast.style.borderRadius = '20px';
+    toast.style.fontSize = '12px';
+    toast.style.fontWeight = '600';
+    toast.style.boxShadow = '0 4px 16px rgba(0,0,0,0.3)';
+    toast.style.zIndex = '99999';
+    toast.style.opacity = '0';
+    toast.style.transition = 'opacity 0.25s ease, transform 0.25s ease';
+    toast.style.pointerEvents = 'none';
+    document.body.appendChild(toast);
+  }
+  toast.textContent = msg;
+  toast.style.opacity = '1';
+  toast.style.transform = 'translateX(-50%) translateY(0)';
+  clearTimeout(toast._timeout);
+  toast._timeout = setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateX(-50%) translateY(15px)';
+  }, 2200);
+}
+window.showToast = showEditorToast;
+
 document.addEventListener('DOMContentLoaded', () => {
   const editor = document.getElementById('editor-content');
   
@@ -80,17 +121,33 @@ document.addEventListener('DOMContentLoaded', () => {
     recordCurrentSelection();
     updateActiveButtons();
     updateRulerFromActiveParagraph();
+    if (!isFormatPainterActive) {
+      setTimeout(updateFloatingContextMenu, 120);
+    }
   });
 
   editor.addEventListener('mouseup', () => {
     recordCurrentSelection();
+    if (isFormatPainterActive) {
+      applyCopiedFormatToTarget();
+    } else {
+      setTimeout(updateFloatingContextMenu, 60);
+    }
   });
+
   editor.addEventListener('touchend', () => {
     recordCurrentSelection();
+    if (isFormatPainterActive) {
+      applyCopiedFormatToTarget();
+    } else {
+      setTimeout(updateFloatingContextMenu, 100);
+    }
   });
+
   editor.addEventListener('keyup', () => {
     recordCurrentSelection();
   });
+
   editor.addEventListener('keydown', (e) => {
     if (e.key === 'Tab') {
       e.preventDefault();
@@ -102,6 +159,14 @@ document.addEventListener('DOMContentLoaded', () => {
   editor.addEventListener('click', () => {
     recordCurrentSelection();
     updateRulerFromActiveParagraph();
+  });
+
+  // Sayfa dışına veya araç çubuğuna tıklayınca context bubble gizle
+  document.addEventListener('mousedown', (e) => {
+    const bubble = document.getElementById('floating-context-menu');
+    if (bubble && !bubble.contains(e.target) && !editor.contains(e.target)) {
+      hideFloatingContextMenu();
+    }
   });
 
   // Araç çubuğu butonlarının editördeki metin seçimini kaybetmesini engelle:
@@ -120,8 +185,9 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Başlangıçta kenar boşlukları ve kağıt ölçeğini uygula
-  applyPageSetup(currentMargins.left, currentMargins.right, currentMargins.top, currentMargins.bottom, currentMargins.orientation);
+  applyPageSetup(currentMargins.left, currentMargins.right, currentMargins.top, currentMargins.bottom, currentMargins.orientation, currentMargins.header, currentMargins.footer);
   initPinchToZoom();
+  initDynamicScrollBlur();
   updateCounts();
   
   setTimeout(() => {
@@ -155,16 +221,41 @@ function toggleViewMode() {
 // Otomatik A4 Sayfa Ayrımı (Havelsan UYAP Çoklu Sayfa Düzeni)
 let paginationTimer = null;
 function getDocFooterHtml(pageNum, totalPages) {
+  let pageNumHtml = '';
+  if (currentDocPageNumberPos === 'bottom-right') {
+    pageNumHtml = `<span class="udf-footer-page-label" style="margin-left: auto;">Sayfa: ${pageNum} / ${totalPages}</span>`;
+  } else if (currentDocPageNumberPos === 'bottom-center') {
+    pageNumHtml = `<span class="udf-footer-page-label" style="margin: 0 auto;">Sayfa: ${pageNum} / ${totalPages}</span>`;
+  } else if (currentDocPageNumberPos === 'bottom-left') {
+    pageNumHtml = `<span class="udf-footer-page-label" style="margin-right: auto;">Sayfa: ${pageNum} / ${totalPages}</span>`;
+  } else if (currentDocPageNumberPos === 'none') {
+    pageNumHtml = '';
+  }
+
   if (currentDocFooterTemplate) {
-    return currentDocFooterTemplate
+    let tpl = currentDocFooterTemplate
       .replace(/\{PAGE_NUM\}/g, pageNum)
       .replace(/\{TOTAL_PAGES\}/g, totalPages);
+    if (!tpl.includes('udf-footer-page-label') && currentDocPageNumberPos !== 'none' && pageNumHtml) {
+      if (tpl.includes('</div>')) {
+        tpl = tpl.replace('</div>', pageNumHtml + '</div>');
+      } else {
+        tpl += pageNumHtml;
+      }
+    }
+    return tpl;
   }
   const dateStr = new Date().toLocaleDateString('tr-TR');
   return `<div class="udf-footer-layout">` +
          `<span class="udf-footer-text">Belge Düzenleme Tarihi: ${dateStr}</span>` +
-         `<span class="udf-footer-page-label">Sayfa: ${pageNum} / ${totalPages}</span>` +
+         pageNumHtml +
          `</div>`;
+}
+
+function applyPageNumberChoice(choice) {
+  currentDocPageNumberPos = choice || 'bottom-right';
+  updatePagination();
+  showEditorToast('Sayfa numarası konumu güncellendi');
 }
 
 function updatePagination() {
@@ -406,11 +497,13 @@ function changeLineSpacing(val) {
 }
 
 // --- SAYFA YAPISI VE KENAR BOŞLUKLARI MOTORU ---
-function applyPageSetup(left, right, top, bottom, orientation) {
+function applyPageSetup(left, right, top, bottom, orientation, header, footer) {
   if (left !== undefined && left !== null) currentMargins.left = parseFloat(left) || 2.5;
   if (right !== undefined && right !== null) currentMargins.right = parseFloat(right) || 2.5;
   if (top !== undefined && top !== null) currentMargins.top = parseFloat(top) || 2.5;
   if (bottom !== undefined && bottom !== null) currentMargins.bottom = parseFloat(bottom) || 2.5;
+  if (header !== undefined && header !== null) currentMargins.header = parseFloat(header) || 1.25;
+  if (footer !== undefined && footer !== null) currentMargins.footer = parseFloat(footer) || 1.25;
   if (orientation) currentMargins.orientation = orientation;
 
   const root = document.documentElement;
@@ -418,6 +511,8 @@ function applyPageSetup(left, right, top, bottom, orientation) {
   root.style.setProperty('--page-margin-right', currentMargins.right + 'cm');
   root.style.setProperty('--page-margin-bottom', currentMargins.bottom + 'cm');
   root.style.setProperty('--page-margin-left', currentMargins.left + 'cm');
+  root.style.setProperty('--header-margin', currentMargins.header + 'cm');
+  root.style.setProperty('--footer-margin', currentMargins.footer + 'cm');
 
   const isLandscape = currentMargins.orientation === 'landscape';
   root.style.setProperty('--sheet-width', isLandscape ? '1123px' : '794px');
@@ -430,6 +525,7 @@ function applyPageSetup(left, right, top, bottom, orientation) {
   }
 
   updateCounts();
+  debouncedPagination();
 }
 
 function openPageSetupModal() {
@@ -437,11 +533,15 @@ function openPageSetupModal() {
   const mRight = document.getElementById('m-right');
   const mTop = document.getElementById('m-top');
   const mBottom = document.getElementById('m-bottom');
+  const mHeader = document.getElementById('m-header');
+  const mFooter = document.getElementById('m-footer');
 
   if (mLeft) mLeft.value = currentMargins.left;
   if (mRight) mRight.value = currentMargins.right;
   if (mTop) mTop.value = currentMargins.top;
   if (mBottom) mBottom.value = currentMargins.bottom;
+  if (mHeader) mHeader.value = currentMargins.header !== undefined ? currentMargins.header : 1.25;
+  if (mFooter) mFooter.value = currentMargins.footer !== undefined ? currentMargins.footer : 1.25;
 
   setPageOrientation(currentMargins.orientation || 'portrait');
   updateMarginPreview();
@@ -454,21 +554,29 @@ function setMarginPreset(preset) {
     document.getElementById('m-right').value = 2.5;
     document.getElementById('m-top').value = 2.5;
     document.getElementById('m-bottom').value = 2.5;
+    if (document.getElementById('m-header')) document.getElementById('m-header').value = 1.25;
+    if (document.getElementById('m-footer')) document.getElementById('m-footer').value = 1.25;
   } else if (preset === 'uyap') {
     document.getElementById('m-left').value = 1.5;
     document.getElementById('m-right').value = 1.5;
     document.getElementById('m-top').value = 1.5;
     document.getElementById('m-bottom').value = 1.5;
+    if (document.getElementById('m-header')) document.getElementById('m-header').value = 1.0;
+    if (document.getElementById('m-footer')) document.getElementById('m-footer').value = 1.0;
   } else if (preset === 'binding') {
     document.getElementById('m-left').value = 3.0;
     document.getElementById('m-right').value = 1.5;
     document.getElementById('m-top').value = 2.5;
     document.getElementById('m-bottom').value = 2.0;
+    if (document.getElementById('m-header')) document.getElementById('m-header').value = 1.25;
+    if (document.getElementById('m-footer')) document.getElementById('m-footer').value = 1.25;
   } else if (preset === 'narrow') {
     document.getElementById('m-left').value = 1.0;
     document.getElementById('m-right').value = 1.0;
     document.getElementById('m-top').value = 1.5;
     document.getElementById('m-bottom').value = 1.5;
+    if (document.getElementById('m-header')) document.getElementById('m-header').value = 0.8;
+    if (document.getElementById('m-footer')) document.getElementById('m-footer').value = 0.8;
   }
   updateMarginPreview();
 }
@@ -535,8 +643,10 @@ function applyPageSetupFromModal() {
   const right = parseFloat(document.getElementById('m-right').value) || 2.5;
   const top = parseFloat(document.getElementById('m-top').value) || 2.5;
   const bottom = parseFloat(document.getElementById('m-bottom').value) || 2.5;
+  const header = parseFloat(document.getElementById('m-header')?.value) || 1.25;
+  const footer = parseFloat(document.getElementById('m-footer')?.value) || 1.25;
 
-  applyPageSetup(left, right, top, bottom, modalOrientation);
+  applyPageSetup(left, right, top, bottom, modalOrientation, header, footer);
   closeModal('modal-page-setup');
 }
 
@@ -2208,7 +2318,7 @@ function setHtmlContent(content) {
           currentDocFooterTemplate = '';
         }
         if (data.leftMarginCm !== undefined) {
-          applyPageSetup(data.leftMarginCm, data.rightMarginCm, data.topMarginCm, data.bottomMarginCm, data.paperOrientation === '2' ? 'landscape' : 'portrait');
+          applyPageSetup(data.leftMarginCm, data.rightMarginCm, data.topMarginCm, data.bottomMarginCm, data.paperOrientation === '2' ? 'landscape' : 'portrait', data.headerMarginCm, data.footerMarginCm);
         }
         if (data.html) {
           editor.innerHTML = data.html;
@@ -2647,4 +2757,267 @@ function recheckSignatureInModal() {
   if (window.AndroidBridge && window.AndroidBridge.checkDocumentSignature) {
     window.AndroidBridge.checkDocumentSignature();
   }
+}
+
+// --- BİÇİM BOYACISI (Format Painter) MOTORU ---
+function toggleFormatPainter() {
+  if (isFormatPainterActive) {
+    deactivateFormatPainter();
+    showEditorToast('Biçim boyacısı kapatıldı');
+    return;
+  }
+  activateFormatPainter(false);
+}
+
+function activateFormatPainter(persistent = false) {
+  const sel = window.getSelection();
+  const editor = document.getElementById('editor-content');
+  if (!editor) return;
+
+  // Biçim alınacak kaynak öğeyi belirle
+  let sourceEl = null;
+  if (sel && sel.rangeCount > 0) {
+    const range = sel.getRangeAt(0);
+    if (!sel.isCollapsed) {
+      sourceEl = range.commonAncestorContainer;
+      if (sourceEl.nodeType === Node.TEXT_NODE) sourceEl = sourceEl.parentElement;
+    } else {
+      sourceEl = sel.anchorNode;
+      if (sourceEl && sourceEl.nodeType === Node.TEXT_NODE) sourceEl = sourceEl.parentElement;
+    }
+  }
+  if (!sourceEl || !editor.contains(sourceEl)) {
+    sourceEl = lastActiveParagraph || editor.firstElementChild;
+  }
+  if (!sourceEl) {
+    showEditorToast('Önce biçimi kopyalanacak metne dokunun');
+    return;
+  }
+
+  // Hesaplanan stilleri al
+  const cs = window.getComputedStyle(sourceEl);
+  let pEl = sourceEl;
+  while (pEl && pEl !== editor && pEl !== document.body) {
+    if (pEl.tagName && (pEl.tagName === 'P' || pEl.tagName === 'LI' || pEl.tagName === 'DIV' || pEl.tagName === 'BLOCKQUOTE')) break;
+    pEl = pEl.parentElement;
+  }
+  const pCs = (pEl && pEl !== editor) ? window.getComputedStyle(pEl) : cs;
+
+  copiedFormat = {
+    fontFamily: cs.fontFamily,
+    fontSize: cs.fontSize,
+    fontWeight: cs.fontWeight,
+    fontStyle: cs.fontStyle,
+    textDecoration: cs.textDecorationLine || cs.textDecoration,
+    color: cs.color,
+    backgroundColor: cs.backgroundColor !== 'rgba(0, 0, 0, 0)' && cs.backgroundColor !== 'transparent' ? cs.backgroundColor : '',
+    textAlign: pCs.textAlign,
+    lineHeight: pCs.lineHeight,
+    marginTop: pCs.marginTop,
+    marginBottom: pCs.marginBottom,
+    textIndent: pCs.textIndent
+  };
+
+  isFormatPainterActive = true;
+  isFormatPainterPersistent = persistent;
+  document.body.classList.add('format-painter-active');
+  const btn = document.getElementById('btn-format-painter');
+  if (btn) btn.classList.add('active');
+
+  showEditorToast('🖌️ Biçim kopyalandı! Hedef metni seçin veya tıklayın');
+}
+
+function deactivateFormatPainter() {
+  isFormatPainterActive = false;
+  isFormatPainterPersistent = false;
+  document.body.classList.remove('format-painter-active');
+  const btn = document.getElementById('btn-format-painter');
+  if (btn) btn.classList.remove('active');
+}
+
+function applyCopiedFormatToTarget() {
+  if (!isFormatPainterActive || !copiedFormat) return;
+
+  const sel = window.getSelection();
+  const editor = document.getElementById('editor-content');
+  if (!sel || sel.rangeCount === 0 || !editor) return;
+
+  const range = sel.getRangeAt(0);
+  if (!editor.contains(range.commonAncestorContainer)) return;
+
+  if (!sel.isCollapsed) {
+    // 1. Seçili metin aralığına uygula
+    const span = document.createElement('span');
+    if (copiedFormat.fontFamily) span.style.fontFamily = copiedFormat.fontFamily;
+    if (copiedFormat.fontSize) span.style.fontSize = copiedFormat.fontSize;
+    if (copiedFormat.fontWeight) span.style.fontWeight = copiedFormat.fontWeight;
+    if (copiedFormat.fontStyle) span.style.fontStyle = copiedFormat.fontStyle;
+    if (copiedFormat.textDecoration) span.style.textDecoration = copiedFormat.textDecoration;
+    if (copiedFormat.color) span.style.color = copiedFormat.color;
+    if (copiedFormat.backgroundColor) span.style.backgroundColor = copiedFormat.backgroundColor;
+
+    try {
+      const contents = range.extractContents();
+      span.appendChild(contents);
+      range.insertNode(span);
+      sel.selectAllChildren(span);
+    } catch (e) {
+      document.execCommand('fontName', false, copiedFormat.fontFamily);
+      document.execCommand('foreColor', false, copiedFormat.color);
+    }
+
+    // Paragraf hizalama & boşluk uygula
+    const targetP = getActiveParagraph();
+    if (targetP) {
+      if (copiedFormat.textAlign) targetP.style.textAlign = copiedFormat.textAlign;
+      if (copiedFormat.lineHeight) targetP.style.lineHeight = copiedFormat.lineHeight;
+      if (copiedFormat.marginTop) targetP.style.marginTop = copiedFormat.marginTop;
+      if (copiedFormat.marginBottom) targetP.style.marginBottom = copiedFormat.marginBottom;
+      if (copiedFormat.textIndent) targetP.style.textIndent = copiedFormat.textIndent;
+    }
+  } else {
+    // 2. Tıklanan paragrafa/kelimeye uygula
+    const targetP = getActiveParagraph();
+    if (targetP) {
+      if (copiedFormat.textAlign) targetP.style.textAlign = copiedFormat.textAlign;
+      if (copiedFormat.lineHeight) targetP.style.lineHeight = copiedFormat.lineHeight;
+      if (copiedFormat.marginTop) targetP.style.marginTop = copiedFormat.marginTop;
+      if (copiedFormat.marginBottom) targetP.style.marginBottom = copiedFormat.marginBottom;
+      if (copiedFormat.textIndent) targetP.style.textIndent = copiedFormat.textIndent;
+      if (copiedFormat.fontFamily) targetP.style.fontFamily = copiedFormat.fontFamily;
+      if (copiedFormat.fontSize) targetP.style.fontSize = copiedFormat.fontSize;
+      if (copiedFormat.color) targetP.style.color = copiedFormat.color;
+    }
+  }
+
+  showEditorToast('✓ Biçim uygulandı');
+  updateActiveButtons();
+  updateRulerFromActiveParagraph();
+  debouncedPagination();
+
+  if (!isFormatPainterPersistent) {
+    deactivateFormatPainter();
+  }
+}
+
+// --- METİN SEÇİMİ YÜZEN EYLEM ÇUBUĞU (Floating Context Bubble) ---
+function updateFloatingContextMenu() {
+  const menu = document.getElementById('floating-context-menu');
+  if (!menu) return;
+
+  if (isFormatPainterActive) {
+    menu.style.display = 'none';
+    return;
+  }
+
+  const sel = window.getSelection();
+  const editor = document.getElementById('editor-content');
+  if (!sel || sel.isCollapsed || sel.rangeCount === 0 || !editor) {
+    menu.style.display = 'none';
+    return;
+  }
+
+  const range = sel.getRangeAt(0);
+  const text = sel.toString().trim();
+  if (text.length === 0 || !editor.contains(range.commonAncestorContainer)) {
+    menu.style.display = 'none';
+    return;
+  }
+
+  const rect = range.getBoundingClientRect();
+  if (rect.width === 0 && rect.height === 0) {
+    menu.style.display = 'none';
+    return;
+  }
+
+  menu.style.display = 'flex';
+  const menuWidth = menu.offsetWidth || 260;
+  const menuHeight = menu.offsetHeight || 38;
+
+  let left = rect.left + (rect.width / 2) - (menuWidth / 2);
+  left = Math.max(12, Math.min(window.innerWidth - menuWidth - 12, left));
+
+  let top = rect.top - menuHeight - 8;
+  if (top < 60) {
+    top = rect.bottom + 8;
+  }
+
+  menu.style.left = left + 'px';
+  menu.style.top = top + 'px';
+}
+
+function hideFloatingContextMenu() {
+  const menu = document.getElementById('floating-context-menu');
+  if (menu) menu.style.display = 'none';
+}
+
+function execBubbleCmd(cmd) {
+  recordCurrentSelection();
+  if (cmd === 'copy') {
+    document.execCommand('copy');
+    showEditorToast('📋 Kopyalandı');
+  } else if (cmd === 'cut') {
+    document.execCommand('cut');
+    showEditorToast('✂️ Kesildi');
+  } else if (cmd === 'paste') {
+    if (navigator.clipboard && navigator.clipboard.readText) {
+      navigator.clipboard.readText().then(clipText => {
+        if (clipText) {
+          document.execCommand('insertText', false, clipText);
+          showEditorToast('📄 Yapıştırıldı');
+        }
+      }).catch(() => {
+        document.execCommand('paste');
+      });
+    } else {
+      document.execCommand('paste');
+    }
+  }
+  hideFloatingContextMenu();
+}
+
+function searchLegalTermInBrowser() {
+  const sel = window.getSelection();
+  const word = sel ? sel.toString().trim() : '';
+  if (!word) {
+    showEditorToast('Lütfen aranacak hukuki terimi seçin');
+    return;
+  }
+  hideFloatingContextMenu();
+  const url = 'https://sozluk.gov.tr/?ara=' + encodeURIComponent(word);
+  window.open(url, '_blank');
+  showEditorToast('⚖️ "' + word + '" TDK Sözlükte aranıyor...');
+}
+
+// --- DİNAMİK KAYDIRMA BLUR BANTLARI (Progressive Dynamic Blur) ---
+function initDynamicScrollBlur() {
+  const scrollWrapper = document.getElementById('page-wrapper');
+  const blurTop = document.getElementById('scroll-blur-top');
+  const blurBottom = document.getElementById('scroll-blur-bottom');
+
+  if (!scrollWrapper || !blurTop || !blurBottom) return;
+
+  function updateBlurState() {
+    const st = scrollWrapper.scrollTop;
+    const maxScroll = scrollWrapper.scrollHeight - scrollWrapper.clientHeight;
+
+    if (st > 12) {
+      blurTop.classList.add('visible');
+    } else {
+      blurTop.classList.remove('visible');
+    }
+
+    if (maxScroll - st > 20) {
+      blurBottom.classList.add('visible');
+    } else {
+      blurBottom.classList.remove('visible');
+    }
+  }
+
+  scrollWrapper.addEventListener('scroll', () => {
+    updateBlurState();
+    hideFloatingContextMenu();
+  }, { passive: true });
+
+  setTimeout(updateBlurState, 300);
 }

@@ -113,6 +113,8 @@ public class UdfEngine {
             double rightMarginCm = 1.5;
             double topMarginCm = 1.5;
             double bottomMarginCm = 1.5;
+            double headerMarginCm = 1.25;
+            double footerMarginCm = 1.25;
             String paperOrientation = "1";
             NodeList pageFormats = doc.getElementsByTagName("pageFormat");
             if (pageFormats.getLength() > 0) {
@@ -130,6 +132,12 @@ public class UdfEngine {
                 }
                 if (pf.hasAttribute("bottomMargin")) {
                     bottomMarginCm = parsePtToCm(pf.getAttribute("bottomMargin"), 1.5);
+                }
+                if (pf.hasAttribute("headerFOffset")) {
+                    headerMarginCm = parsePtToCm(pf.getAttribute("headerFOffset"), 1.25);
+                }
+                if (pf.hasAttribute("footerFOffset")) {
+                    footerMarginCm = parsePtToCm(pf.getAttribute("footerFOffset"), 1.25);
                 }
                 if (pf.hasAttribute("paperOrientation")) {
                     paperOrientation = pf.getAttribute("paperOrientation");
@@ -240,6 +248,8 @@ public class UdfEngine {
                 res.put("rightMarginCm", rightMarginCm);
                 res.put("topMarginCm", topMarginCm);
                 res.put("bottomMarginCm", bottomMarginCm);
+                res.put("headerMarginCm", headerMarginCm);
+                res.put("footerMarginCm", footerMarginCm);
                 res.put("paperOrientation", paperOrientation);
                 res.put("html", "<p style=\"text-align: justify;\">Belge içeriği boş.</p>");
                 return res.toString();
@@ -290,18 +300,16 @@ public class UdfEngine {
                 String firstLineIndent = p.getAttribute("FirstLineIndent");
 
                 StringBuilder styleAttr = new StringBuilder("text-align: ").append(alignStyle).append(";");
+                double ptAbove = 0;
+                double ptBelow = 0;
                 if (!spaceAbove.isEmpty()) {
-                    try {
-                        double pt = Double.parseDouble(spaceAbove);
-                        styleAttr.append(" margin-top: ").append(pt).append("pt;");
-                    } catch (Exception ignored) {}
+                    try { ptAbove = Double.parseDouble(spaceAbove); } catch (Exception ignored) {}
                 }
                 if (!spaceBelow.isEmpty()) {
-                    try {
-                        double pt = Double.parseDouble(spaceBelow);
-                        styleAttr.append(" margin-bottom: ").append(pt).append("pt;");
-                    } catch (Exception ignored) {}
+                    try { ptBelow = Double.parseDouble(spaceBelow); } catch (Exception ignored) {}
                 }
+                styleAttr.append(" margin-top: ").append(ptAbove).append("pt;");
+                styleAttr.append(" margin-bottom: ").append(ptBelow).append("pt;");
                 double fIndentPt = 0;
                 double hangPt = 0;
                 double lIndentPt = 0;
@@ -442,6 +450,8 @@ public class UdfEngine {
             res.put("rightMarginCm", rightMarginCm);
             res.put("topMarginCm", topMarginCm);
             res.put("bottomMarginCm", bottomMarginCm);
+            res.put("headerMarginCm", headerMarginCm);
+            res.put("footerMarginCm", footerMarginCm);
             res.put("paperOrientation", paperOrientation);
             res.put("html", html.toString());
             return res.toString();

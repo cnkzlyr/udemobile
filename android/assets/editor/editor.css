@@ -25,7 +25,7 @@ body {
   overflow: hidden;
 }
 
-/* Üst Biçimlendirme Araç Çubuğu (Google Dokümanlar & Word Stili) */
+/* Üst Biçimlendirme Araç Çubuğu (2 Satırlı Ergonomik Düzen) */
 #toolbar-container {
   background-color: #FFFFFF;
   border-bottom: 1px solid #DADCE0;
@@ -33,22 +33,25 @@ body {
   position: sticky;
   top: 0;
   z-index: 100;
-  height: 48px;
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  padding: 4px 6px;
+  gap: 3px;
+  box-sizing: border-box;
 }
 
-.toolbar-scroll {
+.toolbar-row {
   display: flex;
   align-items: center;
   overflow-x: auto;
   white-space: nowrap;
-  padding: 4px 8px;
   width: 100%;
+  height: 33px;
   scrollbar-width: none;
+  gap: 3px;
 }
 
-.toolbar-scroll::-webkit-scrollbar {
+.toolbar-row::-webkit-scrollbar {
   display: none;
 }
 
@@ -70,8 +73,8 @@ body {
   background: none;
   border: 1px solid transparent;
   border-radius: 6px;
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -89,25 +92,36 @@ body {
 }
 
 .tool-btn svg {
-  width: 18px;
-  height: 18px;
+  width: 17px;
+  height: 17px;
   fill: currentColor;
 }
 
 .tool-btn.text-btn {
   width: auto;
-  padding: 0 7px;
-  font-size: 12px;
+  padding: 0 6px;
+  font-size: 11.5px;
   font-weight: 600;
 }
 
+.tab-mini-btn {
+  width: auto !important;
+  padding: 0 7px !important;
+  font-size: 11.5px !important;
+  font-weight: bold !important;
+  background-color: #EEF4FE !important;
+  border: 1px solid #D2E3FC !important;
+  color: #1A73E8 !important;
+}
+
 .view-toggle-btn {
-  width: 36px;
+  width: 32px;
+  height: 32px;
   padding: 0;
   background-color: #EEF4FE;
   color: #1A73E8;
   border: 1px solid #D2E3FC;
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .sign-btn {
@@ -528,7 +542,7 @@ select {
   min-height: var(--sheet-min-height);
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15), 0 1px 4px rgba(0, 0, 0, 0.08);
   border-radius: 0 0 2px 2px;
-  padding: var(--page-margin-top) var(--page-margin-right) var(--page-margin-bottom) var(--page-margin-left);
+  padding: var(--header-margin, 1.25cm) var(--page-margin-right, 2.5cm) var(--footer-margin, 1.25cm) var(--page-margin-left, 2.5cm);
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
@@ -575,24 +589,19 @@ select {
 .header-footer-box {
   font-size: 10pt;
   color: #495057;
-  border-bottom: 1.5px dashed #B0BEC5;
-  padding: 6px 4px 8px 4px;
-  margin-bottom: 16px;
+  border-bottom: 1px dashed transparent;
+  padding: 2px 4px;
+  margin-bottom: 6px;
   outline: none;
   display: block !important;
-  min-height: 24px;
+  min-height: 18px;
   transition: all 0.2s ease;
   position: relative;
 }
 
-.header-footer-box:hover {
-  border-color: #1A73E8;
-}
-
-.header-footer-box:focus {
-  border-bottom-style: solid;
-  border-color: #1A73E8;
-  background-color: #F8FAFF;
+.header-footer-box:hover, .header-footer-box:focus {
+  border-bottom: 1.5px dashed #1A73E8;
+  background-color: rgba(26, 115, 232, 0.04);
   border-radius: 2px;
 }
 
@@ -605,17 +614,16 @@ select {
 
 #doc-footer {
   border-bottom: none;
-  border-top: 1.5px dashed #B0BEC5;
-  padding-top: 8px;
-  padding-bottom: 6px;
-  margin-top: 24px;
+  border-top: 1px dashed transparent;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  margin-top: 12px;
   margin-bottom: 0;
 }
 
-#doc-footer:focus {
-  border-top-style: solid;
-  border-color: #1A73E8;
-  background-color: #F8FAFF;
+#doc-footer:hover, #doc-footer:focus {
+  border-top: 1.5px dashed #1A73E8;
+  background-color: rgba(26, 115, 232, 0.04);
   border-radius: 2px;
 }
 
@@ -631,7 +639,8 @@ select {
 }
 
 #editor-content p {
-  margin-bottom: 8px;
+  margin: 0;
+  line-height: 1.35;
   text-align: justify;
   text-justify: inter-word;
   word-break: break-word;
@@ -1230,5 +1239,114 @@ li {
   background-color: rgba(26, 115, 232, 0.08);
   pointer-events: none;
   transition: all 0.15s ease;
+}
+
+/* Biçim Boyacısı Aktif Durumu */
+body.format-painter-active, body.format-painter-active #editor-content, body.format-painter-active #editor-content * {
+  cursor: copy !important;
+}
+
+#btn-format-painter.active {
+  background-color: #E8F0FE !important;
+  color: #1A73E8 !important;
+  border-color: #1A73E8 !important;
+}
+
+/* Metin Seçimi Yüzen Eylem Menüsü (Floating Context Bubble) */
+.floating-context-bubble {
+  position: absolute;
+  z-index: 95;
+  display: flex;
+  align-items: center;
+  background: rgba(33, 37, 41, 0.94);
+  backdrop-filter: blur(14px) saturate(180%);
+  -webkit-backdrop-filter: blur(14px) saturate(180%);
+  border-radius: 20px;
+  padding: 4px 8px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35), 0 1px 4px rgba(0,0,0,0.15);
+  gap: 3px;
+  transform: translate(-50%, -100%);
+  transition: opacity 0.15s ease, transform 0.12s ease;
+  user-select: none;
+  pointer-events: auto;
+}
+
+.floating-context-bubble.hidden {
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, -90%) scale(0.95);
+}
+
+.bubble-btn {
+  background: none;
+  border: none;
+  color: #FFFFFF;
+  font-size: 13px;
+  padding: 4px 6px;
+  border-radius: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  height: 26px;
+}
+
+.bubble-btn:active {
+  background-color: rgba(255, 255, 255, 0.25);
+}
+
+.bubble-divider {
+  width: 1px;
+  height: 16px;
+  background-color: rgba(255, 255, 255, 0.25);
+  margin: 0 2px;
+}
+
+.bubble-btn.text-bubble-btn {
+  font-size: 11px;
+  font-weight: bold;
+  color: #FFD54F;
+  padding: 0 6px;
+}
+
+/* Dinamik Kaydırma Blur Bantları (iOS Progressive Blur) */
+.scroll-blur-band {
+  position: fixed;
+  left: 0;
+  right: 0;
+  pointer-events: none;
+  z-index: 75;
+  transition: opacity 0.25s ease;
+}
+
+.scroll-blur-band.top {
+  top: 76px;
+  height: 32px;
+  backdrop-filter: blur(10px) saturate(160%);
+  -webkit-backdrop-filter: blur(10px) saturate(160%);
+  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0) 100%);
+  -webkit-mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0) 100%);
+  opacity: 0;
+}
+
+.scroll-blur-band.bottom {
+  bottom: 0;
+  height: 44px;
+  backdrop-filter: blur(12px) saturate(180%);
+  -webkit-backdrop-filter: blur(12px) saturate(180%);
+  mask-image: linear-gradient(to top, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0) 100%);
+  -webkit-mask-image: linear-gradient(to top, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0) 100%);
+  opacity: 1;
+}
+
+/* Altbilgi Sayfa Numarası */
+.udf-footer-pagenum {
+  font-size: 9.5pt;
+  font-weight: 500;
+  color: #555555;
+  text-align: right;
+  padding-top: 4px;
+  display: block;
 }
 

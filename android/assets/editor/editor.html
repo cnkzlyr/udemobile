@@ -3,23 +3,32 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>UdeMobile - Profesyonel UYAP &amp; Word Editörü</title>
+  <title>CanEditor - Profesyonel UYAP &amp; Word Editörü</title>
   <link rel="stylesheet" href="editor.css">
 </head>
 <body>
 
-  <!-- Mobil Google Dokümanlar & Word Stili Zengin Biçimlendirme Araç Çubuğu -->
+  <!-- Mobil Google Dokümanlar & Word Stili Zengin Biçimlendirme Araç Çubuğu (2 Satırlı Ergonomik Düzen) -->
   <div id="toolbar-container">
-    <div class="toolbar-scroll">
+    <!-- SATIR 1: Karakter, Yazı Tipi, Şablon ve Temel Araçlar -->
+    <div class="toolbar-row" id="toolbar-row-1">
 
-      <!-- 1. Görünüm Modu Değiştirici -->
+      <!-- Geri Al / Yinele -->
+      <div class="tool-group">
+        <button type="button" class="tool-btn" onclick="format('undo')" title="Geri Al (Ctrl+Z)">↶</button>
+        <button type="button" class="tool-btn" onclick="format('redo')" title="Yinele (Ctrl+Y)">↷</button>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- Görünüm Modu Değiştirici -->
       <div class="tool-group">
         <button type="button" id="btn-toggle-view" class="tool-btn view-toggle-btn" onclick="toggleViewMode()" title="Görünüm Değiştir (Kağıt / Mobil)">📱</button>
       </div>
 
       <div class="divider"></div>
 
-      <!-- 2. Hızlı Dilekçe Şablonları Menüsü -->
+      <!-- Hızlı Dilekçe Şablonları Menüsü -->
       <div class="tool-group">
         <select id="select-template" onchange="insertTemplate(this.value); this.selectedIndex=0;" title="Resmi Dilekçe Şablonları">
           <option value="" disabled selected>⚖️ Şablon</option>
@@ -36,7 +45,7 @@
 
       <div class="divider"></div>
 
-      <!-- 3. Yazı Tipi Ailesi -->
+      <!-- Yazı Tipi Ailesi -->
       <div class="tool-group">
         <select id="select-font-family" onchange="changeFontFamily(this.value)" title="Yazı Tipi">
           <option value="'Times New Roman', Times, serif" selected>Times New Roman</option>
@@ -49,7 +58,7 @@
 
       <div class="divider"></div>
 
-      <!-- 4. Yazı Boyutu -->
+      <!-- Yazı Boyutu -->
       <div class="tool-group">
         <button type="button" class="tool-btn" onclick="adjustFontSize(-1)" title="Yazıyı Küçült">A-</button>
         <span id="font-size-label">12pt</span>
@@ -58,7 +67,7 @@
 
       <div class="divider"></div>
 
-      <!-- 5. Temel Biçimlendirme & Harf Dönüştürücü -->
+      <!-- Temel Biçimlendirme & Biçim Boyacısı -->
       <div class="tool-group">
         <button type="button" id="btn-bold" class="tool-btn" onclick="format('bold')" title="Kalın (Ctrl+B)"><b>B</b></button>
         <button type="button" id="btn-italic" class="tool-btn" onclick="format('italic')" title="İtalik (Ctrl+I)"><i>I</i></button>
@@ -67,6 +76,7 @@
         <button type="button" class="tool-btn" onclick="format('superscript')" title="Üst Simge (x²)">x²</button>
         <button type="button" class="tool-btn" onclick="format('subscript')" title="Alt Simge (x₂)">x₂</button>
         <button type="button" class="tool-btn" onclick="clearFormatting()" title="Biçimlendirmeyi Temizle">🧹</button>
+        <button type="button" id="btn-format-painter" class="tool-btn" onclick="toggleFormatPainter()" title="Biçim Boyacısı (Seçili veya Tıklanan Metne Uygula)">🖌️</button>
 
         <select id="select-text-case" onchange="convertTextCase(this.value); this.selectedIndex=0;" title="Büyük / Küçük Harf">
           <option value="" disabled selected>🔠</option>
@@ -79,7 +89,7 @@
 
       <div class="divider"></div>
 
-      <!-- 6. Renk & Vurgu Seçiciler -->
+      <!-- Renk & Vurgu Seçiciler -->
       <div class="tool-group">
         <select id="select-text-color" onchange="format('foreColor', this.value); this.selectedIndex=0;" title="Yazı Rengi">
           <option value="" disabled selected>🎨</option>
@@ -98,9 +108,12 @@
         </select>
       </div>
 
-      <div class="divider"></div>
+    </div>
 
-      <!-- 7. Paragraf Hizalama -->
+    <!-- SATIR 2: Paragraf Düzeni, Sayfa Yapısı, Tab & Hukuk Araçları -->
+    <div class="toolbar-row" id="toolbar-row-2">
+
+      <!-- Paragraf Hizalama -->
       <div class="tool-group">
         <button type="button" id="btn-align-left" class="tool-btn" onclick="format('justifyLeft')" title="Sola Yasla">
           <svg viewBox="0 0 24 24"><path d="M3 5h18v2H3V5zm0 4h12v2H3V9zm0 4h18v2H3v-2zm0 4h12v2H3v-2z"/></svg>
@@ -118,7 +131,7 @@
 
       <div class="divider"></div>
 
-      <!-- 8. Paragraf & Satır Aralığı (UYAP Standart: nk & satır) -->
+      <!-- Paragraf Boşluğu & Satır Aralığı -->
       <div class="tool-group">
         <button type="button" class="tool-btn" onmousedown="event.preventDefault(); recordCurrentSelection();" ontouchstart="recordCurrentSelection();" onclick="openParagraphModal()" title="Paragraf Boşluk ve Girinti Ayarları (UYAP)">¶</button>
         <select id="select-paragraph-spacing" onmousedown="recordCurrentSelection();" ontouchstart="recordCurrentSelection();" onchange="changeParagraphSpacing(this.value); this.selectedIndex=0; this.blur();" title="Paragraf Boşluğu (Önce / Sonra nk - UYAP)">
@@ -138,6 +151,15 @@
           <option value="1.5">1.5 satır</option>
           <option value="2.0">2.0 satır</option>
         </select>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- Kompakt Tab & Girintiler & Numaralandırma -->
+      <div class="tool-group">
+        <button type="button" class="tool-btn tab-mini-btn" onclick="handleTabAction()" title="Sekme / Tab Ekle (⇥)">⇥ Tab</button>
+        <button type="button" class="tool-btn" onclick="format('outdent')" title="Girinti Azalt">⇤</button>
+        <button type="button" class="tool-btn" onclick="format('indent')" title="Girinti Artır">⇥</button>
         <select id="select-list-style" onmousedown="recordCurrentSelection();" ontouchstart="recordCurrentSelection();" onchange="insertCustomList(this.value); this.selectedIndex=0; this.blur();" title="Numaralandırma & Maddeleme">
           <option value="" disabled selected>🔢</option>
           <option value="decimal">1. Sayısal</option>
@@ -152,29 +174,28 @@
 
       <div class="divider"></div>
 
-      <!-- 9. Girintiler, Tablo, Resim, Sayfa No & Sayfa Sonu -->
+      <!-- Sayfa Yapısı, Cetvel & Sayfa No -->
       <div class="tool-group">
-        <button type="button" class="tool-btn" onclick="format('outdent')" title="Girinti Azalt">⇤</button>
-        <button type="button" class="tool-btn" onclick="handleTabAction()" title="Sekme / Tab Ekle (⇥)">⇥</button>
-        <button type="button" class="tool-btn" onclick="insertTable()" title="Tablo Ekle">📊</button>
-        <button type="button" class="tool-btn" onclick="triggerImagePicker()" title="Resim / Delil Ekle">🖼️</button>
-        <button type="button" class="tool-btn" onclick="insertPageNumber()" title="Sayfa No Ekle">№</button>
-        <button type="button" class="tool-btn" onclick="insertPageBreak()" title="Sayfa Sonu / Kesmesi">📑</button>
-      </div>
-
-      <div class="divider"></div>
-
-      <!-- 10. Sayfa Yapısı, Cetvel & Üstbilgi -->
-      <div class="tool-group">
-        <button type="button" class="tool-btn" onclick="openPageSetupModal()" title="Sayfa Kenar Boşlukları (Sol/Sağ/Üst/Alt 2.5cm) ve Yönü">📐</button>
+        <button type="button" class="tool-btn" onclick="openPageSetupModal()" title="Sayfa Kenar Boşlukları ve Üstbilgi/Altbilgi Payı">📐</button>
         <button type="button" id="btn-toggle-ruler" class="tool-btn active" onclick="toggleRuler()" title="Cetveli Göster/Gizle">📏</button>
+        <select id="select-page-number" onchange="applyPageNumberChoice(this.value); this.selectedIndex=0;" title="Sayfa Numarası Ekle / Kaldır">
+          <option value="" disabled selected>№ Sayfa</option>
+          <option value="bottom-right">Sağ Alt (Standart UYAP)</option>
+          <option value="bottom-center">Orta Alt</option>
+          <option value="bottom-left">Sol Alt</option>
+          <option value="top-right">Sağ Üst</option>
+          <option value="none">Numarayı Kaldır</option>
+        </select>
+        <button type="button" class="tool-btn" onclick="insertPageBreak()" title="Sayfa Sonu / Kesmesi">📑</button>
         <button type="button" id="btn-focus-header" class="tool-btn" onclick="focusHeaderFooter()" title="Üstbilgi veya Altbilgiye Git">🏷️</button>
       </div>
 
       <div class="divider"></div>
 
-      <!-- 11. UYAP Hukuk Araçları: Tarih, Bul/Değiştir & İstatistik -->
+      <!-- Tablo, Resim & Hukuk Araçları -->
       <div class="tool-group">
+        <button type="button" class="tool-btn" onclick="insertTable()" title="Tablo Ekle">📊</button>
+        <button type="button" class="tool-btn" onclick="triggerImagePicker()" title="Resim / Delil Ekle">🖼️</button>
         <button type="button" class="tool-btn" onclick="insertOfficialDate()" title="Resmi Tarihi Ekle (GG.AA.YYYY)">📅</button>
         <button type="button" class="tool-btn" onclick="openFindReplaceModal()" title="Kelime Bul ve Değiştir (Ctrl+F)">🔍</button>
         <button type="button" class="tool-btn" onclick="openDocStatsModal()" title="Kelime ve Karakter İstatistikleri">ℹ️</button>
@@ -182,7 +203,7 @@
 
       <div class="divider"></div>
 
-      <!-- 12. E-İmza & Mobil İmza Butonları -->
+      <!-- E-İmza & Mobil İmza -->
       <div class="tool-group">
         <button type="button" class="tool-btn sign-btn text-btn" onclick="openMobileSignModal()" title="Mobil İmza">📱 Mobil</button>
         <button type="button" class="tool-btn sign-btn text-btn" onclick="openSmartCardSignModal()" title="USB Akıllı Kart / E-İmza">✍️ E-İmza</button>
@@ -643,6 +664,24 @@
               <button type="button" class="stepper-btn" onclick="stepMargin('bottom', 0.25)">+</button>
             </div>
           </div>
+
+          <div class="param-col" style="margin-top: 10px;">
+            <label class="modal-label">Üstbilgi Payı (cm):</label>
+            <div class="stepper-box">
+              <button type="button" class="stepper-btn" onclick="stepMargin('header', -0.25)">−</button>
+              <input type="number" id="m-header" class="stepper-input" value="1.25" min="0" max="6" step="0.25" oninput="updateMarginPreview()">
+              <button type="button" class="stepper-btn" onclick="stepMargin('header', 0.25)">+</button>
+            </div>
+          </div>
+
+          <div class="param-col" style="margin-top: 10px;">
+            <label class="modal-label">Altbilgi Payı (cm):</label>
+            <div class="stepper-box">
+              <button type="button" class="stepper-btn" onclick="stepMargin('footer', -0.25)">−</button>
+              <input type="number" id="m-footer" class="stepper-input" value="1.25" min="0" max="6" step="0.25" oninput="updateMarginPreview()">
+              <button type="button" class="stepper-btn" onclick="stepMargin('footer', 0.25)">+</button>
+            </div>
+          </div>
         </div>
 
         <!-- Canlı Görsel Önizleme -->
@@ -725,6 +764,26 @@
       </div>
     </div>
   </div>
+
+  <!-- METİN SEÇİMİ YÜZEN EYLEM ÇUBUĞU (Floating Context Bubble) -->
+  <div id="floating-context-menu" class="floating-context-bubble" style="display: none;">
+    <button type="button" class="bubble-btn" onclick="execBubbleCmd('cut')" title="Kes">✂️</button>
+    <button type="button" class="bubble-btn" onclick="execBubbleCmd('copy')" title="Kopyala">📋</button>
+    <button type="button" class="bubble-btn" onclick="execBubbleCmd('paste')" title="Yapıştır">📄</button>
+    <div class="bubble-divider"></div>
+    <button type="button" class="bubble-btn" onclick="toggleFormatPainter()" title="Biçim Boyacısı">🖌️</button>
+    <button type="button" class="bubble-btn" onclick="format('bold')" title="Kalın"><b>B</b></button>
+    <button type="button" class="bubble-btn" onclick="format('italic')" title="İtalik"><i>I</i></button>
+    <button type="button" class="bubble-btn" onclick="format('underline')" title="Altı Çizili"><u>U</u></button>
+    <button type="button" class="bubble-btn" onclick="format('hiliteColor', '#FFF59D')" title="Vurgula">🖍️</button>
+    <button type="button" class="bubble-btn" onclick="clearFormatting()" title="Biçimi Temizle">🧹</button>
+    <div class="bubble-divider"></div>
+    <button type="button" class="bubble-btn text-bubble-btn" onclick="searchLegalTermInBrowser()" title="Hukuk Sözlüğü / TDK">⚖️ TDK</button>
+  </div>
+
+  <!-- DİNAMİK KAYDIRMA BLUR BANTLARI (iOS Progressive Dynamic Blur) -->
+  <div id="scroll-blur-top" class="scroll-blur-band top"></div>
+  <div id="scroll-blur-bottom" class="scroll-blur-band bottom"></div>
 
   <script src="editor.js"></script>
 </body>

@@ -20,8 +20,10 @@ import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.os.StrictMode;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.PopupMenu;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -78,6 +80,12 @@ public class EditorActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         CrashReporter.install(this);
+
+        try {
+            StrictMode.VmPolicy.Builder builder = new StrictMode.VmPolicy.Builder();
+            StrictMode.setVmPolicy(builder.build());
+        } catch (Exception ignored) {}
+
         setContentView(R.layout.activity_editor);
 
         initViews();
@@ -141,8 +149,8 @@ public class EditorActivity extends Activity {
         // PDF Dışa Aktar
         btnExportPdf.setOnClickListener(v -> exportToPdf());
 
-        // Dosya Paylaş
-        btnShare.setOnClickListener(v -> shareCurrentDocument());
+        // Paylaşım Menüsü (Dropdown)
+        btnShare.setOnClickListener(v -> showShareMenu(v));
 
         // Masaüstü X11 UYAP
         btnDesktopUyap.setOnClickListener(v -> {
@@ -345,22 +353,112 @@ public class EditorActivity extends Activity {
         }
     }
 
-    private void shareCurrentDocument() {
-        if (currentFile == null || !currentFile.exists()) {
-            saveDocument(false, false);
-            Toast.makeText(this, "Önce belge kaydedildi. Tekrar 'Paylaş'a dokunun.", Toast.LENGTH_SHORT).show();
-            return;
-        }
+    private void showShareMenu(View anchor) {
+        PopupMenu popup = new PopupMenu(this, anchor);
+        popup.getMenu().add(0, 1, 0, "📕 PDF Olarak Paylaş (A4 Baskı)");
+        popup.getMenu().add(0, 2, 1, "📄 UDF Olarak Paylaş (UYAP Formatı)");
+        popup.getMenu().add(0, 3, 2, "📘 Word (DOCX) Olarak Paylaş");
+        popup.getMenu().add(0, 4, 3, "📋 Metin Olarak Paylaş (WhatsApp / E-posta)");
 
+        popup.setOnMenuItemClickListener(item -> {
+            switch (item.getItemId()) {
+                case 1:
+                    exportToPdf();
+                    return true;
+                case 2:
+                    shareAsUdf();
+                    return true;
+                case 3:
+                    shareAsDocx();
+                    return true;
+                case 4:
+                    shareAsPlainText();
+                    return true;
+            }
+            return false;
+        });
+        popup.show();
+    }
+
+    private void shareAsUdf() {
+        tvSaveStatus.setText("UDF hazırlanıyor...");
+        editorWebView.evaluateJavascript("JSON.stringify(getStructuredDocument());", jsonStr -> {
+            final String cleanJson = cleanJsonString(jsonStr);
+            new Thread(() -> {
+                try {
+                    String baseTitle = getCleanDocBaseTitle();
+                    File shareFile = new File(getCacheDir(), baseTitle + ".udf");
+                    UdfEngine.saveStructuredToUdf(cleanJson, shareFile);
+                    runOnUiThread(() -> {
+                        tvSaveStatus.setText("✓ UDF Hazır");
+                        launchShareIntent(shareFile, "application/octet-stream", "UDF Dilekçesini Paylaş");
+                    });
+                } catch (Exception e) {
+                    runOnUiThread(() -> {
+                        Toast.makeText(EditorActivity.this, "UDF paylaşım hatası: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                    });
+                }
+            }).start();
+        });
+    }
+
+    private void shareAsDocx() {
+        tvSaveStatus.setText("Word (DOCX) hazırlanıyor...");
+        editorWebView.evaluateJavascript("JSON.stringify(getStructuredDocument());", jsonStr -> {
+            final String cleanJson = cleanJsonString(jsonStr);
+            new Thread(() -> {
+                try {
+                    String baseTitle = getCleanDocBaseTitle();
+                    File shareFile = new File(getCacheDir(), baseTitle + ".docx");
+                    DocxEngine.saveStructuredToDocx(cleanJson, shareFile);
+                    runOnUiThread(() -> {
+                        tvSaveStatus.setText("✓ Word Hazır");
+                        launchShareIntent(shareFile, "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "Word (DOCX) Belgesini Paylaş");
+                    });
+                } catch (Exception e) {
+                    runOnUiThread(() -> {
+                        Toast.makeText(EditorActivity.this, "Word paylaşım hatası: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                    });
+                }
+            }).start();
+        });
+    }
+
+    private void shareAsPlainText() {
+        editorWebView.evaluateJavascript("getPlainText();", textJson -> {
+            try {
+                String plainText = cleanJsonString(textJson);
+                Intent shareIntent = new Intent(Intent.ACTION_SEND);
+                shareIntent.setType("text/plain");
+                shareIntent.putExtra(Intent.EXTRA_SUBJECT, etDocTitle.getText().toString());
+                shareIntent.putExtra(Intent.EXTRA_TEXT, plainText);
+                startActivity(Intent.createChooser(shareIntent, "Dilekçe Metnini Paylaş"));
+            } catch (Exception e) {
+                Toast.makeText(EditorActivity.this, "Metin paylaşım hatası: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            }
+        });
+    }
+
+    private String getCleanDocBaseTitle() {
+        String base = etDocTitle.getText().toString().trim();
+        if (base.isEmpty()) base = "Dilekce";
+        if (base.toLowerCase().endsWith(".udf") || base.toLowerCase().endsWith(".docx") || base.toLowerCase().endsWith(".pdf")) {
+            base = base.substring(0, base.lastIndexOf('.'));
+        }
+        return base;
+    }
+
+    private void launchShareIntent(File file, String mimeType, String chooserTitle) {
         try {
             Intent shareIntent = new Intent(Intent.ACTION_SEND);
-            shareIntent.setType("*/*");
-            Uri fileUri = Uri.fromFile(currentFile);
+            shareIntent.setType(mimeType);
+            Uri fileUri = Uri.fromFile(file);
             shareIntent.putExtra(Intent.EXTRA_STREAM, fileUri);
-            shareIntent.putExtra(Intent.EXTRA_SUBJECT, currentFile.getName());
-            startActivity(Intent.createChooser(shareIntent, "Dilekçeyi Paylaş"));
+            shareIntent.putExtra(Intent.EXTRA_SUBJECT, file.getName());
+            shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            startActivity(Intent.createChooser(shareIntent, chooserTitle));
         } catch (Exception e) {
-            Toast.makeText(this, "Paylaşım hatası: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Paylaşım başlatılamadı: " + e.getMessage(), Toast.LENGTH_SHORT).show();
         }
     }
 
