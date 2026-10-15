@@ -1,0 +1,11 @@
+{
+  "name": "can-editor",
+  "version": "3.3.4",
+  "private": true,
+  "scripts": {
+    "tauri": "tauri"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.12.4"
+  }
+}

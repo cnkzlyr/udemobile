@@ -2,5 +2,6 @@
 src-tauri/target/
 src-tauri/gen/
 frontend/node_modules/
+node_modules/
 frontend/dist/
 *.log

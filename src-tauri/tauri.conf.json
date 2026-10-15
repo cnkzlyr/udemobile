@@ -4,8 +4,14 @@
   "version": "3.3.4",
   "identifier": "com.caneditor.app",
   "build": {
-    "beforeDevCommand": "cd ../frontend && npm run dev",
-    "beforeBuildCommand": "cd ../frontend && npm run build",
+    "beforeDevCommand": {
+      "cwd": "../frontend",
+      "script": "npm run dev"
+    },
+    "beforeBuildCommand": {
+      "cwd": "../frontend",
+      "script": "npm run build"
+    },
     "frontendDist": "../frontend/dist"
   },
   "app": {
