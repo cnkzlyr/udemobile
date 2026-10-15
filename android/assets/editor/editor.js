@@ -21,23 +21,96 @@ let currentMargins = {
 // --- Google Dokümanlar Yazdırma Düzeni & Zoom Motoru ---
 let currentZoom = 0.48;
 let isFitMode = true; // true = Google Dokümanlar stili uzaktan genel görünüm (A4 sığdır)
+let lastSelectedParagraphs = [];
+let lastActiveParagraph = null;
+
+function recordCurrentSelection() {
+  const sel = window.getSelection();
+  const editor = document.getElementById('editor-content');
+  if (!sel || sel.rangeCount === 0 || !editor) return;
+
+  const anchor = sel.anchorNode;
+  if (!editor.contains(anchor)) {
+    // Odak editör dışında ise (örneğin araç çubuğuna tıklandıysa), seçimi koru ve silme!
+    return;
+  }
+
+  try {
+    savedSelectionRange = sel.getRangeAt(0).cloneRange();
+  } catch (e) {}
+
+  // Aktif paragrafı bul
+  let node = anchor;
+  let activeP = null;
+  while (node && node !== editor && node !== document.body) {
+    if (node.nodeType === Node.ELEMENT_NODE) {
+      const tag = node.tagName.toLowerCase();
+      if (tag === 'p' || tag === 'li' || tag === 'blockquote' || (tag === 'div' && node.parentNode === editor)) {
+        activeP = node;
+        break;
+      }
+    }
+    node = node.parentNode;
+  }
+  if (activeP) lastActiveParagraph = activeP;
+
+  // Seçili paragrafları bul
+  try {
+    const range = sel.getRangeAt(0);
+    const allBlocks = Array.from(editor.querySelectorAll('p, li, blockquote'));
+    const intersected = allBlocks.filter(b => range.intersectsNode(b));
+    if (intersected.length > 0) {
+      lastSelectedParagraphs = intersected;
+    } else if (activeP) {
+      lastSelectedParagraphs = [activeP];
+    }
+  } catch (e) {}
+}
 
 document.addEventListener('DOMContentLoaded', () => {
   const editor = document.getElementById('editor-content');
   
   editor.addEventListener('input', () => {
     updateCounts();
+    debouncedPagination();
   });
 
   document.addEventListener('selectionchange', () => {
+    recordCurrentSelection();
     updateActiveButtons();
     updateRulerFromActiveParagraph();
   });
 
+  editor.addEventListener('mouseup', () => {
+    recordCurrentSelection();
+  });
+  editor.addEventListener('touchend', () => {
+    recordCurrentSelection();
+  });
+  editor.addEventListener('keyup', () => {
+    recordCurrentSelection();
+  });
+
   // Tıklama ile aktif paragrafı algılama
   editor.addEventListener('click', () => {
+    recordCurrentSelection();
     updateRulerFromActiveParagraph();
   });
+
+  // Araç çubuğu butonlarının editördeki metin seçimini kaybetmesini engelle:
+  const toolbar = document.querySelector('.toolbar');
+  if (toolbar) {
+    toolbar.addEventListener('mousedown', (e) => {
+      recordCurrentSelection();
+      // <select> ve <input> dışındaki tüm buton/ikon tıklamalarında seçimi koru
+      if (e.target.tagName !== 'SELECT' && e.target.tagName !== 'INPUT' && e.target.tagName !== 'OPTION') {
+        e.preventDefault();
+      }
+    });
+    toolbar.addEventListener('touchstart', (e) => {
+      recordCurrentSelection();
+    }, { passive: true });
+  }
 
   // Başlangıçta kenar boşlukları ve kağıt ölçeğini uygula
   applyPageSetup(currentMargins.left, currentMargins.right, currentMargins.top, currentMargins.bottom, currentMargins.orientation);
@@ -46,6 +119,7 @@ document.addEventListener('DOMContentLoaded', () => {
   
   setTimeout(() => {
     applyAutoFitZoom();
+    updatePagination();
     updateRulerFromActiveParagraph();
   }, 200);
 });
@@ -180,35 +254,49 @@ function adjustFontSize(delta) {
 function getActiveParagraph() {
   const selection = window.getSelection();
   const editor = document.getElementById('editor-content');
-  if (!selection || selection.rangeCount === 0) {
-    const ps = editor.querySelectorAll('p, li, blockquote');
-    return ps.length > 0 ? ps[0] : null;
-  }
-  let node = selection.anchorNode;
-  while (node && node !== editor && node !== document.body) {
-    if (node.nodeType === Node.ELEMENT_NODE) {
-      const tag = node.tagName.toLowerCase();
-      if (tag === 'p' || tag === 'li' || tag === 'blockquote' || (tag === 'div' && node.parentNode === editor)) {
-        return node;
+  if (selection && selection.rangeCount > 0 && editor && editor.contains(selection.anchorNode)) {
+    let node = selection.anchorNode;
+    while (node && node !== editor && node !== document.body) {
+      if (node.nodeType === Node.ELEMENT_NODE) {
+        const tag = node.tagName.toLowerCase();
+        if (tag === 'p' || tag === 'li' || tag === 'blockquote' || (tag === 'div' && node.parentNode === editor)) {
+          lastActiveParagraph = node;
+          return node;
+        }
       }
+      node = node.parentNode;
     }
-    node = node.parentNode;
   }
-  const ps = editor.querySelectorAll('p, li, blockquote');
+  if (lastActiveParagraph && editor && editor.contains(lastActiveParagraph)) {
+    return lastActiveParagraph;
+  }
+  const ps = editor ? editor.querySelectorAll('p, li, blockquote') : [];
   return ps.length > 0 ? ps[0] : null;
 }
 
 function getSelectedParagraphs() {
   const selection = window.getSelection();
   const editor = document.getElementById('editor-content');
-  if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
-    const p = getActiveParagraph();
-    return p ? [p] : [];
+  if (selection && selection.rangeCount > 0 && !selection.isCollapsed && editor && editor.contains(selection.anchorNode)) {
+    try {
+      const range = selection.getRangeAt(0);
+      const allBlocks = Array.from(editor.querySelectorAll('p, li, blockquote'));
+      const intersected = allBlocks.filter(b => range.intersectsNode(b));
+      if (intersected.length > 0) {
+        lastSelectedParagraphs = intersected;
+        return intersected;
+      }
+    } catch(e) {}
   }
-  const range = selection.getRangeAt(0);
-  const allBlocks = Array.from(editor.querySelectorAll('p, li, blockquote'));
-  const intersected = allBlocks.filter(b => range.intersectsNode(b));
-  return intersected.length > 0 ? intersected : (getActiveParagraph() ? [getActiveParagraph()] : []);
+
+  // Seçim araç çubuğuna tıklanması nedeniyle odak kaybında önceden kaydedilen seçimi kullan:
+  if (lastSelectedParagraphs && lastSelectedParagraphs.length > 0 && editor) {
+    const valid = lastSelectedParagraphs.filter(p => editor.contains(p));
+    if (valid.length > 0) return valid;
+  }
+
+  const p = getActiveParagraph();
+  return p ? [p] : [];
 }
 
 // Hızlı Paragraf Boşluğu (Önce & Sonra - Yalnızca Seçili Paragraflara Uygulanır)
@@ -228,6 +316,8 @@ function changeParagraphSpacing(val) {
     p.style.marginBottom = afterPt;
   });
   updateCounts();
+  debouncedPagination();
+  setTimeout(restoreCurrentSelection, 50);
 }
 
 // Satır Aralığı (Yalnızca Seçili Paragraflara Uygulanır)
@@ -237,6 +327,8 @@ function changeLineSpacing(val) {
     p.style.lineHeight = val;
   });
   updateCounts();
+  debouncedPagination();
+  setTimeout(restoreCurrentSelection, 50);
 }
 
 // --- SAYFA YAPISI VE KENAR BOŞLUKLARI MOTORU ---
@@ -773,6 +865,12 @@ function applyParagraphSettings() {
   closeModal('modal-paragraph-settings');
   updateRulerFromActiveParagraph();
   updateCounts();
+  debouncedPagination();
+  setTimeout(() => {
+    restoreCurrentSelection();
+    const editor = document.getElementById('editor-content');
+    if (editor) editor.focus();
+  }, 100);
 }
 
 // Gelişmiş Maddeleme ve Numaralandırma
@@ -875,20 +973,44 @@ function insertImageBase64(base64Data) {
 
 // --- MODAL YÖNETİMİ & SEÇİM KORUMA ---
 function saveCurrentSelection() {
-  const sel = window.getSelection();
-  if (sel && sel.rangeCount > 0) {
-    savedSelectionRange = sel.getRangeAt(0).cloneRange();
-  } else {
-    savedSelectionRange = null;
-  }
+  recordCurrentSelection();
 }
 
 function restoreCurrentSelection() {
+  const editor = document.getElementById('editor-content');
   if (savedSelectionRange) {
-    const sel = window.getSelection();
-    sel.removeAllRanges();
-    sel.addRange(savedSelectionRange);
-    return true;
+    try {
+      if (editor && document.activeElement !== editor) {
+        editor.focus();
+      }
+      const sel = window.getSelection();
+      if (sel) {
+        sel.removeAllRanges();
+        sel.addRange(savedSelectionRange);
+        return true;
+      }
+    } catch (e) {
+      console.warn('Selection range restore failed:', e);
+    }
+  }
+
+  // Yedek geri yükleme: Eğer range kaybolduysa son seçili paragrafları seç
+  if (lastSelectedParagraphs && lastSelectedParagraphs.length > 0 && editor) {
+    try {
+      const valid = lastSelectedParagraphs.filter(p => editor.contains(p));
+      if (valid.length > 0) {
+        if (document.activeElement !== editor) editor.focus();
+        const sel = window.getSelection();
+        if (sel) {
+          const r = document.createRange();
+          r.setStartBefore(valid[0]);
+          r.setEndAfter(valid[valid.length - 1]);
+          sel.removeAllRanges();
+          sel.addRange(r);
+          return true;
+        }
+      }
+    } catch (err) {}
   }
   return false;
 }
@@ -899,6 +1021,9 @@ function openModal(id) {
 
 function closeModal(id) {
   document.getElementById(id).classList.remove('open');
+  if (id === 'modal-paragraph-settings') {
+    setTimeout(restoreCurrentSelection, 50);
+  }
   if (id === 'modal-smartcard-sign' && smartCardPollInterval) {
     clearInterval(smartCardPollInterval);
     smartCardPollInterval = null;

@@ -118,27 +118,27 @@
 
       <div class="divider"></div>
 
-      <!-- 8. Paragraf & Satır Aralığı -->
+      <!-- 8. Paragraf & Satır Aralığı (UYAP Standart: nk & satır) -->
       <div class="tool-group">
-        <button type="button" class="tool-btn" onclick="openParagraphModal()" title="Paragraf Boşluk ve Girinti Ayarları">¶</button>
-        <select id="select-paragraph-spacing" onchange="changeParagraphSpacing(this.value); this.selectedIndex=0;" title="Paragraf Boşluğu">
+        <button type="button" class="tool-btn" onmousedown="event.preventDefault(); recordCurrentSelection();" ontouchstart="recordCurrentSelection();" onclick="openParagraphModal()" title="Paragraf Boşluk ve Girinti Ayarları (UYAP)">¶</button>
+        <select id="select-paragraph-spacing" onmousedown="recordCurrentSelection();" ontouchstart="recordCurrentSelection();" onchange="changeParagraphSpacing(this.value); this.selectedIndex=0; this.blur();" title="Paragraf Boşluğu (Önce / Sonra nk - UYAP)">
           <option value="" disabled selected>⇕</option>
-          <option value="0,0">0/0 pt</option>
-          <option value="0,4">0/4 pt</option>
-          <option value="2,6">2/6 pt</option>
-          <option value="4,8">4/8 pt (UYAP)</option>
-          <option value="6,12">6/12 pt</option>
-          <option value="custom">⚙️ Detaylı...</option>
+          <option value="0,0">0 / 0 nk</option>
+          <option value="0,4">0 / 4 nk</option>
+          <option value="2,6">2 / 6 nk</option>
+          <option value="4,8">4 / 8 nk (UYAP)</option>
+          <option value="6,12">6 / 12 nk</option>
+          <option value="custom">⚙️ Paragraf Ayarları...</option>
         </select>
-        <select id="select-line-spacing" onchange="changeLineSpacing(this.value); this.selectedIndex=0;" title="Satır Aralığı">
+        <select id="select-line-spacing" onmousedown="recordCurrentSelection();" ontouchstart="recordCurrentSelection();" onchange="changeLineSpacing(this.value); this.selectedIndex=0; this.blur();" title="Satır Aralığı (UYAP)">
           <option value="" disabled selected>↕️</option>
-          <option value="1.0">1.0</option>
-          <option value="1.15">1.15</option>
-          <option value="1.35">1.35 (UYAP)</option>
-          <option value="1.5">1.5</option>
-          <option value="2.0">2.0</option>
+          <option value="1.0">1.0 satır</option>
+          <option value="1.15">1.15 satır</option>
+          <option value="1.35">1.35 satır (UYAP)</option>
+          <option value="1.5">1.5 satır</option>
+          <option value="2.0">2.0 satır</option>
         </select>
-        <select id="select-list-style" onchange="insertCustomList(this.value); this.selectedIndex=0;" title="Numaralandırma & Maddeleme">
+        <select id="select-list-style" onmousedown="recordCurrentSelection();" ontouchstart="recordCurrentSelection();" onchange="insertCustomList(this.value); this.selectedIndex=0; this.blur();" title="Numaralandırma & Maddeleme">
           <option value="" disabled selected>🔢</option>
           <option value="decimal">1. Sayısal</option>
           <option value="legal">1.1 Madde</option>
@@ -406,35 +406,35 @@
           </div>
         </div>
 
-        <!-- Paragraf Boşlukları (Önce & Sonra) -->
+        <!-- Paragraf Boşlukları (Önce & Sonra - UYAP nk / Nokta) -->
         <div class="param-grid-2">
           <div class="param-col">
-            <label class="modal-label">Önceki Boşluk (pt):</label>
+            <label class="modal-label">Önceki Boşluk (nk / UYAP):</label>
             <div class="stepper-box">
               <button type="button" class="stepper-btn" onclick="stepParagraphValue('space-before', -2)">−</button>
               <input type="number" id="p-space-before" class="stepper-input" value="4" min="0" max="72" step="2">
               <button type="button" class="stepper-btn" onclick="stepParagraphValue('space-before', 2)">+</button>
             </div>
             <div class="quick-chips">
-              <span class="chip" onclick="setStepperVal('p-space-before', 0)">0 pt</span>
-              <span class="chip" onclick="setStepperVal('p-space-before', 2)">2 pt</span>
-              <span class="chip" onclick="setStepperVal('p-space-before', 4)">4 pt</span>
-              <span class="chip" onclick="setStepperVal('p-space-before', 6)">6 pt</span>
+              <span class="chip" onclick="setStepperVal('p-space-before', 0)">0 nk</span>
+              <span class="chip" onclick="setStepperVal('p-space-before', 2)">2 nk</span>
+              <span class="chip" onclick="setStepperVal('p-space-before', 4)">4 nk (UYAP)</span>
+              <span class="chip" onclick="setStepperVal('p-space-before', 6)">6 nk</span>
             </div>
           </div>
 
           <div class="param-col">
-            <label class="modal-label">Sonraki Boşluk (pt):</label>
+            <label class="modal-label">Sonraki Boşluk (nk / UYAP):</label>
             <div class="stepper-box">
               <button type="button" class="stepper-btn" onclick="stepParagraphValue('space-after', -2)">−</button>
               <input type="number" id="p-space-after" class="stepper-input" value="8" min="0" max="72" step="2">
               <button type="button" class="stepper-btn" onclick="stepParagraphValue('space-after', 2)">+</button>
             </div>
             <div class="quick-chips">
-              <span class="chip" onclick="setStepperVal('p-space-after', 0)">0 pt</span>
-              <span class="chip" onclick="setStepperVal('p-space-after', 4)">4 pt</span>
-              <span class="chip" onclick="setStepperVal('p-space-after', 8)">8 pt (UYAP)</span>
-              <span class="chip" onclick="setStepperVal('p-space-after', 12)">12 pt</span>
+              <span class="chip" onclick="setStepperVal('p-space-after', 0)">0 nk</span>
+              <span class="chip" onclick="setStepperVal('p-space-after', 4)">4 nk</span>
+              <span class="chip" onclick="setStepperVal('p-space-after', 8)">8 nk (UYAP)</span>
+              <span class="chip" onclick="setStepperVal('p-space-after', 12)">12 nk</span>
             </div>
           </div>
         </div>
@@ -451,7 +451,7 @@
             <div class="quick-chips">
               <span class="chip" onclick="setStepperVal('p-first-line', 0)">0 cm</span>
               <span class="chip" onclick="setStepperVal('p-first-line', 1.0)">1.0 cm</span>
-              <span class="chip" onclick="setStepperVal('p-first-line', 1.25)">1.25 cm</span>
+              <span class="chip" onclick="setStepperVal('p-first-line', 1.25)">1.25 cm (UYAP)</span>
             </div>
           </div>
 
@@ -473,13 +473,13 @@
         <!-- Satır Aralığı & Hizalama -->
         <div class="param-grid-2" style="margin-top: 10px;">
           <div class="param-col">
-            <label class="modal-label">Satır Aralığı:</label>
+            <label class="modal-label">Satır Aralığı (satır):</label>
             <select id="p-line-spacing" class="modal-input" onchange="updateParagraphPreview()">
-              <option value="1.0">1.0 (Tek)</option>
-              <option value="1.15">1.15</option>
-              <option value="1.35" selected>1.35 (UYAP Standart)</option>
-              <option value="1.5">1.5 (Geniş)</option>
-              <option value="2.0">2.0 (Çift)</option>
+              <option value="1.0">1.0 satır (Tek)</option>
+              <option value="1.15">1.15 satır</option>
+              <option value="1.35" selected>1.35 satır (UYAP Standart)</option>
+              <option value="1.5">1.5 satır (Geniş)</option>
+              <option value="2.0">2.0 satır (Çift)</option>
             </select>
           </div>
 
