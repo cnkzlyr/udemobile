@@ -1158,6 +1158,82 @@ public class EditorActivity extends Activity {
             docModified = modified;
         }
 
+        // ---- Dahili güncelleyici (updater.js) ----
+        @JavascriptInterface
+        public void requestSave() {
+            runOnUiThread(() -> saveDocument(false, false));
+        }
+
+        @JavascriptInterface
+        public String startUpdateDownload(String url, String fileName) {
+            try {
+                if (url == null || !url.startsWith("https://github.com/cnkzlyr/udemobile/releases/download/")) return "-1";
+                if (fileName == null || fileName.contains("/") || fileName.contains("..")) return "-1";
+                File dir = getExternalFilesDir(null);
+                if (dir != null) {
+                    File old = new File(dir, fileName);
+                    if (old.exists()) old.delete();
+                }
+                android.app.DownloadManager dm = (android.app.DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
+                android.app.DownloadManager.Request rq = new android.app.DownloadManager.Request(Uri.parse(url));
+                rq.setTitle("CanEditor güncellemesi");
+                rq.setMimeType("application/vnd.android.package-archive");
+                rq.setNotificationVisibility(android.app.DownloadManager.Request.VISIBILITY_VISIBLE);
+                rq.setDestinationInExternalFilesDir(EditorActivity.this, null, fileName);
+                return String.valueOf(dm.enqueue(rq));
+            } catch (Exception e) {
+                return "-1";
+            }
+        }
+
+        @JavascriptInterface
+        public String getUpdateStatus(String idStr) {
+            try {
+                android.app.DownloadManager dm = (android.app.DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
+                android.app.DownloadManager.Query q = new android.app.DownloadManager.Query().setFilterById(Long.parseLong(idStr));
+                android.database.Cursor c = dm.query(q);
+                JSONObject o = new JSONObject();
+                if (c != null) {
+                    try {
+                        if (c.moveToFirst()) {
+                            o.put("status", c.getInt(c.getColumnIndex(android.app.DownloadManager.COLUMN_STATUS)));
+                            o.put("downloaded", c.getLong(c.getColumnIndex(android.app.DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR)));
+                            o.put("total", c.getLong(c.getColumnIndex(android.app.DownloadManager.COLUMN_TOTAL_SIZE_BYTES)));
+                            o.put("reason", c.getInt(c.getColumnIndex(android.app.DownloadManager.COLUMN_REASON)));
+                        } else {
+                            o.put("status", 16);
+                        }
+                    } finally { c.close(); }
+                }
+                return o.toString();
+            } catch (Exception e) {
+                return "{\"status\":16}";
+            }
+        }
+
+        @JavascriptInterface
+        public String installUpdate(String idStr) {
+            try {
+                if (android.os.Build.VERSION.SDK_INT >= 26 && !getPackageManager().canRequestPackageInstalls()) {
+                    Intent st = new Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                        Uri.parse("package:" + getPackageName()));
+                    st.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    startActivity(st);
+                    return "need_permission";
+                }
+                android.app.DownloadManager dm = (android.app.DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
+                Uri apk = dm.getUriForDownloadedFile(Long.parseLong(idStr));
+                if (apk == null) return "İndirilen dosya bulunamadı";
+                Intent in = new Intent(Intent.ACTION_VIEW);
+                in.setDataAndType(apk, "application/vnd.android.package-archive");
+                in.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                startActivity(in);
+                return "ok";
+            } catch (Exception e) {
+                return "Kurulum başlatılamadı: " + e.getMessage();
+            }
+        }
+
         @JavascriptInterface
         public void onContentChanged(int wordCount, int charCount) {
             runOnUiThread(() -> {
