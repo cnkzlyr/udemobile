@@ -301,6 +301,20 @@ public class UdfEngine {
                 String hanging = p.getAttribute("Hanging");
                 String leftIndent = p.getAttribute("LeftIndent");
                 String firstLineIndent = p.getAttribute("FirstLineIndent");
+                String tabSet = p.getAttribute("TabSet");
+
+                double tabStopCm = 0;
+                if (tabSet != null && !tabSet.isEmpty()) {
+                    String[] parts = tabSet.split(":");
+                    if (parts.length > 0) {
+                        try {
+                            double pt = Double.parseDouble(parts[0].trim());
+                            if (pt > 10.0) {
+                                tabStopCm = Math.round((pt / 28.3465) * 10.0) / 10.0;
+                            }
+                        } catch (Exception ignored) {}
+                    }
+                }
 
                 StringBuilder styleAttr = new StringBuilder("text-align: ").append(alignStyle).append(";");
                 double ptAbove = 0;
@@ -439,7 +453,11 @@ public class UdfEngine {
                 }
 
                 String formattedParagraphHtml = formatParagraphTabs(pContent.toString());
-                html.append("<p style=\"").append(styleAttr.toString()).append("\">")
+                html.append("<p style=\"").append(styleAttr.toString()).append("\"");
+                if (tabStopCm > 0) {
+                    html.append(" data-tab-stops=\"").append(tabStopCm).append("\"");
+                }
+                html.append(">")
                     .append(formattedParagraphHtml)
                     .append("</p>");
             }
@@ -474,37 +492,7 @@ public class UdfEngine {
 
     private static String formatParagraphTabs(String pHtml) {
         if (!pHtml.contains("\t")) return pHtml;
-        // Matches (tags)?(label)(tags)?\t+(tags)?:(tags)?\s*(rest)
-        java.util.regex.Pattern pat = java.util.regex.Pattern.compile(
-            "^(?:((?:<[^>]+>)*))([^:\t<>\n\r]+)(?:((?:</[^>]+>)*))\\t+(?:((?:<[^>]+>)*)):(?:((?:</[^>]+>)*))\\s*(.*)$",
-            java.util.regex.Pattern.DOTALL
-        );
-        java.util.regex.Matcher m = pat.matcher(pHtml);
-        if (m.find()) {
-            String open1 = m.group(1) != null ? m.group(1) : "";
-            String label = m.group(2) != null ? m.group(2).trim() : "";
-            String close1 = m.group(3) != null ? m.group(3) : "";
-            String openColon = m.group(4) != null ? m.group(4) : "";
-            String closeColon = m.group(5) != null ? m.group(5) : "";
-            String rest = m.group(6) != null ? m.group(6) : "";
-
-            boolean isBold = open1.contains("<strong") || open1.contains("<b") || openColon.contains("</strong") || openColon.contains("</b");
-            boolean isItalic = open1.contains("<em") || open1.contains("<i") || openColon.contains("</em") || openColon.contains("</i");
-            boolean isUnderline = open1.contains("<u") || openColon.contains("</u");
-
-            StringBuilder labelHtml = new StringBuilder();
-            if (isBold) labelHtml.append("<strong>");
-            if (isItalic) labelHtml.append("<em>");
-            if (isUnderline) labelHtml.append("<u>");
-            labelHtml.append(label);
-            if (isUnderline) labelHtml.append("</u>");
-            if (isItalic) labelHtml.append("</em>");
-            if (isBold) labelHtml.append("</strong>");
-
-            return "<span class=\"udf-tab-label\">" + labelHtml.toString() + "</span>"
-                 + "<span class=\"udf-colon\">:</span> " + rest;
-        }
-        return pHtml.replace("\t", "<span class=\"udf-tab-space\">&nbsp;&nbsp;&nbsp;&nbsp;</span>");
+        return pHtml.replace("\t", "<span class=\"udf-tab-space\" contenteditable=\"false\">&nbsp;</span>");
     }
 
     private static double parsePtToCm(String ptStr, double defaultCm) {
@@ -660,12 +648,29 @@ public class UdfEngine {
             double leftIndentPt = leftIndent * 28.35;
             double rightIndentPt = rightIndent * 28.35;
 
-            elementsXml.append("    <paragraph TabSet=\"54.0:2:0\" LeftIndent=\"")
-                       .append(String.format(Locale.US, "%.1f", leftIndentPt))
+            String tabStopsStr = pObj.optString("tabStops", "");
+            String tabSetAttr = "54.0:2:0";
+            String hangingAttr = String.format(Locale.US, "%.1f", firstLinePt);
+            if (!tabStopsStr.isEmpty()) {
+                String[] parts = tabStopsStr.split(",");
+                if (parts.length > 0) {
+                    try {
+                        double cm = Double.parseDouble(parts[0].trim());
+                        if (cm > 0) {
+                            double pt = cm * 28.3465;
+                            tabSetAttr = String.format(Locale.US, "%.1f:0:0", pt);
+                            hangingAttr = String.format(Locale.US, "%.1f", pt);
+                        }
+                    } catch (Exception ignored) {}
+                }
+            }
+
+            elementsXml.append("    <paragraph TabSet=\"").append(tabSetAttr)
+                       .append("\" LeftIndent=\"").append(String.format(Locale.US, "%.1f", leftIndentPt))
                        .append("\" SpaceAbove=\"").append(String.format(Locale.US, "%.1f", spaceAbove))
                        .append("\" SpaceBelow=\"").append(String.format(Locale.US, "%.1f", spaceBelow))
                        .append("\" LineSpacing=\"").append(String.format(Locale.US, "%.1f", lineSpacing))
-                       .append("\" Hanging=\"").append(String.format(Locale.US, "%.1f", firstLinePt))
+                       .append("\" Hanging=\"").append(hangingAttr)
                        .append("\" RightIndent=\"").append(String.format(Locale.US, "%.1f", rightIndentPt))
                        .append("\" Alignment=\"").append(align).append("\">\n");
 

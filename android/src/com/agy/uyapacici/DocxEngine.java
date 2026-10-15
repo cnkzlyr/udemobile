@@ -236,6 +236,7 @@ public class DocxEngine {
         double leftIndentCm = 0.0;
         double spaceAbovePt = 0.0;
         double spaceBelowPt = 0.0;
+        String docxTabStops = "";
 
         NodeList pPrList = p.getElementsByTagName("w:pPr");
         if (pPrList.getLength() > 0) {
@@ -273,6 +274,25 @@ public class DocxEngine {
                 if (sp.hasAttribute("w:after")) {
                     try { spaceBelowPt = Double.parseDouble(sp.getAttribute("w:after")) / 20.0; } catch (Exception ignored) {}
                 }
+            }
+
+            // Sekme Durakları (w:tabs)
+            NodeList tabsList = pPr.getElementsByTagName("w:tabs");
+            if (tabsList.getLength() > 0) {
+                Element tabsElem = (Element) tabsList.item(0);
+                NodeList tabItems = tabsElem.getElementsByTagName("w:tab");
+                StringBuilder sb = new StringBuilder();
+                for (int t = 0; t < tabItems.getLength(); t++) {
+                    Element tElem = (Element) tabItems.item(t);
+                    if (tElem.hasAttribute("w:pos")) {
+                        double cm = parseDxaToCm(tElem.getAttribute("w:pos"), 0.0);
+                        if (cm > 0) {
+                            if (sb.length() > 0) sb.append(",");
+                            sb.append(Math.round(cm * 10.0) / 10.0);
+                        }
+                    }
+                }
+                docxTabStops = sb.toString();
             }
         }
 
@@ -337,17 +357,14 @@ public class DocxEngine {
             child = child.getNextSibling();
         }
 
-        // Dilekçe Başlığı / Metadatasını (DOSYA NO, DAVACI, VEKİLİ, KONU vb.) Zeki Çözümleme
         String rawParagraphHtml = pContent.toString();
-        if (hasTab && isMetadataLabel(firstRunText)) {
-            rawParagraphHtml = wrapMetadataRow(rawParagraphHtml);
-            html.append("<p style=\"").append(styleAttr).append("\" data-tab-stops=\"5\">")
-                .append(rawParagraphHtml)
-                .append("</p>\n");
-            return;
+        html.append("<p style=\"").append(styleAttr).append("\"");
+        if (!docxTabStops.isEmpty()) {
+            html.append(" data-tab-stops=\"").append(docxTabStops).append("\"");
+        } else if (hasTab && isMetadataLabel(firstRunText)) {
+            html.append(" data-tab-stops=\"5\"");
         }
-
-        html.append("<p style=\"").append(styleAttr).append("\">");
+        html.append(">");
         if (hasContent) {
             html.append(rawParagraphHtml);
         } else {
@@ -366,19 +383,6 @@ public class DocxEngine {
                 || upper.equals("MÜŞTEKİ") || upper.equals("MAĞDUR") || upper.equals("MÜDAFİ")
                 || upper.equals("KATILAN") || upper.equals("SUÇ") || upper.equals("SUÇ TARİHİ")
                 || upper.equals("TEBLİĞ TARİHİ") || upper.equals("AÇIKLAMALAR") || upper.startsWith("DOSYA NO");
-    }
-
-    private static String wrapMetadataRow(String pHtml) {
-        if (pHtml.contains("udf-tab-space") && pHtml.contains(":")) {
-            int colonIdx = pHtml.indexOf(':');
-            int tabIdx = pHtml.indexOf("<span class=\"udf-tab-space\">");
-            if (tabIdx >= 0 && tabIdx < colonIdx) {
-                String beforeTab = pHtml.substring(0, tabIdx).trim();
-                String afterColon = pHtml.substring(colonIdx + 1).trim();
-                return "<span class=\"udf-tab-label\">" + beforeTab + "</span><span class=\"udf-colon\">:</span> " + afterColon;
-            }
-        }
-        return pHtml;
     }
 
     private static void parseTableElement(Element tbl, StringBuilder html) {

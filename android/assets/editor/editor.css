@@ -267,33 +267,23 @@ select {
   color: #424242;
 }
 
-/* UYAP Tab ve İki Nokta Hizalama Stili (Asılı Girinti / Hanging Indent) */
-p:has(.udf-tab-label) {
-  padding-left: 5.0cm !important;
-  text-indent: -5.0cm !important;
-  margin-top: 2pt !important;
-  margin-bottom: 2pt !important;
-  text-align: left !important;
+/* UYAP Tab ve İki Nokta Hizalama Stili */
+.udf-tab-label {
+  display: inline;
+  width: auto;
+  min-width: 0;
+  max-width: none;
+  font-weight: inherit;
 }
 
-p:has(.udf-tab-label) .udf-tab-label {
-  display: inline-block;
-  width: 4.5cm;
-  min-width: 4.5cm;
-  max-width: 4.5cm;
-  text-indent: 0 !important;
-  vertical-align: top;
-  text-align: left;
-  font-weight: bold;
-}
-
-p:has(.udf-tab-label) .udf-colon {
-  display: inline-block;
-  width: 0.5cm;
-  text-align: center;
-  margin-right: 2px;
-  vertical-align: top;
-  font-weight: bold;
+.udf-colon {
+  display: inline;
+  width: auto;
+  min-width: 0;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  font-weight: inherit;
 }
 
 .udf-tab-space {
@@ -303,7 +293,6 @@ p:has(.udf-tab-label) .udf-colon {
   min-width: 0;
   overflow: hidden;
   line-height: 1;
-  vertical-align: baseline;
   user-select: none;
 }
 

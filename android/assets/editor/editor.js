@@ -879,6 +879,7 @@ function syncTabStopsToActiveParagraph() {
     }
     realignTabsInParagraph(p);
   });
+  if (window.CanHistory) CanHistory.commit();
 }
 
 // ---- Word / UYAP tarzı sekme (tab) motoru ----
@@ -1083,6 +1084,7 @@ function handleTabAction() {
   updateCounts();
   debouncedPagination();
   if (typeof markDirty === 'function') markDirty();
+  if (window.CanHistory) CanHistory.commit();
 }
 
 function setupMarkerDragging(markerId, type, activeCm) {
@@ -2546,7 +2548,7 @@ function executeDeterministicFormat() {
       let label = parts[0].trim().toLocaleUpperCase('tr-TR');
       let val = parts.slice(1).join(':').trim();
 
-      p.innerHTML = `<span class="udf-tab-label"><strong>${label}</strong></span><span class="udf-colon">:</span> ${val}`;
+      p.innerHTML = `<strong>${label}</strong><span class="udf-tab-space" contenteditable="false">&nbsp;</span>: ${val}`;
       return;
     }
 
@@ -2635,7 +2637,7 @@ Görevin: Verilen dilekçenin metin içeriğini, vakıalarını, taleplerini ve 
 UYAP Biçimlendirme Kuralları:
 1. Mahkeme/Savcılık Makam Başlığı: <p style="text-align: center;"><strong>...</strong></p>
 2. Dosya No, Sanık, Müdafi, Davacı, Vekili, Konu satırları:
-   <p style="text-align: left;" data-tab-stops="5"><span class="udf-tab-label"><strong>ETİKET</strong></span><span class="udf-colon">:</span> DEĞER</p>
+   <p style="text-align: left;" data-tab-stops="5"><strong>ETİKET</strong><span class="udf-tab-space" contenteditable="false">&nbsp;</span>: DEĞER</p>
 3. Hitap ve Bölüm Başlıkları (AÇIKLAMALAR, HUKUKİ NEDENLER, DELİLLER, SONUÇ VE İSTEM vb.):
    <p style="text-align: left; margin-top: 10pt; margin-bottom: 4pt;"><strong>BAŞLIK</strong></p>
 4. Gövde Paragrafları:
@@ -2943,6 +2945,7 @@ function getStructuredDocument() {
         firstLineIndent: firstLineIndent,
         leftIndent: leftIndent,
         rightIndent: rightIndent,
+        tabStops: (node.dataset && node.dataset.tabStops) ? node.dataset.tabStops : '',
         runs: runs.length > 0 ? runs : [{ text: pText, bold: false, italic: false, underline: false }]
       });
     }

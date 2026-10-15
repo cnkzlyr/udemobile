@@ -96,9 +96,20 @@ async function parseUdfArrayBuffer(buffer) {
     else if (al === "2") align = "right";
     else if (al === "0") align = "left";
 
+    let tabStopAttr = "";
+    const tabSet = p.getAttribute("TabSet");
+    if (tabSet) {
+      const parts = tabSet.split(":");
+      const pt = parseFloat(parts[0]);
+      if (!isNaN(pt) && pt > 10) {
+        const cm = Math.round((pt / 28.3465) * 10) / 10;
+        tabStopAttr = ` data-tab-stops="${cm}"`;
+      }
+    }
+
     let pHtml = "";
     let firstLabelText = "";
-    let hasColon = false;
+    let hasTab = false;
 
     const contents = p.querySelectorAll("content");
     contents.forEach((c, idx) => {
@@ -106,24 +117,22 @@ async function parseUdfArrayBuffer(buffer) {
       const len = parseInt(c.getAttribute("length") || "0", 10);
       const text = runes.slice(start, start + len).join("");
       if (!firstLabelText && idx === 0) firstLabelText = text.trim();
-      if (text.includes(":")) hasColon = true;
+      if (text.includes("\t")) hasTab = true;
 
-      let seg = escapeHtmlStr(text).replace(/\n/g, "<br>");
+      let seg = escapeHtmlStr(text)
+        .replace(/\t/g, '<span class="udf-tab-space" contenteditable="false">&nbsp;</span>')
+        .replace(/\n/g, "<br>");
       if (c.getAttribute("bold") === "true") seg = `<strong>${seg}</strong>`;
       if (c.getAttribute("italic") === "true") seg = `<em>${seg}</em>`;
       if (c.getAttribute("underline") === "true") seg = `<u>${seg}</u>`;
       pHtml += seg;
     });
 
-    if (hasColon && isLegalMetadata(firstLabelText)) {
-      // Asılı girinti ve sekme durağı formatına dönüştür
-      const colonIdx = pHtml.indexOf(":");
-      const label = pHtml.substring(0, colonIdx).trim();
-      const value = pHtml.substring(colonIdx + 1).trim();
-      html += `<p style="text-align: left;" data-tab-stops="5"><span class="udf-tab-label">${label}</span><span class="udf-colon">:</span> ${value}</p>\n`;
-    } else {
-      html += `<p style="text-align: ${align};">${pHtml || "<br>"}</p>\n`;
+    if (!tabStopAttr && hasTab && isLegalMetadata(firstLabelText)) {
+      tabStopAttr = ' data-tab-stops="5"';
     }
+
+    html += `<p style="text-align: ${align};"${tabStopAttr}>${pHtml || "<br>"}</p>\n`;
   });
 
   return {
@@ -188,6 +197,19 @@ async function parseDocxArrayBuffer(buffer) {
         if (val === "center") align = "center";
         else if (val === "right") align = "right";
         else if (val === "left") align = "left";
+      let tabStopAttr = "";
+      const tabsElem = node.querySelector("w\\:tabs, tabs");
+      if (tabsElem) {
+        const stops = [];
+        tabsElem.querySelectorAll("w\\:tab, tab").forEach(t => {
+          const pos = parseFloat(t.getAttribute("w:pos") || t.getAttribute("pos") || "0");
+          if (pos > 0) {
+            stops.push(Math.round((pos / 567) * 10) / 10);
+          }
+        });
+        if (stops.length > 0) {
+          tabStopAttr = ` data-tab-stops="${stops.join(",")}"`;
+        }
       }
 
       let pHtml = "";
@@ -213,25 +235,18 @@ async function parseDocxArrayBuffer(buffer) {
             }
           } else if (rcn === "w:tab" || rcn === "tab") {
             hasTab = true;
-            pHtml += `<span class="udf-tab-space">&nbsp;&nbsp;&nbsp;&nbsp;</span>`;
+            pHtml += `<span class="udf-tab-space" contenteditable="false">&nbsp;</span>`;
           } else if (rcn === "w:br" || rcn === "br") {
             pHtml += `<br>`;
           }
         });
       });
 
-      if (hasTab && isLegalMetadata(firstLabel) && pHtml.includes(":")) {
-        const cIdx = pHtml.indexOf(":");
-        const tabIdx = pHtml.indexOf("<span class=\"udf-tab-space\">");
-        if (tabIdx >= 0 && tabIdx < cIdx) {
-          const lbl = pHtml.substring(0, tabIdx).trim();
-          const val = pHtml.substring(cIdx + 1).trim();
-          html += `<p style="text-align: left;" data-tab-stops="5"><span class="udf-tab-label">${lbl}</span><span class="udf-colon">:</span> ${val}</p>\n`;
-          return;
-        }
+      if (!tabStopAttr && hasTab && isLegalMetadata(firstLabel)) {
+        tabStopAttr = ' data-tab-stops="5"';
       }
 
-      html += `<p style="text-align: ${align};">${pHtml || "<br>"}</p>\n`;
+      html += `<p style="text-align: ${align};"${tabStopAttr}>${pHtml || "<br>"}</p>\n`;
 
     } else if (name === "w:tbl" || name === "tbl") {
       html += `<table style="width: 100%; border-collapse: collapse; margin: 12px 0; border: 1px solid #777;">\n`;
@@ -271,7 +286,16 @@ async function generateUdfBlob(docData) {
     const align = p.align !== undefined ? p.align : 3;
     const spaceAbove = p.spaceAbove || 0;
     const spaceBelow = p.spaceBelow || 6;
-    xml += `  <paragraph Alignment="${align}" SpaceAbove="${spaceAbove}" SpaceBelow="${spaceBelow}">\n`;
+    let tabAttr = "";
+    if (p.tabStops) {
+      const parts = String(p.tabStops).split(",");
+      const firstStop = parseFloat(parts[0]);
+      if (!isNaN(firstStop) && firstStop > 0) {
+        const pt = (firstStop * 28.3465).toFixed(1);
+        tabAttr = ` TabSet="${pt}:0:0" Hanging="${pt}"`;
+      }
+    }
+    xml += `  <paragraph Alignment="${align}" SpaceAbove="${spaceAbove}" SpaceBelow="${spaceBelow}"${tabAttr}>\n`;
     (p.runs || []).forEach(r => {
       const t = r.text || "";
       if (t) {
@@ -332,7 +356,16 @@ async function generateDocxBlob(docData) {
     const beforeDxa = Math.round((p.spaceAbove || 0) * 20);
     const afterDxa = Math.round((p.spaceBelow || 6) * 20);
 
-    docXml += `  <w:p>\n    <w:pPr>\n      <w:jc w:val="${jcVal}"/>\n      <w:spacing w:before="${beforeDxa}" w:after="${afterDxa}" w:line="276" w:lineRule="auto"/>\n    </w:pPr>\n`;
+    let tabsXml = "";
+    if (p.tabStops) {
+      const parts = String(p.tabStops).split(",");
+      const tabsList = parts.map(s => parseFloat(s)).filter(n => !isNaN(n) && n > 0);
+      if (tabsList.length > 0) {
+        tabsXml = '      <w:tabs>\n' + tabsList.map(cm => `        <w:tab w:val="left" w:pos="${Math.round(cm * 567)}"/>\n`).join('') + '      </w:tabs>\n';
+      }
+    }
+
+    docXml += `  <w:p>\n    <w:pPr>\n      <w:jc w:val="${jcVal}"/>\n${tabsXml}      <w:spacing w:before="${beforeDxa}" w:after="${afterDxa}" w:line="276" w:lineRule="auto"/>\n    </w:pPr>\n`;
 
     (p.runs || []).forEach(r => {
       const text = r.text || "";
