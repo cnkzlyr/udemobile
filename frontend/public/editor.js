@@ -113,6 +113,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const editor = document.getElementById('editor-content');
   
   editor.addEventListener('input', () => {
+    const ap = getActiveParagraph();
+    if (ap && ap.querySelector('.udf-tab-space')) realignTabsInParagraph(ap);
     updateCounts();
     debouncedPagination();
   });
@@ -259,6 +261,7 @@ function applyPageNumberChoice(choice) {
 }
 
 function updatePagination() {
+  try { realignAllTabs(); } catch (e) {}
   if (isMobileView) return;
   const editor = document.getElementById('editor-content');
   if (!editor) return;
@@ -447,6 +450,11 @@ function getActiveParagraph() {
 function getSelectedParagraphs() {
   const selection = window.getSelection();
   const editor = document.getElementById('editor-content');
+  // İmleç editörde ve seçim yoksa: sadece imlecin bulunduğu paragraf (eski çoklu seçime dönme)
+  if (selection && selection.rangeCount > 0 && selection.isCollapsed && editor && editor.contains(selection.anchorNode)) {
+    const cp = getActiveParagraph();
+    return cp ? [cp] : [];
+  }
   if (selection && selection.rangeCount > 0 && !selection.isCollapsed && editor && editor.contains(selection.anchorNode)) {
     try {
       const range = selection.getRangeAt(0);
@@ -852,7 +860,7 @@ function removeTabStop(cm) {
 
 function syncTabStopsToActiveParagraph() {
   const targets = getSelectedParagraphs();
-  const val = currentTabStops.length > 0 ? currentTabStops.join(',') : '';
+  const val = currentTabStops.length > 0 ? currentTabStops.map(v => Math.round(v * 100) / 100).join(',') : '';
   targets.forEach(p => {
     if (val) {
       p.dataset.tabStops = val;
@@ -863,42 +871,91 @@ function syncTabStopsToActiveParagraph() {
   });
 }
 
+// ---- Word / UYAP tarzı sekme (tab) motoru ----
+// Sekme konumları cm cinsinden, metin alanının (editor-content) SOL kenarından ölçülür; cetvelle birebir aynı sıfır noktası.
+const DEFAULT_TAB_INTERVAL_CM = 1.25;
+
+function getTabMetrics() {
+  const ed = document.getElementById('editor-content');
+  if (!ed) return null;
+  const r = ed.getBoundingClientRect();
+  const scale = ed.offsetWidth > 0 ? (r.width / ed.offsetWidth) : 1;
+  const ppc = 37.795275 * (scale || 1);
+  const cs = window.getComputedStyle(ed);
+  const padL = (parseFloat(cs.paddingLeft) || 0) * (scale || 1);
+  const padR = (parseFloat(cs.paddingRight) || 0) * (scale || 1);
+  return { left: r.left + padL, ppc, widthCm: (r.width - padL - padR) / ppc };
+}
+
+function getParagraphTabStops(p) {
+  if (!p || !p.dataset || !p.dataset.tabStops) return [];
+  return p.dataset.tabStops.split(',').map(s => parseFloat(s)).filter(s => !isNaN(s)).sort((a, b) => a - b);
+}
+
+// Word mantığı: özel durak varsa önce ona gider; özel duraklardan sonra varsayılan 1.25 cm ızgarası
+function computeNextTabStop(stops, curCm) {
+  const EPS = 0.05;
+  const custom = stops.find(s => s > curCm + EPS);
+  if (custom !== undefined) return custom;
+  return (Math.floor(curCm / DEFAULT_TAB_INTERVAL_CM + 1e-6) + 1) * DEFAULT_TAB_INTERVAL_CM;
+}
+
 function realignTabsInParagraph(p) {
   if (!p) return;
   const tabSpaces = Array.from(p.querySelectorAll('.udf-tab-space'));
   const tabLabel = p.querySelector('.udf-tab-label');
-  if (tabSpaces.length === 0 && !tabLabel) return;
+  const stops = getParagraphTabStops(p);
 
-  let stops = [];
-  if (p.dataset && p.dataset.tabStops) {
-    stops = p.dataset.tabStops.split(',').map(s => parseFloat(s)).filter(s => !isNaN(s)).sort((a, b) => a - b);
-  } else if (currentTabStops && currentTabStops.length > 0) {
-    stops = [...currentTabStops].sort((a, b) => a - b);
+  // "ETİKET : değer" tipi (asılı girintili) paragraflarda ilk durak etiketin genişliğini belirler
+  if (tabLabel) {
+    if (stops.length > 0) {
+      const first = Math.max(1, stops[0]);
+      p.style.setProperty('padding-left', first + 'cm', 'important');
+      p.style.setProperty('text-indent', (-first) + 'cm', 'important');
+      const lw = Math.max(0.5, first - 0.5) + 'cm';
+      tabLabel.style.width = lw;
+      tabLabel.style.minWidth = lw;
+      tabLabel.style.maxWidth = lw;
+    } else {
+      p.style.removeProperty('padding-left');
+      p.style.removeProperty('text-indent');
+      tabLabel.style.width = '';
+      tabLabel.style.minWidth = '';
+      tabLabel.style.maxWidth = '';
+    }
   }
 
-  if (tabLabel && stops.length > 0) {
-    tabLabel.style.minWidth = Math.max(1.5, stops[0] - 0.5) + 'cm';
-    tabLabel.style.maxWidth = (stops[0] + 0.2) + 'cm';
-  }
+  if (tabSpaces.length === 0) return;
+  const m = getTabMetrics();
+  if (!m) return;
 
-  if (tabSpaces.length > 0) {
-    try {
-      const pRect = p.getBoundingClientRect();
-      const pStyle = window.getComputedStyle(p);
-      const pLeft = pRect.left + (parseFloat(pStyle.paddingLeft) || 0);
+  tabSpaces.forEach(ts => {
+    ts.setAttribute('contenteditable', 'false');
+    if (ts.textContent !== '\u200B') ts.textContent = '\u200B';
+    ts.style.display = 'inline-block';
+    ts.style.width = '0px';
+    ts.style.minWidth = '0px';
+    const tsRect = ts.getBoundingClientRect();
+    const curCm = Math.max(0, (tsRect.left - m.left) / m.ppc);
+    let target = computeNextTabStop(stops, curCm);
+    let gap = target - curCm;
+    // Satır sonuna taşmasın
+    const room = m.widthCm - curCm;
+    if (room > 0.1 && gap > room) gap = room;
+    gap = Math.max(0.1, gap);
+    ts.style.width = (Math.round(gap * 1000) / 1000) + 'cm';
+    ts.dataset.targetStop = String(Math.round((curCm + gap) * 100) / 100);
+  });
+}
 
-      tabSpaces.forEach((ts, idx) => {
-        const tsRect = ts.getBoundingClientRect();
-        const currentCm = Math.max(0, (tsRect.left - pLeft) / 37.795275);
-        let targetStop = stops[idx] !== undefined && stops[idx] > currentCm
-          ? stops[idx]
-          : (stops.find(s => s > currentCm + 0.1) || (Math.ceil((currentCm + 0.2) / 1.25) * 1.25));
-        const gap = Math.max(0.35, Math.round((targetStop - currentCm) * 100) / 100);
-        ts.style.width = gap + 'cm';
-        ts.dataset.targetStop = targetStop;
-      });
-    } catch(e) {}
-  }
+function realignAllTabs() {
+  const ed = document.getElementById('editor-content');
+  if (!ed) return;
+  ed.querySelectorAll('p, li, blockquote').forEach(p => {
+    if (p.querySelector('.udf-tab-space') || (p.dataset && p.dataset.tabStops && p.querySelector('.udf-tab-label'))) {
+      realignTabsInParagraph(p);
+    }
+  });
 }
 
 function setupTabStopDragging(marker, originalCm, activeCm) {
@@ -989,53 +1046,15 @@ function handleTabAction() {
   const sel = window.getSelection();
   if (!sel || sel.rangeCount === 0) return;
 
-  // Paragrafın ve cetvelin sekme duraklarını al
-  let stops = [];
-  if (currentTabStops && currentTabStops.length > 0) {
-    stops = [...currentTabStops].sort((a, b) => a - b);
-  } else if (p.dataset && p.dataset.tabStops) {
-    stops = p.dataset.tabStops.split(',').map(s => parseFloat(s)).filter(s => !isNaN(s)).sort((a, b) => a - b);
-  }
-
   const range = sel.getRangeAt(0);
   range.deleteContents();
 
-  // İmlecin paragrafın sol kenarından itibaren yatay mesafesini hesapla
-  let currentCm = 0;
-  try {
-    const marker = document.createElement('span');
-    marker.textContent = '\u200B';
-    range.insertNode(marker);
-
-    const mRect = marker.getBoundingClientRect();
-    const pRect = p.getBoundingClientRect();
-    const pStyle = window.getComputedStyle(p);
-    const pLeft = pRect.left + (parseFloat(pStyle.paddingLeft) || 0);
-    currentCm = Math.max(0, (mRect.left - pLeft) / 37.795275);
-    marker.parentNode.removeChild(marker);
-  } catch (e) {
-    currentCm = 0;
-  }
-
-  // Bir sonraki sekme durağını belirle (Word / UYAP mantığı)
-  let nextStop = null;
-  if (stops.length > 0) {
-    nextStop = stops.find(s => s > (currentCm + 0.15));
-  }
-  if (!nextStop) {
-    // Varsayılan sekme aralığı: 1.25 cm katları
-    const defaultInterval = 1.25;
-    nextStop = Math.ceil((currentCm + 0.2) / defaultInterval) * defaultInterval;
-  }
-
-  const gapCm = Math.max(0.35, Math.round((nextStop - currentCm) * 100) / 100);
-
   const span = document.createElement('span');
   span.className = 'udf-tab-space';
+  span.setAttribute('contenteditable', 'false');
   span.style.display = 'inline-block';
-  span.style.width = gapCm + 'cm';
-  span.dataset.targetStop = nextStop;
-  span.innerHTML = '&nbsp;';
+  span.style.width = '0px';
+  span.textContent = '\u200B';
 
   range.insertNode(span);
   range.setStartAfter(span);
@@ -1043,14 +1062,17 @@ function handleTabAction() {
   sel.removeAllRanges();
   sel.addRange(range);
 
-  // Paragrafta sekme durakları varsa dataset'i güncelle
-  if (stops.length > 0 && (!p.dataset.tabStops || p.dataset.tabStops === '')) {
-    p.dataset.tabStops = stops.join(',');
+  // Paragrafın durakları yoksa ama cetvelde durak görünüyorsa (aynı paragraf) kalıcı yap
+  if ((!p.dataset.tabStops) && currentTabStops && currentTabStops.length > 0) {
+    p.dataset.tabStops = currentTabStops.map(v => Math.round(v * 100) / 100).join(',');
   }
+
+  // Bu paragraftaki tüm sekmeleri soldan sağa yeniden hizala
+  realignTabsInParagraph(p);
 
   updateCounts();
   debouncedPagination();
-  markDirty();
+  if (typeof markDirty === 'function') markDirty();
 }
 
 function setupMarkerDragging(markerId, type, activeCm) {
@@ -2560,7 +2582,7 @@ function executeDeterministicFormat() {
 
   closeAiFormatModal();
   updatePagination();
-  markDirty();
+  if (typeof markDirty === 'function') markDirty();
   showEditorToast('⚡ Dilekçe Türk yargı standartlarına göre formatlandı!');
 }
 
@@ -2658,7 +2680,7 @@ UYAP Biçimlendirme Kuralları:
       editor.innerHTML = outputText;
       closeAiFormatModal();
       updatePagination();
-      markDirty();
+      if (typeof markDirty === 'function') markDirty();
       showEditorToast('✨ Dilekçe Gemini AI ile mükemmel şekilde formatlandı!');
     } else {
       throw new Error('Yapay zeka geçerli bir HTML yapısı oluşturamadı.');

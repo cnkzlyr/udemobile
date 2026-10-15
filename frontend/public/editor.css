@@ -268,7 +268,7 @@ select {
 }
 
 /* UYAP Tab ve İki Nokta Hizalama Stili (Asılı Girinti / Hanging Indent) */
-p:has(.udf-tab-label), p[data-tab-stops] {
+p:has(.udf-tab-label) {
   padding-left: 5.0cm !important;
   text-indent: -5.0cm !important;
   margin-top: 2pt !important;
@@ -276,7 +276,7 @@ p:has(.udf-tab-label), p[data-tab-stops] {
   text-align: left !important;
 }
 
-p:has(.udf-tab-label) .udf-tab-label, p[data-tab-stops] .udf-tab-label {
+p:has(.udf-tab-label) .udf-tab-label {
   display: inline-block;
   width: 4.5cm;
   min-width: 4.5cm;
@@ -287,7 +287,7 @@ p:has(.udf-tab-label) .udf-tab-label, p[data-tab-stops] .udf-tab-label {
   font-weight: bold;
 }
 
-p:has(.udf-tab-label) .udf-colon, p[data-tab-stops] .udf-colon {
+p:has(.udf-tab-label) .udf-colon {
   display: inline-block;
   width: 0.5cm;
   text-align: center;
@@ -300,7 +300,11 @@ p:has(.udf-tab-label) .udf-colon, p[data-tab-stops] .udf-colon {
   display: inline-block;
   vertical-align: baseline;
   white-space: pre;
-  min-width: 0.35cm;
+  min-width: 0;
+  overflow: hidden;
+  line-height: 1;
+  vertical-align: baseline;
+  user-select: none;
 }
 
 /* Havelsan UYAP E-İmza Rozeti (Sağ Üst Köşe) */
