@@ -206,10 +206,20 @@ select {
 
 .page-break-header-area {
   background: #FFFFFF;
-  padding: var(--page-margin-top, 2.0cm) var(--page-margin-right, 2.5cm) 10px var(--page-margin-left, 2.5cm);
+  padding: var(--page-margin-top, 2.5cm) var(--page-margin-right, 2.5cm) 0 var(--page-margin-left, 2.5cm);
   box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.15);
   box-sizing: border-box;
   min-height: 24px;
+}
+
+.page-break-header-area.has-header {
+  padding-top: var(--header-margin, 1.25cm);
+  padding-bottom: calc(var(--page-margin-top, 2.5cm) - var(--header-margin, 1.25cm));
+}
+
+.page-break-header-area.no-header {
+  padding-top: var(--page-margin-top, 2.5cm);
+  padding-bottom: 0;
 }
 
 #page-wrapper.mobile-view .auto-page-break {
@@ -218,12 +228,20 @@ select {
 
 /* UYAP Altbilgi (Footer & Logo) Stili */
 .udf-footer-layout {
+  position: relative;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
   width: 100%;
   padding-top: 6px;
   border-top: 1px solid #D5D8DC;
+}
+
+.udf-footer-layout .udf-footer-img,
+.udf-footer-layout .udf-footer-text {
+  margin: 0 auto;
+  text-align: center;
+  display: block;
 }
 
 .udf-footer-img {
@@ -232,7 +250,9 @@ select {
   object-fit: contain;
 }
 
-.udf-footer-page-label {
+.udf-footer-layout .udf-footer-page-label {
+  position: absolute;
+  right: 0;
   font-family: 'Times New Roman', serif;
   font-size: 11pt;
   color: #212121;
@@ -249,14 +269,19 @@ select {
 /* UYAP Tab ve İki Nokta Hizalama Stili */
 .udf-tab-label {
   display: inline-block;
-  min-width: 4.94cm;
+  min-width: 4.5cm;
+  max-width: 5.2cm;
   text-indent: 0 !important;
-  vertical-align: top;
+  vertical-align: baseline;
+  text-align: left;
 }
 
 .udf-colon {
   display: inline-block;
-  margin-right: 4px;
+  width: 0.5cm;
+  text-align: center;
+  margin-right: 2px;
+  vertical-align: baseline;
 }
 
 .udf-tab-space {
@@ -988,36 +1013,43 @@ li {
   box-shadow: inset 0 1px 2px rgba(0,0,0,0.04);
 }
 
-/* Yazdırma ve PDF Aktarım Modu */
+/* Yazdırma ve PDF Aktarım Modu (Android WebView Çoklu Sayfa Uyumlu) */
 @media print {
-  body {
-    background: none !important;
+  html, body {
+    overflow: visible !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    display: block !important;
+    background: #FFFFFF !important;
   }
-  #toolbar-container, .modal-backdrop, #doc-signature-banner, #ruler-container, .page-break-desk-gap {
+  #toolbar-container, .modal-backdrop, #doc-signature-banner, #ruler-container, .page-break-desk-gap, #floating-zoom-bar, #fab-view-toggle, .scroll-blur-band, #floating-context-menu {
     display: none !important;
   }
-  #page-wrapper {
-    padding: 0 !important;
-    background: none !important;
-  }
-  #sheet-container, #sheet-wrapper {
+  #page-wrapper, #sheet-wrapper, #sheet-container, #a4-sheet, #editor-content {
+    overflow: visible !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    display: block !important;
+    position: static !important;
     width: 100% !important;
     max-width: 100% !important;
     margin: 0 !important;
     padding: 0 !important;
     zoom: 1 !important;
+    box-shadow: none !important;
+    border: none !important;
   }
   #a4-sheet {
-    box-shadow: none !important;
-    max-width: 100% !important;
-    width: 100% !important;
-    margin: 0 !important;
     padding: var(--page-margin-top, 2.5cm) var(--page-margin-right, 2.5cm) var(--page-margin-bottom, 2.5cm) var(--page-margin-left, 2.5cm) !important;
   }
   .auto-page-break {
+    display: block !important;
     break-after: page !important;
     page-break-after: always !important;
     height: 0 !important;
+    min-height: 0 !important;
     margin: 0 !important;
     padding: 0 !important;
     border: none !important;

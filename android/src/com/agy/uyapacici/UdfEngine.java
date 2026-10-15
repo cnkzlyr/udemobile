@@ -291,7 +291,10 @@ public class UdfEngine {
                 String alignStyle = "justify";
                 if ("1".equals(alignAttr)) alignStyle = "center";
                 else if ("2".equals(alignAttr)) alignStyle = "right";
-                else if ("0".equals(alignAttr)) alignStyle = "left";
+                else if ("0".equals(alignAttr) || alignAttr.isEmpty()) {
+                    // UYAP standardında sekme ve girinti içeren başlık paragrafları sola yaslıdır
+                    alignStyle = (p.hasAttribute("TabSet") || p.hasAttribute("Hanging")) ? "left" : "justify";
+                }
 
                 String spaceAbove = p.getAttribute("SpaceAbove");
                 String spaceBelow = p.getAttribute("SpaceBelow");
@@ -479,13 +482,27 @@ public class UdfEngine {
         java.util.regex.Matcher m = pat.matcher(pHtml);
         if (m.find()) {
             String open1 = m.group(1) != null ? m.group(1) : "";
-            String label = m.group(2);
+            String label = m.group(2) != null ? m.group(2).trim() : "";
             String close1 = m.group(3) != null ? m.group(3) : "";
             String openColon = m.group(4) != null ? m.group(4) : "";
             String closeColon = m.group(5) != null ? m.group(5) : "";
-            String rest = m.group(6);
-            return "<span class=\"udf-tab-label\">" + open1 + label.trim() + close1 + "</span>"
-                 + openColon + "<span class=\"udf-colon\">:</span>" + closeColon + " " + rest;
+            String rest = m.group(6) != null ? m.group(6) : "";
+
+            boolean isBold = open1.contains("<strong") || open1.contains("<b") || openColon.contains("</strong") || openColon.contains("</b");
+            boolean isItalic = open1.contains("<em") || open1.contains("<i") || openColon.contains("</em") || openColon.contains("</i");
+            boolean isUnderline = open1.contains("<u") || openColon.contains("</u");
+
+            StringBuilder labelHtml = new StringBuilder();
+            if (isBold) labelHtml.append("<strong>");
+            if (isItalic) labelHtml.append("<em>");
+            if (isUnderline) labelHtml.append("<u>");
+            labelHtml.append(label);
+            if (isUnderline) labelHtml.append("</u>");
+            if (isItalic) labelHtml.append("</em>");
+            if (isBold) labelHtml.append("</strong>");
+
+            return "<span class=\"udf-tab-label\">" + labelHtml.toString() + "</span>"
+                 + "<span class=\"udf-colon\">:</span> " + rest;
         }
         return pHtml.replace("\t", "<span class=\"udf-tab-space\">&nbsp;&nbsp;&nbsp;&nbsp;</span>");
     }

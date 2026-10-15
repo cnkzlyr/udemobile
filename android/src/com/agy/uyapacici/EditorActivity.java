@@ -271,7 +271,7 @@ public class EditorActivity extends Activity {
         btnSave.setEnabled(false);
         btnSaveDocx.setEnabled(false);
 
-        String js = "(function(){try{AndroidBridge.setDocModified(isDocumentModified());}catch(e){} return getStructuredDocument();})()";
+        String js = "(function(){try{AndroidBridge.setDocModified(isDocumentModified());}catch(e){} return JSON.stringify(getStructuredDocument());})()";
         editorWebView.evaluateJavascript(js, rawResult -> {
             btnSave.setEnabled(true);
             btnSaveDocx.setEnabled(true);
@@ -387,8 +387,14 @@ public class EditorActivity extends Activity {
             new Thread(() -> {
                 try {
                     String baseTitle = getCleanDocBaseTitle();
-                    File shareFile = new File(getCacheDir(), baseTitle + ".udf");
+                    File shareDir = getExternalCacheDir();
+                    if (shareDir == null) {
+                        shareDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "CanEditor");
+                    }
+                    shareDir.mkdirs();
+                    File shareFile = new File(shareDir, baseTitle + ".udf");
                     UdfEngine.saveStructuredToUdf(cleanJson, shareFile);
+                    shareFile.setReadable(true, false);
                     runOnUiThread(() -> {
                         tvSaveStatus.setText("✓ UDF Hazır");
                         launchShareIntent(shareFile, "application/octet-stream", "UDF Dilekçesini Paylaş");
@@ -409,8 +415,14 @@ public class EditorActivity extends Activity {
             new Thread(() -> {
                 try {
                     String baseTitle = getCleanDocBaseTitle();
-                    File shareFile = new File(getCacheDir(), baseTitle + ".docx");
+                    File shareDir = getExternalCacheDir();
+                    if (shareDir == null) {
+                        shareDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "CanEditor");
+                    }
+                    shareDir.mkdirs();
+                    File shareFile = new File(shareDir, baseTitle + ".docx");
                     DocxEngine.saveStructuredToDocx(cleanJson, shareFile);
+                    shareFile.setReadable(true, false);
                     runOnUiThread(() -> {
                         tvSaveStatus.setText("✓ Word Hazır");
                         launchShareIntent(shareFile, "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "Word (DOCX) Belgesini Paylaş");
@@ -450,6 +462,7 @@ public class EditorActivity extends Activity {
 
     private void launchShareIntent(File file, String mimeType, String chooserTitle) {
         try {
+            file.setReadable(true, false);
             Intent shareIntent = new Intent(Intent.ACTION_SEND);
             shareIntent.setType(mimeType);
             Uri fileUri = Uri.fromFile(file);

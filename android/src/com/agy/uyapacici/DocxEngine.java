@@ -271,6 +271,10 @@ public class DocxEngine {
                 + "  <Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument\" Target=\"word/document.xml\"/>\n"
                 + "</Relationships>";
 
+        String docRelsXml = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n"
+                + "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">\n"
+                + "</Relationships>";
+
         if (targetFile.getParentFile() != null) {
             targetFile.getParentFile().mkdirs();
         }
@@ -281,6 +285,7 @@ public class DocxEngine {
             writeZipEntry(zos, "[Content_Types].xml", contentTypesXml);
             writeZipEntry(zos, "_rels/.rels", rootRelsXml);
             writeZipEntry(zos, "word/document.xml", docXml.toString());
+            writeZipEntry(zos, "word/_rels/document.xml.rels", docRelsXml);
         }
     }
 

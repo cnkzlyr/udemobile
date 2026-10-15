@@ -223,11 +223,11 @@ let paginationTimer = null;
 function getDocFooterHtml(pageNum, totalPages) {
   let pageNumHtml = '';
   if (currentDocPageNumberPos === 'bottom-right') {
-    pageNumHtml = `<span class="udf-footer-page-label" style="margin-left: auto;">Sayfa: ${pageNum} / ${totalPages}</span>`;
+    pageNumHtml = `<span class="udf-footer-page-label" style="position: absolute; right: 0;">Sayfa: ${pageNum} / ${totalPages}</span>`;
   } else if (currentDocPageNumberPos === 'bottom-center') {
-    pageNumHtml = `<span class="udf-footer-page-label" style="margin: 0 auto;">Sayfa: ${pageNum} / ${totalPages}</span>`;
+    pageNumHtml = `<span class="udf-footer-page-label" style="position: absolute; left: 50%; transform: translateX(-50%);">Sayfa: ${pageNum} / ${totalPages}</span>`;
   } else if (currentDocPageNumberPos === 'bottom-left') {
-    pageNumHtml = `<span class="udf-footer-page-label" style="margin-right: auto;">Sayfa: ${pageNum} / ${totalPages}</span>`;
+    pageNumHtml = `<span class="udf-footer-page-label" style="position: absolute; left: 0;">Sayfa: ${pageNum} / ${totalPages}</span>`;
   } else if (currentDocPageNumberPos === 'none') {
     pageNumHtml = '';
   }
@@ -310,18 +310,20 @@ function updatePagination() {
     footerArea.innerHTML = getDocFooterHtml(pageIndex, totalPages);
     pageBreak.appendChild(footerArea);
 
-    // Fiziksel kağıtlar arası Havelsan masaüstü gri boşluğu
-    pageIndex++;
+    // Fiziksel kağıtlar arası Havelsan masaüstü gri boşluğu (Üstteki sayfa numarasını gösterir)
     const deskGap = document.createElement('div');
     deskGap.className = 'page-break-desk-gap';
     deskGap.setAttribute('data-page-label', `Sayfa ${pageIndex}`);
     pageBreak.appendChild(deskGap);
+    pageIndex++;
 
     // Yeni sayfanın üst kenar boşluğu
     const headerArea = document.createElement('div');
     headerArea.className = 'page-break-header-area';
     const docHeader = document.getElementById('doc-header');
-    if (docHeader && (docHeader.innerHTML.trim() || docHeader.innerText.trim()) && docHeader.style.display !== 'none') {
+    const hasHeader = docHeader && (docHeader.innerHTML.trim() || docHeader.innerText.trim()) && docHeader.style.display !== 'none';
+    if (hasHeader) {
+      headerArea.classList.add('has-header');
       const hClone = document.createElement('div');
       hClone.className = 'header-footer-box';
       hClone.style.borderBottom = 'none';
@@ -329,6 +331,8 @@ function updatePagination() {
       hClone.style.marginBottom = '6px';
       hClone.innerHTML = docHeader.innerHTML.trim();
       headerArea.appendChild(hClone);
+    } else {
+      headerArea.classList.add('no-header');
     }
     pageBreak.appendChild(headerArea);
 
@@ -807,10 +811,8 @@ function initRuler() {
   rulerScale.onclick = (e) => {
     if (activeDragMarker) return;
     
-    // Eğer tıklanan zaten bir sekme durağıysa kaldır
+    // Eğer tıklanan bir sekme durağı ise setupTabStopDragging ele alacaktır
     if (e.target && e.target.classList.contains('ruler-tab-stop')) {
-      const stopCm = parseFloat(e.target.dataset.cm);
-      removeTabStop(stopCm);
       return;
     }
 
@@ -850,6 +852,67 @@ function syncTabStopsToActiveParagraph() {
   }
 }
 
+function setupTabStopDragging(marker, originalCm, activeCm) {
+  const scale = document.getElementById('ruler-scale');
+  if (!marker || !scale) return;
+
+  function onStart(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    activeDragMarker = 'tab-stop';
+    let currentCm = originalCm;
+    let didMove = false;
+    const startX = e.touches ? e.touches[0].clientX : e.clientX;
+
+    const moveHandler = (moveEvent) => {
+      const clientX = moveEvent.touches ? moveEvent.touches[0].clientX : moveEvent.clientX;
+      if (Math.abs(clientX - startX) > 4) {
+        didMove = true;
+      }
+      const rect = scale.getBoundingClientRect();
+      const x = clientX - rect.left;
+      const pct = Math.max(0, Math.min(1, x / rect.width));
+      currentCm = Math.round((pct * activeCm) * 10) / 10;
+      marker.style.left = (pct * 100) + '%';
+      marker.dataset.cm = currentCm;
+      marker.title = `Sekme Durağı: ${currentCm} cm (Taşımak için sürükleyin, kaldırmak için dokunun)`;
+    };
+
+    const upHandler = () => {
+      window.removeEventListener('mousemove', moveHandler);
+      window.removeEventListener('mouseup', upHandler);
+      window.removeEventListener('touchmove', moveHandler);
+      window.removeEventListener('touchend', upHandler);
+
+      if (didMove) {
+        // Güncellenen durağı listeye uygula
+        const idx = currentTabStops.indexOf(originalCm);
+        if (idx !== -1) {
+          currentTabStops[idx] = currentCm;
+        } else {
+          currentTabStops.push(currentCm);
+        }
+        currentTabStops.sort((a, b) => a - b);
+        syncTabStopsToActiveParagraph();
+        renderTabStopsOnRuler();
+        showEditorToast(`Sekme durağı taşındı: ${currentCm} cm`);
+      } else {
+        // Sadece dokunulduysa kaldır
+        removeTabStop(originalCm);
+      }
+      setTimeout(() => { activeDragMarker = null; }, 120);
+    };
+
+    window.addEventListener('mousemove', moveHandler);
+    window.addEventListener('mouseup', upHandler);
+    window.addEventListener('touchmove', moveHandler, { passive: false });
+    window.addEventListener('touchend', upHandler);
+  }
+
+  marker.addEventListener('mousedown', onStart);
+  marker.addEventListener('touchstart', onStart, { passive: false });
+}
+
 function renderTabStopsOnRuler() {
   const scale = document.getElementById('ruler-scale');
   if (!scale) return;
@@ -866,7 +929,8 @@ function renderTabStopsOnRuler() {
     marker.className = 'ruler-tab-stop';
     marker.dataset.cm = cm;
     marker.style.left = pct + '%';
-    marker.title = `Sekme Durağı: ${cm} cm (Kaldırmak için dokunun)`;
+    marker.title = `Sekme Durağı: ${cm} cm (Taşımak için sürükleyin, kaldırmak için dokunun)`;
+    setupTabStopDragging(marker, cm, activeCm);
     scale.appendChild(marker);
   });
 }
@@ -2488,10 +2552,11 @@ function parseInlineRuns(element, runs, bold, italic, underline, subscript, supe
         continue;
       }
       if (child.classList && child.classList.contains('udf-tab-label')) {
+        const isBold = child.querySelector('strong, b') !== null || !!bold;
         const txt = (child.textContent || '').trim();
         runs.push({
-          text: txt + '\t\t',
-          bold: !!bold,
+          text: txt + '\t',
+          bold: isBold,
           italic: !!italic,
           underline: !!underline,
           subscript: !!subscript,
@@ -2847,23 +2912,17 @@ function applyCopiedFormatToTarget() {
 
   if (!sel.isCollapsed) {
     // 1. Seçili metin aralığına uygula
-    const span = document.createElement('span');
-    if (copiedFormat.fontFamily) span.style.fontFamily = copiedFormat.fontFamily;
-    if (copiedFormat.fontSize) span.style.fontSize = copiedFormat.fontSize;
-    if (copiedFormat.fontWeight) span.style.fontWeight = copiedFormat.fontWeight;
-    if (copiedFormat.fontStyle) span.style.fontStyle = copiedFormat.fontStyle;
-    if (copiedFormat.textDecoration) span.style.textDecoration = copiedFormat.textDecoration;
-    if (copiedFormat.color) span.style.color = copiedFormat.color;
-    if (copiedFormat.backgroundColor) span.style.backgroundColor = copiedFormat.backgroundColor;
-
-    try {
-      const contents = range.extractContents();
-      span.appendChild(contents);
-      range.insertNode(span);
-      sel.selectAllChildren(span);
-    } catch (e) {
-      document.execCommand('fontName', false, copiedFormat.fontFamily);
-      document.execCommand('foreColor', false, copiedFormat.color);
+    if (copiedFormat.fontFamily) document.execCommand('fontName', false, copiedFormat.fontFamily);
+    if (copiedFormat.color) document.execCommand('foreColor', false, copiedFormat.color);
+    if (copiedFormat.backgroundColor) document.execCommand('hiliteColor', false, copiedFormat.backgroundColor);
+    if (copiedFormat.fontWeight === 'bold' || parseInt(copiedFormat.fontWeight) >= 700) {
+      if (!document.queryCommandState('bold')) document.execCommand('bold');
+    }
+    if (copiedFormat.fontStyle === 'italic') {
+      if (!document.queryCommandState('italic')) document.execCommand('italic');
+    }
+    if (copiedFormat.textDecoration && copiedFormat.textDecoration.includes('underline')) {
+      if (!document.queryCommandState('underline')) document.execCommand('underline');
     }
 
     // Paragraf hizalama & boşluk uygula
@@ -2974,19 +3033,6 @@ function execBubbleCmd(cmd) {
     }
   }
   hideFloatingContextMenu();
-}
-
-function searchLegalTermInBrowser() {
-  const sel = window.getSelection();
-  const word = sel ? sel.toString().trim() : '';
-  if (!word) {
-    showEditorToast('Lütfen aranacak hukuki terimi seçin');
-    return;
-  }
-  hideFloatingContextMenu();
-  const url = 'https://sozluk.gov.tr/?ara=' + encodeURIComponent(word);
-  window.open(url, '_blank');
-  showEditorToast('⚖️ "' + word + '" TDK Sözlükte aranıyor...');
 }
 
 // --- DİNAMİK KAYDIRMA BLUR BANTLARI (Progressive Dynamic Blur) ---
