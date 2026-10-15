@@ -116,9 +116,7 @@ public class EditorActivity extends Activity {
                 super.onPageFinished(view, url);
                 isPageLoaded = true;
                 if (pendingHtmlToLoad != null) {
-                    injectDocumentData(pendingHeader, pendingFooter, pendingHtmlToLoad);
-                    pendingHeader = null;
-                    pendingFooter = null;
+                    injectHtmlContent(pendingHtmlToLoad);
                     pendingHtmlToLoad = null;
                 }
                 if (pendingSigJson != null) {
@@ -162,43 +160,28 @@ public class EditorActivity extends Activity {
 
                 new Thread(() -> {
                     try {
-                        String header = "";
-                        String footer = "";
-                        String html = "";
+                        String payload;
                         String sigJsonStr = null;
                         String lower = currentFile.getName().toLowerCase(Locale.ROOT);
                         if (lower.endsWith(".docx")) {
-                            html = DocxEngine.readDocxToHtml(currentFile);
+                            payload = DocxEngine.readDocxToHtml(currentFile);
                         } else {
-                            String udfPayload = UdfEngine.readUdfToHtml(currentFile);
-                            try {
-                                JSONObject obj = new JSONObject(udfPayload);
-                                header = obj.optString("header", "");
-                                footer = obj.optString("footer", "");
-                                html = obj.optString("html", "");
-                            } catch (Exception ignored) {
-                                html = udfPayload;
-                            }
-
+                            payload = UdfEngine.readUdfToHtml(currentFile);
                             // Belge imzasını doğrudan Havelsan UYAP standardına göre incele
                             UdfEngine.SignatureInfo sigInfo = UdfEngine.verifySignature(currentFile);
                             sigJsonStr = sigInfo.toJson().toString();
                         }
 
-                        final String fHeader = header;
-                        final String fFooter = footer;
-                        final String fHtml = html;
+                        final String fPayload = payload;
                         final String fSigJson = sigJsonStr;
                         runOnUiThread(() -> {
                             if (isPageLoaded) {
-                                injectDocumentData(fHeader, fFooter, fHtml);
+                                injectHtmlContent(fPayload);
                                 if (fSigJson != null) {
                                     editorWebView.evaluateJavascript("onDocumentSignatureChecked(" + fSigJson + ");", null);
                                 }
                             } else {
-                                pendingHeader = fHeader;
-                                pendingFooter = fFooter;
-                                pendingHtmlToLoad = fHtml;
+                                pendingHtmlToLoad = fPayload;
                                 pendingSigJson = fSigJson;
                             }
                             tvSaveStatus.setText("✓ Yüklendi");

@@ -9,6 +9,19 @@ let savedSelectionRange = null;
 let paragraphScope = 'selected';
 let currentPAlign = 'justify';
 
+// --- Sayfa Kenar Boşlukları ve Sayfa Yapısı Değişkenleri ---
+let currentMargins = {
+  top: 2.5,
+  right: 2.5,
+  bottom: 2.5,
+  left: 2.5,
+  orientation: 'portrait' // 'portrait' or 'landscape'
+};
+
+// --- Google Dokümanlar Yazdırma Düzeni & Zoom Motoru ---
+let currentZoom = 0.48;
+let isFitMode = true; // true = Google Dokümanlar stili uzaktan genel görünüm (A4 sığdır)
+
 document.addEventListener('DOMContentLoaded', () => {
   const editor = document.getElementById('editor-content');
   
@@ -26,14 +39,18 @@ document.addEventListener('DOMContentLoaded', () => {
     updateRulerFromActiveParagraph();
   });
 
-  initRuler();
+  // Başlangıçta kenar boşlukları ve kağıt ölçeğini uygula
+  applyPageSetup(currentMargins.left, currentMargins.right, currentMargins.top, currentMargins.bottom, currentMargins.orientation);
+  initPinchToZoom();
   updateCounts();
+  
   setTimeout(() => {
+    applyAutoFitZoom();
     updateRulerFromActiveParagraph();
-  }, 250);
+  }, 200);
 });
 
-// Kağıt Görünümü (A4) / Mobil Görünüm Geçişi
+// Kağıt Görünümü (Yazdırma Düzeni) / Mobil Görünüm Geçişi
 function toggleViewMode() {
   const wrapper = document.getElementById('page-wrapper');
   const btn = document.getElementById('btn-toggle-view');
@@ -47,6 +64,7 @@ function toggleViewMode() {
     wrapper.classList.remove('mobile-view');
     wrapper.classList.add('paper-view');
     btn.textContent = '📱 Mobil Mod';
+    applyAutoFitZoom();
   }
 }
 
@@ -173,13 +191,266 @@ function changeLineSpacing(val) {
   updateCounts();
 }
 
-// --- ETKİLEŞİMLİ CETVEL MOTORU ---
+// --- SAYFA YAPISI VE KENAR BOŞLUKLARI MOTORU ---
+function applyPageSetup(left, right, top, bottom, orientation) {
+  if (left !== undefined && left !== null) currentMargins.left = parseFloat(left) || 2.5;
+  if (right !== undefined && right !== null) currentMargins.right = parseFloat(right) || 2.5;
+  if (top !== undefined && top !== null) currentMargins.top = parseFloat(top) || 2.5;
+  if (bottom !== undefined && bottom !== null) currentMargins.bottom = parseFloat(bottom) || 2.5;
+  if (orientation) currentMargins.orientation = orientation;
+
+  const root = document.documentElement;
+  root.style.setProperty('--page-margin-top', currentMargins.top + 'cm');
+  root.style.setProperty('--page-margin-right', currentMargins.right + 'cm');
+  root.style.setProperty('--page-margin-bottom', currentMargins.bottom + 'cm');
+  root.style.setProperty('--page-margin-left', currentMargins.left + 'cm');
+
+  const isLandscape = currentMargins.orientation === 'landscape';
+  root.style.setProperty('--sheet-width', isLandscape ? '1123px' : '794px');
+  root.style.setProperty('--sheet-min-height', isLandscape ? '794px' : '1123px');
+
+  initRuler();
+
+  if (isFitMode && !isMobileView) {
+    applyAutoFitZoom();
+  }
+
+  updateCounts();
+}
+
+function openPageSetupModal() {
+  const mLeft = document.getElementById('m-left');
+  const mRight = document.getElementById('m-right');
+  const mTop = document.getElementById('m-top');
+  const mBottom = document.getElementById('m-bottom');
+
+  if (mLeft) mLeft.value = currentMargins.left;
+  if (mRight) mRight.value = currentMargins.right;
+  if (mTop) mTop.value = currentMargins.top;
+  if (mBottom) mBottom.value = currentMargins.bottom;
+
+  setPageOrientation(currentMargins.orientation || 'portrait');
+  updateMarginPreview();
+  openModal('modal-page-setup');
+}
+
+function setMarginPreset(preset) {
+  if (preset === 'petition') {
+    document.getElementById('m-left').value = 2.5;
+    document.getElementById('m-right').value = 2.5;
+    document.getElementById('m-top').value = 2.5;
+    document.getElementById('m-bottom').value = 2.5;
+  } else if (preset === 'uyap') {
+    document.getElementById('m-left').value = 1.5;
+    document.getElementById('m-right').value = 1.5;
+    document.getElementById('m-top').value = 1.5;
+    document.getElementById('m-bottom').value = 1.5;
+  } else if (preset === 'binding') {
+    document.getElementById('m-left').value = 3.0;
+    document.getElementById('m-right').value = 1.5;
+    document.getElementById('m-top').value = 2.5;
+    document.getElementById('m-bottom').value = 2.0;
+  } else if (preset === 'narrow') {
+    document.getElementById('m-left').value = 1.0;
+    document.getElementById('m-right').value = 1.0;
+    document.getElementById('m-top').value = 1.5;
+    document.getElementById('m-bottom').value = 1.5;
+  }
+  updateMarginPreview();
+}
+
+function stepMargin(side, delta) {
+  const input = document.getElementById('m-' + side);
+  if (!input) return;
+  let val = parseFloat(input.value) || 2.5;
+  val = Math.max(0.5, Math.min(8.0, Math.round((val + delta) * 100) / 100));
+  input.value = val;
+  updateMarginPreview();
+}
+
+let modalOrientation = 'portrait';
+function setPageOrientation(orient) {
+  modalOrientation = orient;
+  const btnP = document.getElementById('btn-orient-portrait');
+  const btnL = document.getElementById('btn-orient-landscape');
+  if (orient === 'landscape') {
+    if (btnP) btnP.classList.remove('active');
+    if (btnL) btnL.classList.add('active');
+  } else {
+    if (btnP) btnP.classList.add('active');
+    if (btnL) btnL.classList.remove('active');
+  }
+  updateMarginPreview();
+}
+
+function updateMarginPreview() {
+  const previewSheet = document.getElementById('margin-preview-sheet');
+  const previewBox = document.getElementById('preview-margin-box');
+  if (!previewSheet || !previewBox) return;
+
+  const left = parseFloat(document.getElementById('m-left').value) || 2.5;
+  const right = parseFloat(document.getElementById('m-right').value) || 2.5;
+  const top = parseFloat(document.getElementById('m-top').value) || 2.5;
+  const bottom = parseFloat(document.getElementById('m-bottom').value) || 2.5;
+
+  const isL = modalOrientation === 'landscape';
+  if (isL) {
+    previewSheet.style.width = '155px';
+    previewSheet.style.height = '110px';
+  } else {
+    previewSheet.style.width = '110px';
+    previewSheet.style.height = '155px';
+  }
+
+  const pageW = isL ? 29.7 : 21.0;
+  const pageH = isL ? 21.0 : 29.7;
+
+  const leftPct = (left / pageW) * 100;
+  const rightPct = (right / pageW) * 100;
+  const topPct = (top / pageH) * 100;
+  const bottomPct = (bottom / pageH) * 100;
+
+  previewBox.style.left = leftPct + '%';
+  previewBox.style.right = rightPct + '%';
+  previewBox.style.top = topPct + '%';
+  previewBox.style.bottom = bottomPct + '%';
+}
+
+function applyPageSetupFromModal() {
+  const left = parseFloat(document.getElementById('m-left').value) || 2.5;
+  const right = parseFloat(document.getElementById('m-right').value) || 2.5;
+  const top = parseFloat(document.getElementById('m-top').value) || 2.5;
+  const bottom = parseFloat(document.getElementById('m-bottom').value) || 2.5;
+
+  applyPageSetup(left, right, top, bottom, modalOrientation);
+  closeModal('modal-page-setup');
+}
+
+// --- GOOGLE DOKÜMANLAR YAZDIRMA DÜZENİ & ZOOM MOTORU ---
+function calculateFitScale() {
+  const availableWidth = window.innerWidth - 16;
+  const sheetWidth = currentMargins.orientation === 'landscape' ? 1123 : 794;
+  const fit = Math.min(1.0, Math.max(0.3, availableWidth / sheetWidth));
+  return Math.round(fit * 100) / 100;
+}
+
+function applyAutoFitZoom() {
+  isFitMode = true;
+  const fit = calculateFitScale();
+  setZoom(fit, true);
+}
+
+function setZoom(scale, isFit = false) {
+  currentZoom = Math.min(2.0, Math.max(0.35, scale));
+  const sheetContainer = document.getElementById('sheet-container');
+  if (sheetContainer && !isMobileView) {
+    sheetContainer.style.zoom = currentZoom;
+  }
+
+  const ind = document.getElementById('zoom-indicator');
+  if (ind) {
+    ind.textContent = (isFit ? '%' + Math.round(currentZoom * 100) + ' Sığdır' : '%' + Math.round(currentZoom * 100));
+  }
+
+  const fab = document.getElementById('fab-view-toggle');
+  if (fab) {
+    if (currentZoom < 0.8) {
+      fab.innerHTML = `<svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>`;
+      fab.title = "✏️ Düzenleme Modu (%100 Yakınlaştır)";
+    } else {
+      fab.innerHTML = `<svg viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>`;
+      fab.title = "📄 Baskı Görünümü (Sayfaya Sığdır)";
+    }
+  }
+}
+
+function toggleFabView() {
+  if (isMobileView) {
+    toggleViewMode();
+    applyAutoFitZoom();
+    return;
+  }
+  if (currentZoom < 0.8) {
+    isFitMode = false;
+    setZoom(1.0, false);
+    const editor = document.getElementById('editor-content');
+    if (editor) editor.focus();
+  } else {
+    applyAutoFitZoom();
+  }
+}
+
+function cycleZoomMode() {
+  if (isMobileView) return;
+  if (isFitMode) {
+    isFitMode = false;
+    setZoom(0.75, false);
+  } else if (currentZoom < 0.9) {
+    setZoom(1.0, false);
+  } else {
+    applyAutoFitZoom();
+  }
+}
+
+function stepZoom(delta) {
+  if (isMobileView) return;
+  isFitMode = false;
+  setZoom(Math.round((currentZoom + delta) * 100) / 100, false);
+}
+
+function initPinchToZoom() {
+  const wrapper = document.getElementById('page-wrapper');
+  if (!wrapper) return;
+
+  let initialDistance = 0;
+  let initialZoom = currentZoom;
+
+  wrapper.addEventListener('touchstart', (e) => {
+    if (e.touches.length === 2 && !isMobileView) {
+      initialDistance = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      initialZoom = currentZoom;
+    }
+  }, { passive: true });
+
+  wrapper.addEventListener('touchmove', (e) => {
+    if (e.touches.length === 2 && !isMobileView && initialDistance > 0) {
+      const currentDistance = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      const factor = currentDistance / initialDistance;
+      isFitMode = false;
+      setZoom(initialZoom * factor, false);
+    }
+  }, { passive: true });
+
+  wrapper.addEventListener('touchend', (e) => {
+    if (e.touches.length < 2) {
+      initialDistance = 0;
+    }
+  });
+
+  window.addEventListener('resize', () => {
+    if (isFitMode && !isMobileView) {
+      applyAutoFitZoom();
+    }
+  });
+}
+
+// --- DİNAMİK CETVEL MOTORU ---
 function initRuler() {
   const ticksContainer = document.getElementById('ruler-ticks');
   if (!ticksContainer) return;
   ticksContainer.innerHTML = '';
 
-  const totalMm = 160; // 0 - 16 cm (160 mm)
+  const isLandscape = currentMargins.orientation === 'landscape';
+  const totalPageCm = isLandscape ? 29.7 : 21.0;
+  const activeCm = Math.max(5, totalPageCm - (currentMargins.left || 2.5) - (currentMargins.right || 2.5));
+  const totalMm = Math.round(activeCm * 10);
+
   for (let mm = 0; mm <= totalMm; mm++) {
     const pct = (mm / totalMm) * 100;
     const tick = document.createElement('div');
@@ -188,7 +459,7 @@ function initRuler() {
     if (mm % 10 === 0) {
       tick.className = 'ruler-tick cm';
       const cmNum = mm / 10;
-      if (cmNum >= 0 && cmNum <= 16) {
+      if (cmNum >= 0 && cmNum <= activeCm) {
         const numLabel = document.createElement('div');
         numLabel.className = 'ruler-number';
         numLabel.style.left = pct + '%';
@@ -203,23 +474,23 @@ function initRuler() {
     ticksContainer.appendChild(tick);
   }
 
-  setupMarkerDragging('marker-first-line', 'firstLine');
-  setupMarkerDragging('marker-left-indent', 'leftIndent');
-  setupMarkerDragging('marker-right-indent', 'rightIndent');
+  setupMarkerDragging('marker-first-line', 'firstLine', activeCm);
+  setupMarkerDragging('marker-left-indent', 'leftIndent', activeCm);
+  setupMarkerDragging('marker-right-indent', 'rightIndent', activeCm);
 
   const rulerScale = document.getElementById('ruler-scale');
-  rulerScale.addEventListener('click', (e) => {
+  rulerScale.onclick = (e) => {
     if (activeDragMarker) return;
     const rect = rulerScale.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const pct = Math.max(0, Math.min(1, x / rect.width));
-    const cm = Math.round((pct * 16) * 4) / 4;
+    const cm = Math.round((pct * activeCm) * 4) / 4;
     setFirstLineIndent(cm);
     updateRulerFromActiveParagraph();
-  });
+  };
 }
 
-function setupMarkerDragging(markerId, type) {
+function setupMarkerDragging(markerId, type, activeCm) {
   const marker = document.getElementById(markerId);
   const scale = document.getElementById('ruler-scale');
   if (!marker || !scale) return;
@@ -234,7 +505,7 @@ function setupMarkerDragging(markerId, type) {
       const rect = scale.getBoundingClientRect();
       const x = clientX - rect.left;
       const pct = Math.max(0, Math.min(1, x / rect.width));
-      const cm = Math.round((pct * 16) * 4) / 4;
+      const cm = Math.round((pct * activeCm) * 4) / 4;
 
       if (type === 'firstLine') {
         marker.style.left = (pct * 100) + '%';
@@ -246,7 +517,7 @@ function setupMarkerDragging(markerId, type) {
         const rightPct = 1 - pct;
         marker.style.right = (rightPct * 100) + '%';
         marker.style.left = 'auto';
-        const rightCm = Math.round((rightPct * 16) * 4) / 4;
+        const rightCm = Math.round((rightPct * activeCm) * 4) / 4;
         setRightIndent(rightCm);
       }
     };
@@ -291,13 +562,17 @@ function updateRulerFromActiveParagraph() {
   const rightMarker = document.getElementById('marker-right-indent');
   if (!firstMarker || !leftMarker || !rightMarker) return;
 
+  const isLandscape = currentMargins.orientation === 'landscape';
+  const totalPageCm = isLandscape ? 29.7 : 21.0;
+  const activeCm = Math.max(5, totalPageCm - (currentMargins.left || 2.5) - (currentMargins.right || 2.5));
+
   let firstCm = parseToCm(p.style.textIndent || window.getComputedStyle(p).textIndent);
   let leftCm = parseToCm(p.style.marginLeft || window.getComputedStyle(p).marginLeft);
   let rightCm = parseToCm(p.style.marginRight || window.getComputedStyle(p).marginRight);
 
-  firstMarker.style.left = Math.min(100, Math.max(0, (firstCm / 16) * 100)) + '%';
-  leftMarker.style.left = Math.min(100, Math.max(0, (leftCm / 16) * 100)) + '%';
-  rightMarker.style.right = Math.min(100, Math.max(0, (rightCm / 16) * 100)) + '%';
+  firstMarker.style.left = Math.min(100, Math.max(0, (firstCm / activeCm) * 100)) + '%';
+  leftMarker.style.left = Math.min(100, Math.max(0, (leftCm / activeCm) * 100)) + '%';
+  rightMarker.style.right = Math.min(100, Math.max(0, (rightCm / activeCm) * 100)) + '%';
   rightMarker.style.left = 'auto';
 }
 
@@ -1223,6 +1498,42 @@ function insertTemplate(type) {
       <p style="text-align: right;"><br></p>
       <p style="text-align: right;"><strong>İhtar Eden Vekili</strong><br>Av. [Ad Soyad]<br><em>(e-imzalıdır)</em></p>
     `;
+  } else if (type === 'delil') {
+    tpl = `
+      <p style="text-align: center;"><strong>... ASLİYE HUKUK MAHKEMESİ HÂKİMLİĞİ'NE</strong></p>
+      <p style="text-align: justify;"><strong>DOSYA NO :</strong> 2026/.... Esas</p>
+      <p style="text-align: justify;"><br></p>
+      <p style="text-align: justify;"><strong>DELİL BİLDİREN :</strong> [Davacı / Davalı]</p>
+      <p style="text-align: justify;"><strong>VEKİLİ :</strong> Av. [Ad Soyad]</p>
+      <p style="text-align: justify;"><strong>KONU :</strong> Mahkemenizin ara kararı uyarınca yasal delil listemizin sunulmasıdır.</p>
+      <p style="text-align: justify;"><br></p>
+      <p style="text-align: justify;"><strong>DELİLLERİMİZ :</strong></p>
+      <p style="text-align: justify; text-indent: 1.25cm; margin-top: 4pt; margin-bottom: 6pt;">1-) Taraflar arasındaki ... tarihli Sözleşme sureti (Ek-1),</p>
+      <p style="text-align: justify; text-indent: 1.25cm; margin-top: 4pt; margin-bottom: 6pt;">2-) ... Bankası hesap hareketleri ve ödeme dekontları (Ek-2),</p>
+      <p style="text-align: justify; text-indent: 1.25cm; margin-top: 4pt; margin-bottom: 6pt;">3-) Ticari defter ve kayıtlar, faturalar,</p>
+      <p style="text-align: justify; text-indent: 1.25cm; margin-top: 4pt; margin-bottom: 6pt;">4-) Bilirkişi incelemesi, keşif,</p>
+      <p style="text-align: justify; text-indent: 1.25cm; margin-top: 4pt; margin-bottom: 6pt;">5-) Tanık beyanları (İsim ve adresleri bilahare bildirilecektir),</p>
+      <p style="text-align: justify; text-indent: 1.25cm; margin-top: 4pt; margin-bottom: 6pt;">6-) Yemin ve her türlü yasal delil.</p>
+      <p style="text-align: right;"><br></p>
+      <p style="text-align: right;"><strong>Vekil</strong><br>Av. [Ad Soyad]<br><em>(e-imzalıdır)</em></p>
+    `;
+  } else if (type === 'icra') {
+    tpl = `
+      <p style="text-align: center;"><strong>... İCRA DAİRESİ MÜDÜRLÜĞÜ'NE</strong></p>
+      <p style="text-align: justify;"><strong>DOSYA NO :</strong> 2026/.... Esas</p>
+      <p style="text-align: justify;"><br></p>
+      <p style="text-align: justify;"><strong>İTİRAZ EDEN BORÇLU :</strong> [Borçlu Ad Soyad / Ünvan - TCKN / VKN]</p>
+      <p style="text-align: justify;"><strong>VEKİLİ :</strong> Av. [Ad Soyad]</p>
+      <p style="text-align: justify;"><strong>ALACAKLI :</strong> [Alacaklı Ad Soyad / Ünvan]</p>
+      <p style="text-align: justify;"><strong>KONU :</strong> Ödeme emrine, borca, fer'ilerine ve yetkiye itirazlarımızın sunulmasıdır.</p>
+      <p style="text-align: justify;"><br></p>
+      <p style="text-align: justify;"><strong>İTİRAZLARIMIZ :</strong></p>
+      <p style="text-align: justify; text-indent: 1.25cm; margin-top: 4pt; margin-bottom: 8pt;">Müdürlüğünüzce gönderilen ödeme emri müvekkile tebliğ edilmiştir. Müvekkilin alacaklı görünen tarafa herhangi bir borcu bulunmamaktadır. Borcun aslına, faizine, faiz oranına ve tüm fer'ilerine açıkça itiraz ediyoruz.</p>
+      <p style="text-align: justify;"><br></p>
+      <p style="text-align: justify;"><strong>SONUÇ VE İSTEM :</strong> İtirazlarımızın kabulü ile takibin durdurulmasına karar verilmesini saygıyla vekâleten arz ve talep ederiz.</p>
+      <p style="text-align: right;"><br></p>
+      <p style="text-align: right;"><strong>Borçlu Vekili</strong><br>Av. [Ad Soyad]<br><em>(e-imzalıdır)</em></p>
+    `;
   }
 
   if (tpl) {
@@ -1230,6 +1541,233 @@ function insertTemplate(type) {
     updateCounts();
     updateRulerFromActiveParagraph();
   }
+}
+
+// --- YENİ UYAP DİLEKÇE VE METİN ARAÇLARI ---
+
+// Güncel Resmi Tarih Ekleme (GG.AA.YYYY)
+function insertOfficialDate() {
+  const d = new Date();
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const year = d.getFullYear();
+  const dateStr = `${day}.${month}.${year}`;
+  document.execCommand('insertText', false, dateStr);
+  updateCounts();
+}
+
+// Türkçe Büyük/Küçük Harf Dönüştürücü (UYAP standartlarına tam uyumlu: İ/i, I/ı)
+function convertTextCase(caseType) {
+  const sel = window.getSelection();
+  if (!sel || sel.rangeCount === 0 || sel.isCollapsed) {
+    alert("Lütfen önce dönüştürmek istediğiniz metni seçiniz.");
+    return;
+  }
+
+  const text = sel.toString();
+  let converted = text;
+
+  if (caseType === 'upper') {
+    converted = text.toLocaleUpperCase('tr-TR');
+  } else if (caseType === 'lower') {
+    converted = text.toLocaleLowerCase('tr-TR');
+  } else if (caseType === 'title') {
+    converted = text.toLocaleLowerCase('tr-TR').replace(/(?:^|\s|\b)(\p{L})/gu, m => m.toLocaleUpperCase('tr-TR'));
+  } else if (caseType === 'sentence') {
+    converted = text.toLocaleLowerCase('tr-TR').replace(/(?:^|[.!?]\s+)(\p{L})/gu, m => m.toLocaleUpperCase('tr-TR'));
+  }
+
+  document.execCommand('insertText', false, converted);
+  updateCounts();
+}
+
+// Biçimlendirmeyi Sıfırla (Pasted style temizleme)
+function clearFormatting() {
+  document.execCommand('removeFormat', false, null);
+  document.execCommand('foreColor', false, '#000000');
+  document.execCommand('hiliteColor', false, 'transparent');
+  updateCounts();
+}
+
+// Sayfa Sonu (UYAP Page Break) Ekle
+function insertPageBreak() {
+  const pbHtml = '<div class="page-break" contenteditable="false"></div><p><br></p>';
+  document.execCommand('insertHTML', false, pbHtml);
+  updateCounts();
+}
+
+// Belge Bilgileri ve İstatistikleri Modal
+function openDocStatsModal() {
+  const editor = document.getElementById('editor-content');
+  const text = editor ? (editor.innerText || '') : '';
+  const words = text.trim() ? text.trim().split(/\s+/).length : 0;
+  const charsWithSpaces = text.length;
+  const charsNoSpaces = text.replace(/\s/g, '').length;
+  const paragraphs = editor ? editor.querySelectorAll('p, table, div.official-signature-seal').length : 0;
+  const estimatedPages = Math.max(1, Math.ceil(words / 450));
+
+  const statWords = document.getElementById('stat-words');
+  const statCharsSpaces = document.getElementById('stat-chars-spaces');
+  const statCharsNoSpaces = document.getElementById('stat-chars-nospaces');
+  const statParagraphs = document.getElementById('stat-paragraphs');
+  const statPages = document.getElementById('stat-pages');
+  const statPageSize = document.getElementById('stat-pagesize');
+  const statMargins = document.getElementById('stat-margins');
+
+  if (statWords) statWords.textContent = words.toLocaleString('tr-TR');
+  if (statCharsSpaces) statCharsSpaces.textContent = charsWithSpaces.toLocaleString('tr-TR');
+  if (statCharsNoSpaces) statCharsNoSpaces.textContent = charsNoSpaces.toLocaleString('tr-TR');
+  if (statParagraphs) statParagraphs.textContent = paragraphs.toLocaleString('tr-TR');
+  if (statPages) statPages.textContent = estimatedPages + ' Sayfa';
+  if (statPageSize) statPageSize.textContent = (currentMargins.orientation === 'landscape' ? 'A4 Yatay (297 × 210 mm)' : 'A4 Dikey (210 × 297 mm)');
+  if (statMargins) statMargins.textContent = `Sol: ${currentMargins.left}cm, Sağ: ${currentMargins.right}cm, Üst: ${currentMargins.top}cm, Alt: ${currentMargins.bottom}cm`;
+
+  openModal('modal-doc-stats');
+}
+
+// --- BUL VE DEĞİŞTİR (FIND & REPLACE) MOTORU ---
+let findMatches = [];
+let activeFindIndex = -1;
+
+function openFindReplaceModal() {
+  saveCurrentSelection();
+  openModal('modal-find-replace');
+  setTimeout(() => {
+    const input = document.getElementById('find-query');
+    if (input) {
+      input.focus();
+      input.select();
+    }
+  }, 150);
+}
+
+function closeFindReplaceModal() {
+  clearFindHighlights();
+  closeModal('modal-find-replace');
+  restoreCurrentSelection();
+}
+
+function clearFindHighlights() {
+  const editor = document.getElementById('editor-content');
+  if (!editor) return;
+  const highlights = editor.querySelectorAll('.find-highlight');
+  highlights.forEach(h => {
+    const parent = h.parentNode;
+    if (parent) {
+      parent.replaceChild(document.createTextNode(h.textContent), h);
+      parent.normalize();
+    }
+  });
+  findMatches = [];
+  activeFindIndex = -1;
+  const badge = document.getElementById('find-status-badge');
+  if (badge) badge.textContent = '0 / 0 eşleşme';
+}
+
+function onFindQueryChanged() {
+  clearFindHighlights();
+  const query = (document.getElementById('find-query').value || '').trim();
+  const matchCaseEl = document.getElementById('find-match-case');
+  const matchCase = matchCaseEl ? matchCaseEl.checked : false;
+  if (!query) return;
+
+  const editor = document.getElementById('editor-content');
+  highlightTextNodes(editor, query, matchCase);
+
+  findMatches = Array.from(editor.querySelectorAll('.find-highlight'));
+  const badge = document.getElementById('find-status-badge');
+  if (badge) {
+    badge.textContent = findMatches.length > 0 ? `1 / ${findMatches.length} eşleşme` : 'Eşleşme bulunamadı';
+  }
+  if (findMatches.length > 0) {
+    activeFindIndex = 0;
+    updateActiveFindHighlight();
+  }
+}
+
+function highlightTextNodes(element, query, matchCase) {
+  const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT, null, false);
+  const textNodes = [];
+  let n;
+  while ((n = walker.nextNode())) {
+    if (n.nodeValue.trim().length > 0) textNodes.push(n);
+  }
+
+  const flags = matchCase ? 'g' : 'gi';
+  const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const regex = new RegExp(escaped, flags);
+
+  for (let textNode of textNodes) {
+    const val = textNode.nodeValue;
+    if (regex.test(val)) {
+      regex.lastIndex = 0;
+      const frag = document.createDocumentFragment();
+      let lastIdx = 0;
+      let m;
+      while ((m = regex.exec(val)) !== null) {
+        if (m.index > lastIdx) {
+          frag.appendChild(document.createTextNode(val.substring(lastIdx, m.index)));
+        }
+        const span = document.createElement('span');
+        span.className = 'find-highlight';
+        span.textContent = m[0];
+        frag.appendChild(span);
+        lastIdx = regex.lastIndex;
+      }
+      if (lastIdx < val.length) {
+        frag.appendChild(document.createTextNode(val.substring(lastIdx)));
+      }
+      if (textNode.parentNode) {
+        textNode.parentNode.replaceChild(frag, textNode);
+      }
+    }
+  }
+}
+
+function updateActiveFindHighlight() {
+  findMatches.forEach((m, idx) => {
+    if (idx === activeFindIndex) {
+      m.classList.add('active');
+      m.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    } else {
+      m.classList.remove('active');
+    }
+  });
+  const badge = document.getElementById('find-status-badge');
+  if (badge && findMatches.length > 0) {
+    badge.textContent = `${activeFindIndex + 1} / ${findMatches.length} eşleşme`;
+  }
+}
+
+function findNav(dir) {
+  if (findMatches.length === 0) return;
+  activeFindIndex = (activeFindIndex + dir + findMatches.length) % findMatches.length;
+  updateActiveFindHighlight();
+}
+
+function doReplaceCurrent() {
+  if (findMatches.length === 0 || activeFindIndex < 0) return;
+  const replaceWith = document.getElementById('replace-query').value || '';
+  const current = findMatches[activeFindIndex];
+  if (current && current.parentNode) {
+    const textNode = document.createTextNode(replaceWith);
+    current.parentNode.replaceChild(textNode, current);
+    onFindQueryChanged();
+  }
+}
+
+function doReplaceAll() {
+  if (findMatches.length === 0) return;
+  const replaceWith = document.getElementById('replace-query').value || '';
+  const count = findMatches.length;
+  findMatches.forEach(m => {
+    if (m && m.parentNode) {
+      const textNode = document.createTextNode(replaceWith);
+      m.parentNode.replaceChild(textNode, m);
+    }
+  });
+  clearFindHighlights();
+  alert(`Toplam ${count} adet eşleşme başarıyla değiştirildi.`);
 }
 
 // Buton Durumları
@@ -1274,6 +1812,7 @@ function setDocumentData(header, footer, htmlContent) {
 
   updateCounts();
   setTimeout(() => {
+    applyAutoFitZoom();
     updateRulerFromActiveParagraph();
   }, 150);
   setTimeout(markDocumentPristine, 400);
@@ -1311,12 +1850,17 @@ function setHtmlContent(content) {
       if (data && typeof data === 'object') {
         if (data.header !== undefined && headerEl) headerEl.innerText = data.header;
         if (data.footer !== undefined && footerEl) footerEl.innerText = data.footer;
+        if (data.leftMarginCm !== undefined) {
+          applyPageSetup(data.leftMarginCm, data.rightMarginCm, data.topMarginCm, data.bottomMarginCm, data.paperOrientation === '2' ? 'landscape' : 'portrait');
+        }
         if (data.html) {
           editor.innerHTML = data.html;
           updateCounts();
           setTimeout(() => {
+            applyAutoFitZoom();
             updateRulerFromActiveParagraph();
           }, 150);
+          setTimeout(markDocumentPristine, 400);
           return;
         }
       }
@@ -1441,6 +1985,12 @@ function getStructuredDocument() {
     header: headerEl ? (headerEl.innerText || '').trim() : '',
     footer: footerEl ? (footerEl.innerText || '').trim() : '',
     isSigned: hasSeal,
+    margins: currentMargins,
+    leftMarginCm: currentMargins.left,
+    rightMarginCm: currentMargins.right,
+    topMarginCm: currentMargins.top,
+    bottomMarginCm: currentMargins.bottom,
+    paperOrientation: currentMargins.orientation === 'landscape' ? '2' : '1',
     paragraphs: paragraphs
   };
 

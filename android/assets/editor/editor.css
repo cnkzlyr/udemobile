@@ -1,3 +1,13 @@
+:root {
+  --page-margin-top: 2.5cm;
+  --page-margin-right: 2.5cm;
+  --page-margin-bottom: 2.5cm;
+  --page-margin-left: 2.5cm;
+  --sheet-width: 794px;
+  --sheet-min-height: 1123px;
+  --doc-zoom: 1;
+}
+
 * {
   box-sizing: border-box;
   margin: 0;
@@ -6,7 +16,7 @@
 }
 
 body {
-  background-color: #F0F2F5;
+  background-color: #E8EAED;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   color: #1A1A1A;
   height: 100vh;
@@ -137,17 +147,34 @@ select {
   transition: all 0.2s ease-in-out;
 }
 
-/* 1. KAĞIT GÖRÜNÜMÜ MODU (A4 Düzeni) */
+/* 1. KAĞIT GÖRÜNÜMÜ MODU (Google Dokümanlar Yazdırma Düzeni - A4 Proportions) */
 #page-wrapper.paper-view {
-  padding: 16px 12px 60px 12px;
-  background-color: #F0F2F5;
-}
-
-#sheet-container {
-  width: 100%;
-  max-width: 800px;
+  padding: 16px 8px 120px 8px;
+  background-color: #E8EAED;
+  overflow-x: auto;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
+  align-items: center;
+  -webkit-overflow-scrolling: touch;
+}
+
+#sheet-wrapper {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  width: 100%;
+  min-height: 100%;
+}
+
+#page-wrapper.paper-view #sheet-container {
+  width: var(--sheet-width);
+  max-width: var(--sheet-width);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  margin: 0 auto;
+  zoom: var(--doc-zoom, 1);
 }
 
 /* ETKİLEŞİMLİ CETVEL */
@@ -178,17 +205,19 @@ select {
 }
 
 .ruler-margin-left {
-  width: 28px;
+  width: var(--page-margin-left, 2.5cm);
   background-color: #ECEFF1;
   border-right: 1px solid #CFD8DC;
   flex-shrink: 0;
+  transition: width 0.15s ease;
 }
 
 .ruler-margin-right {
-  width: 28px;
+  width: var(--page-margin-right, 2.5cm);
   background-color: #ECEFF1;
   border-left: 1px solid #CFD8DC;
   flex-shrink: 0;
+  transition: width 0.15s ease;
 }
 
 .ruler-scale {
@@ -302,24 +331,35 @@ select {
 
 #page-wrapper.paper-view #a4-sheet {
   background: #FFFFFF;
-  width: 100%;
-  max-width: 800px;
-  min-height: 1100px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.05);
+  width: var(--sheet-width);
+  min-height: var(--sheet-min-height);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15), 0 1px 4px rgba(0, 0, 0, 0.08);
   border-radius: 0 0 2px 2px;
-  padding: 32px 28px;
+  padding: var(--page-margin-top) var(--page-margin-right) var(--page-margin-bottom) var(--page-margin-left);
   display: flex;
   flex-direction: column;
+  box-sizing: border-box;
+  position: relative;
+  transition: padding 0.15s ease;
 }
 
 /* 2. MOBİL GÖRÜNÜM MODU (Telefona Tam Oturan Düzen) */
 #page-wrapper.mobile-view {
   padding: 0 0 60px 0;
   background-color: #FFFFFF;
+  display: block;
+}
+
+#page-wrapper.mobile-view #sheet-wrapper {
+  display: block;
+  width: 100%;
 }
 
 #page-wrapper.mobile-view #sheet-container {
-  max-width: 100%;
+  width: 100% !important;
+  max-width: 100% !important;
+  zoom: 1 !important;
+  margin: 0;
 }
 
 #page-wrapper.mobile-view .ruler-container {
@@ -826,3 +866,155 @@ li {
   flex-shrink: 0;
   opacity: 0.9;
 }
+
+/* Sayfa Sonu (Page Break) Çizgisi */
+.page-break {
+  width: 100%;
+  margin: 28px 0;
+  border-top: 2px dashed #90A4AE;
+  position: relative;
+  text-align: center;
+  user-select: none;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.page-break::after {
+  content: "📑 Sayfa Sonu (UYAP Page Break)";
+  background-color: #ECEFF1;
+  color: #455A64;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 12px;
+  border-radius: 12px;
+  position: relative;
+  top: -1px;
+  border: 1px solid #CFD8DC;
+}
+
+/* Bul ve Değiştir Sarı Vurgusu */
+.find-highlight {
+  background-color: #FFF59D !important;
+  color: #000000 !important;
+  border-radius: 2px;
+  box-shadow: 0 0 0 1px #FBC02D;
+}
+
+.find-highlight.active {
+  background-color: #FFB74D !important;
+  box-shadow: 0 0 0 2px #E65100;
+}
+
+/* Google Dokümanlar Stili Yuvarlak Düzenle / Sığdır FAB Butonu */
+#fab-view-toggle {
+  position: fixed;
+  bottom: 22px;
+  right: 18px;
+  width: 54px;
+  height: 54px;
+  border-radius: 27px;
+  background-color: #1A73E8;
+  color: #FFFFFF;
+  border: none;
+  box-shadow: 0 4px 14px rgba(26, 115, 232, 0.4), 0 2px 6px rgba(0, 0, 0, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 99;
+  transition: transform 0.2s cubic-bezier(0.2, 0, 0, 1), background-color 0.2s;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#fab-view-toggle:active {
+  transform: scale(0.92);
+  background-color: #1557B0;
+}
+
+#fab-view-toggle svg {
+  width: 24px;
+  height: 24px;
+  fill: currentColor;
+}
+
+/* Yüzen Hızlı Yakınlaştırma (Zoom) Çubuğu */
+#floating-zoom-bar {
+  position: fixed;
+  bottom: 24px;
+  left: 16px;
+  background-color: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid #CFD8DC;
+  border-radius: 24px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+  display: flex;
+  align-items: center;
+  padding: 3px 6px;
+  gap: 4px;
+  z-index: 99;
+  user-select: none;
+  transition: opacity 0.2s;
+}
+
+.zoom-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 16px;
+  border: none;
+  background: transparent;
+  font-size: 16px;
+  font-weight: bold;
+  color: #37474F;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  outline: none;
+}
+
+.zoom-btn:active {
+  background-color: #ECEFF1;
+}
+
+#zoom-indicator {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #1A73E8;
+  padding: 4px 6px;
+  min-width: 48px;
+  text-align: center;
+  cursor: pointer;
+  border-radius: 12px;
+}
+
+#zoom-indicator:active {
+  background-color: #E8F0FE;
+}
+
+/* Kenar Boşluğu Canlı Önizleme Kutusu */
+#margin-preview-sheet {
+  background: #FFFFFF;
+  border: 1px solid #B0BEC5;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+  width: 110px;
+  height: 155px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  border-radius: 2px;
+  transition: all 0.2s ease;
+}
+
+#preview-margin-box {
+  position: absolute;
+  border: 1.5px dashed #1A73E8;
+  background-color: rgba(26, 115, 232, 0.08);
+  pointer-events: none;
+  transition: all 0.15s ease;
+}
+

@@ -14,7 +14,7 @@
       
       <!-- 1. Görünüm Modu Değiştirici -->
       <div class="tool-group">
-        <button type="button" id="btn-toggle-view" class="tool-btn view-toggle-btn" onclick="toggleViewMode()" title="Görünüm Değiştir">
+        <button type="button" id="btn-toggle-view" class="tool-btn view-toggle-btn" onclick="toggleViewMode()" title="Görünüm Değiştir (Kağıt / Mobil)">
           📱 Mobil Mod
         </button>
       </div>
@@ -25,11 +25,13 @@
       <div class="tool-group">
         <select id="select-template" onchange="insertTemplate(this.value); this.selectedIndex=0;" title="Resmi Dilekçe Şablonları">
           <option value="" disabled selected>⚖️ Dilekçe Şablonları...</option>
-          <option value="dava">Dava Dilekçesi</option>
+          <option value="dava">Dava Dilekçesi (Genel)</option>
           <option value="cevap">Cevap Dilekçesi</option>
           <option value="sure">Süre Uzatım Talebi (HMK 127)</option>
-          <option value="beyan">Bilirkişiye Beyan / İtiraz</option>
+          <option value="delil">Delil Listesi &amp; Açıklaması</option>
+          <option value="beyan">Bilirkişi Raporuna İtiraz / Beyan</option>
           <option value="istinaf">İstinaf Başvuru Dilekçesi</option>
+          <option value="icra">İcra Emrine İtiraz Dilekçesi</option>
           <option value="ihtar">İhtarname / Fesih Metni</option>
         </select>
       </div>
@@ -58,12 +60,23 @@
 
       <div class="divider"></div>
 
-      <!-- 5. Temel Biçimlendirme -->
+      <!-- 5. Temel Biçimlendirme & Harf Dönüştürücü -->
       <div class="tool-group">
         <button type="button" id="btn-bold" class="tool-btn" onclick="format('bold')" title="Kalın (Ctrl+B)"><b>B</b></button>
         <button type="button" id="btn-italic" class="tool-btn" onclick="format('italic')" title="İtalik (Ctrl+I)"><i>I</i></button>
         <button type="button" id="btn-underline" class="tool-btn" onclick="format('underline')" title="Altı Çizili (Ctrl+U)"><u>U</u></button>
         <button type="button" id="btn-strike" class="tool-btn" onclick="format('strikeThrough')" title="Üstü Çizili"><s>S</s></button>
+        <button type="button" class="tool-btn" onclick="format('superscript')" title="Üst Simge (x²)">x²</button>
+        <button type="button" class="tool-btn" onclick="format('subscript')" title="Alt Simge (x₂)">x₂</button>
+        <button type="button" class="tool-btn" onclick="clearFormatting()" title="Biçimlendirmeyi Sıfırla (Temizle)">🧹</button>
+
+        <select id="select-text-case" onchange="convertTextCase(this.value); this.selectedIndex=0;" title="Büyük / Küçük Harf Dönüştür (UYAP)">
+          <option value="" disabled selected>🔠 Harf...</option>
+          <option value="upper">TÜMÜ BÜYÜK (MAHKEME / DAVACI)</option>
+          <option value="lower">tümü küçük</option>
+          <option value="title">Baş Harfleri Büyük</option>
+          <option value="sentence">Cümle düzeni</option>
+        </select>
       </div>
 
       <div class="divider"></div>
@@ -151,19 +164,23 @@
 
       <div class="divider"></div>
 
-      <!-- 10. Girintiler, Tablo, Resim & Sayfa No -->
+      <!-- 10. Girintiler, Tablo, Resim, Sayfa No & Sayfa Sonu -->
       <div class="tool-group">
         <button type="button" class="tool-btn" onclick="format('outdent')" title="Girinti Azalt">⇤</button>
         <button type="button" class="tool-btn" onclick="format('indent')" title="Girinti Artır (Tab)">⇥</button>
         <button type="button" class="tool-btn text-btn" onclick="insertTable()" title="Delil / Hesap Tablosu Ekle">📊 Tablo</button>
         <button type="button" class="tool-btn text-btn" onclick="triggerImagePicker()" title="Dilekçeye Delil / Resim Ekle">🖼️ Resim</button>
         <button type="button" class="tool-btn text-btn" onclick="insertPageNumber()" title="Altbilgiye Sayfa No Ekle">🔢 Sayfa No</button>
+        <button type="button" class="tool-btn text-btn" onclick="insertPageBreak()" title="Sayfa Kesmesi / Sayfa Sonu Ekle">📑 Sayfa Sonu</button>
       </div>
 
       <div class="divider"></div>
 
-      <!-- 11. Cetvel & Üstbilgi/Altbilgi -->
+      <!-- 11. Sayfa Yapısı, Kenar Boşlukları & Cetvel -->
       <div class="tool-group">
+        <button type="button" class="tool-btn text-btn" onclick="openPageSetupModal()" title="Sayfa Kenar Boşlukları (Sol/Sağ/Üst/Alt 2.5cm) ve Yönü">
+          📐 Kenar Boşluğu
+        </button>
         <button type="button" id="btn-toggle-ruler" class="tool-btn text-btn active" onclick="toggleRuler()" title="Etkileşimli Cetveli Göster/Gizle">
           📏 Cetvel
         </button>
@@ -174,7 +191,22 @@
 
       <div class="divider"></div>
 
-      <!-- 12. E-İmza & Mobil İmza Butonları -->
+      <!-- 12. UYAP Hukuk Araçları: Tarih, Bul/Değiştir & İstatistik -->
+      <div class="tool-group">
+        <button type="button" class="tool-btn text-btn" onclick="insertOfficialDate()" title="Güncel Resmi Tarihi Ekle (GG.AA.YYYY)">
+          📅 Tarih
+        </button>
+        <button type="button" class="tool-btn text-btn" onclick="openFindReplaceModal()" title="Kelime Bul ve Değiştir (Ctrl+F / Ctrl+H)">
+          🔍 Bul/Değiştir
+        </button>
+        <button type="button" class="tool-btn text-btn" onclick="openDocStatsModal()" title="Kelime ve Karakter İstatistikleri">
+          📊 İstatistik
+        </button>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- 13. E-İmza & Mobil İmza Butonları -->
       <div class="tool-group">
         <button type="button" class="tool-btn sign-btn text-btn" onclick="openMobileSignModal()" title="Turkcell, Vodafone, TT Mobil İmza">
           📱 Mobil İmza
@@ -192,83 +224,97 @@
 
   <!-- A4 Kağıt / Mobil Görünüm Konteyneri -->
   <div id="page-wrapper" class="paper-view">
-    <div id="sheet-container">
+    <div id="sheet-wrapper">
+      <div id="sheet-container">
 
-      <!-- BELGE E-İMZA DOĞRULAMA DURUM ÇUBUĞU (Havelsan UYAP Uyumlu) -->
-      <div id="doc-signature-banner" class="signature-status-banner valid" style="display: none;" onclick="openSignatureDetailsModal()">
-        <div class="sig-banner-left">
-          <span id="sig-banner-icon">🟢</span>
-          <span id="sig-banner-text">Belge Geçerli E-İmza ile İmzalıdır</span>
+        <!-- BELGE E-İMZA DOĞRULAMA DURUM ÇUBUĞU (Havelsan UYAP Uyumlu) -->
+        <div id="doc-signature-banner" class="signature-status-banner valid" style="display: none;" onclick="openSignatureDetailsModal()">
+          <div class="sig-banner-left">
+            <span id="sig-banner-icon">🟢</span>
+            <span id="sig-banner-text">Belge Geçerli E-İmza ile İmzalıdır</span>
+          </div>
+          <span class="sig-banner-action">Ayrıntılar &amp; Rapor 🔍</span>
         </div>
-        <span class="sig-banner-action">Ayrıntılar &amp; Rapor 🔍</span>
-      </div>
-      
-      <!-- ETKİLEŞİMLİ CETVEL (Word & UYAP Stili İlk Satır / Asılı / Sağ Girinti) -->
-      <div id="ruler-container" class="ruler-container">
-        <div id="ruler-body" class="ruler-body">
-          <!-- Sol Kenar Boşluğu Arka Planı -->
-          <div class="ruler-margin-left"></div>
+        
+        <!-- ETKİLEŞİMLİ CETVEL (Word & UYAP Stili İlk Satır / Asılı / Sağ Girinti) -->
+        <div id="ruler-container" class="ruler-container">
+          <div id="ruler-body" class="ruler-body">
+            <!-- Sol Kenar Boşluğu Arka Planı -->
+            <div class="ruler-margin-left"></div>
 
-          <!-- Aktif Cetvel Ölçeği (0 - 16 cm) -->
-          <div id="ruler-scale" class="ruler-scale">
-            <!-- İlk Satır Girintisi İmi (Üst Üçgen) -->
-            <div id="marker-first-line" class="ruler-marker marker-first-line" title="İlk Satır Girintisi (Sürükleyin veya Dokunun)">
-              <div class="marker-triangle-down"></div>
+            <!-- Aktif Cetvel Ölçeği (0 - 16 cm) -->
+            <div id="ruler-scale" class="ruler-scale">
+              <!-- İlk Satır Girintisi İmi (Üst Üçgen) -->
+              <div id="marker-first-line" class="ruler-marker marker-first-line" title="İlk Satır Girintisi (Sürükleyin veya Dokunun)">
+                <div class="marker-triangle-down"></div>
+              </div>
+
+              <!-- Asılı / Sol Girinti İmi (Alt Üçgen + Kutu) -->
+              <div id="marker-left-indent" class="ruler-marker marker-left-indent" title="Sol Girinti / Asılı Girinti (Sürükleyin)">
+                <div class="marker-triangle-up"></div>
+                <div class="marker-box"></div>
+              </div>
+
+              <!-- Cetvel cm ve mm Çizgileri Dinamik Üretilir -->
+              <div id="ruler-ticks" class="ruler-ticks"></div>
+
+              <!-- Sağ Kenar Girinti İmi (Alt Üçgen) -->
+              <div id="marker-right-indent" class="ruler-marker marker-right-indent" title="Sağ Girinti (Sürükleyin)">
+                <div class="marker-triangle-up"></div>
+              </div>
             </div>
 
-            <!-- Asılı / Sol Girinti İmi (Alt Üçgen + Kutu) -->
-            <div id="marker-left-indent" class="ruler-marker marker-left-indent" title="Sol Girinti / Asılı Girinti (Sürükleyin)">
-              <div class="marker-triangle-up"></div>
-              <div class="marker-box"></div>
-            </div>
+            <!-- Sağ Kenar Boşluğu Arka Planı -->
+            <div class="ruler-margin-right"></div>
+          </div>
+        </div>
 
-            <!-- Cetvel cm ve mm Çizgileri Dinamik Üretilir -->
-            <div id="ruler-ticks" class="ruler-ticks"></div>
+        <div id="a4-sheet">
 
-            <!-- Sağ Kenar Girinti İmi (Alt Üçgen) -->
-            <div id="marker-right-indent" class="ruler-marker marker-right-indent" title="Sağ Girinti (Sürükleyin)">
-              <div class="marker-triangle-up"></div>
-            </div>
+          <!-- Üstbilgi Alanı (Header) -->
+          <div id="doc-header" class="header-footer-box" contenteditable="true" spellcheck="false" data-placeholder="Üstbilgi eklemek için buraya dokunun (örn: Mahkeme Adı, Dosya No)...">T.C. İSTANBUL ANADOLU 1. ASLİYE HUKUK MAHKEMESİ — Dosya No: 2026/.... Esas</div>
+
+          <!-- Ana Editör İçeriği -->
+          <div id="editor-content" contenteditable="true" spellcheck="true" autocomplete="off" autocapitalize="sentences">
+            <p style="text-align: center;"><strong>... NÖBETÇİ ASLİYE HUKUK MAHKEMESİ HÂKİMLİĞİ'NE</strong></p>
+            <p style="text-align: justify;"><br></p>
+            <p style="text-align: justify;"><strong>DOSYA NO :</strong> 2026/.... Esas</p>
+            <p style="text-align: justify;"><strong>DAVACI :</strong> [Davacı Adı Soyadı / Ünvanı - TCKN / VKN]</p>
+            <p style="text-align: justify;"><strong>VEKİLİ :</strong> Av. [Vekil Adı Soyadı] - Baro Sicil No / UETS</p>
+            <p style="text-align: justify;"><strong>DAVALI :</strong> [Davalı Adı Soyadı / Ünvanı]</p>
+            <p style="text-align: justify;"><strong>DAVA KONUSU :</strong> [Davanın Konusu ve Talebin Özeti]</p>
+            <p style="text-align: justify;"><br></p>
+            <p style="text-align: justify;"><strong>AÇIKLAMALAR :</strong></p>
+            <p style="text-align: justify; text-indent: 28px; margin-top: 4pt; margin-bottom: 8pt;">1.1-) Müvekkil ile davalı taraf arasındaki hukuki ilişki çerçevesinde ...</p>
+            <p style="text-align: justify; text-indent: 28px; margin-top: 4pt; margin-bottom: 8pt;">1.2-) Davalı taraf edimlerini usul ve yasaya aykırı şekilde ifa etmemiştir ...</p>
+            <p style="text-align: justify;"><br></p>
+            <p style="text-align: justify;"><strong>HUKUKİ SEBEPLER :</strong> 6100 sayılı HMK, 6098 sayılı TBK, TTK ve ilgili mevzuat.</p>
+            <p style="text-align: justify;"><strong>DELİLLER :</strong> Fatura, banka dekontları, tanık, bilirkişi raporu, yemin ve her türlü yasal delil.</p>
+            <p style="text-align: justify;"><br></p>
+            <p style="text-align: justify;"><strong>NETİCE-İ TALEP :</strong> Yukarıda arz ve izah edilen nedenlerle haklı davamızın kabulüne, yargılama giderleri ile vekâlet ücretinin davalıya tahmiline karar verilmesini saygıyla vekâleten arz ve talep ederiz.</p>
+            <p style="text-align: right;"><br></p>
+            <p style="text-align: right;"><strong>Davacı Vekili</strong><br>Av. [Adınız Soyadınız]<br><em>(5070 Sayılı Kanun Uyarınca E-İmzalıdır)</em></p>
           </div>
 
-          <!-- Sağ Kenar Boşluğu Arka Planı -->
-          <div class="ruler-margin-right"></div>
-        </div>
-      </div>
+          <!-- Altbilgi Alanı (Footer) -->
+          <div id="doc-footer" class="header-footer-box" contenteditable="true" spellcheck="false" data-placeholder="Altbilgi eklemek için buraya dokunun (örn: Büro Adresi, UETS, Sayfa No)...">Adres: [Büro Adresi / Telefon / UETS Adresi] &nbsp;|&nbsp; Sayfa: 1 / 1</div>
 
-      <div id="a4-sheet">
-
-        <!-- Üstbilgi Alanı (Header) -->
-        <div id="doc-header" class="header-footer-box" contenteditable="true" spellcheck="false" data-placeholder="Üstbilgi eklemek için buraya dokunun (örn: Mahkeme Adı, Dosya No)...">T.C. İSTANBUL ANADOLU 1. ASLİYE HUKUK MAHKEMESİ — Dosya No: 2026/.... Esas</div>
-
-        <!-- Ana Editör İçeriği -->
-        <div id="editor-content" contenteditable="true" spellcheck="true" autocomplete="off" autocapitalize="sentences">
-          <p style="text-align: center;"><strong>... NÖBETÇİ ASLİYE HUKUK MAHKEMESİ HÂKİMLİĞİ'NE</strong></p>
-          <p style="text-align: justify;"><br></p>
-          <p style="text-align: justify;"><strong>DOSYA NO :</strong> 2026/.... Esas</p>
-          <p style="text-align: justify;"><strong>DAVACI :</strong> [Davacı Adı Soyadı / Ünvanı - TCKN / VKN]</p>
-          <p style="text-align: justify;"><strong>VEKİLİ :</strong> Av. [Vekil Adı Soyadı] - Baro Sicil No / UETS</p>
-          <p style="text-align: justify;"><strong>DAVALI :</strong> [Davalı Adı Soyadı / Ünvanı]</p>
-          <p style="text-align: justify;"><strong>DAVA KONUSU :</strong> [Davanın Konusu ve Talebin Özeti]</p>
-          <p style="text-align: justify;"><br></p>
-          <p style="text-align: justify;"><strong>AÇIKLAMALAR :</strong></p>
-          <p style="text-align: justify; text-indent: 28px; margin-top: 4pt; margin-bottom: 8pt;">1.1-) Müvekkil ile davalı taraf arasındaki hukuki ilişki çerçevesinde ...</p>
-          <p style="text-align: justify; text-indent: 28px; margin-top: 4pt; margin-bottom: 8pt;">1.2-) Davalı taraf edimlerini usul ve yasaya aykırı şekilde ifa etmemiştir ...</p>
-          <p style="text-align: justify;"><br></p>
-          <p style="text-align: justify;"><strong>HUKUKİ SEBEPLER :</strong> 6100 sayılı HMK, 6098 sayılı TBK, TTK ve ilgili mevzuat.</p>
-          <p style="text-align: justify;"><strong>DELİLLER :</strong> Fatura, banka dekontları, tanık, bilirkişi raporu, yemin ve her türlü yasal delil.</p>
-          <p style="text-align: justify;"><br></p>
-          <p style="text-align: justify;"><strong>NETİCE-İ TALEP :</strong> Yukarıda arz ve izah edilen nedenlerle haklı davamızın kabulüne, yargılama giderleri ile vekâlet ücretinin davalıya tahmiline karar verilmesini saygıyla vekâleten arz ve talep ederiz.</p>
-          <p style="text-align: right;"><br></p>
-          <p style="text-align: right;"><strong>Davacı Vekili</strong><br>Av. [Adınız Soyadınız]<br><em>(5070 Sayılı Kanun Uyarınca E-İmzalıdır)</em></p>
-        </div>
-
-        <!-- Altbilgi Alanı (Footer) -->
-        <div id="doc-footer" class="header-footer-box" contenteditable="true" spellcheck="false" data-placeholder="Altbilgi eklemek için buraya dokunun (örn: Büro Adresi, UETS, Sayfa No)...">Adres: [Büro Adresi / Telefon / UETS Adresi] &nbsp;|&nbsp; Sayfa: 1 / 1</div>
-
-      </div> <!-- #a4-sheet -->
-    </div> <!-- #sheet-container -->
+        </div> <!-- #a4-sheet -->
+      </div> <!-- #sheet-container -->
+    </div> <!-- #sheet-wrapper -->
   </div> <!-- #page-wrapper -->
+
+  <!-- Google Dokümanlar Stili Yuvarlak Düzenle / Sığdır FAB Butonu -->
+  <button type="button" id="fab-view-toggle" onclick="toggleFabView()" title="Baskı Önizleme / Düzenleme Geçişi">
+    <svg id="fab-icon-pencil" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+  </button>
+
+  <!-- Yüzen Hızlı Yakınlaştırma (Zoom) Çubuğu -->
+  <div id="floating-zoom-bar">
+    <button type="button" class="zoom-btn" onclick="stepZoom(-0.08)" title="Uzaklaştır">−</button>
+    <span id="zoom-indicator" onclick="cycleZoomMode()" title="Görünüm Modunu Değiştir (Sığdır / %100)">%48 Sığdır</span>
+    <button type="button" class="zoom-btn" onclick="stepZoom(0.08)" title="Yakınlaştır">+</button>
+  </div>
 
   <!-- MOBİL İMZA MODAL PENCERESİ -->
   <div id="modal-mobile-sign" class="modal-backdrop">
@@ -552,6 +598,151 @@
       <div class="modal-footer" style="justify-content: space-between;">
         <button class="modal-btn secondary" onclick="closeModal('modal-signature-details')">Kapat</button>
         <button class="modal-btn primary" onclick="recheckSignatureInModal()">🔄 Yeniden Doğrula</button>
+      </div>
+  <!-- SAYFA YAPISI VE KENAR BOŞLUKLARI MODAL PENCERESİ -->
+  <div id="modal-page-setup" class="modal-backdrop">
+    <div class="modal-card modal-card-wide">
+      <div class="modal-header">
+        <h3>📐 Sayfa Yapısı &amp; Kenar Boşlukları</h3>
+        <button class="modal-close" onclick="closeModal('modal-page-setup')">✕</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-desc">Resmi dilekçeler ve UYAP standartları için sayfa kenar boşluklarını (cm) ve yönünü belirleyin.</p>
+        
+        <!-- Hızlı Hazır Şablonlar -->
+        <label class="modal-label">Hazır Boşluk Şablonları:</label>
+        <div class="quick-chips" style="margin-bottom: 12px;">
+          <span class="chip" onclick="setMarginPreset('petition')">⚖️ Resmi Dilekçe (2.5 cm)</span>
+          <span class="chip" onclick="setMarginPreset('uyap')">🏛️ UYAP Standart (1.5 cm)</span>
+          <span class="chip" onclick="setMarginPreset('binding')">📁 Dosya / Cilt Paylı</span>
+          <span class="chip" onclick="setMarginPreset('narrow')">📐 Dar Kenar (1.0 cm)</span>
+        </div>
+
+        <!-- Sayfa Yönlendirmesi -->
+        <div class="param-row" style="margin-bottom: 12px;">
+          <label class="modal-label">Sayfa Yönü:</label>
+          <div class="segmented-control">
+            <button type="button" class="segment-btn active" id="btn-orient-portrait" onclick="setPageOrientation('portrait')">📄 Dikey (A4 - 210×297 mm)</button>
+            <button type="button" class="segment-btn" id="btn-orient-landscape" onclick="setPageOrientation('landscape')">📑 Yatay (Tablo / Liste)</button>
+          </div>
+        </div>
+
+        <!-- Kenar Boşlukları Grid -->
+        <div class="param-grid-2">
+          <div class="param-col">
+            <label class="modal-label">Sol Kenar Boşluğu (cm):</label>
+            <div class="stepper-box">
+              <button type="button" class="stepper-btn" onclick="stepMargin('left', -0.25)">−</button>
+              <input type="number" id="m-left" class="stepper-input" value="2.5" min="0.5" max="8" step="0.25" oninput="updateMarginPreview()">
+              <button type="button" class="stepper-btn" onclick="stepMargin('left', 0.25)">+</button>
+            </div>
+          </div>
+
+          <div class="param-col">
+            <label class="modal-label">Sağ Kenar Boşluğu (cm):</label>
+            <div class="stepper-box">
+              <button type="button" class="stepper-btn" onclick="stepMargin('right', -0.25)">−</button>
+              <input type="number" id="m-right" class="stepper-input" value="2.5" min="0.5" max="8" step="0.25" oninput="updateMarginPreview()">
+              <button type="button" class="stepper-btn" onclick="stepMargin('right', 0.25)">+</button>
+            </div>
+          </div>
+
+          <div class="param-col" style="margin-top: 10px;">
+            <label class="modal-label">Üst Kenar Boşluğu (cm):</label>
+            <div class="stepper-box">
+              <button type="button" class="stepper-btn" onclick="stepMargin('top', -0.25)">−</button>
+              <input type="number" id="m-top" class="stepper-input" value="2.5" min="0.5" max="8" step="0.25" oninput="updateMarginPreview()">
+              <button type="button" class="stepper-btn" onclick="stepMargin('top', 0.25)">+</button>
+            </div>
+          </div>
+
+          <div class="param-col" style="margin-top: 10px;">
+            <label class="modal-label">Alt Kenar Boşluğu (cm):</label>
+            <div class="stepper-box">
+              <button type="button" class="stepper-btn" onclick="stepMargin('bottom', -0.25)">−</button>
+              <input type="number" id="m-bottom" class="stepper-input" value="2.5" min="0.5" max="8" step="0.25" oninput="updateMarginPreview()">
+              <button type="button" class="stepper-btn" onclick="stepMargin('bottom', 0.25)">+</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Canlı Görsel Önizleme -->
+        <div style="margin-top: 14px;">
+          <label class="modal-label">Sayfa &amp; Kenar Önizlemesi:</label>
+          <div id="margin-preview-container" style="background-color: #ECEFF1; border-radius: 6px; padding: 16px; display: flex; justify-content: center; align-items: center; min-height: 140px;">
+            <div id="margin-preview-sheet">
+              <div id="preview-margin-box"></div>
+              <div style="padding: 3px; font-size: 7.5px; color: #9E9E9E; text-align: center; pointer-events: none;">Üstbilgi</div>
+              <div style="padding: 3px; font-size: 7.5px; color: #9E9E9E; text-align: center; pointer-events: none;">Altbilgi</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+      <div class="modal-footer" style="justify-content: space-between;">
+        <button class="modal-btn secondary" onclick="closeModal('modal-page-setup')">İptal</button>
+        <button class="modal-btn primary" onclick="applyPageSetupFromModal()">Uygula &amp; Kaydet</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- BUL VE DEĞİŞTİR (FIND & REPLACE) MODAL PENCERESİ -->
+  <div id="modal-find-replace" class="modal-backdrop">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>🔍 Bul ve Değiştir (UYAP)</h3>
+        <button class="modal-close" onclick="closeFindReplaceModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <label class="modal-label">Aranan İfade / Kelime:</label>
+        <input type="text" id="find-query" class="modal-input" placeholder="Aranacak kelime..." oninput="onFindQueryChanged()">
+        
+        <div style="display: flex; justify-content: space-between; align-items: center; margin: 4px 0 8px 0;">
+          <label style="font-size: 12px; color: #546E7A; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+            <input type="checkbox" id="find-match-case" onchange="onFindQueryChanged()"> Büyük/küçük harf duyarlı
+          </label>
+          <span id="find-status-badge" style="font-size: 11px; font-weight: bold; color: #1565C0;">0 / 0 eşleşme</span>
+        </div>
+
+        <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+          <button type="button" class="modal-btn secondary" style="flex: 1;" onclick="findNav(-1)">⇦ Önceki</button>
+          <button type="button" class="modal-btn secondary" style="flex: 1;" onclick="findNav(1)">Sonraki ⇨</button>
+        </div>
+
+        <label class="modal-label">Yeni Metin ile Değiştir:</label>
+        <input type="text" id="replace-query" class="modal-input" placeholder="Yerine yazılacak yeni metin...">
+
+        <div style="display: flex; gap: 8px; margin-top: 10px;">
+          <button type="button" class="modal-btn secondary" style="flex: 1;" onclick="doReplaceCurrent()">Değiştir</button>
+          <button type="button" class="modal-btn primary" style="flex: 1; background-color: #1565C0;" onclick="doReplaceAll()">Tümünü Değiştir</button>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="modal-btn secondary" onclick="closeFindReplaceModal()">Kapat</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- BELGE BİLGİLERİ VE İSTATİSTİKLERİ MODAL PENCERESİ -->
+  <div id="modal-doc-stats" class="modal-backdrop">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>📊 Belge İstatistikleri &amp; Bilgileri</h3>
+        <button class="modal-close" onclick="closeModal('modal-doc-stats')">✕</button>
+      </div>
+      <div class="modal-body">
+        <div style="background-color: #F8FAFC; border: 1px solid #CFD8DC; border-radius: 8px; padding: 14px; display: flex; flex-direction: column; gap: 9px; font-size: 13px;">
+          <div style="display: flex; justify-content: space-between;"><strong>Kelime Sayısı:</strong> <span id="stat-words" style="color: #1565C0; font-weight: bold;">0</span></div>
+          <div style="display: flex; justify-content: space-between;"><strong>Karakter Sayısı (Boşluklu):</strong> <span id="stat-chars-spaces" style="color: #1565C0; font-weight: bold;">0</span></div>
+          <div style="display: flex; justify-content: space-between;"><strong>Karakter Sayısı (Boşluksuz):</strong> <span id="stat-chars-nospaces" style="color: #1565C0; font-weight: bold;">0</span></div>
+          <div style="display: flex; justify-content: space-between;"><strong>Paragraf Sayısı:</strong> <span id="stat-paragraphs" style="color: #1565C0; font-weight: bold;">0</span></div>
+          <div style="display: flex; justify-content: space-between;"><strong>Tahmini A4 Sayfa Sayısı:</strong> <span id="stat-pages" style="color: #1565C0; font-weight: bold;">1 Sayfa</span></div>
+          <div style="display: flex; justify-content: space-between; border-top: 1px solid #ECEFF1; padding-top: 6px;"><strong>Sayfa Ebadı:</strong> <span id="stat-pagesize">A4 (210 × 297 mm)</span></div>
+          <div style="display: flex; justify-content: space-between;"><strong>Kenar Boşlukları:</strong> <span id="stat-margins">Sol 2.5cm, Sağ 2.5cm, Üst 2.5cm, Alt 2.5cm</span></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="modal-btn primary" onclick="closeModal('modal-doc-stats')">Tamam</button>
       </div>
     </div>
   </div>

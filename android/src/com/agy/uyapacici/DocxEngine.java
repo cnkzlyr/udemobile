@@ -139,6 +139,11 @@ public class DocxEngine {
         JSONArray paragraphs;
         String headerText = "";
         String footerText = "";
+        double leftMarginCm = 2.5;
+        double rightMarginCm = 2.5;
+        double topMarginCm = 2.5;
+        double bottomMarginCm = 2.5;
+        String orientation = "portrait";
 
         if (trimmed.startsWith("{")) {
             JSONObject obj = new JSONObject(trimmed);
@@ -146,6 +151,20 @@ public class DocxEngine {
             footerText = obj.optString("footer", "");
             paragraphs = obj.optJSONArray("paragraphs");
             if (paragraphs == null) paragraphs = new JSONArray();
+
+            if (obj.has("margins")) {
+                JSONObject m = obj.getJSONObject("margins");
+                leftMarginCm = m.optDouble("left", 2.5);
+                rightMarginCm = m.optDouble("right", 2.5);
+                topMarginCm = m.optDouble("top", 2.5);
+                bottomMarginCm = m.optDouble("bottom", 2.5);
+                orientation = m.optString("orientation", "portrait");
+            } else {
+                leftMarginCm = obj.optDouble("leftMarginCm", 2.5);
+                rightMarginCm = obj.optDouble("rightMarginCm", 2.5);
+                topMarginCm = obj.optDouble("topMarginCm", 2.5);
+                bottomMarginCm = obj.optDouble("bottomMarginCm", 2.5);
+            }
         } else if (trimmed.startsWith("[")) {
             paragraphs = new JSONArray(trimmed);
         } else {
@@ -221,10 +240,20 @@ public class DocxEngine {
             docXml.append("  </w:p>\n");
         }
 
-        // A4 sayfa ayarı
+        // A4 sayfa ve kenar boşluğu ayarı
+        long topDxa = Math.round(topMarginCm * 567.0);
+        long bottomDxa = Math.round(bottomMarginCm * 567.0);
+        long leftDxa = Math.round(leftMarginCm * 567.0);
+        long rightDxa = Math.round(rightMarginCm * 567.0);
+        boolean isLandscape = "landscape".equalsIgnoreCase(orientation);
+        long pgW = isLandscape ? 16838 : 11906;
+        long pgH = isLandscape ? 11906 : 16838;
+
         docXml.append("  <w:sectPr>\n")
-              .append("    <w:pgSz w:w=\"11906\" w:h=\"16838\"/>\n")
-              .append("    <w:pgMar w:top=\"1440\" w:right=\"1134\" w:bottom=\"1440\" w:left=\"1134\"/>\n")
+              .append("    <w:pgSz w:w=\"").append(pgW).append("\" w:h=\"").append(pgH).append("\"")
+              .append(isLandscape ? " w:orient=\"landscape\"" : "").append("/>\n")
+              .append("    <w:pgMar w:top=\"").append(topDxa).append("\" w:right=\"").append(rightDxa)
+              .append("\" w:bottom=\"").append(bottomDxa).append("\" w:left=\"").append(leftDxa).append("\"/>\n")
               .append("  </w:sectPr>\n")
               .append("</w:body>\n")
               .append("</w:document>");

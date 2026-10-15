@@ -75,14 +75,34 @@ public class UdfEngine {
             DocumentBuilder db = dbf.newDocumentBuilder();
             Document doc = db.parse(new ByteArrayInputStream(xml.getBytes(StandardCharsets.UTF_8)));
 
-            // 1. Üstbilgi ve Altbilgi (pageFormat veya properties)
+            // 1. Üstbilgi, Altbilgi ve Kenar Boşlukları (pageFormat)
             String headerText = "";
             String footerText = "";
+            double leftMarginCm = 1.5;
+            double rightMarginCm = 1.5;
+            double topMarginCm = 1.5;
+            double bottomMarginCm = 1.5;
+            String paperOrientation = "1";
             NodeList pageFormats = doc.getElementsByTagName("pageFormat");
             if (pageFormats.getLength() > 0) {
                 Element pf = (Element) pageFormats.item(0);
                 headerText = pf.getAttribute("headerText");
                 footerText = pf.getAttribute("footerText");
+                if (pf.hasAttribute("leftMargin")) {
+                    leftMarginCm = parsePtToCm(pf.getAttribute("leftMargin"), 1.5);
+                }
+                if (pf.hasAttribute("rightMargin")) {
+                    rightMarginCm = parsePtToCm(pf.getAttribute("rightMargin"), 1.5);
+                }
+                if (pf.hasAttribute("topMargin")) {
+                    topMarginCm = parsePtToCm(pf.getAttribute("topMargin"), 1.5);
+                }
+                if (pf.hasAttribute("bottomMargin")) {
+                    bottomMarginCm = parsePtToCm(pf.getAttribute("bottomMargin"), 1.5);
+                }
+                if (pf.hasAttribute("paperOrientation")) {
+                    paperOrientation = pf.getAttribute("paperOrientation");
+                }
             }
 
             // 2. Ham metni al
@@ -100,6 +120,11 @@ public class UdfEngine {
                 JSONObject res = new JSONObject();
                 res.put("header", headerText);
                 res.put("footer", footerText);
+                res.put("leftMarginCm", leftMarginCm);
+                res.put("rightMarginCm", rightMarginCm);
+                res.put("topMarginCm", topMarginCm);
+                res.put("bottomMarginCm", bottomMarginCm);
+                res.put("paperOrientation", paperOrientation);
                 res.put("html", "<p style=\"text-align: justify;\">Belge içeriği boş.</p>");
                 return res.toString();
             }
@@ -215,6 +240,11 @@ public class UdfEngine {
             JSONObject res = new JSONObject();
             res.put("header", headerText);
             res.put("footer", footerText);
+            res.put("leftMarginCm", leftMarginCm);
+            res.put("rightMarginCm", rightMarginCm);
+            res.put("topMarginCm", topMarginCm);
+            res.put("bottomMarginCm", bottomMarginCm);
+            res.put("paperOrientation", paperOrientation);
             res.put("html", html.toString());
             return res.toString();
 
@@ -226,6 +256,17 @@ public class UdfEngine {
                 err.put("html", "<p style=\"text-align: justify;\">" + escapeHtml(xml) + "</p>");
             } catch (Exception ignored) {}
             return err.toString();
+        }
+    }
+
+    private static double parsePtToCm(String ptStr, double defaultCm) {
+        try {
+            if (ptStr == null || ptStr.trim().isEmpty()) return defaultCm;
+            double pt = Double.parseDouble(ptStr.trim());
+            double cm = pt / 28.3465;
+            return Math.round(cm * 100.0) / 100.0;
+        } catch (Exception e) {
+            return defaultCm;
         }
     }
 
@@ -311,6 +352,11 @@ public class UdfEngine {
         JSONArray paragraphs;
         String headerText = "";
         String footerText = "";
+        double leftMarginCm = 1.5;
+        double rightMarginCm = 1.5;
+        double topMarginCm = 1.5;
+        double bottomMarginCm = 1.5;
+        String paperOrientation = "1";
 
         if (trimmed.startsWith("{")) {
             JSONObject obj = new JSONObject(trimmed);
@@ -318,11 +364,33 @@ public class UdfEngine {
             footerText = obj.optString("footer", "");
             paragraphs = obj.optJSONArray("paragraphs");
             if (paragraphs == null) paragraphs = new JSONArray();
+
+            if (obj.has("margins")) {
+                JSONObject m = obj.getJSONObject("margins");
+                leftMarginCm = m.optDouble("left", 1.5);
+                rightMarginCm = m.optDouble("right", 1.5);
+                topMarginCm = m.optDouble("top", 1.5);
+                bottomMarginCm = m.optDouble("bottom", 1.5);
+                if (m.has("orientation")) {
+                    paperOrientation = "landscape".equalsIgnoreCase(m.optString("orientation")) ? "2" : "1";
+                }
+            } else {
+                leftMarginCm = obj.optDouble("leftMarginCm", 1.5);
+                rightMarginCm = obj.optDouble("rightMarginCm", 1.5);
+                topMarginCm = obj.optDouble("topMarginCm", 1.5);
+                bottomMarginCm = obj.optDouble("bottomMarginCm", 1.5);
+                paperOrientation = obj.optString("paperOrientation", "1");
+            }
         } else if (trimmed.startsWith("[")) {
             paragraphs = new JSONArray(trimmed);
         } else {
             paragraphs = new JSONArray();
         }
+
+        double leftMarginPt = leftMarginCm * 28.3465;
+        double rightMarginPt = rightMarginCm * 28.3465;
+        double topMarginPt = topMarginCm * 28.3465;
+        double bottomMarginPt = bottomMarginCm * 28.3465;
 
         StringBuilder rawContent = new StringBuilder();
         StringBuilder elementsXml = new StringBuilder();
@@ -392,7 +460,7 @@ public class UdfEngine {
                 + "<template format_id=\"1.8\">\n"
                 + "<content><![CDATA[" + rawContent.toString() + "]]></content>\n"
                 + "<properties>\n"
-                + "    <pageFormat mediaSizeName=\"1\" leftMargin=\"42.525000000000006\" rightMargin=\"42.525000000000006\" topMargin=\"42.525000000000006\" bottomMargin=\"42.52500000000006\" paperOrientation=\"1\" headerFOffset=\"20.0\" footerFOffset=\"20.0\""
+                + "    <pageFormat mediaSizeName=\"1\" leftMargin=\"" + String.format(Locale.US, "%.4f", leftMarginPt) + "\" rightMargin=\"" + String.format(Locale.US, "%.4f", rightMarginPt) + "\" topMargin=\"" + String.format(Locale.US, "%.4f", topMarginPt) + "\" bottomMargin=\"" + String.format(Locale.US, "%.4f", bottomMarginPt) + "\" paperOrientation=\"" + paperOrientation + "\" headerFOffset=\"20.0\" footerFOffset=\"20.0\""
                 + " headerText=\"" + escapeXml(headerText) + "\""
                 + " footerText=\"" + escapeXml(footerText) + "\"/>\n"
                 + "</properties>\n"
