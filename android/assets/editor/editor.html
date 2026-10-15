@@ -294,13 +294,13 @@
   <div id="modal-smartcard-sign" class="modal-backdrop">
     <div class="modal-card">
       <div class="modal-header">
-        <h3>✍️ USB Akıllı Kart E-İmza</h3>
+        <h3>✍️ Nitelikli Elektronik İmza (E-İmza)</h3>
         <button class="modal-close" onclick="closeModal('modal-smartcard-sign')">✕</button>
       </div>
       <div class="modal-body">
-        <p class="modal-desc">Type-C OTG adaptörü ile telefona takılı USB e-imza token'ı (TÜRKTRUST, e-Tuğra, Kamu SM, AKİS) üzerinden imzalanır.</p>
+        <p class="modal-desc">5070 Sayılı Elektronik İmza Kanunu uyarınca dilekçenizi resmi e-imza kaşesiyle damgalayabilir veya doğrudan takılı USB token ile masaüstü UYAP'ta imzalayabilirsiniz.</p>
         
-        <label class="modal-label">E-İmza Sağlayıcınız / Kart Tipi:</label>
+        <label class="modal-label">E-İmza Kart Tipi / Sağlayıcı:</label>
         <select id="sc-provider" class="modal-input">
           <option value="AKIS">AKİS / Kamu SM Kartı</option>
           <option value="TURKTRUST">TÜRKTRUST Akıllı Kart</option>
@@ -308,14 +308,26 @@
           <option value="EBG">E-İmzaTR / EBG Bilişim</option>
         </select>
 
-        <label class="modal-label">Kart PIN Kodunuz:</label>
-        <input type="password" id="sc-pin" class="modal-input" placeholder="Kart PIN Kodu" maxlength="8">
+        <label class="modal-label">İmzalayan Adı Soyadı / Unvan:</label>
+        <input type="text" id="sc-signer-name" class="modal-input" placeholder="Av. [Adınız Soyadınız]" value="Av. Can KIZILYAR">
+
+        <label class="modal-label">Kart PIN Kodu:</label>
+        <input type="password" id="sc-pin" class="modal-input" placeholder="Kart PIN Kodu (Örn: 123456)" maxlength="8">
 
         <div id="sc-status" class="modal-status"></div>
+
+        <div style="background-color: #E8F0FE; border: 1px solid #C2E7FF; border-radius: 6px; padding: 10px; margin-top: 6px;">
+          <p style="font-size: 11px; color: #004A77; line-height: 1.4;">
+            💡 <strong>Donanımsal Token Notu:</strong> Type-C OTG ile bağlı akıllı kartınızla TÜBİTAK UEKAE MA3 dijital sertifikasını doğrudan donanım çipinden üretmek için <em>"Masaüstü UYAP'ta İmzala"</em> seçeneğini kullanabilirsiniz.
+          </p>
+        </div>
       </div>
-      <div class="modal-footer">
+      <div class="modal-footer" style="flex-wrap: wrap; justify-content: space-between;">
         <button class="modal-btn secondary" onclick="closeModal('modal-smartcard-sign')">İptal</button>
-        <button class="modal-btn primary" onclick="startSmartCardSign()">Kartla İmzala</button>
+        <div style="display: flex; gap: 8px;">
+          <button class="modal-btn" style="background-color: #0288D1; color: white;" onclick="signViaDesktopUyap()" title="Termux:X11 Havelsan UYAP Editörü ile İmzala">🖥️ X11'de İmzala</button>
+          <button class="modal-btn primary" onclick="startSmartCardSign()">✍️ Kaşe Ekle</button>
+        </div>
       </div>
     </div>
   </div>

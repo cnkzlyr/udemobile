@@ -317,48 +317,15 @@ public class UdfEngine {
 
         byte[] contentBytes = finalXml.getBytes(StandardCharsets.UTF_8);
 
-        // Zip olarak .udf oluştur
+        // Zip olarak standart Havelsan UDF oluştur
         try (FileOutputStream fos = new FileOutputStream(targetFile);
              ZipOutputStream zos = new ZipOutputStream(fos)) {
             
-            // 1. content.xml
+            // 1. content.xml (Resmi Havelsan UYAP XML belgesi)
             ZipEntry entry = new ZipEntry("content.xml");
             zos.putNextEntry(entry);
             zos.write(contentBytes, 0, contentBytes.length);
             zos.closeEntry();
-
-            // 2. sign.sgn (Eğer e-imza veya mobil imza atılmışsa)
-            if (isSigned || rawContent.toString().contains("İMZA") || rawContent.toString().contains("5070 Sayılı")) {
-                MessageDigest md = MessageDigest.getInstance("SHA-256");
-                byte[] digest = md.digest(contentBytes);
-                String sha256Hex = bytesToHex(digest);
-                String timestamp = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", Locale.getDefault()).format(new Date());
-
-                String signXml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
-                        + "<Signature xmlns=\"http://www.w3.org/2000/09/xmldsig#\">\n"
-                        + "  <SignedInfo>\n"
-                        + "    <CanonicalizationMethod Algorithm=\"http://www.w3.org/TR/2001/REC-xml-c14n-20010315\"/>\n"
-                        + "    <SignatureMethod Algorithm=\"http://www.w3.org/2001/04/xmldsig-more#rsa-sha256\"/>\n"
-                        + "    <Reference URI=\"content.xml\">\n"
-                        + "      <DigestMethod Algorithm=\"http://www.w3.org/2001/04/xmlenc#sha256\"/>\n"
-                        + "      <DigestValue>" + sha256Hex + "</DigestValue>\n"
-                        + "    </Reference>\n"
-                        + "  </SignedInfo>\n"
-                        + "  <SignatureValue>" + sha256Hex.toUpperCase() + "</SignatureValue>\n"
-                        + "  <KeyInfo>\n"
-                        + "    <X509Data>\n"
-                        + "      <X509SubjectName>5070 Sayili Kanun Kapsaminda Nitelikli Elektronik Sertifika</X509SubjectName>\n"
-                        + "    </X509Data>\n"
-                        + "  </KeyInfo>\n"
-                        + "  <SigningTime>" + timestamp + "</SigningTime>\n"
-                        + "</Signature>";
-
-                ZipEntry signEntry = new ZipEntry("sign.sgn");
-                zos.putNextEntry(signEntry);
-                byte[] signBytes = signXml.getBytes(StandardCharsets.UTF_8);
-                zos.write(signBytes, 0, signBytes.length);
-                zos.closeEntry();
-            }
         }
     }
 

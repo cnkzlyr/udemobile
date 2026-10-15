@@ -588,36 +588,49 @@ function openSmartCardSignModal() {
 }
 
 function insertSignatureSeal(sealHtml) {
-  const restored = restoreCurrentSelection();
   const editor = document.getElementById('editor-content');
-  editor.focus();
 
-  let inserted = false;
-  if (restored) {
-    try {
-      inserted = document.execCommand('insertHTML', false, sealHtml);
-    } catch (e) {
-      inserted = false;
+  // 1. Önceki mükerrer mühürleri temizle
+  const oldSeals = editor.querySelectorAll('.official-signature-seal, .seal-wrapper-block');
+  oldSeals.forEach(s => {
+    let p = s;
+    while (p && p.parentNode !== editor && p.parentNode !== document.body) {
+      p = p.parentNode;
+    }
+    if (p && p.parentNode) p.parentNode.removeChild(p);
+  });
+
+  // 2. Dilekçenin EN SONUNDAKİ vekil / imza paragrafını bul
+  const ps = Array.from(editor.querySelectorAll('p'));
+  let anchorP = null;
+  for (let i = ps.length - 1; i >= 0; i--) {
+    const text = ps[i].innerText || '';
+    if (text.includes('Vekili') || text.includes('Davacı') || text.includes('Davalı') || text.includes('Av.') || text.includes('İmzalıdır') || text.includes('TALEP')) {
+      anchorP = ps[i];
+      break;
     }
   }
 
-  if (!inserted) {
-    const wrapper = document.createElement('div');
-    wrapper.innerHTML = sealHtml;
-    editor.appendChild(wrapper);
+  // 3. Mührü imza bloğunun hemen altına sağa hizalı ekle
+  const sealWrapper = document.createElement('div');
+  sealWrapper.className = 'seal-wrapper-block';
+  sealWrapper.innerHTML = sealHtml;
+
+  if (anchorP && anchorP.parentNode === editor) {
+    anchorP.insertAdjacentElement('afterend', sealWrapper);
+  } else {
+    editor.appendChild(sealWrapper);
   }
 
+  // 4. Mührü ekranda merkeze kaydır
   setTimeout(() => {
-    const seals = editor.querySelectorAll('.official-signature-seal');
-    if (seals.length > 0) {
-      seals[seals.length - 1].scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }
-  }, 100);
+    sealWrapper.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, 120);
 
   updateCounts();
 }
 
-// MOBİL İMZA İŞLEMİ
+// MOBİL İMZA İŞLEMİ (M-İmza Kaşesi)
 function startMobileSign() {
   const op = document.getElementById('msign-operator').value;
   const phone = document.getElementById('msign-phone').value.trim();
@@ -640,19 +653,22 @@ function startMobileSign() {
 
   setTimeout(() => {
     const now = new Date().toLocaleString('tr-TR');
-    const hash = 'M-SIG-' + Math.random().toString(36).substring(2, 10).toUpperCase() + '-' + Date.now().toString(16).toUpperCase();
+    const hash = 'M-SIG-' + Math.random().toString(36).substring(2, 8).toUpperCase() + '-' + Date.now().toString(16).toUpperCase();
     const maskedTckn = tckn.substring(0, 3) + '*****' + tckn.substring(8);
     const maskedPhone = phone.substring(0, 4) + '***' + phone.substring(phone.length - 2);
 
     const sealHtml = `
-      <div class="official-signature-seal">
-        <div class="seal-icon">📱</div>
-        <div class="seal-details">
-          <div class="seal-title">GÜVENLİ ELEKTRONİK MOBİL İMZA İLE İMZALANMIŞTIR</div>
-          <div><strong>Operatör:</strong> ${op} Mobil İmza Servisi</div>
-          <div><strong>İmzalayan TCKN:</strong> ${maskedTckn} | <strong>GSM:</strong> ${maskedPhone}</div>
-          <div><strong>Zaman Damgası:</strong> ${now}</div>
-          <div><strong>Sertifika Doğrulama Kodu:</strong> <code>${hash}</code> (5070 S.K. Uyumlu)</div>
+      <div class="official-signature-seal" style="text-align: right; margin-top: 14px; margin-bottom: 8px;">
+        <div style="border: 2px double #1565C0; background-color: #F8FAFC; padding: 12px 16px; border-radius: 6px; display: inline-block; text-align: left; max-width: 90%;">
+          <div style="font-weight: bold; font-size: 11pt; color: #0D47A1; margin-bottom: 4px;">
+            📱 GÜVENLİ ELEKTRONİK MOBİL İMZA İLE İMZALANMIŞTIR
+          </div>
+          <div style="font-size: 10pt; color: #1A237E; line-height: 1.35;">
+            <strong>Operatör:</strong> ${op} Mobil İmza Servisi<br>
+            <strong>İmzalayan:</strong> TCKN: ${maskedTckn} &nbsp;|&nbsp; GSM: ${maskedPhone}<br>
+            <strong>İmza Zamanı:</strong> ${now}<br>
+            <strong>Doğrulama Kodu:</strong> <code>${hash}</code> (5070 S.K. Uyumlu)
+          </div>
         </div>
       </div>
       <p style="text-align: justify;"><br></p>
@@ -664,37 +680,36 @@ function startMobileSign() {
     if (window.AndroidBridge && window.AndroidBridge.onDocumentSigned) {
       window.AndroidBridge.onDocumentSigned("MOBIL_IMZA", op, hash);
     }
-  }, 1000);
+  }, 800);
 }
 
-// USB AKILLI KART / E-İMZA İŞLEMİ
+// USB AKILLI KART / E-İMZA İŞLEMİ (Resmi Kaşe)
 function startSmartCardSign() {
   const provider = document.getElementById('sc-provider').value;
+  const signerName = (document.getElementById('sc-signer-name') ? document.getElementById('sc-signer-name').value.trim() : 'Av. Can KIZILYAR') || 'Av. Can KIZILYAR';
   const pin = document.getElementById('sc-pin').value.trim();
   const statusEl = document.getElementById('sc-status');
 
-  if (pin.length < 4) {
-    statusEl.style.color = '#C62828';
-    statusEl.textContent = 'Lütfen en az 4 haneli kart PIN kodunu giriniz.';
-    return;
-  }
-
   statusEl.style.color = '#1565C0';
-  statusEl.textContent = '⏳ Type-C Akıllı Kart okunuyor ve imzalanıyor...';
+  statusEl.textContent = '⏳ ' + provider + ' Nitelikli Elektronik Sertifika kaşesi hazırlanıyor...';
 
   setTimeout(() => {
     const now = new Date().toLocaleString('tr-TR');
     const certHash = 'CCID-' + provider + '-' + Math.random().toString(36).substring(2, 8).toUpperCase() + '-' + Date.now().toString(16).toUpperCase();
 
     const sealHtml = `
-      <div class="official-signature-seal">
-        <div class="seal-icon">✍️</div>
-        <div class="seal-details">
-          <div class="seal-title">GÜVENLİ NİTELİKLİ ELEKTRONİK SERTİFİKA İLE İMZALANMIŞTIR</div>
-          <div><strong>Sağlayıcı / Kart Tipi:</strong> ${provider} Güvenli Akıllı Kart Token</div>
-          <div><strong>İmza Standardı:</strong> CAdES-BES / XAdES (5070 S.K. m. 4 ve m. 5)</div>
-          <div><strong>İmza Zamanı:</strong> ${now}</div>
-          <div><strong>Doğrulama Özeti (SHA-256):</strong> <code>${certHash}</code></div>
+      <div class="official-signature-seal" style="text-align: right; margin-top: 14px; margin-bottom: 8px;">
+        <div style="border: 2px double #1565C0; background-color: #F8FAFC; padding: 12px 16px; border-radius: 6px; display: inline-block; text-align: left; max-width: 90%;">
+          <div style="font-weight: bold; font-size: 11pt; color: #0D47A1; margin-bottom: 4px;">
+            ✍️ GÜVENLİ NİTELİKLİ ELEKTRONİK SERTİFİKA İLE İMZALANMIŞTIR
+          </div>
+          <div style="font-size: 10pt; color: #1A237E; line-height: 1.35;">
+            <strong>Sertifika Sahibi:</strong> ${signerName}<br>
+            <strong>Kart Sağlayıcı:</strong> ${provider} Güvenli Akıllı Kart Token<br>
+            <strong>İmza Standardı:</strong> CAdES-BES / XAdES (5070 S.K. m. 4 ve m. 5)<br>
+            <strong>İmza Zamanı:</strong> ${now}<br>
+            <strong>Doğrulama Özeti (SHA-256):</strong> <code>${certHash}</code>
+          </div>
         </div>
       </div>
       <p style="text-align: justify;"><br></p>
@@ -706,7 +721,17 @@ function startSmartCardSign() {
     if (window.AndroidBridge && window.AndroidBridge.onDocumentSigned) {
       window.AndroidBridge.onDocumentSigned("USB_EIMZA", provider, certHash);
     }
-  }, 1000);
+  }, 800);
+}
+
+// Termux:X11 Masaüstü UYAP'ta Donanım Çipi ile Gerçek İmzala
+function signViaDesktopUyap() {
+  closeModal('modal-smartcard-sign');
+  if (window.AndroidBridge && window.AndroidBridge.openDesktopUyap) {
+    window.AndroidBridge.openDesktopUyap();
+  } else {
+    alert("Termux:X11 Masaüstü UYAP köprüsü Android ortamında çalışır.");
+  }
 }
 
 // Şablon Ekleme
@@ -924,6 +949,24 @@ function getStructuredDocument() {
             leftIndent: 0.0,
             rightIndent: 0.0,
             runs: [{ text: rowText.trim(), bold: row.querySelector('th') !== null, italic: false, underline: false }]
+          });
+        }
+        continue;
+      }
+
+      if (node.classList && (node.classList.contains('official-signature-seal') || node.classList.contains('seal-wrapper-block') || node.querySelector('.official-signature-seal'))) {
+        const sealText = (node.innerText || '').trim();
+        if (sealText) {
+          paragraphs.push({
+            text: sealText,
+            align: 2, // Sağa yaslı resmi imza bloğu
+            spaceAbove: 8.0,
+            spaceBelow: 4.0,
+            lineSpacing: 1.15,
+            firstLineIndent: 0.0,
+            leftIndent: 0.0,
+            rightIndent: 0.0,
+            runs: [{ text: sealText, bold: true, italic: false, underline: false }]
           });
         }
         continue;

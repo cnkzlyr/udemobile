@@ -376,8 +376,16 @@ public class EditorActivity extends Activity {
         @JavascriptInterface
         public void onDocumentSigned(String type, String provider, String hash) {
             runOnUiThread(() -> {
-                Toast.makeText(EditorActivity.this, "✓ " + type + " Başarılı! (" + provider + ")", Toast.LENGTH_LONG).show();
+                String title = "MOBIL_IMZA".equals(type) ? "Mobil İmza Mührü Eklendi" : "Resmi E-İmza Kaşesi Eklendi";
+                Toast.makeText(EditorActivity.this, "✓ " + title + " (" + provider + ")", Toast.LENGTH_LONG).show();
                 saveDocument(false, false);
+            });
+        }
+
+        @JavascriptInterface
+        public void openDesktopUyap() {
+            runOnUiThread(() -> {
+                saveDocument(false, true);
             });
         }
     }
