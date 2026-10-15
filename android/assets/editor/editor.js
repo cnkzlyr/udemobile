@@ -342,6 +342,7 @@ function applyAutoFitZoom() {
 
 function setZoom(scale, isFit = false) {
   currentZoom = Math.min(2.0, Math.max(0.35, scale));
+  document.documentElement.style.setProperty('--doc-zoom', currentZoom);
   const sheetContainer = document.getElementById('sheet-container');
   if (sheetContainer && !isMobileView) {
     sheetContainer.style.zoom = currentZoom;
