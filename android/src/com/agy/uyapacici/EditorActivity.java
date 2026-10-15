@@ -603,11 +603,14 @@ public class EditorActivity extends Activity {
         new Thread(() -> {
             try {
                 // 1. Havelsan UYAP standardına uygun content.xml baytlarını oluştur
-                // (DİKKAT: UYAP zip dosyasını değil, içindeki content.xml baytlarını imzalar!)
                 byte[] contentXmlBytes = UdfEngine.generateContentXmlBytes(cleanJson);
-                String base64Content = Base64.encodeToString(contentXmlBytes, Base64.NO_WRAP);
 
-                // 2. Adalet E-İmza Servisi üzerinden gerçek donanımsal imzalama isteği gönder
+                // 2. TÜBİTAK UEKAE MA3 docsignature/signdigest servisi için SHA-256 özetini (32 bayt) hazırla
+                // DİKKAT: signdigest API'si ham metni değil, belgenin 32 baytlık SHA-256 özetini bekler!
+                byte[] contentDigest = MessageDigest.getInstance("SHA-256").digest(contentXmlBytes);
+                String base64Digest = Base64.encodeToString(contentDigest, Base64.NO_WRAP);
+
+                // 3. Adalet E-İmza Servisi üzerinden gerçek donanımsal imzalama isteği gönder
                 URL url = new URL("http://127.0.0.1:5975/api/v1/docsignature/signdigest");
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection();
                 conn.setRequestMethod("POST");
@@ -620,7 +623,7 @@ public class EditorActivity extends Activity {
                 reqObj.put("certificateId", certificateId);
                 reqObj.put("pin", pin);
                 reqObj.put("password", pin);
-                reqObj.put("content", base64Content);
+                reqObj.put("content", base64Digest);
 
                 byte[] postData = reqObj.toString().getBytes(StandardCharsets.UTF_8);
                 try (OutputStream os = conn.getOutputStream()) {
