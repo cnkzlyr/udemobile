@@ -655,7 +655,8 @@ function executeMobileSignInApp() {
       const hash = 'M-SIG-' + Math.random().toString(36).substring(2, 8).toUpperCase() + '-' + Date.now().toString(16).toUpperCase();
 
       if (window.AndroidBridge && window.AndroidBridge.signDocumentInBackground) {
-        const structured = JSON.stringify(getStructuredDocument());
+        const docData = getStructuredDocument();
+        const structured = (typeof docData === 'string') ? docData : JSON.stringify(docData);
         window.AndroidBridge.signDocumentInBackground("MOBIL_IMZA", op, signerName, phone, structured);
       } else {
         onBackgroundSignComplete("MOBIL_IMZA", op, signerName, hash);
@@ -796,7 +797,18 @@ window.onSmartCardStatusUpdated = function(data) {
       let label = c.subject || 'Nitelikli Elektronik Sertifika';
       const m = label.match(/CN=([^,]+)/i);
       if (m) label = m[1].trim();
-      const iss = (c.issuer && c.issuer.match(/O=([^,]+)/i)) ? c.issuer.match(/O=([^,]+)/i)[1] : 'Kamu SM';
+      let iss = 'NES';
+      if (c.issuer) {
+        const oMatch = c.issuer.match(/O=([^,]+)/i);
+        const cnMatch = c.issuer.match(/CN=([^,]+)/i);
+        if (oMatch) {
+          iss = oMatch[1].trim();
+        } else if (cnMatch) {
+          iss = cnMatch[1].trim();
+        } else {
+          iss = c.issuer.split(',')[0].trim();
+        }
+      }
       opt.textContent = `${label} (${iss})`;
       certSelect.appendChild(opt);
     });
@@ -822,10 +834,15 @@ function onRealCertSelected() {
   }
 
   // Issuer parse et
-  let issuerText = selectedCert.issuer || 'TÜBİTAK UEKAE / Kamu Sertifikasyon Merkezi';
-  const oMatch = issuerText.match(/O=([^,]+)/i) || issuerText.match(/CN=([^,]+)/i);
+  let issuerText = selectedCert.issuer || 'Nitelikli Elektronik Sertifika Hizmet Sağlayıcısı';
+  const oMatch = issuerText.match(/O=([^,]+)/i);
+  const cnMatchIssuer = issuerText.match(/CN=([^,]+)/i);
   if (oMatch) {
     issuerText = oMatch[1].trim();
+  } else if (cnMatchIssuer) {
+    issuerText = cnMatchIssuer[1].trim();
+  } else if (issuerText.includes(',')) {
+    issuerText = issuerText.split(',')[0].trim();
   }
 
   let validity = selectedCert.validUntil || '--';
@@ -880,7 +897,8 @@ function executeSmartCardSignInApp() {
   setTimeout(() => {
     statusEl.innerHTML = '🔐 <strong>Adım 2/3:</strong> CAdES-BES donanımsal imza üretiliyor (TÜBİTAK UEKAE MA3)...';
 
-    const structured = JSON.stringify(getStructuredDocument());
+    const docData = getStructuredDocument();
+    const structured = (typeof docData === 'string') ? docData : JSON.stringify(docData);
     if (window.AndroidBridge && window.AndroidBridge.signWithRealSmartCard) {
       window.AndroidBridge.signWithRealSmartCard(certId, pin, structured);
     } else {
@@ -1302,7 +1320,7 @@ function getStructuredDocument() {
     paragraphs: paragraphs
   };
 
-  return JSON.stringify(docPayload);
+  return docPayload;
 }
 
 function parseInlineRuns(element, runs, bold, italic, underline) {

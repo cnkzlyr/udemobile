@@ -231,12 +231,25 @@ public class UdfEngine {
      * Varsa akıllı karttan dönen gerçek DER CMS imza ikilisini (sign.sgn) arşive ekler.
      */
     public static void saveStructuredToUdf(String jsonString, File targetFile, byte[] realSignatureBytes) throws Exception {
+        String trimmed = (jsonString != null) ? jsonString.trim() : "";
+        while (trimmed.startsWith("\"") && trimmed.endsWith("\"") && trimmed.length() > 1) {
+            try {
+                Object unquoted = new org.json.JSONTokener(trimmed).nextValue();
+                if (unquoted != null) {
+                    trimmed = unquoted.toString().trim();
+                } else {
+                    break;
+                }
+            } catch (Exception ignored) {
+                break;
+            }
+        }
+
         JSONArray paragraphs;
         String headerText = "";
         String footerText = "";
         boolean isSigned = false;
 
-        String trimmed = jsonString.trim();
         if (trimmed.startsWith("{")) {
             JSONObject obj = new JSONObject(trimmed);
             headerText = obj.optString("header", "");
@@ -244,8 +257,10 @@ public class UdfEngine {
             isSigned = obj.optBoolean("isSigned", false);
             paragraphs = obj.optJSONArray("paragraphs");
             if (paragraphs == null) paragraphs = new JSONArray();
-        } else {
+        } else if (trimmed.startsWith("[")) {
             paragraphs = new JSONArray(trimmed);
+        } else {
+            paragraphs = new JSONArray();
         }
 
         StringBuilder rawContent = new StringBuilder();

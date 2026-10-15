@@ -100,7 +100,7 @@ Artık telefonda UYAP belgelerini açmak için karmaşık X11 masaüstü pencere
 ## 🚀 Sıfırdan Kurulum Rehberi
 
 ### Adım 1: APK Kurulumu
-1. Bu depodaki [release/udemobile-v2.6.apk](release/udemobile-v2.6.apk) (veya [release/udemobile-latest.apk](release/udemobile-latest.apk)) dosyasını telefonunuza indirin.
+1. Bu depodaki [release/udemobile-v2.7.apk](release/udemobile-v2.7.apk) (veya [release/udemobile-latest.apk](release/udemobile-latest.apk)) dosyasını telefonunuza indirin.
 2. Dosyayı açıp **"Yükle"** onayına dokunun.
 
 ### Adım 2: İzinleri Ayarlama (Termux Entegrasyonu İçin)
@@ -117,7 +117,7 @@ Artık telefonda UYAP belgelerini açmak için karmaşık X11 masaüstü pencere
 
 ## 🔐 Gerçek Donanımsal E-İmza (USB OTG & CCID) Mimarisi
 
-UdeMobile v2.6, **kesinlikle simülasyon veya sahte kart görseli kullanmaz**:
+UdeMobile v2.7, **kesinlikle simülasyon veya sahte kart görseli kullanmaz**:
 * **Fiziksel Kart Algılama:** Telefonunuza Type-C OTG adaptörüyle bir akıllı kart okuyucu veya USB Token (AKİS, Kamu SM, ArkSigner, TÜRKTRUST, E-Tuğra vb.) takılmadığı sürece arayüz `🔴 KART TAKILI DEĞİL` uyarısı verir ve PIN girişi ile imzalama butonu kilitli tutulur.
 * **Canlı Durum Sorgulama:** Kart penceresi açıldığında sistem arka plandaki `127.0.0.1:5975` Adalet Bakanlığı E-İmza REST servisini periyodik olarak sorgular. Kart takıldığı an otomatik olarak yeşile döner (`🟢 KART AKTİF`), okuyucu adını ve çipteki geçerli sertifikaları (NES) listeler.
 * **5070 Sayılı Kanun Uyumlu CAdES-BES İmzalama:** Kullanıcı PIN kodunu girdiğinde imza verisi doğrudan kartın mikroçipi üzerinde (TÜBİTAK UEKAE MA3 CAdES motoru) hesaplanır. Hatalı PIN girildiğinde kart çipinden dönen gerçek hata ekrana yansıtılır.
@@ -143,7 +143,7 @@ udemobile/
 │       └── editor.js                # Zengin metin, m-imza, donanımsal e-imza, cetvel ve şablonlar
 ├── scripts/                         # Termux Entegrasyon Betikleri (uyap_baslat.sh, headless imza)
 ├── release/
-│   ├── udemobile-v2.6.apk           # Donanımsal E-İmza destekli en güncel APK paketi
+│   ├── udemobile-v2.7.apk           # Donanımsal E-İmza destekli en güncel APK paketi
 │   └── udemobile-latest.apk         # En güncel sürüme işaret eden doğrudan indirme paketi
 └── README.md                        # Kullanım kılavuzu ve proje dokümantasyonu
 ```

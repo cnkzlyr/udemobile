@@ -211,6 +211,24 @@ public class EditorActivity extends Activity {
         editorWebView.evaluateJavascript("setHtmlContent(" + quoted + ");", null);
     }
 
+    private String cleanJsonString(String raw) {
+        if (raw == null) return "{}";
+        String clean = raw.trim();
+        while (clean.startsWith("\"") && clean.endsWith("\"") && clean.length() > 1) {
+            try {
+                Object unquoted = new org.json.JSONTokener(clean).nextValue();
+                if (unquoted != null) {
+                    clean = unquoted.toString().trim();
+                } else {
+                    break;
+                }
+            } catch (Exception ignored) {
+                break;
+            }
+        }
+        return clean;
+    }
+
     private void saveDocument(boolean isDocx, boolean andOpenInDesktop) {
         tvSaveStatus.setText("Kaydediliyor...");
         btnSave.setEnabled(false);
@@ -226,14 +244,7 @@ public class EditorActivity extends Activity {
                 return;
             }
 
-            String cleanJson = rawResult;
-            if (cleanJson.startsWith("\"") && cleanJson.endsWith("\"")) {
-                try {
-                    cleanJson = new org.json.JSONTokener(cleanJson).nextValue().toString();
-                } catch (Exception ignored) {}
-            }
-
-            final String finalJson = cleanJson;
+            final String finalJson = cleanJsonString(rawResult);
 
             new Thread(() -> {
                 try {
@@ -389,6 +400,7 @@ public class EditorActivity extends Activity {
     }
 
     private void performBackgroundSign(String type, String provider, String signerName, String secretOrPin, String jsonContent) {
+        final String cleanJson = cleanJsonString(jsonContent);
         tvSaveStatus.setText("İmzalanıyor...");
         new Thread(() -> {
             try {
@@ -410,7 +422,7 @@ public class EditorActivity extends Activity {
                 File targetFile = new File(targetDir, finalTitle);
 
                 // 2. Güncel belgeyi UDF olarak kaydet
-                UdfEngine.saveStructuredToUdf(jsonContent, targetFile);
+                UdfEngine.saveStructuredToUdf(cleanJson, targetFile);
                 currentFile = targetFile;
 
                 // 3. 5070 S.K. Doğrulama Özeti (SHA-256) oluştur
@@ -571,6 +583,7 @@ public class EditorActivity extends Activity {
     }
 
     private void performRealSmartCardSign(String certificateId, String pin, String jsonContent) {
+        final String cleanJson = cleanJsonString(jsonContent);
         tvSaveStatus.setText("İmzalanıyor...");
         new Thread(() -> {
             try {
@@ -592,7 +605,7 @@ public class EditorActivity extends Activity {
                 File targetFile = new File(targetDir, finalTitle);
 
                 // UDF olarak yaz
-                UdfEngine.saveStructuredToUdf(jsonContent, targetFile);
+                UdfEngine.saveStructuredToUdf(cleanJson, targetFile);
                 currentFile = targetFile;
 
                 // Dosya içeriğini Base64 olarak hazırla
@@ -661,7 +674,7 @@ public class EditorActivity extends Activity {
                 byte[] realCmsBytes = Base64.decode(signedDataBase64, Base64.DEFAULT);
 
                 // 4. Belgeyi gerçek sign.sgn ikilisi ile UDF arşivine mühürle ve kaydet
-                UdfEngine.saveStructuredToUdf(jsonContent, targetFile, realCmsBytes);
+                UdfEngine.saveStructuredToUdf(cleanJson, targetFile, realCmsBytes);
 
                 // 5. Doğrulama özeti hesapla
                 MessageDigest md = MessageDigest.getInstance("SHA-256");
