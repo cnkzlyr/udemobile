@@ -182,6 +182,9 @@
         <button type="button" class="tool-btn sign-btn text-btn" onclick="openSmartCardSignModal()" title="USB Akıllı Kart / E-İmza">
           ✍️ USB E-İmza
         </button>
+        <button type="button" id="btn-verify-sig" class="tool-btn text-btn" onclick="checkDocumentSignature()" title="Belgedeki E-İmzayı ve Sertifikayı Doğrula">
+          🔍 İmza Kontrolü
+        </button>
       </div>
 
     </div>
@@ -190,6 +193,15 @@
   <!-- A4 Kağıt / Mobil Görünüm Konteyneri -->
   <div id="page-wrapper" class="paper-view">
     <div id="sheet-container">
+
+      <!-- BELGE E-İMZA DOĞRULAMA DURUM ÇUBUĞU (Havelsan UYAP Uyumlu) -->
+      <div id="doc-signature-banner" class="signature-status-banner valid" style="display: none;" onclick="openSignatureDetailsModal()">
+        <div class="sig-banner-left">
+          <span id="sig-banner-icon">🟢</span>
+          <span id="sig-banner-text">Belge Geçerli E-İmza ile İmzalıdır</span>
+        </div>
+        <span class="sig-banner-action">Ayrıntılar &amp; Rapor 🔍</span>
+      </div>
       
       <!-- ETKİLEŞİMLİ CETVEL (Word & UYAP Stili İlk Satır / Asılı / Sağ Girinti) -->
       <div id="ruler-container" class="ruler-container">
@@ -478,6 +490,68 @@
       <div class="modal-footer">
         <button class="modal-btn secondary" onclick="closeModal('modal-paragraph-settings')">İptal</button>
         <button class="modal-btn primary" onclick="applyParagraphSettings()">Uygula &amp; Kaydet</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- E-İMZA DOĞRULAMA VE SERTİFİKA DETAYLARI MODAL PENCERESİ (Havelsan UYAP Standart) -->
+  <div id="modal-signature-details" class="modal-backdrop">
+    <div class="modal-card modal-card-wide">
+      <div class="modal-header">
+        <h3 id="sig-modal-title">🔍 Elektronik İmza Doğrulama Raporu</h3>
+        <button class="modal-close" onclick="closeModal('modal-signature-details')">✕</button>
+      </div>
+      <div class="modal-body">
+        
+        <!-- Ana Durum Kartı -->
+        <div id="sig-main-status-box" style="border-radius: 8px; padding: 12px 14px; margin-bottom: 12px; display: flex; align-items: center; gap: 12px; background-color: #E8F5E9; border: 1px solid #A5D6A7;">
+          <div id="sig-status-large-icon" style="font-size: 28px;">🟢</div>
+          <div>
+            <div id="sig-status-heading" style="font-weight: bold; font-size: 14.5px; color: #1B5E20;">Doküman Üzerinde Geçerli Elektronik İmza Bulundu</div>
+            <div id="sig-status-subtext" style="font-size: 11.5px; color: #2E7D32;">TÜBİTAK UEKAE MA3 &amp; 5070 Sayılı Kanun Standartlarına Tam Uyumlu</div>
+          </div>
+        </div>
+
+        <!-- UYAP Doğrulama Kontrolcüleri Listesi -->
+        <div style="background-color: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 6px; padding: 10px 12px; margin-bottom: 12px;">
+          <div style="font-size: 11px; font-weight: bold; color: #334155; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px;">UYAP Doğrulama Kontrolcüleri:</div>
+          
+          <div id="chk-math" style="display: flex; align-items: flex-start; gap: 8px; margin-bottom: 6px; font-size: 11.5px;">
+            <span id="icon-chk-math" style="color: #2E7D32; font-weight: bold;">(+)</span>
+            <div><strong>İmza Matematiksel Doğrulama Kontrolcüsü:</strong> <span id="val-chk-math" style="color: #2E7D32;">Başarılı</span></div>
+          </div>
+
+          <div id="chk-cert" style="display: flex; align-items: flex-start; gap: 8px; margin-bottom: 6px; font-size: 11.5px;">
+            <span id="icon-chk-cert" style="color: #2E7D32; font-weight: bold;">(+)</span>
+            <div><strong>İmzacı Sertifikası Kontrolcüsü:</strong> <span id="val-chk-cert" style="color: #2E7D32;">Başarılı (Nitelikli Elektronik Sertifika - NES)</span></div>
+          </div>
+
+          <div id="chk-validity" style="display: flex; align-items: flex-start; gap: 8px; margin-bottom: 6px; font-size: 11.5px;">
+            <span id="icon-chk-validity" style="color: #2E7D32; font-weight: bold;">(+)</span>
+            <div><strong>Sertifika Geçerlilik Süresi:</strong> <span id="val-chk-validity" style="color: #2E7D32;">Başarılı (Geçerli Tarih Aralığında)</span></div>
+          </div>
+
+          <div id="chk-digest" style="display: flex; align-items: flex-start; gap: 8px; font-size: 11.5px;">
+            <span id="icon-chk-digest" style="color: #2E7D32; font-weight: bold;">(+)</span>
+            <div><strong>İçerik Özet Özelliği Kontrolcüsü:</strong> <span id="val-chk-digest" style="color: #2E7D32;">İçerik özeti özelliğindeki değer hesaplanan değerle aynı. Kontrolcü sonucu başarılı.</span></div>
+          </div>
+        </div>
+
+        <!-- Sertifika Bilgileri Kartı -->
+        <div id="sig-cert-info-box" style="border: 1px solid #CBD5E1; border-radius: 6px; padding: 10px 12px; font-size: 11.5px; line-height: 1.5; color: #1E293B; background: white;">
+          <div style="font-size: 11px; font-weight: bold; color: #475569; margin-bottom: 6px; text-transform: uppercase;">Sertifika ve İmza Detayları:</div>
+          <div><strong>İmzalayan (Sahip):</strong> <span id="det-signer-name">-</span></div>
+          <div><strong>Sertifika Sağlayıcı (NES):</strong> <span id="det-issuer-name">-</span></div>
+          <div><strong>Sertifika Seri No:</strong> <code id="det-serial-no" style="font-size: 11px; word-break: break-all;">-</code></div>
+          <div><strong>Geçerlilik Aralığı:</strong> <span id="det-validity">-</span></div>
+          <div><strong>İmza / Algoritma:</strong> <span id="det-algorithm">-</span></div>
+          <div><strong>Belge Özet Değeri:</strong> <code id="det-digest-hex" style="font-size: 10.5px; word-break: break-all;">-</code></div>
+        </div>
+
+      </div>
+      <div class="modal-footer" style="justify-content: space-between;">
+        <button class="modal-btn secondary" onclick="closeModal('modal-signature-details')">Kapat</button>
+        <button class="modal-btn primary" onclick="recheckSignatureInModal()">🔄 Yeniden Doğrula</button>
       </div>
     </div>
   </div>

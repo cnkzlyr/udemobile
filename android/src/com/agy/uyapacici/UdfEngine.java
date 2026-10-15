@@ -7,14 +7,21 @@ import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.security.cert.CertificateFactory;
+import java.security.cert.X509Certificate;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Date;
 import java.util.Enumeration;
+import java.util.List;
 import java.util.Locale;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
@@ -222,15 +229,71 @@ public class UdfEngine {
         }
     }
 
-    public static void saveStructuredToUdf(String jsonString, File targetFile) throws Exception {
-        saveStructuredToUdf(jsonString, targetFile, null);
+    public static class SignerDetail {
+        public String signerName = "";
+        public String issuer = "";
+        public String serialNumber = "";
+        public String validFrom = "";
+        public String validUntil = "";
+        public String signAlgorithm = "";
+        public boolean isExpired = false;
+
+        public JSONObject toJson() {
+            JSONObject obj = new JSONObject();
+            try {
+                obj.put("signerName", signerName);
+                obj.put("issuer", issuer);
+                obj.put("serialNumber", serialNumber);
+                obj.put("validFrom", validFrom);
+                obj.put("validUntil", validUntil);
+                obj.put("signAlgorithm", signAlgorithm);
+                obj.put("isExpired", isExpired);
+            } catch (Exception ignored) {}
+            return obj;
+        }
     }
 
-    /**
-     * Editörden gelen yapılandırılmış JSON verisini geçerli bir Havelsan UYAP 1.8 UDF (.udf) dosyasına dönüştürür.
-     * Varsa akıllı karttan dönen gerçek DER CMS imza ikilisini (sign.sgn) arşive ekler.
-     */
-    public static void saveStructuredToUdf(String jsonString, File targetFile, byte[] realSignatureBytes) throws Exception {
+    public static class SignatureInfo {
+        public boolean hasSignature = false;
+        public boolean isValid = false;
+        public String signerName = "";
+        public String issuer = "";
+        public String serialNumber = "";
+        public String validFrom = "";
+        public String validUntil = "";
+        public String signAlgorithm = "";
+        public String digestAlgorithm = "SHA-256";
+        public String message = "";
+        public String rawDigest = "";
+        public int signatureCount = 0;
+        public List<SignerDetail> signers = new ArrayList<>();
+
+        public JSONObject toJson() {
+            JSONObject obj = new JSONObject();
+            try {
+                obj.put("hasSignature", hasSignature);
+                obj.put("isValid", isValid);
+                obj.put("signerName", signerName);
+                obj.put("issuer", issuer);
+                obj.put("serialNumber", serialNumber);
+                obj.put("validFrom", validFrom);
+                obj.put("validUntil", validUntil);
+                obj.put("signAlgorithm", signAlgorithm);
+                obj.put("digestAlgorithm", digestAlgorithm);
+                obj.put("message", message);
+                obj.put("rawDigest", rawDigest);
+                obj.put("signatureCount", signatureCount);
+                JSONArray arr = new JSONArray();
+                for (SignerDetail sd : signers) {
+                    arr.put(sd.toJson());
+                }
+                obj.put("signers", arr);
+            } catch (Exception ignored) {}
+            return obj;
+        }
+    }
+
+    public static byte[] generateContentXmlBytes(String jsonString) throws Exception {
         String trimmed = (jsonString != null) ? jsonString.trim() : "";
         while (trimmed.startsWith("\"") && trimmed.endsWith("\"") && trimmed.length() > 1) {
             try {
@@ -248,13 +311,11 @@ public class UdfEngine {
         JSONArray paragraphs;
         String headerText = "";
         String footerText = "";
-        boolean isSigned = false;
 
         if (trimmed.startsWith("{")) {
             JSONObject obj = new JSONObject(trimmed);
             headerText = obj.optString("header", "");
             footerText = obj.optString("footer", "");
-            isSigned = obj.optBoolean("isSigned", false);
             paragraphs = obj.optJSONArray("paragraphs");
             if (paragraphs == null) paragraphs = new JSONArray();
         } else if (trimmed.startsWith("[")) {
@@ -345,13 +406,27 @@ public class UdfEngine {
                 + "</styles>\n"
                 + "</template>";
 
+        return finalXml.getBytes(StandardCharsets.UTF_8);
+    }
+
+    public static void saveStructuredToUdf(String jsonString, File targetFile) throws Exception {
+        saveStructuredToUdf(jsonString, targetFile, null);
+    }
+
+    public static void saveStructuredToUdf(String jsonString, File targetFile, byte[] realSignatureBytes) throws Exception {
+        byte[] contentBytes = generateContentXmlBytes(jsonString);
+        saveStructuredToUdf(contentBytes, targetFile, realSignatureBytes);
+    }
+
+    /**
+     * Önceden hazırlanmış content.xml baytlarını ve varsa akıllı kart sign.sgn verisini
+     * doğrudan ZIP içine yazarak bayt bütünlüğünü kesin olarak korur.
+     */
+    public static void saveStructuredToUdf(byte[] contentBytes, File targetFile, byte[] realSignatureBytes) throws Exception {
         if (targetFile.getParentFile() != null) {
             targetFile.getParentFile().mkdirs();
         }
 
-        byte[] contentBytes = finalXml.getBytes(StandardCharsets.UTF_8);
-
-        // Zip olarak standart Havelsan UDF oluştur
         try (FileOutputStream fos = new FileOutputStream(targetFile);
              ZipOutputStream zos = new ZipOutputStream(fos)) {
             
@@ -369,6 +444,188 @@ public class UdfEngine {
                 zos.closeEntry();
             }
         }
+    }
+
+    /**
+     * .udf dosyasındaki elektronik imzaları ve bütünlüğü Havelsan UYAP standardına uygun inceler.
+     */
+    public static SignatureInfo verifySignature(File udfFile) {
+        SignatureInfo info = new SignatureInfo();
+        if (udfFile == null || !udfFile.exists() || udfFile.length() == 0) {
+            info.hasSignature = false;
+            info.isValid = false;
+            info.message = "Dosya bulunamadı veya boş.";
+            return info;
+        }
+
+        byte[] contentBytes = null;
+        List<byte[]> signFiles = new ArrayList<>();
+
+        try (ZipFile zip = new ZipFile(udfFile)) {
+            Enumeration<? extends ZipEntry> entries = zip.entries();
+            while (entries.hasMoreElements()) {
+                ZipEntry e = entries.nextElement();
+                String name = e.getName().toLowerCase(Locale.ROOT);
+                if (name.equals("content.xml") || name.endsWith("/content.xml")) {
+                    contentBytes = readZipEntryFully(zip, e);
+                } else if (name.endsWith(".sgn")) {
+                    byte[] b = readZipEntryFully(zip, e);
+                    if (b != null && b.length > 0) {
+                        signFiles.add(b);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            info.hasSignature = false;
+            info.isValid = false;
+            info.message = "UDF arşivi açılamadı: " + e.getMessage();
+            return info;
+        }
+
+        if (signFiles.isEmpty()) {
+            info.hasSignature = false;
+            info.isValid = false;
+            info.message = "Belge üzerinde elektronik imza bulunmuyor.";
+            return info;
+        }
+
+        info.hasSignature = true;
+        info.signatureCount = signFiles.size();
+
+        if (contentBytes == null) {
+            info.isValid = false;
+            info.message = "Belge içeriği (content.xml) bulunamadı.";
+            return info;
+        }
+
+        byte[] sha256 = null;
+        byte[] sha1 = null;
+        try {
+            sha256 = MessageDigest.getInstance("SHA-256").digest(contentBytes);
+            sha1 = MessageDigest.getInstance("SHA-1").digest(contentBytes);
+            info.rawDigest = bytesToHex(sha256);
+        } catch (Exception ignored) {}
+
+        boolean allValid = true;
+        CertificateFactory cf = null;
+        try {
+            cf = CertificateFactory.getInstance("X.509");
+        } catch (Exception ignored) {}
+
+        Date now = new Date();
+        SimpleDateFormat sdf = new SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault());
+
+        for (byte[] signBytes : signFiles) {
+            boolean match = false;
+            if (sha256 != null && containsSubarray(signBytes, sha256)) {
+                match = true;
+                info.digestAlgorithm = "SHA-256";
+            } else if (sha1 != null && containsSubarray(signBytes, sha1)) {
+                match = true;
+                info.digestAlgorithm = "SHA-1";
+            }
+
+            if (!match) {
+                allValid = false;
+            }
+
+            if (cf != null) {
+                try {
+                    ByteArrayInputStream bais = new ByteArrayInputStream(signBytes);
+                    Collection<? extends java.security.cert.Certificate> certs = cf.generateCertificates(bais);
+                    for (java.security.cert.Certificate c : certs) {
+                        if (c instanceof X509Certificate) {
+                            X509Certificate xc = (X509Certificate) c;
+                            if (xc.getBasicConstraints() == -1) { // Son kullanıcı imza sertifikası
+                                SignerDetail sd = new SignerDetail();
+                                sd.signerName = extractCn(xc.getSubjectDN().getName());
+                                sd.issuer = extractIssuerOrCn(xc.getIssuerDN().getName());
+                                sd.serialNumber = xc.getSerialNumber() != null ? xc.getSerialNumber().toString(16).toUpperCase(Locale.ROOT) : "";
+                                if (xc.getNotBefore() != null) sd.validFrom = sdf.format(xc.getNotBefore());
+                                if (xc.getNotAfter() != null) {
+                                    sd.validUntil = sdf.format(xc.getNotAfter());
+                                    sd.isExpired = now.after(xc.getNotAfter());
+                                }
+                                sd.signAlgorithm = xc.getSigAlgName();
+                                info.signers.add(sd);
+
+                                if (info.signerName.isEmpty()) {
+                                    info.signerName = sd.signerName;
+                                    info.issuer = sd.issuer;
+                                    info.serialNumber = sd.serialNumber;
+                                    info.validFrom = sd.validFrom;
+                                    info.validUntil = sd.validUntil;
+                                    info.signAlgorithm = sd.signAlgorithm;
+                                }
+                            }
+                        }
+                    }
+                } catch (Exception ignored) {}
+            }
+        }
+
+        info.isValid = allValid;
+        if (info.isValid) {
+            info.message = "İmza ve içerik özeti doğrulandı. Belge imzalandıktan sonra değiştirilmemiştir.";
+        } else {
+            info.message = "İçerik özeti uyuşmuyor! Belge imzalandıktan sonra değiştirilmiş veya geçersiz imzalanmış.";
+        }
+
+        return info;
+    }
+
+    private static String extractCn(String dn) {
+        if (dn == null) return "";
+        for (String part : dn.split(",")) {
+            part = part.trim();
+            if (part.toUpperCase(Locale.ROOT).startsWith("CN=")) {
+                return part.substring(3).trim();
+            }
+        }
+        return dn;
+    }
+
+    private static String extractIssuerOrCn(String dn) {
+        if (dn == null) return "";
+        String org = null;
+        for (String part : dn.split(",")) {
+            part = part.trim();
+            if (part.toUpperCase(Locale.ROOT).startsWith("CN=")) {
+                return part.substring(3).trim();
+            }
+            if (part.toUpperCase(Locale.ROOT).startsWith("O=") && org == null) {
+                org = part.substring(2).trim();
+            }
+        }
+        return org != null ? org : dn;
+    }
+
+    private static byte[] readZipEntryFully(ZipFile zip, ZipEntry entry) throws IOException {
+        try (InputStream is = zip.getInputStream(entry);
+             ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+            byte[] buf = new byte[8192];
+            int r;
+            while ((r = is.read(buf)) != -1) {
+                baos.write(buf, 0, r);
+            }
+            return baos.toByteArray();
+        }
+    }
+
+    private static boolean containsSubarray(byte[] outer, byte[] inner) {
+        if (outer == null || inner == null || inner.length == 0 || outer.length < inner.length) return false;
+        int max = outer.length - inner.length;
+        for (int i = 0; i <= max; i++) {
+            boolean match = true;
+            for (int j = 0; j < inner.length; j++) {
+                if (outer[i + j] != inner[j]) {
+                    match = false;
+                    break;
+                }
+            }
+            if (match) return true;
+        }
+        return false;
     }
 
     private static String bytesToHex(byte[] bytes) {

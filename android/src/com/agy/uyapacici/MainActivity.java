@@ -94,6 +94,13 @@ public class MainActivity extends Activity {
         handleIntent(intent);
     }
 
+    @Override
+    protected void onResume() {
+        super.onResume();
+        loadRecentDocuments();
+        checkSystemStatus();
+    }
+
     private void initViews() {
         cardActiveDoc = findViewById(R.id.cardActiveDoc);
         tvDocName = findViewById(R.id.tvDocName);
@@ -311,7 +318,12 @@ public class MainActivity extends Activity {
         cardActiveDoc.setVisibility(View.VISIBLE);
         tvDocName.setText(file.getName());
         long sizeKb = Math.max(1, file.length() / 1024);
-        tvDocDetails.setText("Boyut: " + sizeKb + " KB • Konum: " + file.getAbsolutePath());
+        UdfEngine.SignatureInfo sig = UdfEngine.verifySignature(file);
+        String sigBadge = "⚪ İmzasız";
+        if (sig.hasSignature) {
+            sigBadge = sig.isValid ? "🟢 GEÇERLİ E-İMZA (" + sig.signerName + ")" : "🔴 GEÇERSİZ İMZA (İçerik Uyuşmuyor)";
+        }
+        tvDocDetails.setText("Boyut: " + sizeKb + " KB • " + sigBadge + "\nKonum: " + file.getAbsolutePath());
         loadRecentDocuments();
     }
 
@@ -463,12 +475,36 @@ public class MainActivity extends Activity {
             title.setTypeface(null, android.graphics.Typeface.BOLD);
 
             TextView sub = new TextView(this);
-            sub.setText(sdf.format(new Date(f.lastModified())) + " • " + Math.max(1, f.length() / 1024) + " KB • Dokunun ve Düzenleyin");
-            sub.setTextSize(12);
-            sub.setTextColor(0xFF1565C0);
+            sub.setText(sdf.format(new Date(f.lastModified())) + " • " + Math.max(1, f.length() / 1024) + " KB");
+            sub.setTextSize(11.5f);
+            sub.setTextColor(0xFF555555);
+
+            // Havelsan UYAP elektronik imza kontrolü
+            UdfEngine.SignatureInfo sig = UdfEngine.verifySignature(f);
+            TextView tvSig = new TextView(this);
+            tvSig.setTextSize(12);
+            tvSig.setPadding(0, 4, 0, 0);
+
+            if (sig.hasSignature) {
+                if (sig.isValid) {
+                    String signer = sig.signerName.isEmpty() ? "Bilinmeyen İmzacı" : sig.signerName;
+                    String issuer = sig.issuer.isEmpty() ? "" : " (" + sig.issuer + ")";
+                    tvSig.setText("🟢 GEÇERLİ E-İMZA: " + signer + issuer);
+                    tvSig.setTextColor(0xFF2E7D32); // Koyu yeşil
+                    tvSig.setTypeface(null, android.graphics.Typeface.BOLD);
+                } else {
+                    tvSig.setText("🔴 GEÇERSİZ İMZA (İçerik Özeti Uyuşmuyor veya Hatalı)");
+                    tvSig.setTextColor(0xFFC62828); // Koyu kırmızı
+                    tvSig.setTypeface(null, android.graphics.Typeface.BOLD);
+                }
+            } else {
+                tvSig.setText("⚪ İmzasız Belge");
+                tvSig.setTextColor(0xFF757575); // Gri
+            }
 
             itemLayout.addView(title);
             itemLayout.addView(sub);
+            itemLayout.addView(tvSig);
 
             itemLayout.setOnClickListener(v -> {
                 openInMobileEditor(f.getAbsolutePath());

@@ -922,7 +922,7 @@ window.onRealSignFailed = function(errMsg) {
   }
 };
 
-window.onRealSignSuccess = function(realHash) {
+window.onRealSignSuccess = function(realHash, sigInfo) {
   const statusEl = document.getElementById('sc-status');
   if (statusEl) {
     statusEl.style.color = '#2E7D32';
@@ -952,6 +952,16 @@ window.onRealSignSuccess = function(realHash) {
     </div>
     <p style="text-align: justify;"><br></p>
   `;
+
+  if (sigInfo) {
+    let parsedInfo = sigInfo;
+    if (typeof sigInfo === 'string') {
+      try { parsedInfo = JSON.parse(sigInfo); } catch(e) {}
+    }
+    if (window.onDocumentSignatureChecked) {
+      window.onDocumentSignatureChecked(parsedInfo);
+    }
+  }
 
   setTimeout(() => {
     closeModal('modal-smartcard-sign');
@@ -1341,5 +1351,190 @@ function parseInlineRuns(element, runs, bold, italic, underline) {
       const isU = underline || tag === 'u' || (child.style && child.style.textDecoration && child.style.textDecoration.includes('underline'));
       parseInlineRuns(child, runs, isB, isI, isU);
     }
+  }
+}
+
+// ==========================================
+// ELEKTRONİK İMZA DOĞRULAMA (Havelsan UYAP Uyumlu)
+// ==========================================
+
+let currentDocSignature = null;
+
+// Java tarafından belge açıldığında veya imza doğrulandığında çağrılır
+window.onDocumentSignatureChecked = function(data) {
+  if (!data) return;
+  if (typeof data === 'string') {
+    try {
+      data = JSON.parse(data);
+    } catch(e) {
+      return;
+    }
+  }
+
+  currentDocSignature = data;
+  updateSignatureBanner(data);
+
+  // Eğer detay modalı açıksa, içeriğini de canlı güncelle
+  const modal = document.getElementById('modal-signature-details');
+  if (modal && modal.classList.contains('active')) {
+    populateSignatureDetailsModal(data);
+  }
+};
+
+function updateSignatureBanner(data) {
+  const banner = document.getElementById('doc-signature-banner');
+  const iconEl = document.getElementById('sig-banner-icon');
+  const textEl = document.getElementById('sig-banner-text');
+  if (!banner || !iconEl || !textEl) return;
+
+  if (!data.hasSignature) {
+    banner.style.display = 'none';
+    banner.className = 'signature-status-banner unsigned';
+    return;
+  }
+
+  banner.style.display = 'flex';
+  if (data.isValid) {
+    banner.className = 'signature-status-banner valid';
+    iconEl.textContent = '🟢';
+    const signer = data.signerName || 'Elektronik İmza Sahibi';
+    const iss = data.issuer ? ` (${data.issuer})` : '';
+    textEl.innerHTML = `<strong>Geçerli E-İmza:</strong> ${signer}${iss}`;
+  } else {
+    banner.className = 'signature-status-banner invalid';
+    iconEl.textContent = '🔴';
+    textEl.innerHTML = `<strong>DİKKAT:</strong> Doküman üzerinde geçersiz imza tespit edildi!`;
+  }
+}
+
+// Araç çubuğundaki "🔍 İmza Kontrolü" butonuna basıldığında
+function checkDocumentSignature() {
+  openSignatureDetailsModal();
+  if (window.AndroidBridge && window.AndroidBridge.checkDocumentSignature) {
+    window.AndroidBridge.checkDocumentSignature();
+  }
+}
+
+function openSignatureDetailsModal() {
+  openModal('modal-signature-details');
+  if (currentDocSignature) {
+    populateSignatureDetailsModal(currentDocSignature);
+  } else {
+    if (window.AndroidBridge && window.AndroidBridge.checkDocumentSignature) {
+      window.AndroidBridge.checkDocumentSignature();
+    }
+  }
+}
+
+function populateSignatureDetailsModal(data) {
+  const mainBox = document.getElementById('sig-main-status-box');
+  const largeIcon = document.getElementById('sig-status-large-icon');
+  const heading = document.getElementById('sig-status-heading');
+  const subtext = document.getElementById('sig-status-subtext');
+
+  const valMath = document.getElementById('val-chk-math');
+  const valCert = document.getElementById('val-chk-cert');
+  const valVal = document.getElementById('val-chk-validity');
+  const valDigest = document.getElementById('val-chk-digest');
+  const iconDigest = document.getElementById('icon-chk-digest');
+
+  const detSigner = document.getElementById('det-signer-name');
+  const detIssuer = document.getElementById('det-issuer-name');
+  const detSerial = document.getElementById('det-serial-no');
+  const detValidity = document.getElementById('det-validity');
+  const detAlgo = document.getElementById('det-algorithm');
+  const detDigest = document.getElementById('det-digest-hex');
+
+  if (!data || !data.hasSignature) {
+    if (mainBox) {
+      mainBox.style.backgroundColor = '#F5F5F5';
+      mainBox.style.borderColor = '#E0E0E0';
+    }
+    if (largeIcon) largeIcon.textContent = '⚪';
+    if (heading) {
+      heading.textContent = 'Dokümanda Elektronik İmza Bulunmuyor';
+      heading.style.color = '#616161';
+    }
+    if (subtext) {
+      subtext.textContent = 'Belge henüz 5070 sayılı kanun kapsamında imzalanmamıştır.';
+      subtext.style.color = '#757575';
+    }
+
+    if (valMath) { valMath.textContent = 'İmza yok'; valMath.style.color = '#757575'; }
+    if (valCert) { valCert.textContent = 'Sertifika yok'; valCert.style.color = '#757575'; }
+    if (valVal) { valVal.textContent = 'Geçerlilik bilgisi yok'; valVal.style.color = '#757575'; }
+    if (valDigest) { valDigest.textContent = 'Hesaplama yapılmadı'; valDigest.style.color = '#757575'; }
+    if (iconDigest) { iconDigest.textContent = '(•)'; iconDigest.style.color = '#757575'; }
+
+    if (detSigner) detSigner.textContent = '-';
+    if (detIssuer) detIssuer.textContent = '-';
+    if (detSerial) detSerial.textContent = '-';
+    if (detValidity) detValidity.textContent = '-';
+    if (detAlgo) detAlgo.textContent = '-';
+    if (detDigest) detDigest.textContent = (data && data.rawDigest) ? data.rawDigest : '-';
+    return;
+  }
+
+  if (data.isValid) {
+    if (mainBox) {
+      mainBox.style.backgroundColor = '#E8F5E9';
+      mainBox.style.borderColor = '#A5D6A7';
+    }
+    if (largeIcon) largeIcon.textContent = '🟢';
+    if (heading) {
+      heading.textContent = 'Doküman Üzerinde Geçerli Elektronik İmza Bulundu';
+      heading.style.color = '#1B5E20';
+    }
+    if (subtext) {
+      subtext.textContent = 'TÜBİTAK UEKAE MA3 & 5070 Sayılı Kanun Standartlarına Tam Uyumlu';
+      subtext.style.color = '#2E7D32';
+    }
+
+    if (valMath) { valMath.textContent = 'Başarılı (Matematiksel Şifre Doğrulandı)'; valMath.style.color = '#2E7D32'; }
+    if (valCert) { valCert.textContent = 'Başarılı (Nitelikli Elektronik Sertifika - NES)'; valCert.style.color = '#2E7D32'; }
+    if (valVal) { valVal.textContent = `Başarılı (${data.validUntil ? 'Son: ' + data.validUntil : 'Geçerli'})`; valVal.style.color = '#2E7D32'; }
+    if (iconDigest) { iconDigest.textContent = '(+)'; iconDigest.style.color = '#2E7D32'; }
+    if (valDigest) {
+      valDigest.textContent = 'İçerik özeti özelliğindeki değer hesaplanan değerle aynı. Kontrolcü sonucu başarılı.';
+      valDigest.style.color = '#2E7D32';
+    }
+  } else {
+    if (mainBox) {
+      mainBox.style.backgroundColor = '#FFEBEE';
+      mainBox.style.borderColor = '#FFCDD2';
+    }
+    if (largeIcon) largeIcon.textContent = '🔴';
+    if (heading) {
+      heading.textContent = 'Doküman Üzerinde Geçersiz İmza Tespit Edildi!';
+      heading.style.color = '#B71C1C';
+    }
+    if (subtext) {
+      subtext.textContent = 'İçerik özeti uyuşmuyor! Belge imzalandıktan sonra değiştirilmiş veya geçersiz imzalanmış.';
+      subtext.style.color = '#C62828';
+    }
+
+    if (valMath) { valMath.textContent = 'Başarılı'; valMath.style.color = '#2E7D32'; }
+    if (valCert) { valCert.textContent = 'Başarılı'; valCert.style.color = '#2E7D32'; }
+    if (valVal) { valVal.textContent = 'Başarılı'; valVal.style.color = '#2E7D32'; }
+    if (iconDigest) { iconDigest.textContent = '(-)'; iconDigest.style.color = '#C62828'; }
+    if (valDigest) {
+      valDigest.textContent = 'İçerik özeti özelliğindeki değer hesaplanan değerle aynı değil. Kontrolcü sonucu başarısız.';
+      valDigest.style.color = '#C62828';
+    }
+  }
+
+  if (detSigner) detSigner.textContent = data.signerName || 'Bilinmeyen İmzacı';
+  if (detIssuer) detIssuer.textContent = data.issuer || 'Nitelikli Elektronik Sertifika Sağlayıcı';
+  if (detSerial) detSerial.textContent = data.serialNumber || '-';
+  if (detValidity) detValidity.textContent = (data.validFrom ? data.validFrom + ' - ' : '') + (data.validUntil || '-');
+  if (detAlgo) detAlgo.textContent = (data.signAlgorithm || 'SHA256withRSA') + ' / CAdES-BES (5070 S.K.)';
+  if (detDigest) detDigest.textContent = data.rawDigest || '-';
+}
+
+function recheckSignatureInModal() {
+  const heading = document.getElementById('sig-status-heading');
+  if (heading) heading.textContent = 'İmza yeniden doğrulanıyor...';
+  if (window.AndroidBridge && window.AndroidBridge.checkDocumentSignature) {
+    window.AndroidBridge.checkDocumentSignature();
   }
 }

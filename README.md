@@ -3,16 +3,36 @@
 [![Android](https://img.shields.io/badge/Platform-Android_8.0+-3DDC84.svg?logo=android&logoColor=white)](https://android.com)
 [![UYAP](https://img.shields.io/badge/Format-UYAP_UDF_v1.8-0D47A1.svg)](https://uyap.gov.tr)
 [![Word](https://img.shields.io/badge/Format-MS_DOCX_OpenXML-2B579A.svg?logo=microsoft-word&logoColor=white)](https://microsoft.com)
-[![Version](https://img.shields.io/badge/Version-v2.3-blue.svg)](release/udemobile-v2.3.apk)
+[![Version](https://img.shields.io/badge/Version-v2.8-blue.svg)](release/udemobile-v2.8.apk)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-**UdeMobile**, avukatlar, katipler ve hukukçular için geliştirilmiş; telefon ve tablette **Google Dokümanlar & Word konforunda** UYAP dilekçesi yazmayı, düzenlemeyi, okumayı ve imzalamayı sağlayan yeni nesil bir mobil hukuk editörüdür.
+**UdeMobile**, avukatlar, katipler ve hukukçular için geliştirilmiş; telefon ve tablette **Google Dokümanlar & Word konforunda** UYAP dilekçesi yazmayı, düzenlemeyi, okumayı, **elektronik imza doğrulamayı** ve **gerçek USB OTG token/kart ile imzalamayı** sağlayan yeni nesil bir mobil hukuk editörüdür.
 
-Artık telefonda UYAP belgelerini açmak için karmaşık X11 masaüstü pencereleriyle, donan fare imleçleriyle veya terminal komutlarıyla uğraşmanıza gerek yok. UdeMobile, `.udf` ve `.docx` dosyalarını yerel olarak ayrıştırır, ekranda resmi A4 sayfa düzeniyle canlı gösterir ve tek dokunuşla resmi UYAP formatında kaydeder.
+Artık telefonda UYAP belgelerini açmak için karmaşık X11 masaüstü pencereleriyle, donan fare imleçleriyle veya terminal komutlarıyla uğraşmanıza gerek yok. UdeMobile, `.udf` ve `.docx` dosyalarını yerel olarak ayrıştırır, ekranda resmi A4 sayfa düzeniyle canlı gösterir, imzalarını kriptografik olarak doğrular ve tek dokunuşla resmi UYAP formatında kaydeder.
 
 ---
 
-## 🌟 Öne Çıkan Özellikler
+## 🌟 v2.8 ile Gelen Yeni Özellikler & Çözümler
+
+### 🔍 1. Havelsan UYAP Uyumlu İmza Kontrolü & Doğrulama Motoru (Açıkken ve Listede)
+* **Ana Ekran Dosya Listesinde Canlı Rozetler:** Açılan veya kaydedilen tüm UDF belgelerinin yanında imza durumu anında gösterilir:
+  * `🟢 GEÇERLİ E-İMZA: Halil ÖZYOLCU (TÜRKTRUST)` (Bütünlüğü korunmuş geçerli imza)
+  * `🔴 GEÇERSİZ İMZA (İçerik Değişmiş veya Hatalı)` (Bozulmuş veya özet uyuşmazlığı)
+  * `⚪ İmzasız Belge` (İmza bulunmayan standart taslak)
+* **Editör İçi İnteraktif İmza Banner'ı & "🔍 İmza Kontrolü" Butonu:** Belge açıkken tek tıkla imza raporunu açma ve canlı doğrulama.
+* **Resmi UYAP Kontrolcü Raporu:**
+  * `(+) İmza Matematiksel Doğrulama Kontrolcüsü`: Başarılı
+  * `(+) İmzacı Sertifikası Kontrolcüsü`: Başarılı (Nitelikli Elektronik Sertifika - NES)
+  * `(+) Sertifika Geçerlilik Süresi`: Başarılı (Geçerli Tarih Aralığında)
+  * `(+) İçerik Özet Özelliği Kontrolcüsü`: İçerik özeti özelliğindeki değer hesaplanan değerle aynı. Kontrolcü sonucu başarılı.
+
+### ⚡ 2. Gerçek USB Akıllı Kart İmzalama (Havelsan UYAP %100 Uyumlu)
+* Havelsan UYAP Doküman Editörü v5.4.20 standardına uygun olarak, ZIP arşivi yerine doğrudan arşive yazılan `content.xml` dosyasının ham baytları SHA-256 ile imzalanır.
+* Havelsan UYAP Editöründe açıldığında `Doküman üzerindeki imza geçerlidir!` onayı alınır; özet uyuşmazlığı hatası tamamen giderilmiştir.
+
+---
+
+## 🌟 Temel Yetenekler
 
 ### 1. 📏 Etkileşimli A4 Cetveli (Ruler - Word & UYAP Stili)
 * **0 - 16 cm Hassas Milimetre Ölçeği:** A4 kağıt genişliğiyle birebir örtüşen yatay cetvel.

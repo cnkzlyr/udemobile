@@ -751,7 +751,7 @@ li {
   body {
     background: none;
   }
-  #toolbar-container, .modal-backdrop {
+  #toolbar-container, .modal-backdrop, #doc-signature-banner {
     display: none !important;
   }
   #page-wrapper {
@@ -766,4 +766,63 @@ li {
     display: block !important;
     border: none;
   }
+}
+
+/* E-İmza Doğrulama Durum Çubuğu */
+.signature-status-banner {
+  margin: 0 0 10px 0;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.06);
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.signature-status-banner.valid {
+  background-color: #E8F5E9;
+  border: 1px solid #A5D6A7;
+  color: #1B5E20;
+}
+
+.signature-status-banner.valid:active {
+  background-color: #C8E6C9;
+}
+
+.signature-status-banner.invalid {
+  background-color: #FFEBEE;
+  border: 1px solid #FFCDD2;
+  color: #B71C1C;
+}
+
+.signature-status-banner.invalid:active {
+  background-color: #FFCDD2;
+}
+
+.signature-status-banner.unsigned {
+  background-color: #F5F5F5;
+  border: 1px solid #E0E0E0;
+  color: #616161;
+}
+
+.sig-banner-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sig-banner-action {
+  font-size: 11.5px;
+  text-decoration: underline;
+  margin-left: 8px;
+  flex-shrink: 0;
+  opacity: 0.9;
 }

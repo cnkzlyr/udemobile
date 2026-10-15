@@ -67,6 +67,7 @@ public class EditorActivity extends Activity {
     private String pendingHeader = null;
     private String pendingFooter = null;
     private String pendingHtmlToLoad = null;
+    private String pendingSigJson = null;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -115,6 +116,10 @@ public class EditorActivity extends Activity {
                     pendingFooter = null;
                     pendingHtmlToLoad = null;
                 }
+                if (pendingSigJson != null) {
+                    editorWebView.evaluateJavascript("onDocumentSignatureChecked(" + pendingSigJson + ");", null);
+                    pendingSigJson = null;
+                }
             }
         });
 
@@ -155,7 +160,8 @@ public class EditorActivity extends Activity {
                         String header = "";
                         String footer = "";
                         String html = "";
-                        String lower = currentFile.getName().toLowerCase();
+                        String sigJsonStr = null;
+                        String lower = currentFile.getName().toLowerCase(Locale.ROOT);
                         if (lower.endsWith(".docx")) {
                             html = DocxEngine.readDocxToHtml(currentFile);
                         } else {
@@ -168,18 +174,27 @@ public class EditorActivity extends Activity {
                             } catch (Exception ignored) {
                                 html = udfPayload;
                             }
+
+                            // Belge imzasını doğrudan Havelsan UYAP standardına göre incele
+                            UdfEngine.SignatureInfo sigInfo = UdfEngine.verifySignature(currentFile);
+                            sigJsonStr = sigInfo.toJson().toString();
                         }
 
                         final String fHeader = header;
                         final String fFooter = footer;
                         final String fHtml = html;
+                        final String fSigJson = sigJsonStr;
                         runOnUiThread(() -> {
                             if (isPageLoaded) {
                                 injectDocumentData(fHeader, fFooter, fHtml);
+                                if (fSigJson != null) {
+                                    editorWebView.evaluateJavascript("onDocumentSignatureChecked(" + fSigJson + ");", null);
+                                }
                             } else {
                                 pendingHeader = fHeader;
                                 pendingFooter = fFooter;
                                 pendingHtmlToLoad = fHtml;
+                                pendingSigJson = fSigJson;
                             }
                             tvSaveStatus.setText("✓ Yüklendi");
                         });
@@ -587,30 +602,10 @@ public class EditorActivity extends Activity {
         tvSaveStatus.setText("İmzalanıyor...");
         new Thread(() -> {
             try {
-                // 1. Dosya hedefini belirle
-                String baseTitle = etDocTitle.getText().toString().trim();
-                if (baseTitle.isEmpty()) baseTitle = "Yeni_Dilekce";
-                if (baseTitle.toLowerCase().endsWith(".udf") || baseTitle.toLowerCase().endsWith(".docx")) {
-                    baseTitle = baseTitle.substring(0, baseTitle.lastIndexOf('.'));
-                }
-                String finalTitle = baseTitle + ".udf";
-
-                File targetDir;
-                if (currentFile != null && currentFile.getParentFile() != null) {
-                    targetDir = currentFile.getParentFile();
-                } else {
-                    targetDir = new File(Environment.getExternalStorageDirectory(), "Documents/UYAP_Belgelerim");
-                    targetDir.mkdirs();
-                }
-                File targetFile = new File(targetDir, finalTitle);
-
-                // UDF olarak yaz
-                UdfEngine.saveStructuredToUdf(cleanJson, targetFile);
-                currentFile = targetFile;
-
-                // Dosya içeriğini Base64 olarak hazırla
-                byte[] fileBytes = java.nio.file.Files.readAllBytes(targetFile.toPath());
-                String base64Content = Base64.encodeToString(fileBytes, Base64.NO_WRAP);
+                // 1. Havelsan UYAP standardına uygun content.xml baytlarını oluştur
+                // (DİKKAT: UYAP zip dosyasını değil, içindeki content.xml baytlarını imzalar!)
+                byte[] contentXmlBytes = UdfEngine.generateContentXmlBytes(cleanJson);
+                String base64Content = Base64.encodeToString(contentXmlBytes, Base64.NO_WRAP);
 
                 // 2. Adalet E-İmza Servisi üzerinden gerçek donanımsal imzalama isteği gönder
                 URL url = new URL("http://127.0.0.1:5975/api/v1/docsignature/signdigest");
@@ -673,22 +668,37 @@ public class EditorActivity extends Activity {
 
                 byte[] realCmsBytes = Base64.decode(signedDataBase64, Base64.DEFAULT);
 
-                // 4. Belgeyi gerçek sign.sgn ikilisi ile UDF arşivine mühürle ve kaydet
-                UdfEngine.saveStructuredToUdf(cleanJson, targetFile, realCmsBytes);
-
-                // 5. Doğrulama özeti hesapla
-                MessageDigest md = MessageDigest.getInstance("SHA-256");
-                byte[] digest = md.digest(realCmsBytes);
-                StringBuilder hashSb = new StringBuilder();
-                for (int i = 0; i < 8; i++) {
-                    hashSb.append(String.format("%02X", digest[i]));
+                // 4. Dosya hedefini belirle
+                String baseTitle = etDocTitle.getText().toString().trim();
+                if (baseTitle.isEmpty()) baseTitle = "Yeni_Dilekce";
+                if (baseTitle.toLowerCase(Locale.ROOT).endsWith(".udf") || baseTitle.toLowerCase(Locale.ROOT).endsWith(".docx")) {
+                    baseTitle = baseTitle.substring(0, baseTitle.lastIndexOf('.'));
                 }
-                final String realHash = "NES-HW-" + hashSb.toString() + "-" + Long.toHexString(System.currentTimeMillis()).toUpperCase(Locale.US);
+                String finalTitle = baseTitle + ".udf";
+
+                File targetDir;
+                if (currentFile != null && currentFile.getParentFile() != null) {
+                    targetDir = currentFile.getParentFile();
+                } else {
+                    targetDir = new File(Environment.getExternalStorageDirectory(), "Documents/UYAP_Belgelerim");
+                    targetDir.mkdirs();
+                }
+                File targetFile = new File(targetDir, finalTitle);
+
+                // 5. Kesin bayt bütünlüğüyle UDF arşivine mühürle ve kaydet
+                UdfEngine.saveStructuredToUdf(contentXmlBytes, targetFile, realCmsBytes);
+                currentFile = targetFile;
+
+                // 6. Kaydedilen UDF imzasını hemen doğrula
+                UdfEngine.SignatureInfo sigInfo = UdfEngine.verifySignature(targetFile);
+                final String sigJsonStr = sigInfo.toJson().toString();
+                final String realHash = "NES-HW-" + (sigInfo.rawDigest.length() >= 8 ? sigInfo.rawDigest.substring(0, 8).toUpperCase(Locale.ROOT) : "OK") + "-" + Long.toHexString(System.currentTimeMillis()).toUpperCase(Locale.ROOT);
 
                 runOnUiThread(() -> {
-                    editorWebView.evaluateJavascript("onRealSignSuccess(" + JSONObject.quote(realHash) + ");", null);
-                    tvSaveStatus.setText("✓ İmzalandı");
-                    Toast.makeText(EditorActivity.this, "✓ Gerçek E-İmza ile Başarıyla İmzalandı!", Toast.LENGTH_LONG).show();
+                    etDocTitle.setText(targetFile.getName());
+                    editorWebView.evaluateJavascript("onRealSignSuccess(" + JSONObject.quote(realHash) + ", " + sigJsonStr + ");", null);
+                    tvSaveStatus.setText("✓ İmzalandı & Doğrulandı");
+                    Toast.makeText(EditorActivity.this, "✓ Gerçek E-İmza ile Başarıyla Mühürlendi ve Doğrulandı!", Toast.LENGTH_LONG).show();
                 });
 
             } catch (Exception e) {
@@ -745,6 +755,28 @@ public class EditorActivity extends Activity {
             runOnUiThread(() -> {
                 performRealSmartCardSign(certificateId, pin, jsonContent);
             });
+        }
+
+        @JavascriptInterface
+        public void checkDocumentSignature() {
+            new Thread(() -> {
+                JSONObject sigJson;
+                if (currentFile != null && currentFile.exists() && currentFile.getName().toLowerCase(Locale.ROOT).endsWith(".udf")) {
+                    UdfEngine.SignatureInfo info = UdfEngine.verifySignature(currentFile);
+                    sigJson = info.toJson();
+                } else {
+                    sigJson = new JSONObject();
+                    try {
+                        sigJson.put("hasSignature", false);
+                        sigJson.put("isValid", false);
+                        sigJson.put("message", "Belge henüz diske kaydedilmedi veya UDF formatında değil.");
+                    } catch (Exception ignored) {}
+                }
+                final String resStr = sigJson.toString();
+                runOnUiThread(() -> {
+                    editorWebView.evaluateJavascript("onDocumentSignatureChecked(" + resStr + ");", null);
+                });
+            }).start();
         }
 
         @JavascriptInterface
