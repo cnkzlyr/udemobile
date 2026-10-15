@@ -642,15 +642,15 @@ function executeMobileSignInApp() {
   // Bilgileri kalıcı hafızaya yaz
   onMobileSignInputChanged();
 
-  // Operatör kodu (1: Turkcell, 2: Vodafone, 3: Türk Telekom)
+  // UYAP MobilImzaSigner operatör kodları: 1 = Turkcell, 2 = Türk Telekom, 3 = Vodafone
   let opCode = 1;
   let opName = 'Turkcell';
-  if (opSelect === 'VODAFONE') {
+  if (opSelect === 'TURK_TELEKOM') {
     opCode = 2;
-    opName = 'Vodafone';
-  } else if (opSelect === 'TURK_TELEKOM') {
-    opCode = 3;
     opName = 'Türk Telekom';
+  } else if (opSelect === 'VODAFONE') {
+    opCode = 3;
+    opName = 'Vodafone';
   }
 
   btn.disabled = true;
@@ -665,6 +665,7 @@ function executeMobileSignInApp() {
   if (window.AndroidBridge && window.AndroidBridge.performMobileSign) {
     const docData = getStructuredDocument();
     const structured = (typeof docData === 'string') ? docData : JSON.stringify(docData);
+    try { window.AndroidBridge.setDocModified(isDocumentModified()); } catch (e) {}
     window.AndroidBridge.performMobileSign(phone, opCode, tckn, signerName, structured);
   } else {
     statusEl.style.color = '#C62828';
@@ -744,10 +745,9 @@ window.onMobileSignSuccess = function(hash, sigInfo, signerName, tckn, opName) {
     <p style="text-align: justify;"><br></p>
   `;
 
-  const container = document.getElementById('editor-container');
-  if (container) {
-    container.insertAdjacentHTML('beforeend', sealHtml);
-  }
+  // NOT: İmza mührü belge gövdesine EKLENMEZ. Gövdeye eklemek imzalanan içeriği değiştirir ve
+  // önceki/yeni imzaları geçersiz kılar. İmza bilgisi üstteki imza şeridinde gösterilir.
+  void sealHtml;
 
   setTimeout(() => {
     closeModal('modal-mobile-sign');
@@ -993,6 +993,7 @@ function executeSmartCardSignInApp() {
     const docData = getStructuredDocument();
     const structured = (typeof docData === 'string') ? docData : JSON.stringify(docData);
     if (window.AndroidBridge && window.AndroidBridge.signWithRealSmartCard) {
+      try { window.AndroidBridge.setDocModified(isDocumentModified()); } catch (e) {}
       window.AndroidBridge.signWithRealSmartCard(certId, pin, structured);
     } else {
       setTimeout(() => {
@@ -1056,9 +1057,10 @@ window.onRealSignSuccess = function(realHash, sigInfo) {
     }
   }
 
+  // İmza mührü belge gövdesine eklenmez (imzalı içeriği değiştirir); bilgi imza şeridinde gösterilir.
+  void sealHtml;
   setTimeout(() => {
     closeModal('modal-smartcard-sign');
-    insertSignatureSeal(sealHtml);
   }, 600);
 };
 
@@ -1274,6 +1276,25 @@ function setDocumentData(header, footer, htmlContent) {
   setTimeout(() => {
     updateRulerFromActiveParagraph();
   }, 150);
+  setTimeout(markDocumentPristine, 400);
+}
+
+// --- Değişiklik takibi (imzalı belgelerde imzaları korumak için) ---
+window.__origDocSnapshot = null;
+function snapshotDocument() {
+  try {
+    const d = getStructuredDocument();
+    return JSON.stringify({ h: d.header, f: d.footer, p: d.paragraphs });
+  } catch (e) {
+    return null;
+  }
+}
+function markDocumentPristine() {
+  window.__origDocSnapshot = snapshotDocument();
+}
+function isDocumentModified() {
+  if (window.__origDocSnapshot === null) return true;
+  return snapshotDocument() !== window.__origDocSnapshot;
 }
 
 function setHtmlContent(content) {

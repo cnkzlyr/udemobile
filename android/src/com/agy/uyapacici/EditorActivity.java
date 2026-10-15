@@ -1,6 +1,7 @@
 package com.agy.uyapacici;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -70,6 +71,8 @@ public class EditorActivity extends Activity {
     private String pendingFooter = null;
     private String pendingHtmlToLoad = null;
     private String pendingSigJson = null;
+    /** Belge açıldıktan / son kayıttan sonra kullanıcı içeriği değiştirdi mi? (JS tarafından bildirilir) */
+    private volatile boolean docModified = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -246,12 +249,39 @@ public class EditorActivity extends Activity {
         return clean;
     }
 
+    private File resolveTargetFile(String ext) {
+        String baseTitle = etDocTitle.getText().toString().trim();
+        if (baseTitle.isEmpty()) baseTitle = "Yeni_Dilekce";
+        if (baseTitle.toLowerCase(Locale.ROOT).endsWith(".udf") || baseTitle.toLowerCase(Locale.ROOT).endsWith(".docx")) {
+            baseTitle = baseTitle.substring(0, baseTitle.lastIndexOf('.'));
+        }
+        File targetDir;
+        if (currentFile != null && currentFile.getParentFile() != null) {
+            targetDir = currentFile.getParentFile();
+        } else {
+            targetDir = new File(Environment.getExternalStorageDirectory(), "Documents/UYAP_Belgelerim");
+            targetDir.mkdirs();
+        }
+        return new File(targetDir, baseTitle + ext);
+    }
+
+    private static boolean udfHasSignature(File f) {
+        if (f == null || !f.exists() || !f.getName().toLowerCase(Locale.ROOT).endsWith(".udf")) return false;
+        try (ZipFile zip = new ZipFile(f)) {
+            ZipEntry se = zip.getEntry("sign.sgn");
+            return se != null && se.getSize() != 0;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     private void saveDocument(boolean isDocx, boolean andOpenInDesktop) {
         tvSaveStatus.setText("Kaydediliyor...");
         btnSave.setEnabled(false);
         btnSaveDocx.setEnabled(false);
 
-        editorWebView.evaluateJavascript("getStructuredDocument();", rawResult -> {
+        String js = "(function(){try{AndroidBridge.setDocModified(isDocumentModified());}catch(e){} return getStructuredDocument();})()";
+        editorWebView.evaluateJavascript(js, rawResult -> {
             btnSave.setEnabled(true);
             btnSaveDocx.setEnabled(true);
 
@@ -262,56 +292,60 @@ public class EditorActivity extends Activity {
             }
 
             final String finalJson = cleanJsonString(rawResult);
+            final File targetFile = resolveTargetFile(isDocx ? ".docx" : ".udf");
 
-            new Thread(() -> {
-                try {
-                    String baseTitle = etDocTitle.getText().toString().trim();
-                    if (baseTitle.isEmpty()) baseTitle = "Yeni_Dilekce";
-
-                    if (baseTitle.toLowerCase().endsWith(".udf") || baseTitle.toLowerCase().endsWith(".docx")) {
-                        baseTitle = baseTitle.substring(0, baseTitle.lastIndexOf('.'));
-                    }
-
-                    String ext = isDocx ? ".docx" : ".udf";
-                    String finalTitle = baseTitle + ext;
-
-                    File targetDir;
-                    if (currentFile != null && currentFile.getParentFile() != null) {
-                        targetDir = currentFile.getParentFile();
-                    } else {
-                        targetDir = new File(Environment.getExternalStorageDirectory(), "Documents/UYAP_Belgelerim");
-                        targetDir.mkdirs();
-                    }
-
-                    File targetFile = new File(targetDir, finalTitle);
-
-                    if (isDocx) {
-                        DocxEngine.saveStructuredToDocx(finalJson, targetFile);
-                    } else {
-                        UdfEngine.saveStructuredToUdf(finalJson, targetFile);
-                    }
-
-                    currentFile = targetFile;
-
-                    runOnUiThread(() -> {
-                        etDocTitle.setText(targetFile.getName());
-                        String time = new SimpleDateFormat("HH:mm", Locale.getDefault()).format(new Date());
-                        tvSaveStatus.setText("✓ " + (isDocx ? "DOCX" : "UDF") + " Kaydedildi (" + time + ")");
-                        Toast.makeText(EditorActivity.this, "✓ " + targetFile.getName() + " kaydedildi!", Toast.LENGTH_SHORT).show();
-
-                        if (andOpenInDesktop) {
-                            openInDesktopUyap(targetFile.getAbsolutePath());
-                        }
-                    });
-
-                } catch (Exception e) {
-                    runOnUiThread(() -> {
-                        tvSaveStatus.setText("Kayıt Hatası");
-                        Toast.makeText(EditorActivity.this, "Kayıt hatası: " + e.getMessage(), Toast.LENGTH_LONG).show();
-                    });
+            // İmzalı UDF'nin üzerine yazılacaksa imzaları koru
+            if (!isDocx && targetFile.equals(currentFile) && udfHasSignature(currentFile)) {
+                if (!docModified) {
+                    tvSaveStatus.setText("✓ İmzalı belge korunuyor");
+                    Toast.makeText(EditorActivity.this, "Belgede değişiklik yok — imzalı dosya olduğu gibi korundu.", Toast.LENGTH_SHORT).show();
+                    if (andOpenInDesktop) openInDesktopUyap(targetFile.getAbsolutePath());
+                    return;
                 }
-            }).start();
+                new AlertDialog.Builder(EditorActivity.this)
+                    .setTitle("İmzalı belge değiştirildi")
+                    .setMessage("Bu belge elektronik olarak imzalı. Değişiklikleri kaydederseniz belgedeki TÜM imzalar geçersiz olacağı için kaldırılacaktır.\n\nİmzaları korumak istiyorsanız İptal'e basın ve belge adını değiştirerek ayrı bir kopya olarak kaydedin.")
+                    .setPositiveButton("İmzaları kaldır ve kaydet", (d, w) -> doSaveDocument(finalJson, targetFile, false, andOpenInDesktop))
+                    .setNegativeButton("İptal", (d, w) -> tvSaveStatus.setText("Kayıt iptal edildi"))
+                    .show();
+                return;
+            }
+            doSaveDocument(finalJson, targetFile, isDocx, andOpenInDesktop);
         });
+    }
+
+    private void doSaveDocument(String finalJson, File targetFile, boolean isDocx, boolean andOpenInDesktop) {
+        new Thread(() -> {
+            try {
+                if (isDocx) {
+                    DocxEngine.saveStructuredToDocx(finalJson, targetFile);
+                } else {
+                    UdfEngine.saveStructuredToUdf(finalJson, targetFile);
+                    currentFile = targetFile;
+                    markPristineOnUi();
+                }
+
+                runOnUiThread(() -> {
+                    if (!isDocx) {
+                        etDocTitle.setText(targetFile.getName());
+                        editorWebView.evaluateJavascript("onDocumentSignatureChecked({hasSignature:false,isValid:false,signers:[]});", null);
+                    }
+                    String time = new SimpleDateFormat("HH:mm", Locale.getDefault()).format(new Date());
+                    tvSaveStatus.setText("✓ " + (isDocx ? "DOCX" : "UDF") + " Kaydedildi (" + time + ")");
+                    Toast.makeText(EditorActivity.this, "✓ " + targetFile.getName() + " kaydedildi!", Toast.LENGTH_SHORT).show();
+
+                    if (andOpenInDesktop) {
+                        openInDesktopUyap(targetFile.getAbsolutePath());
+                    }
+                });
+
+            } catch (Exception e) {
+                runOnUiThread(() -> {
+                    tvSaveStatus.setText("Kayıt Hatası");
+                    Toast.makeText(EditorActivity.this, "Kayıt hatası: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                });
+            }
+        }).start();
     }
 
     private void exportToPdf() {
@@ -599,6 +633,48 @@ public class EditorActivity extends Activity {
         } catch (Exception ignored) {}
     }
 
+    /** İmzalanacak içerik kaynağı */
+    private static class SignSource {
+        byte[] contentXml;
+        byte[] existingSgn;
+        File sourceZip;
+    }
+
+    /**
+     * Belge daha önce imzalanmışsa (sign.sgn varsa) ve değiştirilmemişse, ORİJİNAL content.xml baytlarını
+     * aynen kullanır. Böylece önceki imzacıların özeti bozulmaz ve yeni imza onlarla birleştirilir (UYAP gibi).
+     */
+    private SignSource prepareSignSource(String cleanJson) throws Exception {
+        SignSource s = new SignSource();
+        if (currentFile != null && currentFile.exists() && currentFile.getName().toLowerCase(Locale.ROOT).endsWith(".udf")) {
+            byte[] oc = null, os = null;
+            try (ZipFile zip = new ZipFile(currentFile)) {
+                ZipEntry ce = zip.getEntry("content.xml");
+                ZipEntry se = zip.getEntry("sign.sgn");
+                if (ce != null) oc = UdfEngine.readZipEntryFully(zip, ce);
+                if (se != null) os = UdfEngine.readZipEntryFully(zip, se);
+            } catch (Exception ignored) {}
+            if (os != null && os.length > 0 && oc != null && oc.length > 0) {
+                if (docModified) {
+                    throw new IllegalStateException("Bu belge imzalı ve imzadan sonra üzerinde değişiklik yaptınız. "
+                        + "Değiştirilmiş belgeye ek imza atılırsa önceki imzalar geçersiz olur. "
+                        + "Ya belgeyi değiştirmeden yeniden açıp imzalayın, ya da önce 'Kaydet' ile kaydedin (önceki imzalar kaldırılır) ve sonra imzalayın.");
+                }
+                s.contentXml = oc;
+                s.existingSgn = os;
+                s.sourceZip = currentFile;
+                return s;
+            }
+        }
+        s.contentXml = UdfEngine.generateContentXmlBytes(cleanJson);
+        return s;
+    }
+
+    private void markPristineOnUi() {
+        docModified = false;
+        runOnUiThread(() -> editorWebView.evaluateJavascript("if (window.markDocumentPristine) markDocumentPristine();", null));
+    }
+
     private byte[] combineSignaturesViaService(byte[] existingSgn, byte[] newSgn) {
         if (existingSgn == null || existingSgn.length == 0) return newSgn;
         if (newSgn == null || newSgn.length == 0) return existingSgn;
@@ -645,8 +721,9 @@ public class EditorActivity extends Activity {
         tvSaveStatus.setText("İmzalanıyor...");
         new Thread(() -> {
             try {
-                // 1. Havelsan UYAP standardına uygun content.xml baytlarını oluştur
-                byte[] contentXmlBytes = UdfEngine.generateContentXmlBytes(cleanJson);
+                // 1. İmzalanacak content.xml: imzalı belgede ORİJİNAL baytlar, yeni belgede üretilen XML
+                final SignSource src = prepareSignSource(cleanJson);
+                byte[] contentXmlBytes = src.contentXml;
 
                 // 2. TÜBİTAK UEKAE MA3 docsignature/signdigest servisi için SHA-256 özetini (32 bayt) hazırla
                 byte[] contentDigest = MessageDigest.getInstance("SHA-256").digest(contentXmlBytes);
@@ -730,28 +807,20 @@ public class EditorActivity extends Activity {
                 }
                 File targetFile = new File(targetDir, finalTitle);
 
-                // 6. Çoklu İmza Birleştirme Kontrolü: Belgede önceki imza varsa üzerine yazma, birleştir!
+                // 6. Çoklu İmza: önceki imzaları koru, yeni imzayı CAdES SignerInfo olarak ekle
                 byte[] finalSgnBytes = realCmsBytes;
-                byte[] existingSgn = null;
-                File sourceCheckFile = (currentFile != null && currentFile.exists()) ? currentFile : (targetFile.exists() ? targetFile : null);
-                if (sourceCheckFile != null && sourceCheckFile.exists()) {
-                    try (ZipFile zip = new ZipFile(sourceCheckFile)) {
-                        ZipEntry ze = zip.getEntry("sign.sgn");
-                        if (ze != null) {
-                            existingSgn = UdfEngine.readZipEntryFully(zip, ze);
-                        }
-                    } catch (Exception ignored) {}
-                }
-                if (existingSgn != null && existingSgn.length > 0) {
-                    byte[] comb = combineSignaturesViaService(existingSgn, realCmsBytes);
-                    if (comb != null && comb.length > 0) {
-                        finalSgnBytes = comb;
+                if (src.existingSgn != null && src.existingSgn.length > 0) {
+                    byte[] comb = combineSignaturesViaService(src.existingSgn, realCmsBytes);
+                    if (comb == null || comb == realCmsBytes) {
+                        throw new IllegalStateException("Önceki imzalar ile yeni imza birleştirilemedi (UdeMobile servisi yanıt vermedi). Önceki imzaları korumak için kayıt yapılmadı.");
                     }
+                    finalSgnBytes = comb;
                 }
 
-                // 7. Kesin bayt bütünlüğüyle UDF arşivine mühürle ve kaydet
-                UdfEngine.saveStructuredToUdf(contentXmlBytes, targetFile, finalSgnBytes);
+                // 7. content.xml ve diğer UDF parçalarını AYNEN koruyarak yalnızca sign.sgn'yi güncelle
+                UdfEngine.writeUdfPreserving(src.sourceZip, targetFile, contentXmlBytes, finalSgnBytes);
                 currentFile = targetFile;
+                markPristineOnUi();
 
                 // 8. Kaydedilen UDF imzasını hemen doğrula
                 UdfEngine.SignatureInfo sigInfo = UdfEngine.verifySignature(targetFile);
@@ -780,8 +849,9 @@ public class EditorActivity extends Activity {
         tvSaveStatus.setText("Mobil İmza Hazırlanıyor...");
         new Thread(() -> {
             try {
-                // 1. Havelsan UYAP standardına uygun content.xml baytlarını oluştur
-                byte[] contentXmlBytes = UdfEngine.generateContentXmlBytes(cleanJson);
+                // 1. İmzalanacak content.xml: imzalı belgede ORİJİNAL baytlar, yeni belgede üretilen XML
+                final SignSource src = prepareSignSource(cleanJson);
+                byte[] contentXmlBytes = src.contentXml;
                 String base64Content = Base64.encodeToString(contentXmlBytes, Base64.NO_WRAP);
 
                 // 2. UYAP Mobil İmza Servisine İstek Gönder (Port 5976)
@@ -838,7 +908,7 @@ public class EditorActivity extends Activity {
                 String confirmedSigner = signerName;
                 String confirmedTckn = tckn;
 
-                for (int i = 0; i < 36; i++) { // 36 * 2.5s = 90 sn
+                for (int i = 0; i < 72; i++) { // 72 * 2.5s = 180 sn
                     Thread.sleep(2500);
 
                     URL pollUrl = new URL("http://127.0.0.1:5976/api/v1/mimza/poll");
@@ -899,21 +969,14 @@ public class EditorActivity extends Activity {
                     return;
                 }
 
-                // 4. Çoklu İmza Birleştirme Kontrolü
+                // 4. Çoklu İmza: önceki imzaları koru
                 byte[] finalSgn = signedDataBytes;
-                byte[] existingSgn = null;
-                File sourceCheckFile = (currentFile != null && currentFile.exists()) ? currentFile : null;
-                if (sourceCheckFile != null && sourceCheckFile.exists()) {
-                    try (ZipFile zip = new ZipFile(sourceCheckFile)) {
-                        ZipEntry ze = zip.getEntry("sign.sgn");
-                        if (ze != null) {
-                            existingSgn = UdfEngine.readZipEntryFully(zip, ze);
-                        }
-                    } catch (Exception ignored) {}
-                }
-                if (existingSgn != null && existingSgn.length > 0) {
-                    byte[] comb = combineSignaturesViaService(existingSgn, signedDataBytes);
-                    if (comb != null && comb.length > 0) finalSgn = comb;
+                if (src.existingSgn != null && src.existingSgn.length > 0) {
+                    byte[] comb = combineSignaturesViaService(src.existingSgn, signedDataBytes);
+                    if (comb == null || comb == signedDataBytes) {
+                        throw new IllegalStateException("Önceki imzalar ile mobil imza birleştirilemedi. Önceki imzaları korumak için kayıt yapılmadı.");
+                    }
+                    finalSgn = comb;
                 }
 
                 // 5. Hedef UDF dosyasına kaydet
@@ -933,14 +996,15 @@ public class EditorActivity extends Activity {
                 }
                 File targetFile = new File(targetDir, finalTitle);
 
-                UdfEngine.saveStructuredToUdf(contentXmlBytes, targetFile, finalSgn);
+                UdfEngine.writeUdfPreserving(src.sourceZip, targetFile, contentXmlBytes, finalSgn);
                 currentFile = targetFile;
+                markPristineOnUi();
 
                 // 6. Doğrula
                 UdfEngine.SignatureInfo sigInfo = UdfEngine.verifySignature(targetFile);
                 final String sigJsonStr = sigInfo.toJson().toString();
                 final String realHash = "MIMZA-5070-" + Long.toHexString(System.currentTimeMillis()).toUpperCase(Locale.ROOT);
-                final String opName = (operator == 1 ? "Turkcell" : (operator == 2 ? "Vodafone" : "Türk Telekom"));
+                final String opName = (operator == 1 ? "Turkcell" : (operator == 2 ? "Türk Telekom" : "Vodafone"));
 
                 final String fSigner = confirmedSigner;
                 final String fTckn = confirmedTckn;
@@ -965,6 +1029,11 @@ public class EditorActivity extends Activity {
     }
 
     private class EditorBridge {
+        @JavascriptInterface
+        public void setDocModified(boolean modified) {
+            docModified = modified;
+        }
+
         @JavascriptInterface
         public void onContentChanged(int wordCount, int charCount) {
             runOnUiThread(() -> {

@@ -72,7 +72,7 @@ public class UdeMobileServer {
         }
     }
 
-    // Basit JSON değer okuyucu
+    // JSON string değer okuyucu (kaçış karakterlerini \/ \" \\ \n \\uXXXX doğru çözer)
     private static String getJsonString(String json, String key) {
         String search = "\"" + key + "\"";
         int idx = json.indexOf(search);
@@ -81,9 +81,89 @@ public class UdeMobileServer {
         if (colon == -1) return "";
         int valStart = json.indexOf("\"", colon);
         if (valStart == -1) return "";
-        int valEnd = json.indexOf("\"", valStart + 1);
-        if (valEnd == -1) return "";
-        return json.substring(valStart + 1, valEnd);
+        StringBuilder sb = new StringBuilder();
+        for (int i = valStart + 1; i < json.length(); i++) {
+            char c = json.charAt(i);
+            if (c == '"') break;
+            if (c == '\\' && i + 1 < json.length()) {
+                char n = json.charAt(++i);
+                switch (n) {
+                    case 'n': sb.append('\n'); break;
+                    case 'r': sb.append('\r'); break;
+                    case 't': sb.append('\t'); break;
+                    case 'b': sb.append('\b'); break;
+                    case 'f': sb.append('\f'); break;
+                    case 'u':
+                        if (i + 4 < json.length()) {
+                            try {
+                                sb.append((char) Integer.parseInt(json.substring(i + 1, i + 5), 16));
+                                i += 4;
+                            } catch (Exception e) { sb.append(n); }
+                        }
+                        break;
+                    default: sb.append(n); // \" \\ \/
+                }
+            } else {
+                sb.append(c);
+            }
+        }
+        return sb.toString();
+    }
+
+    // Toleranslı Base64 çözücü (satır sonu/boşluk/kaçış artıklarını yok sayar)
+    private static byte[] decodeB64(String s) {
+        return Base64.getMimeDecoder().decode(s == null ? "" : s.trim());
+    }
+
+    // Mobil imza işlemleri: apTransId -> sonuç (getSignature bloklayıcı olduğu için arka planda çalışır)
+    static class PendingSign {
+        volatile boolean done = false;
+        volatile String json = null;
+        final long created = System.currentTimeMillis();
+    }
+    private static final Map<String, PendingSign> PENDING = new java.util.concurrent.ConcurrentHashMap<>();
+
+    private static void startSignatureWorker(final String apTransId) {
+        final PendingSign ps = new PendingSign();
+        PENDING.put(apTransId, ps);
+        // eski kayıtları temizle
+        long now = System.currentTimeMillis();
+        PENDING.entrySet().removeIf(e -> now - e.getValue().created > 15 * 60 * 1000L);
+        new Thread(() -> {
+            String out;
+            try {
+                System.out.println("[MImza] getSignature bekleniyor -> " + apTransId);
+                SignatureResult res = mimzaSigner.getSignature("Evrak Mobil Imza Talebi", apTransId);
+                byte[] data = res.getData();
+                int code = res.getResultCode();
+                String msg = res.getMessage() != null ? res.getMessage() : "";
+                System.out.println("[MImza] getSignature sonuç -> Code: " + code + " len: " + (data == null ? 0 : data.length) + " Msg: " + msg);
+                if (data != null && data.length > 0) {
+                    // UYAP editörü gibi: içerik gömülü (attached) gelen CMS'den içeriği ayır (detached)
+                    try {
+                        BaseSignedData bsd = new BaseSignedData(data);
+                        bsd.detachContent();
+                        data = bsd.getEncoded();
+                    } catch (Exception de) {
+                        System.out.println("[MImza] detachContent uyarı: " + de);
+                    }
+                    String signerName = res.getSignerName() != null ? res.getSignerName() : "";
+                    String idNo = res.getIdentityNo() != null ? res.getIdentityNo() : "";
+                    String sigDate = res.getSignatureDate() != null ? res.getSignatureDate() : "";
+                    out = "{\"status\":\"SUCCESS\",\"resultCode\":0,\"signedData\":" + quote(Base64.getEncoder().encodeToString(data))
+                        + ",\"signerName\":" + quote(signerName) + ",\"identityNo\":" + quote(idNo)
+                        + ",\"signatureDate\":" + quote(sigDate) + ",\"message\":" + quote(msg) + "}";
+                } else {
+                    out = "{\"status\":\"ERROR\",\"resultCode\":" + code + ",\"message\":"
+                        + quote(msg.isEmpty() ? "Mobil imza onaylanmadı veya zaman aşımına uğradı." : msg) + "}";
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+                out = "{\"status\":\"ERROR\",\"message\":" + quote("Mobil imza servis hatası: " + e.getMessage()) + "}";
+            }
+            ps.json = out;
+            ps.done = true;
+        }, "mimza-" + apTransId).start();
     }
 
     private static int getJsonInt(String json, String key, int defVal) {
@@ -156,7 +236,7 @@ public class UdeMobileServer {
                     return;
                 }
 
-                byte[] contentBytes = Base64.getDecoder().decode(base64Content);
+                byte[] contentBytes = decodeB64(base64Content);
                 System.out.println("[MImza] getHash başlatılıyor -> GSM: " + msisdn + " Op: " + operator);
 
                 HashResult res = mimzaSigner.getHash(contentBytes, msisdn, operator);
@@ -168,6 +248,7 @@ public class UdeMobileServer {
                 System.out.println("[MImza] getHash sonuç -> Code: " + code + " FP: " + fingerPrint + " TransId: " + apTransId + " Msg: " + msg);
 
                 if (code == 0 && !apTransId.isEmpty()) {
+                    startSignatureWorker(apTransId);
                     sendJsonResponse(exchange, 200, "{\"status\":\"SUCCESS\",\"resultCode\":0,\"fingerPrint\":" 
                         + quote(fingerPrint) + ",\"apTransId\":" + quote(apTransId) + ",\"message\":" + quote(msg) + "}");
                 } else {
@@ -198,28 +279,14 @@ public class UdeMobileServer {
                     return;
                 }
 
-                SignatureResult res = mimzaSigner.getSignature("Evrak Mobil Imza Talebi", apTransId);
-                byte[] data = res.getData();
-                int code = res.getResultCode();
-                String msg = res.getMessage() != null ? res.getMessage() : "";
-                String signerName = res.getSignerName() != null ? res.getSignerName() : "";
-                String idNo = res.getIdentityNo() != null ? res.getIdentityNo() : "";
-                String sigDate = res.getSignatureDate() != null ? res.getSignatureDate() : "";
-
-                if (data != null && data.length > 0) {
-                    String base64Data = Base64.getEncoder().encodeToString(data);
-                    sendJsonResponse(exchange, 200, "{\"status\":\"SUCCESS\",\"resultCode\":0,\"signedData\":" 
-                        + quote(base64Data) + ",\"signerName\":" + quote(signerName) + ",\"identityNo\":" + quote(idNo) 
-                        + ",\"signatureDate\":" + quote(sigDate) + ",\"message\":" + quote(msg) + "}");
+                PendingSign ps = PENDING.get(apTransId);
+                if (ps == null) {
+                    sendJsonResponse(exchange, 200, "{\"status\":\"ERROR\",\"message\":\"Bu mobil imza işlemi bulunamadı (servis yeniden başlatılmış olabilir). Lütfen tekrar deneyin.\"}");
+                } else if (!ps.done) {
+                    sendJsonResponse(exchange, 200, "{\"status\":\"WAITING\",\"message\":\"Kullanıcı onayı bekleniyor...\"}");
                 } else {
-                    // Kullanıcı henüz telefonda onaylamadıysa veya bekleniyorsa
-                    boolean isWaiting = (code == 1 || code == 2 || msg.toLowerCase().contains("bekleniyor") 
-                                         || msg.toLowerCase().contains("progress") || msg.toLowerCase().contains("devam"));
-                    if (isWaiting) {
-                        sendJsonResponse(exchange, 200, "{\"status\":\"WAITING\",\"resultCode\":" + code + ",\"message\":" + quote(msg.isEmpty() ? "Kullanıcı onayı bekleniyor..." : msg) + "}");
-                    } else {
-                        sendJsonResponse(exchange, 200, "{\"status\":\"ERROR\",\"resultCode\":" + code + ",\"message\":" + quote(msg.isEmpty() ? "Mobil imza doğrulanamadı veya zaman aşımına uğradı." : msg) + "}");
-                    }
+                    PENDING.remove(apTransId);
+                    sendJsonResponse(exchange, 200, ps.json);
                 }
             } catch (Exception e) {
                 e.printStackTrace();
@@ -248,8 +315,8 @@ public class UdeMobileServer {
                     return;
                 }
 
-                byte[] existingSgn = Base64.getDecoder().decode(existingB64);
-                byte[] newSgn = Base64.getDecoder().decode(newB64);
+                byte[] existingSgn = decodeB64(existingB64);
+                byte[] newSgn = decodeB64(newB64);
 
                 byte[] combined = combineSignatures(existingSgn, newSgn);
                 String combinedB64 = Base64.getEncoder().encodeToString(combined);

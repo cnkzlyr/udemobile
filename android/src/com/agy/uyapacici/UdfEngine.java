@@ -447,6 +447,50 @@ public class UdfEngine {
     }
 
     /**
+     * Çoklu imza için: kaynak UDF'deki TÜM parçaları (content.xml dahil) bayt bayt korur,
+     * yalnızca sign.sgn'yi yeni (birleştirilmiş) imza ile değiştirir. Kaynak yoksa yeni UDF yazar.
+     * Önce geçici dosyaya yazılır, başarılı olursa hedefin yerine taşınır.
+     */
+    public static void writeUdfPreserving(File source, File targetFile, byte[] contentBytes, byte[] signatureBytes) throws Exception {
+        if (targetFile.getParentFile() != null) targetFile.getParentFile().mkdirs();
+        File tmp = new File(targetFile.getAbsolutePath() + ".tmp");
+        try (FileOutputStream fos = new FileOutputStream(tmp);
+             ZipOutputStream zos = new ZipOutputStream(fos)) {
+            ZipEntry ce = new ZipEntry("content.xml");
+            zos.putNextEntry(ce);
+            zos.write(contentBytes, 0, contentBytes.length);
+            zos.closeEntry();
+
+            if (source != null && source.exists()) {
+                try (ZipFile zip = new ZipFile(source)) {
+                    Enumeration<? extends ZipEntry> en = zip.entries();
+                    while (en.hasMoreElements()) {
+                        ZipEntry e = en.nextElement();
+                        String n = e.getName();
+                        if (n.equals("content.xml") || n.equals("sign.sgn") || e.isDirectory()) continue;
+                        byte[] b = readZipEntryFully(zip, e);
+                        zos.putNextEntry(new ZipEntry(n));
+                        if (b != null) zos.write(b, 0, b.length);
+                        zos.closeEntry();
+                    }
+                }
+            }
+
+            if (signatureBytes != null && signatureBytes.length > 0) {
+                zos.putNextEntry(new ZipEntry("sign.sgn"));
+                zos.write(signatureBytes, 0, signatureBytes.length);
+                zos.closeEntry();
+            }
+        }
+        if (targetFile.exists() && !targetFile.delete()) {
+            throw new java.io.IOException("Hedef dosya güncellenemedi: " + targetFile.getName());
+        }
+        if (!tmp.renameTo(targetFile)) {
+            throw new java.io.IOException("Geçici dosya taşınamadı: " + tmp.getName());
+        }
+    }
+
+    /**
      * .udf dosyasındaki elektronik imzaları ve bütünlüğü Havelsan UYAP standardına uygun inceler.
      */
     public static SignatureInfo verifySignature(File udfFile) {
