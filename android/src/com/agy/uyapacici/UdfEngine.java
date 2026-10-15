@@ -4,6 +4,7 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
+import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
 import java.io.ByteArrayInputStream;
@@ -135,6 +136,47 @@ public class UdfEngine {
                 }
             }
 
+            // Footer ve altbilgi resmi çözümleme
+            NodeList footers = doc.getElementsByTagName("footer");
+            String footerHtml = "";
+            String footerForeStr = "Sayfa:";
+            String footerSep = "/";
+            if (footers.getLength() > 0) {
+                Element footerElem = (Element) footers.item(0);
+                if (footerElem.hasAttribute("pageNumber-foreStr")) {
+                    footerForeStr = footerElem.getAttribute("pageNumber-foreStr");
+                }
+                if (footerElem.hasAttribute("pageNumber-seperator")) {
+                    footerSep = footerElem.getAttribute("pageNumber-seperator");
+                }
+                NodeList footerImgs = footerElem.getElementsByTagName("image");
+                if (footerImgs.getLength() > 0) {
+                    Element fImg = (Element) footerImgs.item(0);
+                    String fImgData = fImg.getAttribute("imageData");
+                    if (fImgData != null && !fImgData.trim().isEmpty()) {
+                        footerHtml = "<div class=\"udf-footer-layout\">" +
+                                     "<img class=\"udf-footer-img\" src=\"data:image/png;base64," + fImgData.trim() + "\" />" +
+                                     "<span class=\"udf-footer-page-label\">" + escapeHtml(footerForeStr) + " {PAGE_NUM} " + escapeHtml(footerSep) + " {TOTAL_PAGES}</span>" +
+                                     "</div>";
+                    }
+                }
+                if (footerHtml.isEmpty()) {
+                    String fText = footerElem.getTextContent();
+                    if (fText != null && !fText.trim().isEmpty()) {
+                        footerHtml = "<div class=\"udf-footer-layout\">" +
+                                     "<span class=\"udf-footer-text\">" + escapeHtml(fText.trim()) + "</span>" +
+                                     "<span class=\"udf-footer-page-label\">" + escapeHtml(footerForeStr) + " {PAGE_NUM} " + escapeHtml(footerSep) + " {TOTAL_PAGES}</span>" +
+                                     "</div>";
+                    }
+                }
+            }
+            if (footerHtml.isEmpty() && footerText != null && !footerText.isEmpty()) {
+                footerHtml = "<div class=\"udf-footer-layout\">" +
+                             "<span class=\"udf-footer-text\">" + escapeHtml(footerText) + "</span>" +
+                             "<span class=\"udf-footer-page-label\">Sayfa: {PAGE_NUM} / {TOTAL_PAGES}</span>" +
+                             "</div>";
+            }
+
             // 2. Ham metni al
             NodeList contentList = doc.getElementsByTagName("content");
             String rawText = "";
@@ -150,6 +192,7 @@ public class UdfEngine {
                 JSONObject res = new JSONObject();
                 res.put("header", headerText);
                 res.put("footer", footerText);
+                res.put("footerHtml", footerHtml);
                 res.put("leftMarginCm", leftMarginCm);
                 res.put("rightMarginCm", rightMarginCm);
                 res.put("topMarginCm", topMarginCm);
@@ -172,6 +215,7 @@ public class UdfEngine {
                 JSONObject res = new JSONObject();
                 res.put("header", headerText);
                 res.put("footer", footerText);
+                res.put("footerHtml", footerHtml);
                 res.put("html", fallback.toString());
                 return res.toString();
             }
@@ -192,6 +236,7 @@ public class UdfEngine {
                 String spaceBelow = p.getAttribute("SpaceBelow");
                 String hanging = p.getAttribute("Hanging");
                 String leftIndent = p.getAttribute("LeftIndent");
+                String firstLineIndent = p.getAttribute("FirstLineIndent");
 
                 StringBuilder styleAttr = new StringBuilder("text-align: ").append(alignStyle).append(";");
                 if (!spaceAbove.isEmpty()) {
@@ -206,22 +251,35 @@ public class UdfEngine {
                         styleAttr.append(" margin-bottom: ").append(pt).append("pt;");
                     } catch (Exception ignored) {}
                 }
+                double fIndentPt = 0;
+                double hangPt = 0;
+                double lIndentPt = 0;
+                if (!firstLineIndent.isEmpty()) {
+                    try { fIndentPt = Double.parseDouble(firstLineIndent); } catch (Exception ignored) {}
+                }
                 if (!hanging.isEmpty()) {
-                    try {
-                        double pt = Double.parseDouble(hanging);
-                        double cm = Math.round((pt / 28.35) * 100.0) / 100.0;
-                        if (cm > 0) styleAttr.append(" text-indent: ").append(cm).append("cm;");
-                    } catch (Exception ignored) {}
+                    try { hangPt = Double.parseDouble(hanging); } catch (Exception ignored) {}
                 }
                 if (!leftIndent.isEmpty()) {
-                    try {
-                        double pt = Double.parseDouble(leftIndent);
-                        double cm = Math.round((pt / 28.35) * 100.0) / 100.0;
-                        if (cm > 0) styleAttr.append(" margin-left: ").append(cm).append("cm;");
-                    } catch (Exception ignored) {}
+                    try { lIndentPt = Double.parseDouble(leftIndent); } catch (Exception ignored) {}
                 }
 
-                html.append("<p style=\"").append(styleAttr.toString()).append("\">");
+                if (hangPt > 30.0 && fIndentPt > 30.0) {
+                    double cm = Math.round((fIndentPt / 28.3465) * 100.0) / 100.0;
+                    styleAttr.append(" padding-left: ").append(cm).append("cm;");
+                } else if (hangPt > 30.0 && fIndentPt <= 0.0) {
+                    double cm = Math.round((hangPt / 28.3465) * 100.0) / 100.0;
+                    styleAttr.append(" padding-left: ").append(cm).append("cm; text-indent: -").append(cm).append("cm;");
+                } else if (fIndentPt > 0.0) {
+                    double cm = Math.round((fIndentPt / 28.3465) * 100.0) / 100.0;
+                    styleAttr.append(" text-indent: ").append(cm).append("cm;");
+                }
+                if (lIndentPt > 5.0 && hangPt <= 30.0) {
+                    double cm = Math.round((lIndentPt / 28.3465) * 100.0) / 100.0;
+                    styleAttr.append(" margin-left: ").append(cm).append("cm;");
+                }
+
+                StringBuilder pContent = new StringBuilder();
 
                 // UYAP Numaralandırma & Maddeleme Kontrolü
                 boolean isNumbered = "true".equalsIgnoreCase(p.getAttribute("Numbered")) || "1".equals(p.getAttribute("Numbered"));
@@ -243,65 +301,81 @@ public class UdfEngine {
                         char ch = (char) ('A' + ((count - 1) % 26));
                         listPrefix = ch + ". ";
                     }
-                    html.append("<span style=\"font-weight:bold; margin-right:4px;\">").append(escapeHtml(listPrefix)).append("</span>");
+                    pContent.append("<span style=\"font-weight:bold; margin-right:4px;\">").append(escapeHtml(listPrefix)).append("</span>");
                 } else if (isBulleted) {
-                    html.append("<span style=\"font-weight:bold; margin-right:6px;\">•</span>");
+                    pContent.append("<span style=\"font-weight:bold; margin-right:6px;\">•</span>");
                 }
 
-                NodeList runs = p.getElementsByTagName("content");
-                if (runs.getLength() == 0) {
-                    html.append("<br>");
-                } else {
-                    boolean hasText = false;
-                    for (int j = 0; j < runs.getLength(); j++) {
-                        Element run = (Element) runs.item(j);
-                        String startStr = run.getAttribute("startOffset");
-                        String lenStr = run.getAttribute("length");
-                        boolean bold = "true".equalsIgnoreCase(run.getAttribute("bold"));
-                        boolean italic = "true".equalsIgnoreCase(run.getAttribute("italic"));
-                        boolean underline = "true".equalsIgnoreCase(run.getAttribute("underline"));
-                        boolean subscript = "true".equalsIgnoreCase(run.getAttribute("subscript")) || "true".equalsIgnoreCase(run.getAttribute("Subscript"));
-                        boolean superscript = "true".equalsIgnoreCase(run.getAttribute("superscript")) || "true".equalsIgnoreCase(run.getAttribute("Superscript"));
-                        boolean strike = "true".equalsIgnoreCase(run.getAttribute("strikeThrough")) || "true".equalsIgnoreCase(run.getAttribute("strikethrough")) || "true".equalsIgnoreCase(run.getAttribute("StrikeThrough"));
+                // Paragraf altındaki tüm elemanları (content, space, image) sırayla tara:
+                boolean hasContent = false;
+                Node childNode = p.getFirstChild();
+                while (childNode != null) {
+                    if (childNode.getNodeType() == Node.ELEMENT_NODE) {
+                        Element childElem = (Element) childNode;
+                        String tagName = childElem.getTagName();
 
-                        if (!startStr.isEmpty() && !lenStr.isEmpty()) {
-                            int start = Integer.parseInt(startStr);
-                            int len = Integer.parseInt(lenStr);
-                            if (start < textLen && start >= 0) {
-                                int end = Math.min(start + len, textLen);
-                                String chunk = rawText.substring(start, end);
-                                // Havelsan UYAP paragraf sonundaki \r ve \n karakterlerini içeriğe dahil eder.
-                                // Paragraf sonunda gereksiz fazladan boş satır veya <br> oluşmasını önle:
-                                if (chunk.endsWith("\r\n")) {
-                                    chunk = chunk.substring(0, chunk.length() - 2);
-                                } else if (chunk.endsWith("\n") || chunk.endsWith("\r")) {
-                                    chunk = chunk.substring(0, chunk.length() - 1);
-                                }
+                        if ("image".equalsIgnoreCase(tagName)) {
+                            String imgData = childElem.getAttribute("imageData");
+                            if (imgData != null && !imgData.trim().isEmpty()) {
+                                pContent.append("<img src=\"data:image/png;base64,")
+                                        .append(imgData.trim())
+                                        .append("\" style=\"max-width:95%; height:auto; display:block; margin:6px auto;\" />");
+                                hasContent = true;
+                            }
+                        } else if ("content".equalsIgnoreCase(tagName) || "space".equalsIgnoreCase(tagName)) {
+                            String startStr = childElem.getAttribute("startOffset");
+                            String lenStr = childElem.getAttribute("length");
+                            boolean bold = "true".equalsIgnoreCase(childElem.getAttribute("bold"));
+                            boolean italic = "true".equalsIgnoreCase(childElem.getAttribute("italic"));
+                            boolean underline = "true".equalsIgnoreCase(childElem.getAttribute("underline"));
+                            boolean subscript = "true".equalsIgnoreCase(childElem.getAttribute("subscript")) || "true".equalsIgnoreCase(childElem.getAttribute("Subscript"));
+                            boolean superscript = "true".equalsIgnoreCase(childElem.getAttribute("superscript")) || "true".equalsIgnoreCase(childElem.getAttribute("Superscript"));
+                            boolean strike = "true".equalsIgnoreCase(childElem.getAttribute("strikeThrough")) || "true".equalsIgnoreCase(childElem.getAttribute("strikethrough")) || "true".equalsIgnoreCase(childElem.getAttribute("StrikeThrough"));
 
-                                if (!chunk.isEmpty()) {
-                                    hasText = true;
-                                    String escaped = escapeHtml(chunk).replace("\n", "<br>");
-                                    if (bold) escaped = "<strong>" + escaped + "</strong>";
-                                    if (italic) escaped = "<em>" + escaped + "</em>";
-                                    if (underline) escaped = "<u>" + escaped + "</u>";
-                                    if (subscript) escaped = "<sub>" + escaped + "</sub>";
-                                    if (superscript) escaped = "<sup>" + escaped + "</sup>";
-                                    if (strike) escaped = "<s>" + escaped + "</s>";
-                                    html.append(escaped);
+                            if (!startStr.isEmpty() && !lenStr.isEmpty()) {
+                                int start = Integer.parseInt(startStr);
+                                int len = Integer.parseInt(lenStr);
+                                if (start < textLen && start >= 0) {
+                                    int end = Math.min(start + len, textLen);
+                                    String chunk = rawText.substring(start, end);
+                                    if (chunk.endsWith("\r\n")) {
+                                        chunk = chunk.substring(0, chunk.length() - 2);
+                                    } else if (chunk.endsWith("\n") || chunk.endsWith("\r")) {
+                                        chunk = chunk.substring(0, chunk.length() - 1);
+                                    }
+
+                                    if (!chunk.isEmpty()) {
+                                        hasContent = true;
+                                        String escaped = escapeHtml(chunk).replace("\n", "<br>");
+                                        if (bold) escaped = "<strong>" + escaped + "</strong>";
+                                        if (italic) escaped = "<em>" + escaped + "</em>";
+                                        if (underline) escaped = "<u>" + escaped + "</u>";
+                                        if (subscript) escaped = "<sub>" + escaped + "</sub>";
+                                        if (superscript) escaped = "<sup>" + escaped + "</sup>";
+                                        if (strike) escaped = "<s>" + escaped + "</s>";
+                                        pContent.append(escaped);
+                                    }
                                 }
                             }
                         }
                     }
-                    if (!hasText) {
-                        html.append("<br>");
-                    }
+                    childNode = childNode.getNextSibling();
                 }
-                html.append("</p>");
+
+                if (!hasContent) {
+                    pContent.append("<br>");
+                }
+
+                String formattedParagraphHtml = formatParagraphTabs(pContent.toString());
+                html.append("<p style=\"").append(styleAttr.toString()).append("\">")
+                    .append(formattedParagraphHtml)
+                    .append("</p>");
             }
 
             JSONObject res = new JSONObject();
             res.put("header", headerText);
             res.put("footer", footerText);
+            res.put("footerHtml", footerHtml);
             res.put("leftMarginCm", leftMarginCm);
             res.put("rightMarginCm", rightMarginCm);
             res.put("topMarginCm", topMarginCm);
@@ -319,6 +393,27 @@ public class UdfEngine {
             } catch (Exception ignored) {}
             return err.toString();
         }
+    }
+
+    private static String formatParagraphTabs(String pHtml) {
+        if (!pHtml.contains("\t")) return pHtml;
+        // Matches (tags)?(label)(tags)?\t+(tags)?:(tags)?\s*(rest)
+        java.util.regex.Pattern pat = java.util.regex.Pattern.compile(
+            "^(?:((?:<[^>]+>)*))([^:\t<>\n\r]+)(?:((?:</[^>]+>)*))\\t+(?:((?:<[^>]+>)*)):(?:((?:</[^>]+>)*))\\s*(.*)$",
+            java.util.regex.Pattern.DOTALL
+        );
+        java.util.regex.Matcher m = pat.matcher(pHtml);
+        if (m.find()) {
+            String open1 = m.group(1) != null ? m.group(1) : "";
+            String label = m.group(2);
+            String close1 = m.group(3) != null ? m.group(3) : "";
+            String openColon = m.group(4) != null ? m.group(4) : "";
+            String closeColon = m.group(5) != null ? m.group(5) : "";
+            String rest = m.group(6);
+            return open1 + "<span class=\"udf-tab-label\">" + label.trim() + "</span>" + close1
+                 + openColon + "<span class=\"udf-colon\">:</span>" + closeColon + " " + rest;
+        }
+        return pHtml.replace("\t", "<span class=\"udf-tab-space\">&nbsp;&nbsp;&nbsp;&nbsp;</span>");
     }
 
     private static double parsePtToCm(String ptStr, double defaultCm) {

@@ -19,6 +19,7 @@ let currentMargins = {
 };
 
 // --- Google Dokümanlar Yazdırma Düzeni & Zoom Motoru ---
+let currentDocFooterTemplate = '';
 let currentZoom = 0.48;
 let isFitMode = true; // true = Google Dokümanlar stili uzaktan genel görünüm (A4 sığdır)
 let lastSelectedParagraphs = [];
@@ -145,8 +146,21 @@ function toggleViewMode() {
   }
 }
 
-// Otomatik A4 Sayfa Ayrımı (Baskı Düzeni)
+// Otomatik A4 Sayfa Ayrımı (Havelsan UYAP Çoklu Sayfa Düzeni)
 let paginationTimer = null;
+function getDocFooterHtml(pageNum, totalPages) {
+  if (currentDocFooterTemplate) {
+    return currentDocFooterTemplate
+      .replace(/\{PAGE_NUM\}/g, pageNum)
+      .replace(/\{TOTAL_PAGES\}/g, totalPages);
+  }
+  const dateStr = new Date().toLocaleDateString('tr-TR');
+  return `<div class="udf-footer-layout">` +
+         `<span class="udf-footer-text">Belge Düzenleme Tarihi: ${dateStr}</span>` +
+         `<span class="udf-footer-page-label">Sayfa: ${pageNum} / ${totalPages}</span>` +
+         `</div>`;
+}
+
 function updatePagination() {
   if (isMobileView) return;
   const editor = document.getElementById('editor-content');
@@ -157,31 +171,85 @@ function updatePagination() {
   oldBreaks.forEach(b => b.remove());
 
   // A4 Sayfa kullanılabilir yükseklik hesabı:
-  const topCm = currentMargins.top || 2.5;
+  const topCm = currentMargins.top || 2.0;
   const bottomCm = currentMargins.bottom || 2.5;
+  const isLandscape = currentMargins.orientation === 'landscape';
+  const pageHeight = isLandscape ? 794 : 1123;
   const marginPx = (topCm + bottomCm) * 37.8; // cm to px
-  const printableHeight = Math.max(500, 1123 - marginPx);
+  const printableHeight = Math.max(450, pageHeight - marginPx);
 
+  // 1. Geçiş: Toplam sayfa sayısını ve bölünecek çocuk indekslerini hesapla
   let currentAccumHeight = 0;
-  let pageIndex = 1;
   const children = Array.from(editor.children);
+  const breakIndices = [];
 
   for (let i = 0; i < children.length; i++) {
     const child = children[i];
     if (child.classList && (child.classList.contains('auto-page-break') || child.classList.contains('page-break'))) continue;
     const h = child.offsetHeight || 28;
-    currentAccumHeight += h;
-
-    if (currentAccumHeight >= printableHeight) {
-      pageIndex++;
-      const pageBreak = document.createElement('div');
-      pageBreak.className = 'auto-page-break';
-      pageBreak.setAttribute('contenteditable', 'false');
-      pageBreak.setAttribute('data-page-label', `Sayfa ${pageIndex}`);
-      
-      editor.insertBefore(pageBreak, child);
+    if (currentAccumHeight + h >= printableHeight && currentAccumHeight > 0) {
+      breakIndices.push(i);
       currentAccumHeight = h;
+    } else {
+      currentAccumHeight += h;
     }
+  }
+
+  const totalPages = breakIndices.length + 1;
+
+  // 2. Geçiş: Sayfa ayırıcıları ekle
+  let pageIndex = 1;
+  for (let b = 0; b < breakIndices.length; b++) {
+    const child = children[breakIndices[b]];
+    if (!child) continue;
+
+    const pageBreak = document.createElement('div');
+    pageBreak.className = 'auto-page-break';
+    pageBreak.setAttribute('contenteditable', 'false');
+
+    // Biten sayfanın altbilgisi (UYAP logolu veya numaralı)
+    const footerArea = document.createElement('div');
+    footerArea.className = 'page-break-footer-area';
+    footerArea.innerHTML = getDocFooterHtml(pageIndex, totalPages);
+    pageBreak.appendChild(footerArea);
+
+    // Fiziksel kağıtlar arası Havelsan masaüstü gri boşluğu
+    pageIndex++;
+    const deskGap = document.createElement('div');
+    deskGap.className = 'page-break-desk-gap';
+    deskGap.setAttribute('data-page-label', `Sayfa ${pageIndex}`);
+    pageBreak.appendChild(deskGap);
+
+    // Yeni sayfanın üst kenar boşluğu
+    const headerArea = document.createElement('div');
+    headerArea.className = 'page-break-header-area';
+    const docHeader = document.getElementById('doc-header');
+    if (docHeader && docHeader.innerText.trim() && docHeader.style.display !== 'none') {
+      const hClone = document.createElement('div');
+      hClone.className = 'header-footer-box';
+      hClone.style.borderBottom = 'none';
+      hClone.style.padding = '0';
+      hClone.style.marginBottom = '6px';
+      hClone.innerText = docHeader.innerText.trim();
+      headerArea.appendChild(hClone);
+    }
+    pageBreak.appendChild(headerArea);
+
+    editor.insertBefore(pageBreak, child);
+  }
+
+  // Son sayfanın altbilgisini güncelle
+  const footerEl = document.getElementById('doc-footer');
+  if (footerEl) {
+    footerEl.innerHTML = getDocFooterHtml(totalPages, totalPages);
+    footerEl.style.display = 'block';
+    footerEl.style.border = 'none';
+  }
+
+  // Durum çubuğunda sayfa sayısını göster
+  const statusEl = document.getElementById('stat-page-count');
+  if (statusEl) {
+    statusEl.textContent = `Sayfa 1 / ${totalPages}`;
   }
 }
 
@@ -2022,8 +2090,16 @@ function setHtmlContent(content) {
     try {
       const data = JSON.parse(trimmed);
       if (data && typeof data === 'object') {
-        if (data.header !== undefined && headerEl) headerEl.innerText = data.header;
-        if (data.footer !== undefined && footerEl) footerEl.innerText = data.footer;
+        if (data.header !== undefined && headerEl) {
+          headerEl.innerText = data.header;
+          headerEl.style.display = (data.header && data.header.trim()) ? 'block' : 'none';
+        }
+        if (data.footerHtml) {
+          currentDocFooterTemplate = data.footerHtml;
+        } else if (data.footer !== undefined && footerEl) {
+          footerEl.innerText = data.footer;
+          currentDocFooterTemplate = '';
+        }
         if (data.leftMarginCm !== undefined) {
           applyPageSetup(data.leftMarginCm, data.rightMarginCm, data.topMarginCm, data.bottomMarginCm, data.paperOrientation === '2' ? 'landscape' : 'portrait');
         }
@@ -2033,7 +2109,8 @@ function setHtmlContent(content) {
           setTimeout(() => {
             applyAutoFitZoom();
             updateRulerFromActiveParagraph();
-          }, 150);
+            updatePagination();
+          }, 200);
           setTimeout(markDocumentPristine, 400);
           return;
         }
@@ -2047,7 +2124,8 @@ function setHtmlContent(content) {
   updateCounts();
   setTimeout(() => {
     updateRulerFromActiveParagraph();
-  }, 150);
+    updatePagination();
+  }, 200);
 }
 
 function getHtmlContent() {
@@ -2078,6 +2156,9 @@ function getStructuredDocument() {
     });
   } else {
     for (let node of nodes) {
+      if (node.classList && (node.classList.contains('auto-page-break') || node.classList.contains('page-break'))) {
+        continue;
+      }
       if (node.tagName && node.tagName.toLowerCase() === 'table') {
         const rows = node.querySelectorAll('tr');
         for (let row of rows) {
@@ -2186,7 +2267,44 @@ function parseInlineRuns(element, runs, bold, italic, underline, subscript, supe
         });
       }
     } else if (child.nodeType === Node.ELEMENT_NODE) {
-      if (child.classList && child.classList.contains('auto-page-break')) {
+      if (child.classList && (child.classList.contains('auto-page-break') || child.classList.contains('page-break'))) {
+        continue;
+      }
+      if (child.classList && child.classList.contains('udf-tab-label')) {
+        const txt = (child.textContent || '').trim();
+        runs.push({
+          text: txt + '\t\t',
+          bold: !!bold,
+          italic: !!italic,
+          underline: !!underline,
+          subscript: !!subscript,
+          superscript: !!superscript,
+          strikethrough: !!strikethrough
+        });
+        continue;
+      }
+      if (child.classList && child.classList.contains('udf-colon')) {
+        runs.push({
+          text: ':',
+          bold: !!bold,
+          italic: !!italic,
+          underline: !!underline,
+          subscript: !!subscript,
+          superscript: !!superscript,
+          strikethrough: !!strikethrough
+        });
+        continue;
+      }
+      if (child.classList && child.classList.contains('udf-tab-space')) {
+        runs.push({
+          text: '\t',
+          bold: !!bold,
+          italic: !!italic,
+          underline: !!underline,
+          subscript: !!subscript,
+          superscript: !!superscript,
+          strikethrough: !!strikethrough
+        });
         continue;
       }
       const tag = child.tagName.toLowerCase();
@@ -2232,6 +2350,10 @@ function updateSignatureBanner(data) {
   const banner = document.getElementById('doc-signature-banner');
   const iconEl = document.getElementById('sig-banner-icon');
   const textEl = document.getElementById('sig-banner-text');
+  const docSeal = document.getElementById('official-doc-seal');
+  if (docSeal) {
+    docSeal.style.display = (data && data.hasSignature && data.isValid) ? 'flex' : 'none';
+  }
   if (!banner || !iconEl || !textEl) return;
 
   if (!data.hasSignature) {
@@ -2277,6 +2399,7 @@ function openSignatureDetailsModal() {
     }
   }
 }
+window.openSignatureModal = openSignatureDetailsModal;
 
 function populateSignatureDetailsModal(data) {
   const mainBox = document.getElementById('sig-main-status-box');

@@ -149,39 +149,164 @@ select {
 #select-line-spacing { max-width: 48px; }
 #select-list-style { max-width: 48px; }
 
-/* Çoklu A4 Sayfa Ayrımı (Google Dokümanlar & Word Stili) */
+/* Çoklu A4 Sayfa Ayrımı (Havelsan UYAP & Google Dokümanlar Stili) */
 .auto-page-break {
-  display: flex !important;
-  align-items: center;
-  justify-content: center;
-  margin: 36px calc(-1 * var(--page-margin-right, 2.5cm)) 36px calc(-1 * var(--page-margin-left, 2.5cm)) !important;
-  height: 28px;
-  background-color: #E8EAED;
-  border-top: 1px solid #D0D4DC;
-  border-bottom: 1px solid #D0D4DC;
-  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.08);
+  display: block !important;
+  margin-left: calc(-1 * var(--page-margin-left, 2.5cm)) !important;
+  margin-right: calc(-1 * var(--page-margin-right, 2.5cm)) !important;
+  width: var(--sheet-width, 794px) !important;
   user-select: none;
   pointer-events: none;
-  position: relative;
-  width: var(--sheet-width, 794px);
   box-sizing: border-box;
 }
 
-.auto-page-break::after {
+.page-break-footer-area {
+  background: #FFFFFF;
+  padding: 10px var(--page-margin-right, 2.5cm) 18px var(--page-margin-left, 2.5cm);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.28);
+  box-sizing: border-box;
+  min-height: 48px;
+}
+
+.page-break-desk-gap {
+  height: 28px;
+  background-color: #71767C; /* Havelsan masaüstü boşluğu */
+  width: 100%;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.page-break-desk-gap::after {
   content: attr(data-page-label);
   font-size: 11px;
   font-weight: 700;
-  color: #444746;
-  background: #FFFFFF;
+  color: #FFFFFF;
+  background: rgba(0, 0, 0, 0.65);
   padding: 2px 14px;
   border-radius: 12px;
-  border: 1px solid #BDC1C6;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
   letter-spacing: 0.5px;
+}
+
+.page-break-header-area {
+  background: #FFFFFF;
+  padding: var(--page-margin-top, 2.0cm) var(--page-margin-right, 2.5cm) 10px var(--page-margin-left, 2.5cm);
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.15);
+  box-sizing: border-box;
+  min-height: 24px;
 }
 
 #page-wrapper.mobile-view .auto-page-break {
   display: none !important;
+}
+
+/* UYAP Altbilgi (Footer & Logo) Stili */
+.udf-footer-layout {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding-top: 6px;
+  border-top: 1px solid #D5D8DC;
+}
+
+.udf-footer-img {
+  max-height: 48px;
+  width: auto;
+  object-fit: contain;
+}
+
+.udf-footer-page-label {
+  font-family: 'Times New Roman', serif;
+  font-size: 11pt;
+  color: #212121;
+  font-weight: normal;
+  white-space: nowrap;
+}
+
+.udf-footer-text {
+  font-family: 'Times New Roman', serif;
+  font-size: 10.5pt;
+  color: #424242;
+}
+
+/* UYAP Tab ve İki Nokta Hizalama Stili */
+.udf-tab-label {
+  display: inline-block;
+  min-width: 5.4cm;
+  vertical-align: top;
+}
+
+.udf-colon {
+  display: inline-block;
+  margin-right: 4px;
+}
+
+.udf-tab-space {
+  display: inline-block;
+  width: 1.5cm;
+}
+
+/* Havelsan UYAP E-İmza Rozeti (Sağ Üst Köşe) */
+.official-doc-seal {
+  position: absolute;
+  top: 18px;
+  right: 24px;
+  width: 48px;
+  height: 58px;
+  cursor: pointer;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.3));
+  transition: transform 0.2s ease;
+}
+
+.official-doc-seal:active {
+  transform: scale(0.92);
+}
+
+.seal-medal {
+  width: 40px;
+  height: 40px;
+  background: radial-gradient(circle, #FFE082 0%, #FFB300 60%, #FF8F00 100%);
+  border-radius: 50%;
+  border: 2px solid #FFD54F;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.25), inset 0 1px 2px rgba(255, 255, 255, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+}
+
+.seal-ribbon {
+  display: flex;
+  justify-content: center;
+  gap: 3px;
+  margin-top: -6px;
+  width: 100%;
+}
+
+.seal-ribbon::before,
+.seal-ribbon::after {
+  content: '';
+  display: block;
+  width: 12px;
+  height: 22px;
+  background: #C62828;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.25);
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 80%, 0 100%);
+}
+
+.seal-ribbon::before {
+  transform: rotate(12deg);
+}
+
+.seal-ribbon::after {
+  transform: rotate(-12deg);
 }
 
 /* Sayfa Konteyneri */
@@ -193,10 +318,10 @@ select {
   transition: all 0.2s ease-in-out;
 }
 
-/* 1. KAĞIT GÖRÜNÜMÜ MODU (Google Dokümanlar Yazdırma Düzeni - A4 Proportions) */
+/* 1. KAĞIT GÖRÜNÜMÜ MODU (Havelsan UYAP Masaüstü Düzeni) */
 #page-wrapper.paper-view {
-  padding: 16px 8px 120px 8px;
-  background-color: #E8EAED;
+  padding: 24px 12px 140px 12px;
+  background-color: #71767C;
   overflow-x: auto;
   overflow-y: auto;
   display: flex;
