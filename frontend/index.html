@@ -1,123 +1,899 @@
 <!DOCTYPE html>
 <html lang="tr">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>UYAP Editör Pro</title>
-    <style>
-      body { 
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-        background-color: #e1dfdd; 
-        margin: 0; 
-        display: flex;
-        flex-direction: column;
-        height: 100vh;
-        overflow: hidden;
-      }
-      /* Üst Menü ve Araç Çubuğu */
-      .top-panel { background: #f3f2f1; border-bottom: 1px solid #ccc; z-index: 10; }
-      .menu-bar { display: flex; gap: 15px; padding: 5px 15px; background: #fff; border-bottom: 1px solid #e1dfdd; font-size: 13px; }
-      .menu-item { cursor: pointer; padding: 4px 8px; border-radius: 3px; color: #333; }
-      .menu-item:hover { background: #e1dfdd; }
-      
-      .toolbar { display: flex; gap: 5px; padding: 8px 15px; flex-wrap: wrap; align-items: center; }
-      .tool-group { display: flex; gap: 2px; border-right: 1px solid #ccc; padding-right: 5px; align-items: center; }
-      .tool-btn { background: transparent; border: 1px solid transparent; padding: 5px 8px; border-radius: 3px; cursor: pointer; font-weight: bold; font-size: 14px; color: #333; }
-      .tool-btn:hover { background: #e1dfdd; border-color: #ccc; }
-      .tool-select { padding: 4px; border: 1px solid #ccc; border-radius: 3px; font-size: 13px; outline: none; }
-      input[type="file"] { display: none; }
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>CanEditor - Cross-Platform UYAP &amp; Word Editörü</title>
+  <script src="/jszip.min.js"></script>
+  <script src="/desktop_bridge.js"></script>
+  <link rel="stylesheet" href="/editor.css">
+</head>
+<body>
 
-      /* Cetvel Tasarımı */
-      .ruler-container { height: 22px; background: #fff; border-bottom: 1px solid #ccc; display: flex; justify-content: center; overflow: hidden; }
-      .ruler { width: 210mm; height: 100%; background-image: linear-gradient(90deg, transparent 95%, #888 95%), linear-gradient(90deg, transparent 98%, #ccc 98%); background-size: 10mm 100%, 2mm 50%; background-repeat: repeat-x; background-position: bottom; position: relative; }
-      .ruler-margin-left { position: absolute; left: 0; width: 42.52pt; height: 100%; background: #e0e0e0; opacity: 0.7; border-right: 2px solid #555; }
-      .ruler-margin-right { position: absolute; right: 0; width: 28.35pt; height: 100%; background: #e0e0e0; opacity: 0.7; border-left: 2px solid #555; }
-
-      /* Editör ve A4 Sayfası */
-      .editor-wrapper { flex: 1; overflow-y: auto; padding: 30px; display: flex; flex-direction: column; align-items: center; gap: 20px; }
-      .a4-page { 
-        background: white; 
-        width: 210mm; 
-        min-height: 297mm; 
-        box-shadow: 0 4px 12px rgba(0,0,0,0.2); 
-        padding: 42.52pt 28.35pt; 
-        display: flex;
-        flex-direction: column;
-        font-family: 'Times New Roman', serif; 
-        font-size: 12pt;
-        box-sizing: border-box;
-      }
-      
-      .header-zone, .footer-zone { min-height: 30px; color: #555; outline: none; }
-      .header-zone { border-bottom: 1px dashed #ccc; margin-bottom: 15px; padding-bottom: 10px; }
-      .footer-zone { border-top: 1px dashed #ccc; margin-top: 15px; padding-top: 10px; display: flex; justify-content: space-between; }
-      .body-zone { flex: 1; outline: none; white-space: pre-wrap; word-wrap: break-word; line-height: 1.15; }
-      
-      /* Baskı (PDF) Ayarları */
-      @media print {
-        .top-panel, .ruler-container { display: none !important; }
-        .editor-wrapper { padding: 0; background: white; overflow: visible; }
-        .a4-page { box-shadow: none; border: none; margin: 0; min-height: auto; }
-        .header-zone, .footer-zone { border: none; color: black; }
-      }
-    </style>
-  </head>
-  <body>
-    <div class="top-panel">
-      <div class="menu-bar">
-        <div class="menu-item" id="menuOpen">📁 UDF Aç</div>
-        <div class="menu-item" id="menuSaveUdf">💾 UDF Kaydet</div>
-        <div class="menu-item" id="menuSavePdf">📄 PDF Olarak Kaydet</div>
-        <div class="menu-item" onclick="alert('Word ve ODT dışa aktarımı için arka plan motoru bir sonraki güncellemede aktif edilecektir.')">📥 DOCX / ODT Kaydet</div>
-      </div>
-      <div class="toolbar">
-        <div class="tool-group">
-          <select class="tool-select" id="fontFamily">
-            <option value="Times New Roman">Times New Roman</option>
-            <option value="Arial">Arial</option>
-            <option value="Tahoma">Tahoma</option>
-          </select>
-          <select class="tool-select" id="fontSize">
-            <option value="2">10</option>
-            <option value="3" selected>12</option>
-            <option value="4">14</option>
-            <option value="5">18</option>
-          </select>
-        </div>
-        <div class="tool-group">
-          <button class="tool-btn" data-command="bold" title="Kalın"><b>K</b></button>
-          <button class="tool-btn" data-command="italic" title="İtalik"><i>T</i></button>
-          <button class="tool-btn" data-command="underline" title="Altı Çizili"><u>A</u></button>
-          <input type="color" id="textColor" class="tool-btn" style="padding:0; width:25px; height:25px; margin-left: 5px;" title="Metin Rengi">
-        </div>
-        <div class="tool-group">
-          <button class="tool-btn" data-command="justifyLeft" title="Sola Yasla">⫷</button>
-          <button class="tool-btn" data-command="justifyCenter" title="Ortala">≡</button>
-          <button class="tool-btn" data-command="justifyRight" title="Sağa Yasla">⫸</button>
-          <button class="tool-btn" data-command="justifyFull" title="İki Yana Yasla">▤</button>
-        </div>
-        <div class="tool-group">
-          <button class="tool-btn" data-command="indent" title="Girinti Arttır">⇥</button>
-          <button class="tool-btn" data-command="outdent" title="Girinti Azalt">⇤</button>
-        </div>
-      </div>
-      <div class="ruler-container">
-        <div class="ruler"><div class="ruler-margin-left"></div><div class="ruler-margin-right"></div></div>
-      </div>
+  <!-- MASAÜSTÜ ANA PANELİ (Windows / macOS / Linux GUI) -->
+  <header id="desktop-app-header" style="background: #1E293B; color: #FFFFFF; padding: 8px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid #334155; user-select: none;">
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <span style="font-size: 18px; font-weight: 700; display: flex; align-items: center; gap: 6px; color: #38BDF8;">
+        ⚖️ CanEditor
+      </span>
+      <input type="text" id="desktopDocTitle" value="Dilekce_20261015.udf" style="background: #0F172A; color: #F1F5F9; border: 1px solid #475569; border-radius: 6px; padding: 4px 10px; font-size: 13px; font-weight: 500; width: 260px; outline: none;" title="Belge Adını Değiştir">
     </div>
 
-    <div class="editor-wrapper" id="editor-wrapper">
-      <input type="file" id="fileInput" accept=".udf" />
-      <div class="a4-page" id="main-page">
-        <div class="header-zone" id="header-zone" contenteditable="true" spellcheck="false">Üstbilgi...</div>
-        <div class="body-zone" id="body-zone" contenteditable="true" spellcheck="false">
-          "📁 UDF Aç" menüsünden bir dava dosyası seçin...
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <button type="button" class="desktop-action-btn" onclick="triggerOpenDocument()" title="Bilgisayardan UDF veya DOCX Belgesi Aç (Ctrl+O)" style="background: #334155; color: #FFFFFF; border: 1px solid #475569; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12.5px; font-weight: 600; display: flex; align-items: center; gap: 5px;">
+        📂 Aç <span style="opacity: 0.6; font-size: 11px;">(Ctrl+O)</span>
+      </button>
+
+      <button type="button" class="desktop-action-btn primary" onclick="triggerSaveUdf()" title="Havelsan UYAP UDF Formatında Kaydet (Ctrl+S)" style="background: #0284C7; color: #FFFFFF; border: none; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 12.5px; font-weight: 600; display: flex; align-items: center; gap: 5px;">
+        💾 UDF Kaydet <span style="opacity: 0.8; font-size: 11px;">(Ctrl+S)</span>
+      </button>
+
+      <button type="button" class="desktop-action-btn word" onclick="triggerSaveDocx()" title="Microsoft Word (DOCX) Olarak Kaydet (Ctrl+Shift+S)" style="background: #2563EB; color: #FFFFFF; border: none; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 12.5px; font-weight: 600; display: flex; align-items: center; gap: 5px;">
+        📥 Word Kaydet
+      </button>
+
+      <button type="button" class="desktop-action-btn secondary" onclick="triggerPrintPdf()" title="PDF Olarak Kaydet veya Yazdır (Ctrl+P)" style="background: #475569; color: #FFFFFF; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12.5px; font-weight: 600; display: flex; align-items: center; gap: 5px;">
+        🖨️ PDF / Yazdır
+      </button>
+    </div>
+
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <span id="desktopSigBadge" style="display: none; padding: 3px 8px; border-radius: 4px; font-size: 11.5px; font-weight: bold; background: #334155;">⚪ İmzasız</span>
+      <span id="desktopStatusMsg" style="font-size: 12px; color: #94A3B8;">Hazır</span>
+    </div>
+  </header>
+
+  <input type="file" id="desktopFileInput" accept=".udf,.docx" style="display: none;">
+
+
+  <!-- Mobil Google Dokümanlar & Word Stili Zengin Biçimlendirme Araç Çubuğu (2 Satırlı Ergonomik Düzen) -->
+  <div id="toolbar-container">
+    <!-- SATIR 1: Karakter, Yazı Tipi, Şablon ve Temel Araçlar -->
+    <div class="toolbar-row" id="toolbar-row-1">
+
+      <!-- Geri Al / Yinele -->
+      <div class="tool-group">
+        <button type="button" class="tool-btn" onclick="format('undo')" title="Geri Al (Ctrl+Z)">↶</button>
+        <button type="button" class="tool-btn" onclick="format('redo')" title="Yinele (Ctrl+Y)">↷</button>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- Görünüm Modu Değiştirici -->
+      <div class="tool-group">
+        <button type="button" id="btn-toggle-view" class="tool-btn view-toggle-btn" onclick="toggleViewMode()" title="Görünüm Değiştir (Kağıt / Mobil)">📱</button>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- Hızlı Dilekçe Şablonları Menüsü & AI Biçimlendirme -->
+      <div class="tool-group">
+        <select id="select-template" onchange="insertTemplate(this.value); this.selectedIndex=0;" title="Resmi Dilekçe Şablonları">
+          <option value="" disabled selected>⚖️ Şablon</option>
+          <option value="dava">Dava Dilekçesi</option>
+          <option value="cevap">Cevap Dilekçesi</option>
+          <option value="sure">Süre Uzatım (HMK 127)</option>
+          <option value="delil">Delil Listesi</option>
+          <option value="beyan">Bilirkişi Beyanı</option>
+          <option value="istinaf">İstinaf Başvurusu</option>
+          <option value="icra">İcraya İtiraz</option>
+          <option value="ihtar">İhtarname</option>
+        </select>
+        <button type="button" id="btn-ai-format" class="tool-btn text-btn ai-format-btn" onclick="openAiFormatModal()" title="AI Dilekçe Formatlama (Canlı AI & Hukuki Biçimlendirme)">🤖 AI Formatla</button>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- Yazı Tipi Ailesi -->
+      <div class="tool-group">
+        <select id="select-font-family" onchange="changeFontFamily(this.value)" title="Yazı Tipi">
+          <option value="'Times New Roman', Times, serif" selected>Times New Roman</option>
+          <option value="Arial, Helvetica, sans-serif">Arial</option>
+          <option value="Calibri, sans-serif">Calibri</option>
+          <option value="Georgia, serif">Georgia</option>
+          <option value="'Courier New', Courier, monospace">Daktilo</option>
+        </select>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- Yazı Boyutu -->
+      <div class="tool-group">
+        <button type="button" class="tool-btn" onclick="adjustFontSize(-1)" title="Yazıyı Küçült">A-</button>
+        <span id="font-size-label">12pt</span>
+        <button type="button" class="tool-btn" onclick="adjustFontSize(1)" title="Yazıyı Büyüt">A+</button>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- Temel Biçimlendirme & Biçim Boyacısı -->
+      <div class="tool-group">
+        <button type="button" id="btn-bold" class="tool-btn" onclick="format('bold')" title="Kalın (Ctrl+B)"><b>B</b></button>
+        <button type="button" id="btn-italic" class="tool-btn" onclick="format('italic')" title="İtalik (Ctrl+I)"><i>I</i></button>
+        <button type="button" id="btn-underline" class="tool-btn" onclick="format('underline')" title="Altı Çizili (Ctrl+U)"><u>U</u></button>
+        <button type="button" id="btn-strike" class="tool-btn" onclick="format('strikeThrough')" title="Üstü Çizili"><s>S</s></button>
+        <button type="button" class="tool-btn" onclick="format('superscript')" title="Üst Simge (x²)">x²</button>
+        <button type="button" class="tool-btn" onclick="format('subscript')" title="Alt Simge (x₂)">x₂</button>
+        <button type="button" class="tool-btn" onclick="clearFormatting()" title="Biçimlendirmeyi Temizle">🧹</button>
+        <button type="button" id="btn-format-painter" class="tool-btn" onclick="toggleFormatPainter()" title="Biçim Boyacısı (Seçili veya Tıklanan Metne Uygula)">🖌️</button>
+
+        <select id="select-text-case" onchange="convertTextCase(this.value); this.selectedIndex=0;" title="Büyük / Küçük Harf">
+          <option value="" disabled selected>🔠</option>
+          <option value="upper">TÜMÜ BÜYÜK</option>
+          <option value="lower">tümü küçük</option>
+          <option value="title">İlk Harfler Büyük</option>
+          <option value="sentence">Cümle düzeni</option>
+        </select>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- Renk & Vurgu Seçiciler -->
+      <div class="tool-group">
+        <select id="select-text-color" onchange="format('foreColor', this.value); this.selectedIndex=0;" title="Yazı Rengi">
+          <option value="" disabled selected>🎨</option>
+          <option value="#000000" style="color: black;">Siyah</option>
+          <option value="#1565C0" style="color: #1565C0;">Koyu Mavi</option>
+          <option value="#C62828" style="color: #C62828;">Kırmızı</option>
+          <option value="#2E7D32" style="color: #2E7D32;">Yeşil</option>
+        </select>
+
+        <select id="select-highlight-color" onchange="format('hiliteColor', this.value); this.selectedIndex=0;" title="Fosforlu Vurgu">
+          <option value="" disabled selected>🖍️</option>
+          <option value="#FFF59D" style="background: #FFF59D;">Sarı</option>
+          <option value="#A5D6A7" style="background: #A5D6A7;">Yeşil</option>
+          <option value="#BBDEFB" style="background: #BBDEFB;">Mavi</option>
+          <option value="transparent">Vurgusuz</option>
+        </select>
+      </div>
+
+    </div>
+
+    <!-- SATIR 2: Paragraf Düzeni, Sayfa Yapısı, Tab & Hukuk Araçları -->
+    <div class="toolbar-row" id="toolbar-row-2">
+
+      <!-- Paragraf Hizalama -->
+      <div class="tool-group">
+        <button type="button" id="btn-align-left" class="tool-btn" onclick="format('justifyLeft')" title="Sola Yasla">
+          <svg viewBox="0 0 24 24"><path d="M3 5h18v2H3V5zm0 4h12v2H3V9zm0 4h18v2H3v-2zm0 4h12v2H3v-2z"/></svg>
+        </button>
+        <button type="button" id="btn-align-center" class="tool-btn" onclick="format('justifyCenter')" title="Ortala">
+          <svg viewBox="0 0 24 24"><path d="M4 5h16v2H4V5zm3 4h10v2H7V9zm-3 4h16v2H4v-2zm3 4h10v2H7v-2z"/></svg>
+        </button>
+        <button type="button" id="btn-align-right" class="tool-btn" onclick="format('justifyRight')" title="Sağa Yasla">
+          <svg viewBox="0 0 24 24"><path d="M3 5h18v2H3V5zm6 4h12v2H9V9zm-6 4h18v2H3v-2zm6 4h12v2H9v-2z"/></svg>
+        </button>
+        <button type="button" id="btn-align-justify" class="tool-btn active" onclick="format('justifyFull')" title="İki Yana Yasla (UYAP)">
+          <svg viewBox="0 0 24 24"><path d="M3 5h18v2H3V5zm0 4h18v2H3V9zm0 4h18v2H3v-2zm0 4h18v2H3v-2z"/></svg>
+        </button>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- Paragraf Boşluğu & Satır Aralığı -->
+      <div class="tool-group">
+        <button type="button" class="tool-btn" onmousedown="event.preventDefault(); recordCurrentSelection();" ontouchstart="recordCurrentSelection();" onclick="openParagraphModal()" title="Paragraf Boşluk ve Girinti Ayarları (UYAP)">¶</button>
+        <select id="select-paragraph-spacing" onmousedown="recordCurrentSelection();" ontouchstart="recordCurrentSelection();" onchange="changeParagraphSpacing(this.value); this.selectedIndex=0; this.blur();" title="Paragraf Boşluğu (Önce / Sonra nk - UYAP)">
+          <option value="" disabled selected>⇕</option>
+          <option value="0,0">0 / 0 nk</option>
+          <option value="0,4">0 / 4 nk</option>
+          <option value="2,6">2 / 6 nk</option>
+          <option value="4,8">4 / 8 nk (UYAP)</option>
+          <option value="6,12">6 / 12 nk</option>
+          <option value="custom">⚙️ Paragraf Ayarları...</option>
+        </select>
+        <select id="select-line-spacing" onmousedown="recordCurrentSelection();" ontouchstart="recordCurrentSelection();" onchange="changeLineSpacing(this.value); this.selectedIndex=0; this.blur();" title="Satır Aralığı (UYAP)">
+          <option value="" disabled selected>↕️</option>
+          <option value="1.0">1.0 satır</option>
+          <option value="1.15">1.15 satır</option>
+          <option value="1.35">1.35 satır (UYAP)</option>
+          <option value="1.5">1.5 satır</option>
+          <option value="2.0">2.0 satır</option>
+        </select>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- Kompakt Tab & Girintiler & Numaralandırma -->
+      <div class="tool-group">
+        <button type="button" class="tool-btn tab-mini-btn" onclick="handleTabAction()" title="Sekme / Tab Ekle (⇥)">⇥ Tab</button>
+        <button type="button" class="tool-btn" onclick="format('outdent')" title="Girinti Azalt">⇤</button>
+        <button type="button" class="tool-btn" onclick="format('indent')" title="Girinti Artır">⇥</button>
+        <select id="select-list-style" onmousedown="recordCurrentSelection();" ontouchstart="recordCurrentSelection();" onchange="insertCustomList(this.value); this.selectedIndex=0; this.blur();" title="Numaralandırma & Maddeleme">
+          <option value="" disabled selected>🔢</option>
+          <option value="decimal">1. Sayısal</option>
+          <option value="legal">1.1 Madde</option>
+          <option value="roman">I. Romen</option>
+          <option value="alpha">a) Harf</option>
+          <option value="disc">• Nokta</option>
+          <option value="square">■ Kare</option>
+          <option value="arrow">➢ Ok</option>
+        </select>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- Sayfa Yapısı, Cetvel & Sayfa No -->
+      <div class="tool-group">
+        <button type="button" class="tool-btn" onclick="openPageSetupModal()" title="Sayfa Kenar Boşlukları ve Üstbilgi/Altbilgi Payı">📐</button>
+        <button type="button" id="btn-toggle-ruler" class="tool-btn active" onclick="toggleRuler()" title="Cetveli Göster/Gizle">📏</button>
+        <select id="select-page-number" onchange="applyPageNumberChoice(this.value); this.selectedIndex=0;" title="Sayfa Numarası Ekle / Kaldır">
+          <option value="" disabled selected>№ Sayfa</option>
+          <option value="bottom-right">Sağ Alt (Standart UYAP)</option>
+          <option value="bottom-center">Orta Alt</option>
+          <option value="bottom-left">Sol Alt</option>
+          <option value="top-right">Sağ Üst</option>
+          <option value="none">Numarayı Kaldır</option>
+        </select>
+        <button type="button" class="tool-btn" onclick="insertPageBreak()" title="Sayfa Sonu / Kesmesi">📑</button>
+        <button type="button" id="btn-focus-header" class="tool-btn" onclick="focusHeaderFooter()" title="Üstbilgi veya Altbilgiye Git">🏷️</button>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- Tablo, Resim & Hukuk Araçları -->
+      <div class="tool-group">
+        <button type="button" class="tool-btn" onclick="insertTable()" title="Tablo Ekle">📊</button>
+        <button type="button" class="tool-btn" onclick="triggerImagePicker()" title="Resim / Delil Ekle">🖼️</button>
+        <button type="button" class="tool-btn" onclick="insertOfficialDate()" title="Resmi Tarihi Ekle (GG.AA.YYYY)">📅</button>
+        <button type="button" class="tool-btn" onclick="openFindReplaceModal()" title="Kelime Bul ve Değiştir (Ctrl+F)">🔍</button>
+        <button type="button" class="tool-btn" onclick="openDocStatsModal()" title="Kelime ve Karakter İstatistikleri">ℹ️</button>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- E-İmza & Mobil İmza -->
+      <div class="tool-group">
+        <button type="button" class="tool-btn sign-btn text-btn" onclick="openMobileSignModal()" title="Mobil İmza">📱 Mobil</button>
+        <button type="button" class="tool-btn sign-btn text-btn" onclick="openSmartCardSignModal()" title="USB Akıllı Kart / E-İmza">✍️ E-İmza</button>
+        <button type="button" id="btn-verify-sig" class="tool-btn text-btn" onclick="checkDocumentSignature()" title="İmzayı Doğrula">🛡️ Doğrula</button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- A4 Kağıt / Mobil Görünüm Konteyneri -->
+  <div id="page-wrapper" class="paper-view">
+    <div id="sheet-wrapper">
+      <div id="sheet-container">
+
+        <!-- BELGE E-İMZA DOĞRULAMA DURUM ÇUBUĞU (Havelsan UYAP Uyumlu) -->
+        <div id="doc-signature-banner" class="signature-status-banner valid" style="display: none;" onclick="openSignatureDetailsModal()">
+          <div class="sig-banner-left">
+            <span id="sig-banner-icon">🟢</span>
+            <span id="sig-banner-text">Belge Geçerli E-İmza ile İmzalıdır</span>
+          </div>
+          <span class="sig-banner-action">Ayrıntılar &amp; Rapor 🔍</span>
         </div>
-        <div class="footer-zone" id="footer-zone" contenteditable="true" spellcheck="false">
-          <span>Altbilgi...</span> <span class="page-number">1 / 1</span>
+        
+        <!-- ETKİLEŞİMLİ CETVEL (Word & UYAP Stili İlk Satır / Asılı / Sağ Girinti) -->
+        <div id="ruler-container" class="ruler-container">
+          <div id="ruler-body" class="ruler-body">
+            <!-- Sol Kenar Boşluğu Arka Planı -->
+            <div class="ruler-margin-left"></div>
+
+            <!-- Aktif Cetvel Ölçeği (0 - 16 cm) -->
+            <div id="ruler-scale" class="ruler-scale">
+              <!-- İlk Satır Girintisi İmi (Üst Üçgen) -->
+              <div id="marker-first-line" class="ruler-marker marker-first-line" title="İlk Satır Girintisi (Sürükleyin veya Dokunun)">
+                <div class="marker-triangle-down"></div>
+              </div>
+
+              <!-- Asılı / Sol Girinti İmi (Alt Üçgen + Kutu) -->
+              <div id="marker-left-indent" class="ruler-marker marker-left-indent" title="Sol Girinti / Asılı Girinti (Sürükleyin)">
+                <div class="marker-triangle-up"></div>
+                <div class="marker-box"></div>
+              </div>
+
+              <!-- Cetvel cm ve mm Çizgileri Dinamik Üretilir -->
+              <div id="ruler-ticks" class="ruler-ticks"></div>
+
+              <!-- Sağ Kenar Girinti İmi (Alt Üçgen) -->
+              <div id="marker-right-indent" class="ruler-marker marker-right-indent" title="Sağ Girinti (Sürükleyin)">
+                <div class="marker-triangle-up"></div>
+              </div>
+            </div>
+
+            <!-- Sağ Kenar Boşluğu Arka Planı -->
+            <div class="ruler-margin-right"></div>
+          </div>
+        </div>
+
+        <div id="a4-sheet">
+
+          <!-- Havelsan UYAP E-İmza Rozeti (Sağ Üst Köşe) -->
+          <div id="official-doc-seal" class="official-doc-seal" onclick="openSignatureModal()" title="Elektronik İmza Doğrulama ve Detayları" style="display: none;">
+            <div class="seal-medal">⚖️</div>
+            <div class="seal-ribbon"></div>
+          </div>
+
+          <!-- Üstbilgi Alanı (Header) -->
+          <div id="doc-header" class="header-footer-box" contenteditable="true" spellcheck="false" data-placeholder="Üstbilgi eklemek için buraya dokunun (örn: Mahkeme Adı, Dosya No)...">T.C. İSTANBUL ANADOLU 1. ASLİYE HUKUK MAHKEMESİ — Dosya No: 2026/.... Esas</div>
+
+          <!-- Ana Editör İçeriği -->
+          <div id="editor-content" contenteditable="true" spellcheck="true" autocomplete="off" autocapitalize="sentences">
+            <p style="text-align: center;"><strong>... NÖBETÇİ ASLİYE HUKUK MAHKEMESİ HÂKİMLİĞİ'NE</strong></p>
+            <p style="text-align: justify;"><br></p>
+            <p style="text-align: justify;"><strong>DOSYA NO :</strong> 2026/.... Esas</p>
+            <p style="text-align: justify;"><strong>DAVACI :</strong> [Davacı Adı Soyadı / Ünvanı - TCKN / VKN]</p>
+            <p style="text-align: justify;"><strong>VEKİLİ :</strong> Av. [Vekil Adı Soyadı] - Baro Sicil No / UETS</p>
+            <p style="text-align: justify;"><strong>DAVALI :</strong> [Davalı Adı Soyadı / Ünvanı]</p>
+            <p style="text-align: justify;"><strong>DAVA KONUSU :</strong> [Davanın Konusu ve Talebin Özeti]</p>
+            <p style="text-align: justify;"><br></p>
+            <p style="text-align: justify;"><strong>AÇIKLAMALAR :</strong></p>
+            <p style="text-align: justify; text-indent: 28px; margin-top: 4pt; margin-bottom: 8pt;">1.1-) Müvekkil ile davalı taraf arasındaki hukuki ilişki çerçevesinde ...</p>
+            <p style="text-align: justify; text-indent: 28px; margin-top: 4pt; margin-bottom: 8pt;">1.2-) Davalı taraf edimlerini usul ve yasaya aykırı şekilde ifa etmemiştir ...</p>
+            <p style="text-align: justify;"><br></p>
+            <p style="text-align: justify;"><strong>HUKUKİ SEBEPLER :</strong> 6100 sayılı HMK, 6098 sayılı TBK, TTK ve ilgili mevzuat.</p>
+            <p style="text-align: justify;"><strong>DELİLLER :</strong> Fatura, banka dekontları, tanık, bilirkişi raporu, yemin ve her türlü yasal delil.</p>
+            <p style="text-align: justify;"><br></p>
+            <p style="text-align: justify;"><strong>NETİCE-İ TALEP :</strong> Yukarıda arz ve izah edilen nedenlerle haklı davamızın kabulüne, yargılama giderleri ile vekâlet ücretinin davalıya tahmiline karar verilmesini saygıyla vekâleten arz ve talep ederiz.</p>
+            <p style="text-align: right;"><br></p>
+            <p style="text-align: right;"><strong>Davacı Vekili</strong><br>Av. [Adınız Soyadınız]<br><em>(5070 Sayılı Kanun Uyarınca E-İmzalıdır)</em></p>
+          </div>
+
+          <!-- Altbilgi Alanı (Footer) -->
+          <div id="doc-footer" class="header-footer-box" contenteditable="true" spellcheck="false" data-placeholder="Altbilgi eklemek için buraya dokunun (örn: Büro Adresi, UETS, Sayfa No)...">Adres: [Büro Adresi / Telefon / UETS Adresi] &nbsp;|&nbsp; Sayfa: 1 / 1</div>
+
+        </div> <!-- #a4-sheet -->
+      </div> <!-- #sheet-container -->
+    </div> <!-- #sheet-wrapper -->
+  </div> <!-- #page-wrapper -->
+
+  <!-- Google Dokümanlar Stili Yuvarlak Düzenle / Sığdır FAB Butonu -->
+  <button type="button" id="fab-view-toggle" onclick="toggleFabView()" title="Baskı Önizleme / Düzenleme Geçişi">
+    <svg id="fab-icon-pencil" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+  </button>
+
+  <!-- Yüzen Hızlı Yakınlaştırma (Zoom) Çubuğu -->
+  <div id="floating-zoom-bar">
+    <button type="button" class="zoom-btn" onclick="stepZoom(-0.08)" title="Uzaklaştır">−</button>
+    <span id="zoom-indicator" onclick="cycleZoomMode()" title="Görünüm Modunu Değiştir (Sığdır / %100)">%48 Sığdır</span>
+    <button type="button" class="zoom-btn" onclick="stepZoom(0.08)" title="Yakınlaştır">+</button>
+  </div>
+
+  <!-- MOBİL İMZA MODAL PENCERESİ -->
+  <div id="modal-mobile-sign" class="modal-backdrop">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>📱 Mobil İmzalama (M-İmza)</h3>
+        <button class="modal-close" onclick="closeModal('modal-mobile-sign')">✕</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-desc">5070 Sayılı Elektronik İmza Kanunu uyarınca GSM operatörünüz (Turkcell, Vodafone, Türk Telekom) üzerinden SIM karta bildirim gönderilerek güvenli mobil imza atılır.</p>
+        
+        <label class="modal-label">GSM Operatörünüz:</label>
+        <select id="msign-operator" class="modal-input" onchange="onMobileSignInputChanged()">
+          <option value="TURKCELL">Turkcell Mobil İmza Servisi</option>
+          <option value="VODAFONE">Vodafone Mobil İmza Servisi</option>
+          <option value="TURK_TELEKOM">Türk Telekom Mobil İmza Servisi</option>
+        </select>
+
+        <label class="modal-label">İmzalayan Avukat / Unvan:</label>
+        <input type="text" id="msign-signer-name" class="modal-input" placeholder="Av. [Adınız Soyadınız]" value="Av. Can KIZILYAR" oninput="onMobileSignInputChanged()">
+
+        <label class="modal-label">Cep Telefonu Numaranız:</label>
+        <input type="tel" id="msign-phone" class="modal-input" placeholder="05XXXXXXXXX" maxlength="11" oninput="onMobileSignInputChanged()">
+
+        <label class="modal-label">T.C. Kimlik Numaranız:</label>
+        <input type="text" id="msign-tckn" class="modal-input" placeholder="11 Haneli TCKN" maxlength="11" oninput="onMobileSignInputChanged()">
+
+        <div style="background-color: #F1F8E9; border: 1px solid #DCEDC8; border-radius: 6px; padding: 8px 10px; margin-top: 6px;">
+          <p style="font-size: 11px; color: #33691E; line-height: 1.4; margin: 0;">
+            💾 <strong>Bilgiler Otomatik Kaydedilir:</strong> Girdiğiniz operatör, telefon ve TCKN cihazınızda güvenle hatırlanır, her defasında tekrar yazmanız gerekmez.
+          </p>
+        </div>
+
+        <div id="msign-status" class="modal-status" style="margin-top: 8px;"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="modal-btn secondary" onclick="closeModal('modal-mobile-sign')">İptal</button>
+        <button id="btn-do-msign" class="modal-btn primary" style="background-color: #1565C0; font-weight: bold;" onclick="executeMobileSignInApp()">📱 Mobil İmzala &amp; Mühürle</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- USB AKILLI KART / E-İMZA MODAL PENCERESİ -->
+  <div id="modal-smartcard-sign" class="modal-backdrop">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>🔐 Nitelikli Elektronik İmza (E-İmza)</h3>
+        <button class="modal-close" onclick="closeModal('modal-smartcard-sign')">✕</button>
+      </div>
+      <div class="modal-body">
+        
+        <!-- Sertifika / Kart Görsel Kartı -->
+        <div id="cert-card-box" style="background: linear-gradient(135deg, #37474F, #455A64); border-radius: 8px; padding: 12px 14px; color: white; margin-bottom: 12px; box-shadow: 0 3px 10px rgba(0,0,0,0.15);">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <span style="font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.6px; opacity: 0.9;">T.C. Nitelikli Elektronik Sertifika (NES)</span>
+            <span id="cert-status-badge" style="background-color: #D32F2F; color: white; font-size: 10px; font-weight: bold; padding: 2px 7px; border-radius: 10px;">🔴 KART TAKILI DEĞİL</span>
+          </div>
+          <div id="cert-display-name" style="font-size: 14.5px; font-weight: bold; margin-bottom: 2px;">E-İmza Kartı Algılanamadı</div>
+          <div id="cert-display-issuer" style="font-size: 11px; opacity: 0.9;">Lütfen akıllı kartınızı veya tokenınızı Type-C OTG adaptörüyle telefonunuza bağlayınız.</div>
+          <div style="display: flex; justify-content: space-between; font-size: 10px; opacity: 0.8; margin-top: 8px; border-top: 1px solid rgba(255,255,255,0.2); padding-top: 5px;">
+            <span id="cert-display-type">Okuyucu: Takılı cihaz yok</span>
+            <span id="cert-display-validity">Geçerlilik: --</span>
+          </div>
+        </div>
+
+        <!-- Kart Yok Uyarısı -->
+        <div id="sc-no-card-box" style="background-color: #FFF3E0; border: 1px solid #FFE0B2; border-radius: 6px; padding: 10px 12px; margin-bottom: 10px;">
+          <p style="font-size: 12px; color: #E65100; line-height: 1.45; margin: 0;">
+            ⚠️ <strong>Kart Takılı Değil:</strong> 5070 Sayılı Kanuna uygun gerçek elektronik imza oluşturabilmek için akıllı kartınızın / e-imza çubuğunuzun telefonunuza OTG ile takılı olması gerekir.
+          </p>
+        </div>
+
+        <!-- Kart Takılı Olduğunda Açılan Sertifika Seçici -->
+        <div id="sc-cert-container" style="display: none; margin-bottom: 10px;">
+          <label class="modal-label">İmzalama Sertifikası (NES):</label>
+          <select id="sc-cert-select" class="modal-input" onchange="onRealCertSelected()"></select>
+        </div>
+
+        <label class="modal-label">E-İmza Kart PIN Kodu:</label>
+        <div style="position: relative; display: flex; align-items: center;">
+          <input type="password" id="sc-pin" class="modal-input" placeholder="Kart takıldığında PIN girilebilir" maxlength="8" disabled style="padding-right: 44px;">
+          <button type="button" onclick="togglePinVisibility()" style="position: absolute; right: 8px; background: none; border: none; font-size: 17px; cursor: pointer; padding: 4px;" title="PIN Göster/Gizle">👁️</button>
+        </div>
+
+        <div id="sc-status" class="modal-status" style="margin-top: 8px;"></div>
+
+        <div style="background-color: #E8F0FE; border: 1px solid #C2E7FF; border-radius: 6px; padding: 8px 10px; margin-top: 6px;">
+          <p style="font-size: 11px; color: #004A77; line-height: 1.4; margin: 0;">
+            ⚡ <strong>Gerçek Donanımsal İmza:</strong> Adalet Bakanlığı E-İmza altyapısı ve TÜBİTAK UEKAE MA3 CAdES motoru arka planda çalışarak kart çipinizden resmi dijital imza üretir.
+          </p>
+        </div>
+      </div>
+      <div class="modal-footer" style="justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+        <button class="modal-btn secondary" onclick="closeModal('modal-smartcard-sign')">İptal</button>
+        <div style="display: flex; gap: 6px;">
+          <button id="btn-refresh-sc" class="modal-btn" style="background-color: #ECEFF1; color: #37474F;" onclick="refreshSmartCardStatus()">🔄 Kartı Tara</button>
+          <button id="btn-do-eimza" class="modal-btn primary" style="background-color: #90A4AE; color: white; font-weight: bold; min-width: 170px;" onclick="executeSmartCardSignInApp()" disabled>Kart Bekleniyor...</button>
         </div>
       </div>
     </div>
-    <script type="module" src="/src/main.ts"></script>
-  </body>
+  </div>
+
+  <!-- PARAGRAF AYARLARI MODAL PENCERESİ (Word & UYAP Standartları) -->
+  <div id="modal-paragraph-settings" class="modal-backdrop">
+    <div class="modal-card modal-card-wide">
+      <div class="modal-header">
+        <h3>📐 Paragraf Biçimlendirme &amp; Boşlukları</h3>
+        <button class="modal-close" onclick="closeModal('modal-paragraph-settings')">✕</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-desc">İmlecin bulunduğu veya seçtiğiniz paragraf(lar) için özel boşluk, girinti ve satır aralığı belirleyin.</p>
+
+        <!-- Kapsam Seçimi -->
+        <div class="param-row scope-row">
+          <label class="modal-label">Uygulama Alanı:</label>
+          <div class="segmented-control">
+            <button type="button" class="segment-btn active" id="btn-scope-selected" onclick="setParagraphScope('selected')">Seçili Paragraf</button>
+            <button type="button" class="segment-btn" id="btn-scope-all" onclick="setParagraphScope('all')">Tüm Belge</button>
+          </div>
+        </div>
+
+        <!-- Paragraf Boşlukları (Önce & Sonra - UYAP nk / Nokta) -->
+        <div class="param-grid-2">
+          <div class="param-col">
+            <label class="modal-label">Önceki Boşluk (nk / UYAP):</label>
+            <div class="stepper-box">
+              <button type="button" class="stepper-btn" onclick="stepParagraphValue('space-before', -2)">−</button>
+              <input type="number" id="p-space-before" class="stepper-input" value="4" min="0" max="72" step="2">
+              <button type="button" class="stepper-btn" onclick="stepParagraphValue('space-before', 2)">+</button>
+            </div>
+            <div class="quick-chips">
+              <span class="chip" onclick="setStepperVal('p-space-before', 0)">0 nk</span>
+              <span class="chip" onclick="setStepperVal('p-space-before', 2)">2 nk</span>
+              <span class="chip" onclick="setStepperVal('p-space-before', 4)">4 nk (UYAP)</span>
+              <span class="chip" onclick="setStepperVal('p-space-before', 6)">6 nk</span>
+            </div>
+          </div>
+
+          <div class="param-col">
+            <label class="modal-label">Sonraki Boşluk (nk / UYAP):</label>
+            <div class="stepper-box">
+              <button type="button" class="stepper-btn" onclick="stepParagraphValue('space-after', -2)">−</button>
+              <input type="number" id="p-space-after" class="stepper-input" value="8" min="0" max="72" step="2">
+              <button type="button" class="stepper-btn" onclick="stepParagraphValue('space-after', 2)">+</button>
+            </div>
+            <div class="quick-chips">
+              <span class="chip" onclick="setStepperVal('p-space-after', 0)">0 nk</span>
+              <span class="chip" onclick="setStepperVal('p-space-after', 4)">4 nk</span>
+              <span class="chip" onclick="setStepperVal('p-space-after', 8)">8 nk (UYAP)</span>
+              <span class="chip" onclick="setStepperVal('p-space-after', 12)">12 nk</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Girintiler (İlk Satır / Asılı / Sol / Sağ) -->
+        <div class="param-grid-2" style="margin-top: 10px;">
+          <div class="param-col">
+            <label class="modal-label">İlk Satır Girintisi (cm):</label>
+            <div class="stepper-box">
+              <button type="button" class="stepper-btn" onclick="stepParagraphValue('first-line', -0.25)">−</button>
+              <input type="number" id="p-first-line" class="stepper-input" value="1.25" min="0" max="10" step="0.25">
+              <button type="button" class="stepper-btn" onclick="stepParagraphValue('first-line', 0.25)">+</button>
+            </div>
+            <div class="quick-chips">
+              <span class="chip" onclick="setStepperVal('p-first-line', 0)">0 cm</span>
+              <span class="chip" onclick="setStepperVal('p-first-line', 1.0)">1.0 cm</span>
+              <span class="chip" onclick="setStepperVal('p-first-line', 1.25)">1.25 cm (UYAP)</span>
+            </div>
+          </div>
+
+          <div class="param-col">
+            <label class="modal-label">Sol / Asılı Girinti (cm):</label>
+            <div class="stepper-box">
+              <button type="button" class="stepper-btn" onclick="stepParagraphValue('left-indent', -0.25)">−</button>
+              <input type="number" id="p-left-indent" class="stepper-input" value="0.00" min="0" max="10" step="0.25">
+              <button type="button" class="stepper-btn" onclick="stepParagraphValue('left-indent', 0.25)">+</button>
+            </div>
+            <div class="quick-chips">
+              <span class="chip" onclick="setStepperVal('p-left-indent', 0)">0 cm</span>
+              <span class="chip" onclick="setStepperVal('p-left-indent', 0.5)">0.5 cm</span>
+              <span class="chip" onclick="setStepperVal('p-left-indent', 1.0)">1.0 cm</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Satır Aralığı & Hizalama -->
+        <div class="param-grid-2" style="margin-top: 10px;">
+          <div class="param-col">
+            <label class="modal-label">Satır Aralığı (satır):</label>
+            <select id="p-line-spacing" class="modal-input" onchange="updateParagraphPreview()">
+              <option value="1.0">1.0 satır (Tek)</option>
+              <option value="1.15">1.15 satır</option>
+              <option value="1.35" selected>1.35 satır (UYAP Standart)</option>
+              <option value="1.5">1.5 satır (Geniş)</option>
+              <option value="2.0">2.0 satır (Çift)</option>
+            </select>
+          </div>
+
+          <div class="param-col">
+            <label class="modal-label">Paragraf Hizalaması:</label>
+            <div class="segmented-control">
+              <button type="button" class="align-btn" id="p-align-left" onclick="setPAlign('left')">⇤ Sol</button>
+              <button type="button" class="align-btn" id="p-align-center" onclick="setPAlign('center')">≡ Orta</button>
+              <button type="button" class="align-btn" id="p-align-right" onclick="setPAlign('right')">Sağ ⇥</button>
+              <button type="button" class="align-btn active" id="p-align-justify" onclick="setPAlign('justify')">Yassı</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Canlı Önizleme Kutusu -->
+        <div class="preview-box-container" style="margin-top: 12px;">
+          <label class="modal-label">Önizleme:</label>
+          <div id="p-live-preview" class="p-preview-box">
+            Bu metin, paragraf boşluk ve girintilerinin belgenizde nasıl görüneceğini gerçek zamanlı olarak temsil etmektedir.
+          </div>
+        </div>
+
+      </div>
+      <div class="modal-footer">
+        <button class="modal-btn secondary" onclick="closeModal('modal-paragraph-settings')">İptal</button>
+        <button class="modal-btn primary" onclick="applyParagraphSettings()">Uygula &amp; Kaydet</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- E-İMZA DOĞRULAMA VE SERTİFİKA DETAYLARI MODAL PENCERESİ (Havelsan UYAP Standart) -->
+  <div id="modal-signature-details" class="modal-backdrop">
+    <div class="modal-card modal-card-wide">
+      <div class="modal-header">
+        <h3 id="sig-modal-title">🔍 Elektronik İmza Doğrulama Raporu</h3>
+        <button class="modal-close" onclick="closeModal('modal-signature-details')">✕</button>
+      </div>
+      <div class="modal-body">
+        
+        <!-- Ana Durum Kartı -->
+        <div id="sig-main-status-box" style="border-radius: 8px; padding: 12px 14px; margin-bottom: 12px; display: flex; align-items: center; gap: 12px; background-color: #E8F5E9; border: 1px solid #A5D6A7;">
+          <div id="sig-status-large-icon" style="font-size: 28px;">🟢</div>
+          <div>
+            <div id="sig-status-heading" style="font-weight: bold; font-size: 14.5px; color: #1B5E20;">Doküman Üzerinde Geçerli Elektronik İmza Bulundu</div>
+            <div id="sig-status-subtext" style="font-size: 11.5px; color: #2E7D32;">TÜBİTAK UEKAE MA3 &amp; 5070 Sayılı Kanun Standartlarına Tam Uyumlu</div>
+          </div>
+        </div>
+
+        <!-- UYAP Doğrulama Kontrolcüleri Listesi -->
+        <div style="background-color: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 6px; padding: 10px 12px; margin-bottom: 12px;">
+          <div style="font-size: 11px; font-weight: bold; color: #334155; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px;">UYAP Doğrulama Kontrolcüleri:</div>
+          
+          <div id="chk-math" style="display: flex; align-items: flex-start; gap: 8px; margin-bottom: 6px; font-size: 11.5px;">
+            <span id="icon-chk-math" style="color: #2E7D32; font-weight: bold;">(+)</span>
+            <div><strong>İmza Matematiksel Doğrulama Kontrolcüsü:</strong> <span id="val-chk-math" style="color: #2E7D32;">Başarılı</span></div>
+          </div>
+
+          <div id="chk-cert" style="display: flex; align-items: flex-start; gap: 8px; margin-bottom: 6px; font-size: 11.5px;">
+            <span id="icon-chk-cert" style="color: #2E7D32; font-weight: bold;">(+)</span>
+            <div><strong>İmzacı Sertifikası Kontrolcüsü:</strong> <span id="val-chk-cert" style="color: #2E7D32;">Başarılı (Nitelikli Elektronik Sertifika - NES)</span></div>
+          </div>
+
+          <div id="chk-validity" style="display: flex; align-items: flex-start; gap: 8px; margin-bottom: 6px; font-size: 11.5px;">
+            <span id="icon-chk-validity" style="color: #2E7D32; font-weight: bold;">(+)</span>
+            <div><strong>Sertifika Geçerlilik Süresi:</strong> <span id="val-chk-validity" style="color: #2E7D32;">Başarılı (Geçerli Tarih Aralığında)</span></div>
+          </div>
+
+          <div id="chk-digest" style="display: flex; align-items: flex-start; gap: 8px; font-size: 11.5px;">
+            <span id="icon-chk-digest" style="color: #2E7D32; font-weight: bold;">(+)</span>
+            <div><strong>İçerik Özet Özelliği Kontrolcüsü:</strong> <span id="val-chk-digest" style="color: #2E7D32;">İçerik özeti özelliğindeki değer hesaplanan değerle aynı. Kontrolcü sonucu başarılı.</span></div>
+          </div>
+        </div>
+
+        <!-- Sertifika Bilgileri Kartı -->
+        <div id="sig-cert-info-box" style="border: 1px solid #CBD5E1; border-radius: 6px; padding: 10px 12px; font-size: 11.5px; line-height: 1.5; color: #1E293B; background: white;">
+          <div style="font-size: 11px; font-weight: bold; color: #475569; margin-bottom: 6px; text-transform: uppercase;">Sertifika ve İmza Detayları:</div>
+          <div><strong>İmzalayan (Sahip):</strong> <span id="det-signer-name">-</span></div>
+          <div><strong>Sertifika Sağlayıcı (NES):</strong> <span id="det-issuer-name">-</span></div>
+          <div><strong>Sertifika Seri No:</strong> <code id="det-serial-no" style="font-size: 11px; word-break: break-all;">-</code></div>
+          <div><strong>Geçerlilik Aralığı:</strong> <span id="det-validity">-</span></div>
+          <div><strong>İmza / Algoritma:</strong> <span id="det-algorithm">-</span></div>
+          <div><strong>Belge Özet Değeri:</strong> <code id="det-digest-hex" style="font-size: 10.5px; word-break: break-all;">-</code></div>
+        </div>
+
+      </div>
+      <div class="modal-footer" style="justify-content: space-between;">
+        <button class="modal-btn secondary" onclick="closeModal('modal-signature-details')">Kapat</button>
+        <button class="modal-btn primary" onclick="recheckSignatureInModal()">🔄 Yeniden Doğrula</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SAYFA YAPISI VE KENAR BOŞLUKLARI MODAL PENCERESİ -->
+  <div id="modal-page-setup" class="modal-backdrop">
+    <div class="modal-card modal-card-wide">
+      <div class="modal-header">
+        <h3>📐 Sayfa Yapısı &amp; Kenar Boşlukları</h3>
+        <button class="modal-close" onclick="closeModal('modal-page-setup')">✕</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-desc">Resmi dilekçeler ve UYAP standartları için sayfa kenar boşluklarını (cm) ve yönünü belirleyin.</p>
+        
+        <!-- Hızlı Hazır Şablonlar -->
+        <label class="modal-label">Hazır Boşluk Şablonları:</label>
+        <div class="quick-chips" style="margin-bottom: 12px;">
+          <span class="chip" onclick="setMarginPreset('petition')">⚖️ Resmi Dilekçe (2.5 cm)</span>
+          <span class="chip" onclick="setMarginPreset('uyap')">🏛️ UYAP Standart (1.5 cm)</span>
+          <span class="chip" onclick="setMarginPreset('binding')">📁 Dosya / Cilt Paylı</span>
+          <span class="chip" onclick="setMarginPreset('narrow')">📐 Dar Kenar (1.0 cm)</span>
+        </div>
+
+        <!-- Sayfa Yönlendirmesi -->
+        <div class="param-row" style="margin-bottom: 12px;">
+          <label class="modal-label">Sayfa Yönü:</label>
+          <div class="segmented-control">
+            <button type="button" class="segment-btn active" id="btn-orient-portrait" onclick="setPageOrientation('portrait')">📄 Dikey (A4 - 210×297 mm)</button>
+            <button type="button" class="segment-btn" id="btn-orient-landscape" onclick="setPageOrientation('landscape')">📑 Yatay (Tablo / Liste)</button>
+          </div>
+        </div>
+
+        <!-- Kenar Boşlukları Grid -->
+        <div class="param-grid-2">
+          <div class="param-col">
+            <label class="modal-label">Sol Kenar Boşluğu (cm):</label>
+            <div class="stepper-box">
+              <button type="button" class="stepper-btn" onclick="stepMargin('left', -0.25)">−</button>
+              <input type="number" id="m-left" class="stepper-input" value="2.5" min="0.5" max="8" step="0.25" oninput="updateMarginPreview()">
+              <button type="button" class="stepper-btn" onclick="stepMargin('left', 0.25)">+</button>
+            </div>
+          </div>
+
+          <div class="param-col">
+            <label class="modal-label">Sağ Kenar Boşluğu (cm):</label>
+            <div class="stepper-box">
+              <button type="button" class="stepper-btn" onclick="stepMargin('right', -0.25)">−</button>
+              <input type="number" id="m-right" class="stepper-input" value="2.5" min="0.5" max="8" step="0.25" oninput="updateMarginPreview()">
+              <button type="button" class="stepper-btn" onclick="stepMargin('right', 0.25)">+</button>
+            </div>
+          </div>
+
+          <div class="param-col" style="margin-top: 10px;">
+            <label class="modal-label">Üst Kenar Boşluğu (cm):</label>
+            <div class="stepper-box">
+              <button type="button" class="stepper-btn" onclick="stepMargin('top', -0.25)">−</button>
+              <input type="number" id="m-top" class="stepper-input" value="2.5" min="0.5" max="8" step="0.25" oninput="updateMarginPreview()">
+              <button type="button" class="stepper-btn" onclick="stepMargin('top', 0.25)">+</button>
+            </div>
+          </div>
+
+          <div class="param-col" style="margin-top: 10px;">
+            <label class="modal-label">Alt Kenar Boşluğu (cm):</label>
+            <div class="stepper-box">
+              <button type="button" class="stepper-btn" onclick="stepMargin('bottom', -0.25)">−</button>
+              <input type="number" id="m-bottom" class="stepper-input" value="2.5" min="0.5" max="8" step="0.25" oninput="updateMarginPreview()">
+              <button type="button" class="stepper-btn" onclick="stepMargin('bottom', 0.25)">+</button>
+            </div>
+          </div>
+
+          <div class="param-col" style="margin-top: 10px;">
+            <label class="modal-label">Üstbilgi Payı (cm):</label>
+            <div class="stepper-box">
+              <button type="button" class="stepper-btn" onclick="stepMargin('header', -0.25)">−</button>
+              <input type="number" id="m-header" class="stepper-input" value="1.25" min="0" max="6" step="0.25" oninput="updateMarginPreview()">
+              <button type="button" class="stepper-btn" onclick="stepMargin('header', 0.25)">+</button>
+            </div>
+          </div>
+
+          <div class="param-col" style="margin-top: 10px;">
+            <label class="modal-label">Altbilgi Payı (cm):</label>
+            <div class="stepper-box">
+              <button type="button" class="stepper-btn" onclick="stepMargin('footer', -0.25)">−</button>
+              <input type="number" id="m-footer" class="stepper-input" value="1.25" min="0" max="6" step="0.25" oninput="updateMarginPreview()">
+              <button type="button" class="stepper-btn" onclick="stepMargin('footer', 0.25)">+</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Canlı Görsel Önizleme -->
+        <div style="margin-top: 14px;">
+          <label class="modal-label">Sayfa &amp; Kenar Önizlemesi:</label>
+          <div id="margin-preview-container" style="background-color: #ECEFF1; border-radius: 6px; padding: 16px; display: flex; justify-content: center; align-items: center; min-height: 140px;">
+            <div id="margin-preview-sheet">
+              <div id="preview-margin-box"></div>
+              <div style="padding: 3px; font-size: 7.5px; color: #9E9E9E; text-align: center; pointer-events: none;">Üstbilgi</div>
+              <div style="padding: 3px; font-size: 7.5px; color: #9E9E9E; text-align: center; pointer-events: none;">Altbilgi</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+      <div class="modal-footer" style="justify-content: space-between;">
+        <button class="modal-btn secondary" onclick="closeModal('modal-page-setup')">İptal</button>
+        <button class="modal-btn primary" onclick="applyPageSetupFromModal()">Uygula &amp; Kaydet</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- BUL VE DEĞİŞTİR (FIND & REPLACE) MODAL PENCERESİ -->
+  <div id="modal-find-replace" class="modal-backdrop">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>🔍 Bul ve Değiştir (UYAP)</h3>
+        <button class="modal-close" onclick="closeFindReplaceModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <label class="modal-label">Aranan İfade / Kelime:</label>
+        <input type="text" id="find-query" class="modal-input" placeholder="Aranacak kelime..." oninput="onFindQueryChanged()">
+        
+        <div style="display: flex; justify-content: space-between; align-items: center; margin: 4px 0 8px 0;">
+          <label style="font-size: 12px; color: #546E7A; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+            <input type="checkbox" id="find-match-case" onchange="onFindQueryChanged()"> Büyük/küçük harf duyarlı
+          </label>
+          <span id="find-status-badge" style="font-size: 11px; font-weight: bold; color: #1565C0;">0 / 0 eşleşme</span>
+        </div>
+
+        <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+          <button type="button" class="modal-btn secondary" style="flex: 1;" onclick="findNav(-1)">⇦ Önceki</button>
+          <button type="button" class="modal-btn secondary" style="flex: 1;" onclick="findNav(1)">Sonraki ⇨</button>
+        </div>
+
+        <label class="modal-label">Yeni Metin ile Değiştir:</label>
+        <input type="text" id="replace-query" class="modal-input" placeholder="Yerine yazılacak yeni metin...">
+
+        <div style="display: flex; gap: 8px; margin-top: 10px;">
+          <button type="button" class="modal-btn secondary" style="flex: 1;" onclick="doReplaceCurrent()">Değiştir</button>
+          <button type="button" class="modal-btn primary" style="flex: 1; background-color: #1565C0;" onclick="doReplaceAll()">Tümünü Değiştir</button>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="modal-btn secondary" onclick="closeFindReplaceModal()">Kapat</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- BELGE BİLGİLERİ VE İSTATİSTİKLERİ MODAL PENCERESİ -->
+  <div id="modal-doc-stats" class="modal-backdrop">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>📊 Belge İstatistikleri &amp; Bilgileri</h3>
+        <button class="modal-close" onclick="closeModal('modal-doc-stats')">✕</button>
+      </div>
+      <div class="modal-body">
+        <div style="background-color: #F8FAFC; border: 1px solid #CFD8DC; border-radius: 8px; padding: 14px; display: flex; flex-direction: column; gap: 9px; font-size: 13px;">
+          <div style="display: flex; justify-content: space-between;"><strong>Kelime Sayısı:</strong> <span id="stat-words" style="color: #1565C0; font-weight: bold;">0</span></div>
+          <div style="display: flex; justify-content: space-between;"><strong>Karakter Sayısı (Boşluklu):</strong> <span id="stat-chars-spaces" style="color: #1565C0; font-weight: bold;">0</span></div>
+          <div style="display: flex; justify-content: space-between;"><strong>Karakter Sayısı (Boşluksuz):</strong> <span id="stat-chars-nospaces" style="color: #1565C0; font-weight: bold;">0</span></div>
+          <div style="display: flex; justify-content: space-between;"><strong>Paragraf Sayısı:</strong> <span id="stat-paragraphs" style="color: #1565C0; font-weight: bold;">0</span></div>
+          <div style="display: flex; justify-content: space-between;"><strong>Tahmini A4 Sayfa Sayısı:</strong> <span id="stat-pages" style="color: #1565C0; font-weight: bold;">1 Sayfa</span></div>
+          <div style="display: flex; justify-content: space-between; border-top: 1px solid #ECEFF1; padding-top: 6px;"><strong>Sayfa Ebadı:</strong> <span id="stat-pagesize">A4 (210 × 297 mm)</span></div>
+          <div style="display: flex; justify-content: space-between;"><strong>Kenar Boşlukları:</strong> <span id="stat-margins">Sol 2.5cm, Sağ 2.5cm, Üst 2.5cm, Alt 2.5cm</span></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="modal-btn primary" onclick="closeModal('modal-doc-stats')">Tamam</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- AI DİLEKÇE FORMATLAMA MODAL PENCERESİ -->
+  <div id="modal-ai-format" class="modal-backdrop">
+    <div class="modal-card">
+      <div class="modal-header ai-header">
+        <h3>🤖 AI Dilekçe Formatlama</h3>
+        <button class="modal-close" onclick="closeAiFormatModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-desc">Dilekçenizi resmi Türk yargı ve UYAP standartlarına göre otomatik olarak biçimlendirin. Mahkeme başlığı ortalanır, Dosya No/Sanık/Müdafi hizalamaları 5.0 cm sekme durağına oturtulur, paragraflar iki yana yaslanıp 1.0 cm girinti verilir, imza bloğu sağa yaslanır.</p>
+
+        <!-- SEÇENEK 1: Anında Hızlı Biçimlendirme (Çevrimdışı) -->
+        <div class="ai-option-card">
+          <div class="ai-card-title">
+            <span>⚡ Standart Hukuk Biçimlendirmesi</span>
+            <span class="ai-badge fast">Anında &amp; Çevrimdışı</span>
+          </div>
+          <p class="ai-card-desc">API anahtarı veya internet gerektirmez. Dilekçedeki mahkeme adını, dosya/taraf bloklarını, girintileri ve imzaları anında düzenler.</p>
+          <button type="button" class="modal-btn ai-btn-instant" style="width: 100%; margin-top: 4px;" onclick="executeDeterministicFormat()">⚡ Şimdi Biçimlendir</button>
+        </div>
+
+        <!-- SEÇENEK 2: Canlı Gemini AI Biçimlendirmesi -->
+        <div class="ai-option-card" style="margin-top: 6px;">
+          <div class="ai-card-title">
+            <span>✨ Gemini AI ile Akıllı Formatla</span>
+            <span class="ai-badge smart">Canlı Yapay Zeka</span>
+          </div>
+          <p class="ai-card-desc">Google'ın en güncel ve en düşük maliyetli <code>gemini-3.5-flash-lite</code> yapay zekasını kullanarak dilekçenizi içeriğine göre analiz eder ve mükemmel UYAP şablonuna dönüştürür.</p>
+
+          <label class="modal-label" style="margin-top: 4px;">Gemini API Anahtarı:</label>
+          <div class="ai-key-group">
+            <input type="password" id="gemini-api-key-input" class="modal-input ai-key-input" placeholder="AIzaSy...">
+            <button type="button" class="modal-btn secondary" style="padding: 0 8px; font-size: 11px;" onclick="toggleApiKeyVisibility()" title="Göster / Gizle">👁️</button>
+            <button type="button" class="modal-btn primary" style="padding: 0 10px; font-size: 11px;" onclick="saveGeminiApiKey()">Kaydet</button>
+          </div>
+
+          <div style="display: flex; gap: 8px; align-items: center; margin-top: 2px;">
+            <label class="modal-label" style="margin-top: 0; min-width: 70px;">AI Model:</label>
+            <select id="gemini-model-select" class="modal-input" style="padding: 4px 8px; font-size: 11.5px; height: auto;">
+              <option value="gemini-3.5-flash-lite" selected>gemini-3.5-flash-lite (En Hızlı &amp; En Düşük Maliyetli - Önerilen)</option>
+              <option value="gemini-3.1-flash-lite">gemini-3.1-flash-lite (Düşük Maliyetli &amp; Hızlı)</option>
+              <option value="gemini-3.8-flash">gemini-3.8-flash (En Akıllı Flash Modeli)</option>
+              <option value="gemini-3.6-flash">gemini-3.6-flash (Dengeli Flash Modeli)</option>
+              <option value="gemini-flash-latest">gemini-flash-latest (Her Zaman En Güncel Flash)</option>
+            </select>
+          </div>
+
+          <button type="button" id="btn-run-gemini-ai" class="modal-btn ai-btn-gemini" style="width: 100%; margin-top: 6px;" onclick="executeGeminiFormat()">✨ Gemini ile Canlı Formatla</button>
+        </div>
+
+        <div id="ai-format-status" class="modal-status" style="margin-top: 8px;"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="modal-btn secondary" onclick="closeAiFormatModal()">Kapat</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- METİN SEÇİMİ YÜZEN EYLEM ÇUBUĞU (Floating Context Bubble) -->
+  <div id="floating-context-menu" class="floating-context-bubble" style="display: none;">
+    <button type="button" class="bubble-btn" onclick="execBubbleCmd('cut')" title="Kes">✂️</button>
+    <button type="button" class="bubble-btn" onclick="execBubbleCmd('copy')" title="Kopyala">📋</button>
+    <button type="button" class="bubble-btn" onclick="execBubbleCmd('paste')" title="Yapıştır">📄</button>
+    <div class="bubble-divider"></div>
+    <button type="button" class="bubble-btn" onclick="toggleFormatPainter()" title="Biçim Boyacısı">🖌️</button>
+    <button type="button" class="bubble-btn" onclick="format('bold')" title="Kalın"><b>B</b></button>
+    <button type="button" class="bubble-btn" onclick="format('italic')" title="İtalik"><i>I</i></button>
+    <button type="button" class="bubble-btn" onclick="format('underline')" title="Altı Çizili"><u>U</u></button>
+    <button type="button" class="bubble-btn" onclick="format('hiliteColor', '#FFF59D')" title="Vurgula">🖍️</button>
+    <button type="button" class="bubble-btn" onclick="clearFormatting()" title="Biçimi Temizle">🧹</button>
+  </div>
+
+  <!-- DİNAMİK KAYDIRMA BLUR BANTLARI (iOS Progressive Dynamic Blur) -->
+  <div id="scroll-blur-top" class="scroll-blur-band top"></div>
+  <div id="scroll-blur-bottom" class="scroll-blur-band bottom"></div>
+
+  <script src="/editor.js"></script>
+
+  <!-- MASAÜSTÜ DURUM ÇUBUĞU (STATUS BAR) -->
+  <footer id="desktop-app-footer" style="background: #0F172A; color: #94A3B8; padding: 4px 16px; font-size: 11.5px; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #1E293B; user-select: none; z-index: 100;">
+    <div style="display: flex; gap: 16px; align-items: center;">
+      <span id="desktopWordCount">0 kelime, 0 karakter</span>
+      <span>•</span>
+      <span>A4 Baskı Düzeni</span>
+    </div>
+    <div style="display: flex; gap: 16px; align-items: center;">
+      <span style="opacity: 0.7;">Kısayollar: <b>Ctrl+O</b> Aç • <b>Ctrl+S</b> UDF • <b>Ctrl+Shift+S</b> Word • <b>Ctrl+P</b> PDF/Yazdır</span>
+      <span>•</span>
+      <span style="color: #38BDF8; font-weight: 600;">CanEditor v3.3.4 (Cross-Platform)</span>
+    </div>
+  </footer>
+
+</body>
 </html>
