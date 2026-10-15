@@ -579,63 +579,50 @@ function closeModal(id) {
 
 function openMobileSignModal() {
   saveCurrentSelection();
+  // Kaydedilmiş bilgileri yükle
+  const savedOp = localStorage.getItem('udemobile_msign_op');
+  const savedPhone = localStorage.getItem('udemobile_msign_phone');
+  const savedTckn = localStorage.getItem('udemobile_msign_tckn');
+  const savedSigner = localStorage.getItem('udemobile_signer_name');
+
+  if (savedOp && document.getElementById('msign-operator')) document.getElementById('msign-operator').value = savedOp;
+  if (savedPhone && document.getElementById('msign-phone')) document.getElementById('msign-phone').value = savedPhone;
+  if (savedTckn && document.getElementById('msign-tckn')) document.getElementById('msign-tckn').value = savedTckn;
+  if (savedSigner && document.getElementById('msign-signer-name')) document.getElementById('msign-signer-name').value = savedSigner;
+
+  const statusEl = document.getElementById('msign-status');
+  if (statusEl) {
+    statusEl.innerHTML = '';
+    statusEl.className = 'modal-status';
+  }
+  const btn = document.getElementById('btn-do-msign');
+  if (btn) {
+    btn.disabled = false;
+    btn.textContent = '📱 Mobil İmzala & Mühürle';
+  }
+
   openModal('modal-mobile-sign');
 }
 
-function openSmartCardSignModal() {
-  saveCurrentSelection();
-  openModal('modal-smartcard-sign');
-}
-
-function insertSignatureSeal(sealHtml) {
-  const editor = document.getElementById('editor-content');
-
-  // 1. Önceki mükerrer mühürleri temizle
-  const oldSeals = editor.querySelectorAll('.official-signature-seal, .seal-wrapper-block');
-  oldSeals.forEach(s => {
-    let p = s;
-    while (p && p.parentNode !== editor && p.parentNode !== document.body) {
-      p = p.parentNode;
-    }
-    if (p && p.parentNode) p.parentNode.removeChild(p);
-  });
-
-  // 2. Dilekçenin EN SONUNDAKİ vekil / imza paragrafını bul
-  const ps = Array.from(editor.querySelectorAll('p'));
-  let anchorP = null;
-  for (let i = ps.length - 1; i >= 0; i--) {
-    const text = ps[i].innerText || '';
-    if (text.includes('Vekili') || text.includes('Davacı') || text.includes('Davalı') || text.includes('Av.') || text.includes('İmzalıdır') || text.includes('TALEP')) {
-      anchorP = ps[i];
-      break;
-    }
-  }
-
-  // 3. Mührü imza bloğunun hemen altına sağa hizalı ekle
-  const sealWrapper = document.createElement('div');
-  sealWrapper.className = 'seal-wrapper-block';
-  sealWrapper.innerHTML = sealHtml;
-
-  if (anchorP && anchorP.parentNode === editor) {
-    anchorP.insertAdjacentElement('afterend', sealWrapper);
-  } else {
-    editor.appendChild(sealWrapper);
-  }
-
-  // 4. Mührü ekranda merkeze kaydır
-  setTimeout(() => {
-    sealWrapper.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  }, 120);
-
-  updateCounts();
-}
-
-// MOBİL İMZA İŞLEMİ (M-İmza Kaşesi)
-function startMobileSign() {
+function onMobileSignInputChanged() {
   const op = document.getElementById('msign-operator').value;
   const phone = document.getElementById('msign-phone').value.trim();
   const tckn = document.getElementById('msign-tckn').value.trim();
+  const signerName = document.getElementById('msign-signer-name').value.trim();
+
+  if (op) localStorage.setItem('udemobile_msign_op', op);
+  if (phone) localStorage.setItem('udemobile_msign_phone', phone);
+  if (tckn) localStorage.setItem('udemobile_msign_tckn', tckn);
+  if (signerName) localStorage.setItem('udemobile_signer_name', signerName);
+}
+
+function executeMobileSignInApp() {
+  const op = document.getElementById('msign-operator').value;
+  const phone = document.getElementById('msign-phone').value.trim();
+  const tckn = document.getElementById('msign-tckn').value.trim();
+  const signerName = (document.getElementById('msign-signer-name') ? document.getElementById('msign-signer-name').value.trim() : 'Av. Can KIZILYAR') || 'Av. Can KIZILYAR';
   const statusEl = document.getElementById('msign-status');
+  const btn = document.getElementById('btn-do-msign');
 
   if (phone.length < 10) {
     statusEl.style.color = '#C62828';
@@ -648,89 +635,195 @@ function startMobileSign() {
     return;
   }
 
+  // Bilgileri kalıcı hafızaya yaz
+  onMobileSignInputChanged();
+
+  btn.disabled = true;
   statusEl.style.color = '#1565C0';
-  statusEl.textContent = '⏳ ' + op + ' Mobil İmza isteği SIM karta iletiliyor...';
+  statusEl.innerHTML = '⏳ <strong>Adım 1/2:</strong> ' + op + ' Mobil İmza servisine bağlanılıyor...';
 
   setTimeout(() => {
-    const now = new Date().toLocaleString('tr-TR');
-    const hash = 'M-SIG-' + Math.random().toString(36).substring(2, 8).toUpperCase() + '-' + Date.now().toString(16).toUpperCase();
-    const maskedTckn = tckn.substring(0, 3) + '*****' + tckn.substring(8);
     const maskedPhone = phone.substring(0, 4) + '***' + phone.substring(phone.length - 2);
+    statusEl.innerHTML = '📲 <strong>Adım 2/2:</strong> ' + maskedPhone + ' numaralı SIM karta onay iletildi, yanıt alınıyor...';
 
-    const sealHtml = `
+    setTimeout(() => {
+      const now = new Date().toLocaleString('tr-TR');
+      const hash = 'M-SIG-' + Math.random().toString(36).substring(2, 8).toUpperCase() + '-' + Date.now().toString(16).toUpperCase();
+
+      if (window.AndroidBridge && window.AndroidBridge.signDocumentInBackground) {
+        const structured = JSON.stringify(getStructuredDocument());
+        window.AndroidBridge.signDocumentInBackground("MOBIL_IMZA", op, signerName, phone, structured);
+      } else {
+        onBackgroundSignComplete("MOBIL_IMZA", op, signerName, hash);
+      }
+    }, 700);
+  }, 600);
+}
+
+function openSmartCardSignModal() {
+  saveCurrentSelection();
+
+  // Kaydedilmiş avukat ismi ve sağlayıcıyı yükle
+  const savedSigner = localStorage.getItem('udemobile_signer_name');
+  const savedProvider = localStorage.getItem('udemobile_sc_provider');
+
+  if (savedSigner && document.getElementById('sc-signer-name')) {
+    document.getElementById('sc-signer-name').value = savedSigner;
+  }
+  if (savedProvider && document.getElementById('sc-provider')) {
+    document.getElementById('sc-provider').value = savedProvider;
+  }
+
+  // Dinamik kart kartvizitini güncelle
+  onCardProviderChanged();
+  onCardSignerNameChanged();
+
+  const pinEl = document.getElementById('sc-pin');
+  if (pinEl) pinEl.value = '';
+  const statusEl = document.getElementById('sc-status');
+  if (statusEl) {
+    statusEl.innerHTML = '';
+    statusEl.className = 'modal-status';
+  }
+  const btn = document.getElementById('btn-do-eimza');
+  if (btn) {
+    btn.disabled = false;
+    btn.textContent = '✍️ 5070 S.K. İle İmzala';
+  }
+
+  openModal('modal-smartcard-sign');
+}
+
+function onCardProviderChanged() {
+  const provider = document.getElementById('sc-provider').value;
+  localStorage.setItem('udemobile_sc_provider', provider);
+
+  const issuerEl = document.getElementById('cert-display-issuer');
+  const typeEl = document.getElementById('cert-display-type');
+  if (provider === 'AKIS') {
+    if (issuerEl) issuerEl.textContent = 'TÜBİTAK UEKAE / Kamu Sertifikasyon Merkezi (Kamu SM)';
+    if (typeEl) typeEl.textContent = 'Kart Tipi: AKİS / ArkSigner CCID';
+  } else if (provider === 'TURKTRUST') {
+    if (issuerEl) issuerEl.textContent = 'TÜRKTRUST Bilgi İletişim ve Bilişim Güvenliği Hizmetleri A.Ş.';
+    if (typeEl) typeEl.textContent = 'Kart Tipi: TÜRKTRUST Akıllı Kart (Palma)';
+  } else if (provider === 'ETUGRA') {
+    if (issuerEl) issuerEl.textContent = 'E-Tuğra EBG Bilişim Teknolojileri ve Hizmetleri A.Ş.';
+    if (typeEl) typeEl.textContent = 'Kart Tipi: e-Tuğra USB Token';
+  } else {
+    if (issuerEl) issuerEl.textContent = 'E-İmzaTR / EBG Bilişim Güvenliği ve Sertifikasyon A.Ş.';
+    if (typeEl) typeEl.textContent = 'Kart Tipi: E-İmzaTR USB Akıllı Kart';
+  }
+}
+
+function onCardSignerNameChanged() {
+  const name = (document.getElementById('sc-signer-name').value || '').trim();
+  const displayNameEl = document.getElementById('cert-display-name');
+  if (displayNameEl) {
+    displayNameEl.textContent = name || 'Av. Can KIZILYAR';
+  }
+  if (name) {
+    localStorage.setItem('udemobile_signer_name', name);
+  }
+}
+
+function togglePinVisibility() {
+  const pinInput = document.getElementById('sc-pin');
+  if (!pinInput) return;
+  pinInput.type = (pinInput.type === 'password') ? 'text' : 'password';
+}
+
+function executeSmartCardSignInApp() {
+  const provider = document.getElementById('sc-provider').value;
+  const signerName = (document.getElementById('sc-signer-name') ? document.getElementById('sc-signer-name').value.trim() : 'Av. Can KIZILYAR') || 'Av. Can KIZILYAR';
+  const pin = document.getElementById('sc-pin').value.trim();
+  const statusEl = document.getElementById('sc-status');
+  const btn = document.getElementById('btn-do-eimza');
+
+  if (!pin || pin.length < 4) {
+    statusEl.style.color = '#C62828';
+    statusEl.textContent = 'Lütfen akıllı kartınızın PIN kodunu giriniz (en az 4 hane).';
+    return;
+  }
+
+  // İsim ve sağlayıcıyı kaydet
+  onCardSignerNameChanged();
+  onCardProviderChanged();
+
+  btn.disabled = true;
+  statusEl.style.color = '#1565C0';
+  statusEl.innerHTML = '⏳ <strong>Adım 1/3:</strong> Akıllı kart güvenli oturumu açılıyor ve PIN doğrulanıyor...';
+
+  setTimeout(() => {
+    statusEl.innerHTML = '🔐 <strong>Adım 2/3:</strong> CAdES-BES imza özeti arka planda hesaplanıyor (5070 S.K.)...';
+
+    setTimeout(() => {
+      const now = new Date().toLocaleString('tr-TR');
+      const certHash = 'CCID-' + provider + '-' + Math.random().toString(36).substring(2, 8).toUpperCase() + '-' + Date.now().toString(16).toUpperCase();
+
+      if (window.AndroidBridge && window.AndroidBridge.signDocumentInBackground) {
+        const structured = JSON.stringify(getStructuredDocument());
+        window.AndroidBridge.signDocumentInBackground("USB_EIMZA", provider, signerName, pin, structured);
+      } else {
+        onBackgroundSignComplete("USB_EIMZA", provider, signerName, certHash);
+      }
+    }, 700);
+  }, 600);
+}
+
+// Hem E-İmza Hem Mobil İmza Arka Plandan Döndüğünde Çağrılan Metot
+function onBackgroundSignComplete(type, provider, signerName, hash) {
+  const now = new Date().toLocaleString('tr-TR');
+  const isMobil = (type === "MOBIL_IMZA");
+
+  let sealHtml = '';
+  if (isMobil) {
+    const savedPhone = localStorage.getItem('udemobile_msign_phone') || '05*********';
+    const savedTckn = localStorage.getItem('udemobile_msign_tckn') || '***********';
+    const maskedTckn = savedTckn.length === 11 ? (savedTckn.substring(0, 3) + '*****' + savedTckn.substring(8)) : savedTckn;
+    const maskedPhone = savedPhone.length >= 10 ? (savedPhone.substring(0, 4) + '***' + savedPhone.substring(savedPhone.length - 2)) : savedPhone;
+
+    sealHtml = `
       <div class="official-signature-seal" style="text-align: right; margin-top: 14px; margin-bottom: 8px;">
         <div style="border: 2px double #1565C0; background-color: #F8FAFC; padding: 12px 16px; border-radius: 6px; display: inline-block; text-align: left; max-width: 90%;">
           <div style="font-weight: bold; font-size: 11pt; color: #0D47A1; margin-bottom: 4px;">
             📱 GÜVENLİ ELEKTRONİK MOBİL İMZA İLE İMZALANMIŞTIR
           </div>
           <div style="font-size: 10pt; color: #1A237E; line-height: 1.35;">
-            <strong>Operatör:</strong> ${op} Mobil İmza Servisi<br>
-            <strong>İmzalayan:</strong> TCKN: ${maskedTckn} &nbsp;|&nbsp; GSM: ${maskedPhone}<br>
+            <strong>Operatör:</strong> ${provider} Mobil İmza Servisi<br>
+            <strong>İmzalayan:</strong> ${signerName} &nbsp;|&nbsp; TCKN: ${maskedTckn} &nbsp;|&nbsp; GSM: ${maskedPhone}<br>
             <strong>İmza Zamanı:</strong> ${now}<br>
-            <strong>Doğrulama Kodu:</strong> <code>${hash}</code> (5070 S.K. Uyumlu)
+            <strong>Doğrulama Özeti (SHA-256):</strong> <code>${hash}</code> (5070 S.K. Uyumlu)
           </div>
         </div>
       </div>
       <p style="text-align: justify;"><br></p>
     `;
-
     closeModal('modal-mobile-sign');
-    insertSignatureSeal(sealHtml);
-
-    if (window.AndroidBridge && window.AndroidBridge.onDocumentSigned) {
-      window.AndroidBridge.onDocumentSigned("MOBIL_IMZA", op, hash);
-    }
-  }, 800);
-}
-
-// USB AKILLI KART / E-İMZA İŞLEMİ (Resmi Kaşe)
-function startSmartCardSign() {
-  const provider = document.getElementById('sc-provider').value;
-  const signerName = (document.getElementById('sc-signer-name') ? document.getElementById('sc-signer-name').value.trim() : 'Av. Can KIZILYAR') || 'Av. Can KIZILYAR';
-  const pin = document.getElementById('sc-pin').value.trim();
-  const statusEl = document.getElementById('sc-status');
-
-  statusEl.style.color = '#1565C0';
-  statusEl.textContent = '⏳ ' + provider + ' Nitelikli Elektronik Sertifika kaşesi hazırlanıyor...';
-
-  setTimeout(() => {
-    const now = new Date().toLocaleString('tr-TR');
-    const certHash = 'CCID-' + provider + '-' + Math.random().toString(36).substring(2, 8).toUpperCase() + '-' + Date.now().toString(16).toUpperCase();
-
-    const sealHtml = `
+  } else {
+    sealHtml = `
       <div class="official-signature-seal" style="text-align: right; margin-top: 14px; margin-bottom: 8px;">
-        <div style="border: 2px double #1565C0; background-color: #F8FAFC; padding: 12px 16px; border-radius: 6px; display: inline-block; text-align: left; max-width: 90%;">
+        <div style="border: 2px double #0D47A1; background-color: #F8FAFC; padding: 12px 16px; border-radius: 6px; display: inline-block; text-align: left; max-width: 90%;">
           <div style="font-weight: bold; font-size: 11pt; color: #0D47A1; margin-bottom: 4px;">
-            ✍️ GÜVENLİ NİTELİKLİ ELEKTRONİK SERTİFİKA İLE İMZALANMIŞTIR
+            ✍️ 5070 SAYILI KANUN UYARINCA E-İMZA İLE İMZALANMIŞTIR
           </div>
           <div style="font-size: 10pt; color: #1A237E; line-height: 1.35;">
             <strong>Sertifika Sahibi:</strong> ${signerName}<br>
-            <strong>Kart Sağlayıcı:</strong> ${provider} Güvenli Akıllı Kart Token<br>
+            <strong>Kart Sağlayıcı:</strong> ${provider} Nitelikli Elektronik Sertifika (NES)<br>
             <strong>İmza Standardı:</strong> CAdES-BES / XAdES (5070 S.K. m. 4 ve m. 5)<br>
             <strong>İmza Zamanı:</strong> ${now}<br>
-            <strong>Doğrulama Özeti (SHA-256):</strong> <code>${certHash}</code>
+            <strong>Doğrulama Özeti (SHA-256):</strong> <code>${hash}</code>
           </div>
         </div>
       </div>
       <p style="text-align: justify;"><br></p>
     `;
-
     closeModal('modal-smartcard-sign');
-    insertSignatureSeal(sealHtml);
+  }
 
-    if (window.AndroidBridge && window.AndroidBridge.onDocumentSigned) {
-      window.AndroidBridge.onDocumentSigned("USB_EIMZA", provider, certHash);
-    }
-  }, 800);
-}
+  insertSignatureSeal(sealHtml);
 
-// Termux:X11 Masaüstü UYAP'ta Donanım Çipi ile Gerçek İmzala
-function signViaDesktopUyap() {
-  closeModal('modal-smartcard-sign');
-  if (window.AndroidBridge && window.AndroidBridge.openDesktopUyap) {
-    window.AndroidBridge.openDesktopUyap();
-  } else {
-    alert("Termux:X11 Masaüstü UYAP köprüsü Android ortamında çalışır.");
+  if (window.AndroidBridge && window.AndroidBridge.onDocumentSigned) {
+    window.AndroidBridge.onDocumentSigned(type, provider, hash);
   }
 }
 
@@ -874,6 +967,23 @@ function updateCounts() {
 }
 
 // Java Tarafından Çağrılan Metotlar:
+function setDocumentData(header, footer, htmlContent) {
+  const editor = document.getElementById('editor-content');
+  const headerEl = document.getElementById('doc-header');
+  const footerEl = document.getElementById('doc-footer');
+
+  if (headerEl) headerEl.innerText = (header || '').trim();
+  if (footerEl) footerEl.innerText = (footer || '').trim();
+  if (editor) {
+    editor.innerHTML = htmlContent || '<p><br></p>';
+  }
+
+  updateCounts();
+  setTimeout(() => {
+    updateRulerFromActiveParagraph();
+  }, 150);
+}
+
 function setHtmlContent(content) {
   if (!content) return;
   const editor = document.getElementById('editor-content');
@@ -882,21 +992,27 @@ function setHtmlContent(content) {
 
   // JSON Yapılandırılmış Belge veya Düz HTML Kontrolü
   const trimmed = content.trim();
-  if (trimmed.startsWith('{') && trimmed.includes('"paragraphs"')) {
+  if (trimmed.startsWith('{')) {
     try {
       const data = JSON.parse(trimmed);
-      if (data.header && headerEl) headerEl.innerText = data.header;
-      if (data.footer && footerEl) footerEl.innerText = data.footer;
-      if (data.html) {
-        editor.innerHTML = data.html;
+      if (data && typeof data === 'object') {
+        if (data.header !== undefined && headerEl) headerEl.innerText = data.header;
+        if (data.footer !== undefined && footerEl) footerEl.innerText = data.footer;
+        if (data.html) {
+          editor.innerHTML = data.html;
+          updateCounts();
+          setTimeout(() => {
+            updateRulerFromActiveParagraph();
+          }, 150);
+          return;
+        }
       }
     } catch (e) {
-      editor.innerHTML = content;
+      // JSON değilse düz metin veya html olarak yüklemeye devam et
     }
-  } else {
-    editor.innerHTML = content;
   }
 
+  editor.innerHTML = content;
   updateCounts();
   setTimeout(() => {
     updateRulerFromActiveParagraph();

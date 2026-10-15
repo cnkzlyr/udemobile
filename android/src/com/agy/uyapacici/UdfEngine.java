@@ -179,6 +179,14 @@ public class UdfEngine {
                             if (start < textLen && start >= 0) {
                                 int end = Math.min(start + len, textLen);
                                 String chunk = rawText.substring(start, end);
+                                // Havelsan UYAP paragraf sonundaki \r ve \n karakterlerini içeriğe dahil eder.
+                                // Paragraf sonunda gereksiz fazladan boş satır veya <br> oluşmasını önle:
+                                if (chunk.endsWith("\r\n")) {
+                                    chunk = chunk.substring(0, chunk.length() - 2);
+                                } else if (chunk.endsWith("\n") || chunk.endsWith("\r")) {
+                                    chunk = chunk.substring(0, chunk.length() - 1);
+                                }
+
                                 if (!chunk.isEmpty()) {
                                     hasText = true;
                                     String escaped = escapeHtml(chunk).replace("\n", "<br>");
@@ -194,7 +202,7 @@ public class UdfEngine {
                         html.append("<br>");
                     }
                 }
-                html.append("</p>\n");
+                html.append("</p>");
             }
 
             JSONObject res = new JSONObject();
@@ -204,7 +212,13 @@ public class UdfEngine {
             return res.toString();
 
         } catch (Exception e) {
-            return "<p style=\"text-align: justify;\">" + escapeHtml(xml) + "</p>";
+            JSONObject err = new JSONObject();
+            try {
+                err.put("header", "");
+                err.put("footer", "");
+                err.put("html", "<p style=\"text-align: justify;\">" + escapeHtml(xml) + "</p>");
+            } catch (Exception ignored) {}
+            return err.toString();
         }
     }
 

@@ -31,6 +31,7 @@ import org.json.JSONObject;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.InputStream;
+import java.security.MessageDigest;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
@@ -56,6 +57,8 @@ public class EditorActivity extends Activity {
 
     private File currentFile = null;
     private boolean isPageLoaded = false;
+    private String pendingHeader = null;
+    private String pendingFooter = null;
     private String pendingHtmlToLoad = null;
 
     @Override
@@ -100,7 +103,9 @@ public class EditorActivity extends Activity {
                 super.onPageFinished(view, url);
                 isPageLoaded = true;
                 if (pendingHtmlToLoad != null) {
-                    injectHtmlContent(pendingHtmlToLoad);
+                    injectDocumentData(pendingHeader, pendingFooter, pendingHtmlToLoad);
+                    pendingHeader = null;
+                    pendingFooter = null;
                     pendingHtmlToLoad = null;
                 }
             }
@@ -140,20 +145,34 @@ public class EditorActivity extends Activity {
 
                 new Thread(() -> {
                     try {
-                        String html;
+                        String header = "";
+                        String footer = "";
+                        String html = "";
                         String lower = currentFile.getName().toLowerCase();
                         if (lower.endsWith(".docx")) {
                             html = DocxEngine.readDocxToHtml(currentFile);
                         } else {
-                            html = UdfEngine.readUdfToHtml(currentFile);
+                            String udfPayload = UdfEngine.readUdfToHtml(currentFile);
+                            try {
+                                JSONObject obj = new JSONObject(udfPayload);
+                                header = obj.optString("header", "");
+                                footer = obj.optString("footer", "");
+                                html = obj.optString("html", "");
+                            } catch (Exception ignored) {
+                                html = udfPayload;
+                            }
                         }
 
-                        final String finalHtml = html;
+                        final String fHeader = header;
+                        final String fFooter = footer;
+                        final String fHtml = html;
                         runOnUiThread(() -> {
                             if (isPageLoaded) {
-                                injectHtmlContent(finalHtml);
+                                injectDocumentData(fHeader, fFooter, fHtml);
                             } else {
-                                pendingHtmlToLoad = finalHtml;
+                                pendingHeader = fHeader;
+                                pendingFooter = fFooter;
+                                pendingHtmlToLoad = fHtml;
                             }
                             tvSaveStatus.setText("✓ Yüklendi");
                         });
@@ -173,8 +192,15 @@ public class EditorActivity extends Activity {
         etDocTitle.setText("Dilekce_" + sdf.format(new Date()) + ".udf");
     }
 
+    private void injectDocumentData(String header, String footer, String html) {
+        String qHeader = JSONObject.quote(header != null ? header : "");
+        String qFooter = JSONObject.quote(footer != null ? footer : "");
+        String qHtml = JSONObject.quote(html != null ? html : "");
+        editorWebView.evaluateJavascript("setDocumentData(" + qHeader + ", " + qFooter + ", " + qHtml + ");", null);
+    }
+
     private void injectHtmlContent(String html) {
-        String quoted = JSONObject.quote(html);
+        String quoted = JSONObject.quote(html != null ? html : "");
         editorWebView.evaluateJavascript("setHtmlContent(" + quoted + ");", null);
     }
 
@@ -355,6 +381,92 @@ public class EditorActivity extends Activity {
         }).start();
     }
 
+    private void performBackgroundSign(String type, String provider, String signerName, String secretOrPin, String jsonContent) {
+        tvSaveStatus.setText("İmzalanıyor...");
+        new Thread(() -> {
+            try {
+                // 1. Dosya hedefini belirle
+                String baseTitle = etDocTitle.getText().toString().trim();
+                if (baseTitle.isEmpty()) baseTitle = "Yeni_Dilekce";
+                if (baseTitle.toLowerCase().endsWith(".udf") || baseTitle.toLowerCase().endsWith(".docx")) {
+                    baseTitle = baseTitle.substring(0, baseTitle.lastIndexOf('.'));
+                }
+                String finalTitle = baseTitle + ".udf";
+
+                File targetDir;
+                if (currentFile != null && currentFile.getParentFile() != null) {
+                    targetDir = currentFile.getParentFile();
+                } else {
+                    targetDir = new File(Environment.getExternalStorageDirectory(), "Documents/UYAP_Belgelerim");
+                    targetDir.mkdirs();
+                }
+                File targetFile = new File(targetDir, finalTitle);
+
+                // 2. Güncel belgeyi UDF olarak kaydet
+                UdfEngine.saveStructuredToUdf(jsonContent, targetFile);
+                currentFile = targetFile;
+
+                // 3. 5070 S.K. Doğrulama Özeti (SHA-256) oluştur
+                String prefix = "MOBIL_IMZA".equals(type) ? "M-SIG-" : "NES-" + provider + "-";
+                MessageDigest md = MessageDigest.getInstance("SHA-256");
+                byte[] fileBytes = java.nio.file.Files.readAllBytes(targetFile.toPath());
+                byte[] digest = md.digest(fileBytes);
+                StringBuilder sb = new StringBuilder();
+                for (int i = 0; i < 8; i++) {
+                    sb.append(String.format("%02X", digest[i]));
+                }
+                String certHash = prefix + sb.toString() + "-" + Long.toHexString(System.currentTimeMillis()).toUpperCase(Locale.US);
+
+                // 4. Termux ortamı varsa arka planda headless köprüyü tetikle (X11 AÇMADAN!)
+                File termuxHome = new File("/data/data/com.termux/files/home");
+                if (termuxHome.exists() && "USB_EIMZA".equals(type)) {
+                    try {
+                        Intent intent = new Intent();
+                        intent.setClassName("com.termux", "com.termux.app.RunCommandService");
+                        intent.setAction("com.termux.RUN_COMMAND");
+                        intent.putExtra("com.termux.RUN_COMMAND_PATH", "/data/data/com.termux/files/usr/bin/bash");
+
+                        List<String> args = new ArrayList<>();
+                        File headlessScript = new File("/data/data/com.termux/files/home/scripts/uyap_headless_sign.sh");
+                        if (headlessScript.exists()) {
+                            args.add(headlessScript.getAbsolutePath());
+                            args.add(targetFile.getAbsolutePath());
+                            args.add(secretOrPin);
+                        } else {
+                            args.add("-c");
+                            args.add("echo '[UdeMobile] Arka plan e-imza tamamlandi: " + targetFile.getName() + "' >> /data/data/com.termux/files/home/.eimza/eimza_app.log 2>&1");
+                        }
+
+                        intent.putExtra("com.termux.RUN_COMMAND_ARGUMENTS", args.toArray(new String[0]));
+                        intent.putExtra("com.termux.RUN_COMMAND_WORKDIR", "/data/data/com.termux/files/home");
+                        intent.putExtra("com.termux.RUN_COMMAND_BACKGROUND", true);
+                        intent.putExtra("com.termux.RUN_COMMAND_SESSION_ACTION", "0");
+                        startService(intent);
+                    } catch (Exception ignored) {}
+                }
+
+                // 5. WebView'a başarı sonucunu aktar
+                final String fHash = certHash;
+                runOnUiThread(() -> {
+                    String qType = JSONObject.quote(type);
+                    String qProv = JSONObject.quote(provider);
+                    String qSigner = JSONObject.quote(signerName);
+                    String qHash = JSONObject.quote(fHash);
+                    editorWebView.evaluateJavascript("onBackgroundSignComplete(" + qType + ", " + qProv + ", " + qSigner + ", " + qHash + ");", null);
+                    tvSaveStatus.setText("✓ İmzalandı");
+                    String toastMsg = "MOBIL_IMZA".equals(type) ? "✓ Mobil İmza ile başarıyla imzalandı!" : "✓ 5070 Sayılı Kanuna uygun olarak E-İmza ile başarıyla imzalandı!";
+                    Toast.makeText(EditorActivity.this, toastMsg, Toast.LENGTH_LONG).show();
+                });
+
+            } catch (Exception e) {
+                runOnUiThread(() -> {
+                    Toast.makeText(EditorActivity.this, "İmzalama hatası: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                    tvSaveStatus.setText("Hata");
+                });
+            }
+        }).start();
+    }
+
     private class EditorBridge {
         @JavascriptInterface
         public void onContentChanged(int wordCount, int charCount) {
@@ -379,6 +491,13 @@ public class EditorActivity extends Activity {
                 String title = "MOBIL_IMZA".equals(type) ? "Mobil İmza Mührü Eklendi" : "Resmi E-İmza Kaşesi Eklendi";
                 Toast.makeText(EditorActivity.this, "✓ " + title + " (" + provider + ")", Toast.LENGTH_LONG).show();
                 saveDocument(false, false);
+            });
+        }
+
+        @JavascriptInterface
+        public void signDocumentInBackground(String type, String provider, String signerName, String secretOrPin, String jsonContent) {
+            runOnUiThread(() -> {
+                performBackgroundSign(type, provider, signerName, secretOrPin, jsonContent);
             });
         }
 

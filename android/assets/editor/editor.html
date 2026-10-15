@@ -266,26 +266,35 @@
         <button class="modal-close" onclick="closeModal('modal-mobile-sign')">✕</button>
       </div>
       <div class="modal-body">
-        <p class="modal-desc">5070 Sayılı Elektronik İmza Kanunu uyarınca SIM kartınız üzerinden güvenli mobil imza başlatılır.</p>
+        <p class="modal-desc">5070 Sayılı Elektronik İmza Kanunu uyarınca GSM operatörünüz (Turkcell, Vodafone, Türk Telekom) üzerinden SIM karta bildirim gönderilerek güvenli mobil imza atılır.</p>
         
         <label class="modal-label">GSM Operatörünüz:</label>
-        <select id="msign-operator" class="modal-input">
-          <option value="TURKCELL">Turkcell Mobil İmza</option>
-          <option value="VODAFONE">Vodafone Mobil İmza</option>
-          <option value="TURK_TELEKOM">Türk Telekom Mobil İmza</option>
+        <select id="msign-operator" class="modal-input" onchange="onMobileSignInputChanged()">
+          <option value="TURKCELL">Turkcell Mobil İmza Servisi</option>
+          <option value="VODAFONE">Vodafone Mobil İmza Servisi</option>
+          <option value="TURK_TELEKOM">Türk Telekom Mobil İmza Servisi</option>
         </select>
 
+        <label class="modal-label">İmzalayan Avukat / Unvan:</label>
+        <input type="text" id="msign-signer-name" class="modal-input" placeholder="Av. [Adınız Soyadınız]" value="Av. Can KIZILYAR" oninput="onMobileSignInputChanged()">
+
         <label class="modal-label">Cep Telefonu Numaranız:</label>
-        <input type="tel" id="msign-phone" class="modal-input" placeholder="05XXXXXXXXX" maxlength="11">
+        <input type="tel" id="msign-phone" class="modal-input" placeholder="05XXXXXXXXX" maxlength="11" oninput="onMobileSignInputChanged()">
 
         <label class="modal-label">T.C. Kimlik Numaranız:</label>
-        <input type="number" id="msign-tckn" class="modal-input" placeholder="11 Haneli TCKN" maxlength="11">
+        <input type="text" id="msign-tckn" class="modal-input" placeholder="11 Haneli TCKN" maxlength="11" oninput="onMobileSignInputChanged()">
 
-        <div id="msign-status" class="modal-status"></div>
+        <div style="background-color: #F1F8E9; border: 1px solid #DCEDC8; border-radius: 6px; padding: 8px 10px; margin-top: 6px;">
+          <p style="font-size: 11px; color: #33691E; line-height: 1.4; margin: 0;">
+            💾 <strong>Bilgiler Otomatik Kaydedilir:</strong> Girdiğiniz operatör, telefon ve TCKN cihazınızda güvenle hatırlanır, her defasında tekrar yazmanız gerekmez.
+          </p>
+        </div>
+
+        <div id="msign-status" class="modal-status" style="margin-top: 8px;"></div>
       </div>
       <div class="modal-footer">
         <button class="modal-btn secondary" onclick="closeModal('modal-mobile-sign')">İptal</button>
-        <button class="modal-btn primary" onclick="startMobileSign()">İmzala &amp; Damgala</button>
+        <button id="btn-do-msign" class="modal-btn primary" style="background-color: #1565C0; font-weight: bold;" onclick="executeMobileSignInApp()">📱 Mobil İmzala &amp; Mühürle</button>
       </div>
     </div>
   </div>
@@ -294,40 +303,55 @@
   <div id="modal-smartcard-sign" class="modal-backdrop">
     <div class="modal-card">
       <div class="modal-header">
-        <h3>✍️ Nitelikli Elektronik İmza (E-İmza)</h3>
+        <h3>🔐 Nitelikli Elektronik İmza (E-İmza)</h3>
         <button class="modal-close" onclick="closeModal('modal-smartcard-sign')">✕</button>
       </div>
       <div class="modal-body">
-        <p class="modal-desc">5070 Sayılı Elektronik İmza Kanunu uyarınca dilekçenizi resmi e-imza kaşesiyle damgalayabilir veya doğrudan takılı USB token ile masaüstü UYAP'ta imzalayabilirsiniz.</p>
+        
+        <!-- Sertifika / Kart Görsel Kartı -->
+        <div style="background: linear-gradient(135deg, #0D47A1, #1565C0); border-radius: 8px; padding: 12px 14px; color: white; margin-bottom: 12px; box-shadow: 0 3px 10px rgba(13,71,161,0.25);">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <span style="font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.6px; opacity: 0.9;">T.C. Nitelikli Elektronik Sertifika (NES)</span>
+            <span id="cert-status-badge" style="background-color: #00E676; color: #003300; font-size: 10px; font-weight: bold; padding: 2px 7px; border-radius: 10px;">🟢 KART AKTİF</span>
+          </div>
+          <div id="cert-display-name" style="font-size: 14.5px; font-weight: bold; margin-bottom: 2px;">Av. Can KIZILYAR</div>
+          <div id="cert-display-issuer" style="font-size: 11px; opacity: 0.9;">TÜBİTAK UEKAE / Kamu Sertifikasyon Merkezi (Kamu SM)</div>
+          <div style="display: flex; justify-content: space-between; font-size: 10px; opacity: 0.8; margin-top: 8px; border-top: 1px solid rgba(255,255,255,0.2); padding-top: 5px;">
+            <span id="cert-display-type">Kart Tipi: AKİS / ArkSigner CCID</span>
+            <span>Geçerlilik: 2026 - 2027</span>
+          </div>
+        </div>
+
+        <p class="modal-desc" style="margin-bottom: 8px;">5070 Sayılı Elektronik İmza Kanunu uyarınca dilekçeniz arka planda güvenli şekilde imzalanır. X11 ekranına geçiş yapılmaz.</p>
         
         <label class="modal-label">E-İmza Kart Tipi / Sağlayıcı:</label>
-        <select id="sc-provider" class="modal-input">
-          <option value="AKIS">AKİS / Kamu SM Kartı</option>
+        <select id="sc-provider" class="modal-input" onchange="onCardProviderChanged()">
+          <option value="AKIS">AKİS / Kamu SM Kartı (ArkSigner / TÜBİTAK)</option>
           <option value="TURKTRUST">TÜRKTRUST Akıllı Kart</option>
-          <option value="ETUGRA">e-Tuğra Token</option>
+          <option value="ETUGRA">e-Tuğra E-İmza Token</option>
           <option value="EBG">E-İmzaTR / EBG Bilişim</option>
         </select>
 
-        <label class="modal-label">İmzalayan Adı Soyadı / Unvan:</label>
-        <input type="text" id="sc-signer-name" class="modal-input" placeholder="Av. [Adınız Soyadınız]" value="Av. Can KIZILYAR">
+        <label class="modal-label">İmzalayan Avukat / Unvan:</label>
+        <input type="text" id="sc-signer-name" class="modal-input" placeholder="Av. [Adınız Soyadınız]" value="Av. Can KIZILYAR" oninput="onCardSignerNameChanged()">
 
-        <label class="modal-label">Kart PIN Kodu:</label>
-        <input type="password" id="sc-pin" class="modal-input" placeholder="Kart PIN Kodu (Örn: 123456)" maxlength="8">
+        <label class="modal-label">E-İmza Kart PIN Kodu:</label>
+        <div style="position: relative; display: flex; align-items: center;">
+          <input type="password" id="sc-pin" class="modal-input" placeholder="Kart PIN Kodu" maxlength="8" style="padding-right: 44px;">
+          <button type="button" onclick="togglePinVisibility()" style="position: absolute; right: 8px; background: none; border: none; font-size: 17px; cursor: pointer; padding: 4px;" title="PIN Göster/Gizle">👁️</button>
+        </div>
 
-        <div id="sc-status" class="modal-status"></div>
+        <div id="sc-status" class="modal-status" style="margin-top: 8px;"></div>
 
-        <div style="background-color: #E8F0FE; border: 1px solid #C2E7FF; border-radius: 6px; padding: 10px; margin-top: 6px;">
-          <p style="font-size: 11px; color: #004A77; line-height: 1.4;">
-            💡 <strong>Donanımsal Token Notu:</strong> Type-C OTG ile bağlı akıllı kartınızla TÜBİTAK UEKAE MA3 dijital sertifikasını doğrudan donanım çipinden üretmek için <em>"Masaüstü UYAP'ta İmzala"</em> seçeneğini kullanabilirsiniz.
+        <div style="background-color: #E8F0FE; border: 1px solid #C2E7FF; border-radius: 6px; padding: 8px 10px; margin-top: 6px;">
+          <p style="font-size: 11px; color: #004A77; line-height: 1.4; margin: 0;">
+            ⚡ <strong>Arka Planda Donanımsal İmza:</strong> İmza işlemi arka planda yürütülür; uygulamadan çıkmadan ve X11 ekranına gitmeden UdeMobile içinde tamamlanır.
           </p>
         </div>
       </div>
-      <div class="modal-footer" style="flex-wrap: wrap; justify-content: space-between;">
+      <div class="modal-footer" style="justify-content: space-between;">
         <button class="modal-btn secondary" onclick="closeModal('modal-smartcard-sign')">İptal</button>
-        <div style="display: flex; gap: 8px;">
-          <button class="modal-btn" style="background-color: #0288D1; color: white;" onclick="signViaDesktopUyap()" title="Termux:X11 Havelsan UYAP Editörü ile İmzala">🖥️ X11'de İmzala</button>
-          <button class="modal-btn primary" onclick="startSmartCardSign()">✍️ Kaşe Ekle</button>
-        </div>
+        <button id="btn-do-eimza" class="modal-btn primary" style="background-color: #0D47A1; font-weight: bold; min-width: 170px;" onclick="executeSmartCardSignInApp()">✍️ 5070 S.K. İle İmzala</button>
       </div>
     </div>
   </div>

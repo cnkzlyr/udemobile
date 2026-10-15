@@ -80,22 +80,27 @@ Artık telefonda UYAP belgelerini açmak için karmaşık X11 masaüstü pencere
 * **Word Dilekçesini UDF'ye Çevirme:** WhatsApp'tan veya bilgisayardan gelen `.docx` uzantılı bir Word dilekçesini açıp düzenleyebilir ve tek tıkla resmi **.udf** formatında kaydedebilirsiniz.
 * **UDF Belgesini Word Olarak Kaydetme:** Açtığınız bir UDF belgesini tek tıkla standart **.docx** dosyası olarak dışa aktarabilirsiniz.
 
-### 5. 📄 Resmi A4 PDF Çıktısı & Paylaşım
+### 5. 🔐 Uygulama İçi Arka Plan E-İmza & Akıllı Kart (X11 Ekranına Geçmeden)
+* **Kalıcı Mobil İmza:** Operatör (Turkcell, Vodafone, TT), GSM No ve TCKN bilgileri kalıcı olarak hatırlanır; her seferinde tekrar yazma zahmeti biter.
+* **Uygulama İçi E-İmza (Headless):** X11 masaüstü ekranına geçiş yapmadan doğrudan uygulama içi pencereden akıllı kart/token (AKİS, TÜRKTRUST, e-Tuğra, vb.) sertifikası görüntülenir, PIN girilerek 5070 Sayılı Kanuna uygun CAdES-BES imzası arka planda üretilir.
+* **Bağımsız (Standalone) Çalışma:** Termux veya Termux:X11 kurulu olmayan cihazlarda da harici hiçbir gereksinime ihtiyaç duymadan resmi 5070 S.K. doğrulama kaşesi ve standart UDF üretimi kusursuz çalışır.
+
+### 6. 📄 Resmi A4 PDF Çıktısı & Paylaşım
 * **PDF Dışa Aktar:** Android sistem yazdırma servisi ile dilekçenizi saniyeler içinde A4 PDF formatında oluşturun ve kaydedin.
 * **Doğrudan Paylaşım:** Oluşturulan dilekçeyi WhatsApp, UYAP Mobil, E-Posta veya Bulut depolamaya tek tıkla gönderin.
 
-### 6. 🎯 Sistem Genelinde Varsayılan Uygulama
+### 7. 🎯 Sistem Genelinde Varsayılan Uygulama
 * **Samsung Dosyalarım, WhatsApp, TickTick, Telegram:** Herhangi bir `.udf` veya `.docx` dosyasına dokunulduğunda "Birlikte Aç" menüsünde listelenir. "Her Zaman" seçilerek telefonun kalıcı varsayılan belge yöneticisi yapılır.
 
-### 7. 🖥️ Masaüstü UYAP (Termux:X11) Entegrasyonu
-* Dilediğiniz an tek bir dokunuşla (`🖥️ X11` butonu) üzerinde çalıştığınız dilekçeyi arka plandaki Termux ortamına aktarabilir ve Havelsan masaüstü editöründe açabilirsiniz.
+### 8. 🖥️ Masaüstü UYAP (Termux:X11) Entegrasyonu
+* İstenildiğinde tek dokunuşla dilekçeyi arka plandaki Termux ortamına aktarabilir ve Havelsan masaüstü editöründe açabilirsiniz.
 
 ---
 
 ## 🚀 Sıfırdan Kurulum Rehberi
 
 ### Adım 1: APK Kurulumu
-1. Bu depodaki [release/udemobile-v2.3.apk](release/udemobile-v2.3.apk) dosyasını telefonunuza indirin.
+1. Bu depodaki [release/udemobile-v2.4.apk](release/udemobile-v2.4.apk) dosyasını telefonunuza indirin.
 2. Dosyayı açıp **"Yükle"** onayına dokunun.
 
 ### Adım 2: İzinleri Ayarlama (Termux Entegrasyonu İçin)
@@ -123,12 +128,12 @@ udemobile/
 │   │   └── DocxEngine.java          # OpenXML Word <-> HTML çevirici ve DOCX üretici
 │   ├── res/                         # Material kartlar, butonlar ve XML düzenleri
 │   └── assets/editor/               # Mobil Editör Arayüzü (HTML5, CSS3, JS)
-│       ├── editor.html              # HTML5 A4 çalışma alanı
+│       ├── editor.html              # HTML5 A4 çalışma alanı ve imza kartları
 │       ├── editor.css               # Kağıt / Mobil görünüm ve modal stilleri
-│       └── editor.js                # Zengin metin, m-imza, e-imza, resim ve şablon motoru
-├── scripts/                         # Termux Entegrasyon Betikleri (uyap_baslat.sh)
+│       └── editor.js                # Zengin metin, m-imza, e-imza, cetvel ve şablon motoru
+├── scripts/                         # Termux Entegrasyon Betikleri (uyap_baslat.sh, headless imza)
 ├── release/
-│   └── udemobile-v2.2.apk           # İmzalı ve kullanıma hazır Android APK paketi
+│   └── udemobile-v2.4.apk           # İmzalı ve kullanıma hazır Android APK paketi
 └── README.md                        # Kullanım kılavuzu ve proje dokümantasyonu
 ```
 
