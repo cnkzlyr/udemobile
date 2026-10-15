@@ -309,35 +309,35 @@
       <div class="modal-body">
         
         <!-- Sertifika / Kart Görsel Kartı -->
-        <div style="background: linear-gradient(135deg, #0D47A1, #1565C0); border-radius: 8px; padding: 12px 14px; color: white; margin-bottom: 12px; box-shadow: 0 3px 10px rgba(13,71,161,0.25);">
+        <div id="cert-card-box" style="background: linear-gradient(135deg, #37474F, #455A64); border-radius: 8px; padding: 12px 14px; color: white; margin-bottom: 12px; box-shadow: 0 3px 10px rgba(0,0,0,0.15);">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
             <span style="font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.6px; opacity: 0.9;">T.C. Nitelikli Elektronik Sertifika (NES)</span>
-            <span id="cert-status-badge" style="background-color: #00E676; color: #003300; font-size: 10px; font-weight: bold; padding: 2px 7px; border-radius: 10px;">🟢 KART AKTİF</span>
+            <span id="cert-status-badge" style="background-color: #D32F2F; color: white; font-size: 10px; font-weight: bold; padding: 2px 7px; border-radius: 10px;">🔴 KART TAKILI DEĞİL</span>
           </div>
-          <div id="cert-display-name" style="font-size: 14.5px; font-weight: bold; margin-bottom: 2px;">Av. Can KIZILYAR</div>
-          <div id="cert-display-issuer" style="font-size: 11px; opacity: 0.9;">TÜBİTAK UEKAE / Kamu Sertifikasyon Merkezi (Kamu SM)</div>
+          <div id="cert-display-name" style="font-size: 14.5px; font-weight: bold; margin-bottom: 2px;">E-İmza Kartı Algılanamadı</div>
+          <div id="cert-display-issuer" style="font-size: 11px; opacity: 0.9;">Lütfen akıllı kartınızı veya tokenınızı Type-C OTG adaptörüyle telefonunuza bağlayınız.</div>
           <div style="display: flex; justify-content: space-between; font-size: 10px; opacity: 0.8; margin-top: 8px; border-top: 1px solid rgba(255,255,255,0.2); padding-top: 5px;">
-            <span id="cert-display-type">Kart Tipi: AKİS / ArkSigner CCID</span>
-            <span>Geçerlilik: 2026 - 2027</span>
+            <span id="cert-display-type">Okuyucu: Takılı cihaz yok</span>
+            <span id="cert-display-validity">Geçerlilik: --</span>
           </div>
         </div>
 
-        <p class="modal-desc" style="margin-bottom: 8px;">5070 Sayılı Elektronik İmza Kanunu uyarınca dilekçeniz arka planda güvenli şekilde imzalanır. X11 ekranına geçiş yapılmaz.</p>
-        
-        <label class="modal-label">E-İmza Kart Tipi / Sağlayıcı:</label>
-        <select id="sc-provider" class="modal-input" onchange="onCardProviderChanged()">
-          <option value="AKIS">AKİS / Kamu SM Kartı (ArkSigner / TÜBİTAK)</option>
-          <option value="TURKTRUST">TÜRKTRUST Akıllı Kart</option>
-          <option value="ETUGRA">e-Tuğra E-İmza Token</option>
-          <option value="EBG">E-İmzaTR / EBG Bilişim</option>
-        </select>
+        <!-- Kart Yok Uyarısı -->
+        <div id="sc-no-card-box" style="background-color: #FFF3E0; border: 1px solid #FFE0B2; border-radius: 6px; padding: 10px 12px; margin-bottom: 10px;">
+          <p style="font-size: 12px; color: #E65100; line-height: 1.45; margin: 0;">
+            ⚠️ <strong>Kart Takılı Değil:</strong> 5070 Sayılı Kanuna uygun gerçek elektronik imza oluşturabilmek için akıllı kartınızın / e-imza çubuğunuzun telefonunuza OTG ile takılı olması gerekir.
+          </p>
+        </div>
 
-        <label class="modal-label">İmzalayan Avukat / Unvan:</label>
-        <input type="text" id="sc-signer-name" class="modal-input" placeholder="Av. [Adınız Soyadınız]" value="Av. Can KIZILYAR" oninput="onCardSignerNameChanged()">
+        <!-- Kart Takılı Olduğunda Açılan Sertifika Seçici -->
+        <div id="sc-cert-container" style="display: none; margin-bottom: 10px;">
+          <label class="modal-label">İmzalama Sertifikası (NES):</label>
+          <select id="sc-cert-select" class="modal-input" onchange="onRealCertSelected()"></select>
+        </div>
 
         <label class="modal-label">E-İmza Kart PIN Kodu:</label>
         <div style="position: relative; display: flex; align-items: center;">
-          <input type="password" id="sc-pin" class="modal-input" placeholder="Kart PIN Kodu" maxlength="8" style="padding-right: 44px;">
+          <input type="password" id="sc-pin" class="modal-input" placeholder="Kart takıldığında PIN girilebilir" maxlength="8" disabled style="padding-right: 44px;">
           <button type="button" onclick="togglePinVisibility()" style="position: absolute; right: 8px; background: none; border: none; font-size: 17px; cursor: pointer; padding: 4px;" title="PIN Göster/Gizle">👁️</button>
         </div>
 
@@ -345,13 +345,16 @@
 
         <div style="background-color: #E8F0FE; border: 1px solid #C2E7FF; border-radius: 6px; padding: 8px 10px; margin-top: 6px;">
           <p style="font-size: 11px; color: #004A77; line-height: 1.4; margin: 0;">
-            ⚡ <strong>Arka Planda Donanımsal İmza:</strong> İmza işlemi arka planda yürütülür; uygulamadan çıkmadan ve X11 ekranına gitmeden UdeMobile içinde tamamlanır.
+            ⚡ <strong>Gerçek Donanımsal İmza:</strong> Adalet Bakanlığı E-İmza altyapısı ve TÜBİTAK UEKAE MA3 CAdES motoru arka planda çalışarak kart çipinizden resmi dijital imza üretir.
           </p>
         </div>
       </div>
-      <div class="modal-footer" style="justify-content: space-between;">
+      <div class="modal-footer" style="justify-content: space-between; flex-wrap: wrap; gap: 8px;">
         <button class="modal-btn secondary" onclick="closeModal('modal-smartcard-sign')">İptal</button>
-        <button id="btn-do-eimza" class="modal-btn primary" style="background-color: #0D47A1; font-weight: bold; min-width: 170px;" onclick="executeSmartCardSignInApp()">✍️ 5070 S.K. İle İmzala</button>
+        <div style="display: flex; gap: 6px;">
+          <button id="btn-refresh-sc" class="modal-btn" style="background-color: #ECEFF1; color: #37474F;" onclick="refreshSmartCardStatus()">🔄 Kartı Tara</button>
+          <button id="btn-do-eimza" class="modal-btn primary" style="background-color: #90A4AE; color: white; font-weight: bold; min-width: 170px;" onclick="executeSmartCardSignInApp()" disabled>Kart Bekleniyor...</button>
+        </div>
       </div>
     </div>
   </div>

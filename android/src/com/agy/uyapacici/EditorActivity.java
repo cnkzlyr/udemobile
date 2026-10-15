@@ -26,11 +26,18 @@ import android.widget.Toast;
 
 import com.agy.telemetry.CrashReporter;
 
+import org.json.JSONArray;
 import org.json.JSONObject;
 
+import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -467,6 +474,220 @@ public class EditorActivity extends Activity {
         }).start();
     }
 
+    private void queryRealSmartCardStatus() {
+        new Thread(() -> {
+            JSONObject responseToJs = new JSONObject();
+            try {
+                // E-imza servislerini kontrol et / başlat
+                File adaletScript = new File("/data/data/com.termux/files/home/eimza/adalet_baslat.sh");
+                if (adaletScript.exists()) {
+                    ensureEimzaServiceRunning();
+                }
+
+                URL url = new URL("http://127.0.0.1:5975/api/v1/signature/getCertificates");
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("GET");
+                conn.setConnectTimeout(1500);
+                conn.setReadTimeout(2500);
+
+                int code = conn.getResponseCode();
+                if (code == 200) {
+                    BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8));
+                    StringBuilder sb = new StringBuilder();
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        sb.append(line);
+                    }
+                    reader.close();
+
+                    JSONObject res = new JSONObject(sb.toString());
+                    JSONArray data = res.optJSONArray("data");
+                    if (data != null && data.length() > 0) {
+                        JSONArray certsArray = new JSONArray();
+                        String mainTerminal = "";
+
+                        for (int i = 0; i < data.length(); i++) {
+                            JSONObject readerObj = data.getJSONObject(i);
+                            String terminalName = readerObj.optString("terminal", "Akıllı Kart Okuyucu");
+                            if (mainTerminal.isEmpty()) mainTerminal = terminalName;
+                            JSONArray certs = readerObj.optJSONArray("certificates");
+                            if (certs != null) {
+                                for (int j = 0; j < certs.length(); j++) {
+                                    JSONObject c = certs.getJSONObject(j);
+                                    JSONObject item = new JSONObject();
+                                    item.put("id", c.optString("certificateId", ""));
+                                    item.put("subject", c.optString("subject", ""));
+                                    item.put("issuer", c.optString("issuer", ""));
+                                    item.put("serial", c.optString("certSerial", ""));
+                                    item.put("validUntil", c.optString("notAfter", ""));
+                                    item.put("terminal", terminalName);
+                                    certsArray.put(item);
+                                }
+                            }
+                        }
+
+                        if (certsArray.length() > 0) {
+                            responseToJs.put("connected", true);
+                            responseToJs.put("terminal", mainTerminal);
+                            responseToJs.put("certificates", certsArray);
+                        } else {
+                            responseToJs.put("connected", false);
+                            responseToJs.put("message", "Okuyucu algılandı ancak içinde takılı akıllı kart (çip) bulunamadı.");
+                        }
+                    } else {
+                        responseToJs.put("connected", false);
+                        responseToJs.put("message", "Takılı e-imza kartı bulunamadı. Lütfen kartınızı OTG ile bağlayınız.");
+                    }
+                } else {
+                    responseToJs.put("connected", false);
+                    responseToJs.put("message", "E-imza servisi yanıt vermedi (HTTP " + code + ").");
+                }
+            } catch (Exception e) {
+                try {
+                    responseToJs.put("connected", false);
+                    responseToJs.put("message", "Takılı e-imza kartı bulunamadı (OTG bağlantısını kontrol ediniz).");
+                } catch (Exception ignored) {}
+            }
+
+            final String jsonStr = responseToJs.toString();
+            runOnUiThread(() -> {
+                editorWebView.evaluateJavascript("onSmartCardStatusUpdated(" + jsonStr + ");", null);
+            });
+        }).start();
+    }
+
+    private void ensureEimzaServiceRunning() {
+        try {
+            Intent intent = new Intent();
+            intent.setClassName("com.termux", "com.termux.app.RunCommandService");
+            intent.setAction("com.termux.RUN_COMMAND");
+            intent.putExtra("com.termux.RUN_COMMAND_PATH", "/data/data/com.termux/files/usr/bin/bash");
+            intent.putExtra("com.termux.RUN_COMMAND_ARGUMENTS", new String[]{"-c", "bash ~/eimza/eimza_baslat.sh ensure >/dev/null 2>&1; bash ~/eimza/adalet_baslat.sh ensure >/dev/null 2>&1"});
+            intent.putExtra("com.termux.RUN_COMMAND_WORKDIR", "/data/data/com.termux/files/home");
+            intent.putExtra("com.termux.RUN_COMMAND_BACKGROUND", true);
+            intent.putExtra("com.termux.RUN_COMMAND_SESSION_ACTION", "0");
+            startService(intent);
+        } catch (Exception ignored) {}
+    }
+
+    private void performRealSmartCardSign(String certificateId, String pin, String jsonContent) {
+        tvSaveStatus.setText("İmzalanıyor...");
+        new Thread(() -> {
+            try {
+                // 1. Dosya hedefini belirle
+                String baseTitle = etDocTitle.getText().toString().trim();
+                if (baseTitle.isEmpty()) baseTitle = "Yeni_Dilekce";
+                if (baseTitle.toLowerCase().endsWith(".udf") || baseTitle.toLowerCase().endsWith(".docx")) {
+                    baseTitle = baseTitle.substring(0, baseTitle.lastIndexOf('.'));
+                }
+                String finalTitle = baseTitle + ".udf";
+
+                File targetDir;
+                if (currentFile != null && currentFile.getParentFile() != null) {
+                    targetDir = currentFile.getParentFile();
+                } else {
+                    targetDir = new File(Environment.getExternalStorageDirectory(), "Documents/UYAP_Belgelerim");
+                    targetDir.mkdirs();
+                }
+                File targetFile = new File(targetDir, finalTitle);
+
+                // UDF olarak yaz
+                UdfEngine.saveStructuredToUdf(jsonContent, targetFile);
+                currentFile = targetFile;
+
+                // Dosya içeriğini Base64 olarak hazırla
+                byte[] fileBytes = java.nio.file.Files.readAllBytes(targetFile.toPath());
+                String base64Content = Base64.encodeToString(fileBytes, Base64.NO_WRAP);
+
+                // 2. Adalet E-İmza Servisi üzerinden gerçek donanımsal imzalama isteği gönder
+                URL url = new URL("http://127.0.0.1:5975/api/v1/docsignature/signdigest");
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("POST");
+                conn.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
+                conn.setDoOutput(true);
+                conn.setConnectTimeout(6000);
+                conn.setReadTimeout(20000);
+
+                JSONObject reqObj = new JSONObject();
+                reqObj.put("certificateId", certificateId);
+                reqObj.put("pin", pin);
+                reqObj.put("password", pin);
+                reqObj.put("content", base64Content);
+
+                byte[] postData = reqObj.toString().getBytes(StandardCharsets.UTF_8);
+                try (OutputStream os = conn.getOutputStream()) {
+                    os.write(postData);
+                    os.flush();
+                }
+
+                int code = conn.getResponseCode();
+                InputStream is = (code >= 200 && code < 400) ? conn.getInputStream() : conn.getErrorStream();
+                BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8));
+                StringBuilder sb = new StringBuilder();
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    sb.append(line);
+                }
+                reader.close();
+
+                JSONObject res = new JSONObject(sb.toString());
+                JSONObject metadata = res.optJSONObject("metadata");
+                String status = metadata != null ? metadata.optString("STATUS", "") : "";
+                String msg = metadata != null ? metadata.optString("MESSAGE", "Bilinmeyen hata") : "İşlem başarısız";
+
+                if (!"SUCCESS".equalsIgnoreCase(status) || res.isNull("data")) {
+                    final String errMsg = msg;
+                    runOnUiThread(() -> {
+                        editorWebView.evaluateJavascript("onRealSignFailed(" + JSONObject.quote(errMsg) + ");", null);
+                        tvSaveStatus.setText("Hata");
+                        Toast.makeText(EditorActivity.this, "E-İmza Hatası: " + errMsg, Toast.LENGTH_LONG).show();
+                    });
+                    return;
+                }
+
+                // 3. Başarılı! Gerçek CAdES CMS DER imza verisini al
+                String signedDataBase64 = "";
+                Object dataObj = res.get("data");
+                if (dataObj instanceof JSONObject) {
+                    signedDataBase64 = ((JSONObject) dataObj).optString("signedData", "");
+                } else if (dataObj instanceof String) {
+                    signedDataBase64 = (String) dataObj;
+                }
+
+                if (signedDataBase64.isEmpty()) {
+                    throw new IllegalStateException("İmza verisi boş döndü.");
+                }
+
+                byte[] realCmsBytes = Base64.decode(signedDataBase64, Base64.DEFAULT);
+
+                // 4. Belgeyi gerçek sign.sgn ikilisi ile UDF arşivine mühürle ve kaydet
+                UdfEngine.saveStructuredToUdf(jsonContent, targetFile, realCmsBytes);
+
+                // 5. Doğrulama özeti hesapla
+                MessageDigest md = MessageDigest.getInstance("SHA-256");
+                byte[] digest = md.digest(realCmsBytes);
+                StringBuilder hashSb = new StringBuilder();
+                for (int i = 0; i < 8; i++) {
+                    hashSb.append(String.format("%02X", digest[i]));
+                }
+                final String realHash = "NES-HW-" + hashSb.toString() + "-" + Long.toHexString(System.currentTimeMillis()).toUpperCase(Locale.US);
+
+                runOnUiThread(() -> {
+                    editorWebView.evaluateJavascript("onRealSignSuccess(" + JSONObject.quote(realHash) + ");", null);
+                    tvSaveStatus.setText("✓ İmzalandı");
+                    Toast.makeText(EditorActivity.this, "✓ Gerçek E-İmza ile Başarıyla İmzalandı!", Toast.LENGTH_LONG).show();
+                });
+
+            } catch (Exception e) {
+                runOnUiThread(() -> {
+                    editorWebView.evaluateJavascript("onRealSignFailed(" + JSONObject.quote(e.getMessage()) + ");", null);
+                    tvSaveStatus.setText("Hata");
+                    Toast.makeText(EditorActivity.this, "İmza hatası: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                });
+            }
+        }).start();
+    }
+
     private class EditorBridge {
         @JavascriptInterface
         public void onContentChanged(int wordCount, int charCount) {
@@ -498,6 +719,18 @@ public class EditorActivity extends Activity {
         public void signDocumentInBackground(String type, String provider, String signerName, String secretOrPin, String jsonContent) {
             runOnUiThread(() -> {
                 performBackgroundSign(type, provider, signerName, secretOrPin, jsonContent);
+            });
+        }
+
+        @JavascriptInterface
+        public void checkSmartCardStatus() {
+            queryRealSmartCardStatus();
+        }
+
+        @JavascriptInterface
+        public void signWithRealSmartCard(String certificateId, String pin, String jsonContent) {
+            runOnUiThread(() -> {
+                performRealSmartCardSign(certificateId, pin, jsonContent);
             });
         }
 

@@ -222,10 +222,15 @@ public class UdfEngine {
         }
     }
 
+    public static void saveStructuredToUdf(String jsonString, File targetFile) throws Exception {
+        saveStructuredToUdf(jsonString, targetFile, null);
+    }
+
     /**
      * Editörden gelen yapılandırılmış JSON verisini geçerli bir Havelsan UYAP 1.8 UDF (.udf) dosyasına dönüştürür.
+     * Varsa akıllı karttan dönen gerçek DER CMS imza ikilisini (sign.sgn) arşive ekler.
      */
-    public static void saveStructuredToUdf(String jsonString, File targetFile) throws Exception {
+    public static void saveStructuredToUdf(String jsonString, File targetFile, byte[] realSignatureBytes) throws Exception {
         JSONArray paragraphs;
         String headerText = "";
         String footerText = "";
@@ -340,6 +345,14 @@ public class UdfEngine {
             zos.putNextEntry(entry);
             zos.write(contentBytes, 0, contentBytes.length);
             zos.closeEntry();
+
+            // 2. Gerçek E-İmza (sign.sgn) varsa binary DER formatında ekle
+            if (realSignatureBytes != null && realSignatureBytes.length > 0) {
+                ZipEntry signEntry = new ZipEntry("sign.sgn");
+                zos.putNextEntry(signEntry);
+                zos.write(realSignatureBytes, 0, realSignatureBytes.length);
+                zos.closeEntry();
+            }
         }
     }
 

@@ -100,7 +100,7 @@ Artık telefonda UYAP belgelerini açmak için karmaşık X11 masaüstü pencere
 ## 🚀 Sıfırdan Kurulum Rehberi
 
 ### Adım 1: APK Kurulumu
-1. Bu depodaki [release/udemobile-v2.4.apk](release/udemobile-v2.4.apk) dosyasını telefonunuza indirin.
+1. Bu depodaki [release/udemobile-v2.6.apk](release/udemobile-v2.6.apk) (veya [release/udemobile-latest.apk](release/udemobile-latest.apk)) dosyasını telefonunuza indirin.
 2. Dosyayı açıp **"Yükle"** onayına dokunun.
 
 ### Adım 2: İzinleri Ayarlama (Termux Entegrasyonu İçin)
@@ -115,6 +115,16 @@ Artık telefonda UYAP belgelerini açmak için karmaşık X11 masaüstü pencere
 
 ---
 
+## 🔐 Gerçek Donanımsal E-İmza (USB OTG & CCID) Mimarisi
+
+UdeMobile v2.6, **kesinlikle simülasyon veya sahte kart görseli kullanmaz**:
+* **Fiziksel Kart Algılama:** Telefonunuza Type-C OTG adaptörüyle bir akıllı kart okuyucu veya USB Token (AKİS, Kamu SM, ArkSigner, TÜRKTRUST, E-Tuğra vb.) takılmadığı sürece arayüz `🔴 KART TAKILI DEĞİL` uyarısı verir ve PIN girişi ile imzalama butonu kilitli tutulur.
+* **Canlı Durum Sorgulama:** Kart penceresi açıldığında sistem arka plandaki `127.0.0.1:5975` Adalet Bakanlığı E-İmza REST servisini periyodik olarak sorgular. Kart takıldığı an otomatik olarak yeşile döner (`🟢 KART AKTİF`), okuyucu adını ve çipteki geçerli sertifikaları (NES) listeler.
+* **5070 Sayılı Kanun Uyumlu CAdES-BES İmzalama:** Kullanıcı PIN kodunu girdiğinde imza verisi doğrudan kartın mikroçipi üzerinde (TÜBİTAK UEKAE MA3 CAdES motoru) hesaplanır. Hatalı PIN girildiğinde kart çipinden dönen gerçek hata ekrana yansıtılır.
+* **Orijinal `sign.sgn` Çıktısı:** Başarılı imzalama sonrası dönen ham DER CMS ikilisi doğrudan `.udf` zip arşivinin içine `sign.sgn` olarak gömülür. Bu sayede dosya resmi masaüstü UYAP Editöründe açıldığında "İmzalar Geçerli" olarak doğrulanır.
+
+---
+
 ## 📂 Dizin Yapısı
 
 ```text
@@ -123,17 +133,18 @@ udemobile/
 │   ├── AndroidManifest.xml          # UDF & DOCX intent filtreleri ve yetkiler
 │   ├── src/com/agy/uyapacici/
 │   │   ├── MainActivity.java        # Karşılama, dosya köprüsü ve geçmiş paneli
-│   │   ├── EditorActivity.java      # Google Dokümanlar tarzı mobil editör aktivitesi
-│   │   ├── UdfEngine.java           # UYAP 1.8 XML <-> HTML çevirici ve UDF üretici
+│   │   ├── EditorActivity.java      # Google Dokümanlar tarzı mobil editör & E-imza köprüsü
+│   │   ├── UdfEngine.java           # UYAP 1.8 XML <-> HTML çevirici ve UDF/sign.sgn üretici
 │   │   └── DocxEngine.java          # OpenXML Word <-> HTML çevirici ve DOCX üretici
 │   ├── res/                         # Material kartlar, butonlar ve XML düzenleri
 │   └── assets/editor/               # Mobil Editör Arayüzü (HTML5, CSS3, JS)
-│       ├── editor.html              # HTML5 A4 çalışma alanı ve imza kartları
+│       ├── editor.html              # HTML5 A4 çalışma alanı, canlı kart ve imza kartları
 │       ├── editor.css               # Kağıt / Mobil görünüm ve modal stilleri
-│       └── editor.js                # Zengin metin, m-imza, e-imza, cetvel ve şablon motoru
+│       └── editor.js                # Zengin metin, m-imza, donanımsal e-imza, cetvel ve şablonlar
 ├── scripts/                         # Termux Entegrasyon Betikleri (uyap_baslat.sh, headless imza)
 ├── release/
-│   └── udemobile-v2.4.apk           # İmzalı ve kullanıma hazır Android APK paketi
+│   ├── udemobile-v2.6.apk           # Donanımsal E-İmza destekli en güncel APK paketi
+│   └── udemobile-latest.apk         # En güncel sürüme işaret eden doğrudan indirme paketi
 └── README.md                        # Kullanım kılavuzu ve proje dokümantasyonu
 ```
 

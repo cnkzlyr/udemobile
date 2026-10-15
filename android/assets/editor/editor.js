@@ -575,6 +575,10 @@ function openModal(id) {
 
 function closeModal(id) {
   document.getElementById(id).classList.remove('open');
+  if (id === 'modal-smartcard-sign' && smartCardPollInterval) {
+    clearInterval(smartCardPollInterval);
+    smartCardPollInterval = null;
+  }
 }
 
 function openMobileSignModal() {
@@ -660,26 +664,18 @@ function executeMobileSignInApp() {
   }, 600);
 }
 
+let smartCardPollInterval = null;
+let currentSmartCardCerts = [];
+
 function openSmartCardSignModal() {
   saveCurrentSelection();
 
-  // Kaydedilmiş avukat ismi ve sağlayıcıyı yükle
-  const savedSigner = localStorage.getItem('udemobile_signer_name');
-  const savedProvider = localStorage.getItem('udemobile_sc_provider');
-
-  if (savedSigner && document.getElementById('sc-signer-name')) {
-    document.getElementById('sc-signer-name').value = savedSigner;
-  }
-  if (savedProvider && document.getElementById('sc-provider')) {
-    document.getElementById('sc-provider').value = savedProvider;
-  }
-
-  // Dinamik kart kartvizitini güncelle
-  onCardProviderChanged();
-  onCardSignerNameChanged();
-
   const pinEl = document.getElementById('sc-pin');
-  if (pinEl) pinEl.value = '';
+  if (pinEl) {
+    pinEl.value = '';
+    pinEl.disabled = true;
+    pinEl.placeholder = 'Kart takıldığında PIN girilebilir';
+  }
   const statusEl = document.getElementById('sc-status');
   if (statusEl) {
     statusEl.innerHTML = '';
@@ -687,43 +683,168 @@ function openSmartCardSignModal() {
   }
   const btn = document.getElementById('btn-do-eimza');
   if (btn) {
-    btn.disabled = false;
-    btn.textContent = '✍️ 5070 S.K. İle İmzala';
+    btn.disabled = true;
+    btn.textContent = 'Kart Bekleniyor...';
+    btn.style.backgroundColor = '#90A4AE';
   }
+
+  // Varsayılan kart durumu: Takılı değil
+  setCardBadgeState(false, 'E-İmza Kartı Algılanamadı', 'Lütfen akıllı kartınızı veya tokenınızı Type-C OTG adaptörüyle telefonunuza bağlayınız.', 'Takılı cihaz yok', '--');
 
   openModal('modal-smartcard-sign');
+
+  // Hemen sorgula
+  refreshSmartCardStatus();
+
+  // Her 2 saniyede bir kart durumunu otomatik kontrol et
+  if (smartCardPollInterval) clearInterval(smartCardPollInterval);
+  smartCardPollInterval = setInterval(() => {
+    refreshSmartCardStatus();
+  }, 2000);
 }
 
-function onCardProviderChanged() {
-  const provider = document.getElementById('sc-provider').value;
-  localStorage.setItem('udemobile_sc_provider', provider);
+function refreshSmartCardStatus() {
+  if (window.AndroidBridge && window.AndroidBridge.checkSmartCardStatus) {
+    window.AndroidBridge.checkSmartCardStatus();
+  } else {
+    onSmartCardStatusUpdated({
+      connected: false,
+      message: "Android donanım köprüsü aktif değil veya servis yanıt vermiyor."
+    });
+  }
+}
 
+function setCardBadgeState(connected, title, desc, reader, validity) {
+  const badge = document.getElementById('cert-status-badge');
+  const cardBox = document.getElementById('cert-card-box');
+  const titleEl = document.getElementById('cert-display-name');
   const issuerEl = document.getElementById('cert-display-issuer');
   const typeEl = document.getElementById('cert-display-type');
-  if (provider === 'AKIS') {
-    if (issuerEl) issuerEl.textContent = 'TÜBİTAK UEKAE / Kamu Sertifikasyon Merkezi (Kamu SM)';
-    if (typeEl) typeEl.textContent = 'Kart Tipi: AKİS / ArkSigner CCID';
-  } else if (provider === 'TURKTRUST') {
-    if (issuerEl) issuerEl.textContent = 'TÜRKTRUST Bilgi İletişim ve Bilişim Güvenliği Hizmetleri A.Ş.';
-    if (typeEl) typeEl.textContent = 'Kart Tipi: TÜRKTRUST Akıllı Kart (Palma)';
-  } else if (provider === 'ETUGRA') {
-    if (issuerEl) issuerEl.textContent = 'E-Tuğra EBG Bilişim Teknolojileri ve Hizmetleri A.Ş.';
-    if (typeEl) typeEl.textContent = 'Kart Tipi: e-Tuğra USB Token';
+  const validityEl = document.getElementById('cert-display-validity');
+  const noCardBox = document.getElementById('sc-no-card-box');
+  const certContainer = document.getElementById('sc-cert-container');
+  const pinEl = document.getElementById('sc-pin');
+  const btn = document.getElementById('btn-do-eimza');
+
+  if (connected) {
+    if (badge) {
+      badge.style.backgroundColor = '#2E7D32';
+      badge.textContent = '🟢 KART AKTİF (OTG BAĞLI)';
+    }
+    if (cardBox) {
+      cardBox.style.background = 'linear-gradient(135deg, #1B5E20, #2E7D32)';
+    }
+    if (noCardBox) noCardBox.style.display = 'none';
+    if (certContainer) certContainer.style.display = 'block';
+    if (pinEl) {
+      pinEl.disabled = false;
+      pinEl.placeholder = 'Akıllı kart PIN kodunu giriniz';
+    }
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = '✍️ 5070 S.K. İle İmzala';
+      btn.style.backgroundColor = '#1565C0';
+    }
   } else {
-    if (issuerEl) issuerEl.textContent = 'E-İmzaTR / EBG Bilişim Güvenliği ve Sertifikasyon A.Ş.';
-    if (typeEl) typeEl.textContent = 'Kart Tipi: E-İmzaTR USB Akıllı Kart';
+    if (badge) {
+      badge.style.backgroundColor = '#D32F2F';
+      badge.textContent = '🔴 KART TAKILI DEĞİL';
+    }
+    if (cardBox) {
+      cardBox.style.background = 'linear-gradient(135deg, #37474F, #455A64)';
+    }
+    if (noCardBox) noCardBox.style.display = 'block';
+    if (certContainer) certContainer.style.display = 'none';
+    if (pinEl) {
+      pinEl.value = '';
+      pinEl.disabled = true;
+      pinEl.placeholder = 'Kart takıldığında PIN girilebilir';
+    }
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'Kart Bekleniyor...';
+      btn.style.backgroundColor = '#90A4AE';
+    }
   }
+
+  if (titleEl) titleEl.textContent = title;
+  if (issuerEl) issuerEl.textContent = desc;
+  if (typeEl) typeEl.textContent = 'Okuyucu: ' + (reader || 'Cihaz Yok');
+  if (validityEl) validityEl.textContent = 'Geçerlilik: ' + (validity || '--');
 }
 
-function onCardSignerNameChanged() {
-  const name = (document.getElementById('sc-signer-name').value || '').trim();
-  const displayNameEl = document.getElementById('cert-display-name');
-  if (displayNameEl) {
-    displayNameEl.textContent = name || 'Av. Can KIZILYAR';
+// AndroidBridge tarafından çağrılan callback
+window.onSmartCardStatusUpdated = function(data) {
+  if (typeof data === 'string') {
+    try { data = JSON.parse(data); } catch(e) {}
   }
-  if (name) {
-    localStorage.setItem('udemobile_signer_name', name);
+
+  if (!data || !data.connected || !data.certificates || data.certificates.length === 0) {
+    currentSmartCardCerts = [];
+    const msg = data && data.message ? data.message : 'Lütfen akıllı kartınızı veya tokenınızı Type-C OTG adaptörüyle telefonunuza bağlayınız.';
+    setCardBadgeState(false, 'E-İmza Kartı Algılanamadı', msg, 'Takılı cihaz yok', '--');
+    return;
   }
+
+  currentSmartCardCerts = data.certificates;
+  const certSelect = document.getElementById('sc-cert-select');
+  if (certSelect) {
+    certSelect.innerHTML = '';
+    currentSmartCardCerts.forEach((c, idx) => {
+      const opt = document.createElement('option');
+      opt.value = c.id || idx;
+      let label = c.subject || 'Nitelikli Elektronik Sertifika';
+      const m = label.match(/CN=([^,]+)/i);
+      if (m) label = m[1].trim();
+      const iss = (c.issuer && c.issuer.match(/O=([^,]+)/i)) ? c.issuer.match(/O=([^,]+)/i)[1] : 'Kamu SM';
+      opt.textContent = `${label} (${iss})`;
+      certSelect.appendChild(opt);
+    });
+  }
+
+  onRealCertSelected();
+};
+
+function onRealCertSelected() {
+  if (!currentSmartCardCerts || currentSmartCardCerts.length === 0) return;
+  const certSelect = document.getElementById('sc-cert-select');
+  let selectedCert = currentSmartCardCerts[0];
+  if (certSelect && certSelect.value) {
+    const found = currentSmartCardCerts.find(c => (c.id === certSelect.value));
+    if (found) selectedCert = found;
+  }
+
+  // CN parse et
+  let subjectName = selectedCert.subject || 'Nitelikli Elektronik İmza Sahibi';
+  const cnMatch = subjectName.match(/CN=([^,]+)/i);
+  if (cnMatch) {
+    subjectName = cnMatch[1].trim();
+  }
+
+  // Issuer parse et
+  let issuerText = selectedCert.issuer || 'TÜBİTAK UEKAE / Kamu Sertifikasyon Merkezi';
+  const oMatch = issuerText.match(/O=([^,]+)/i) || issuerText.match(/CN=([^,]+)/i);
+  if (oMatch) {
+    issuerText = oMatch[1].trim();
+  }
+
+  let validity = selectedCert.validUntil || '--';
+  if (validity.length > 10) {
+    try {
+      const d = new Date(validity);
+      if (!isNaN(d.getTime())) {
+        validity = d.toLocaleDateString('tr-TR');
+      }
+    } catch(e) {}
+  }
+
+  setCardBadgeState(
+    true,
+    subjectName,
+    issuerText + (selectedCert.serial ? (' • Seri: ' + selectedCert.serial) : ''),
+    selectedCert.terminal || 'CCID Akıllı Kart Okuyucu',
+    validity
+  );
 }
 
 function togglePinVisibility() {
@@ -733,11 +854,16 @@ function togglePinVisibility() {
 }
 
 function executeSmartCardSignInApp() {
-  const provider = document.getElementById('sc-provider').value;
-  const signerName = (document.getElementById('sc-signer-name') ? document.getElementById('sc-signer-name').value.trim() : 'Av. Can KIZILYAR') || 'Av. Can KIZILYAR';
+  const certSelect = document.getElementById('sc-cert-select');
   const pin = document.getElementById('sc-pin').value.trim();
   const statusEl = document.getElementById('sc-status');
   const btn = document.getElementById('btn-do-eimza');
+
+  if (!currentSmartCardCerts || currentSmartCardCerts.length === 0) {
+    statusEl.style.color = '#C62828';
+    statusEl.textContent = 'İşlem için takılı bir akıllı kart bulunamadı. Lütfen kartınızı bağlayınız.';
+    return;
+  }
 
   if (!pin || pin.length < 4) {
     statusEl.style.color = '#C62828';
@@ -745,30 +871,75 @@ function executeSmartCardSignInApp() {
     return;
   }
 
-  // İsim ve sağlayıcıyı kaydet
-  onCardSignerNameChanged();
-  onCardProviderChanged();
+  const certId = (certSelect && certSelect.value) ? certSelect.value : (currentSmartCardCerts[0].id || "");
 
   btn.disabled = true;
   statusEl.style.color = '#1565C0';
   statusEl.innerHTML = '⏳ <strong>Adım 1/3:</strong> Akıllı kart güvenli oturumu açılıyor ve PIN doğrulanıyor...';
 
   setTimeout(() => {
-    statusEl.innerHTML = '🔐 <strong>Adım 2/3:</strong> CAdES-BES imza özeti arka planda hesaplanıyor (5070 S.K.)...';
+    statusEl.innerHTML = '🔐 <strong>Adım 2/3:</strong> CAdES-BES donanımsal imza üretiliyor (TÜBİTAK UEKAE MA3)...';
 
-    setTimeout(() => {
-      const now = new Date().toLocaleString('tr-TR');
-      const certHash = 'CCID-' + provider + '-' + Math.random().toString(36).substring(2, 8).toUpperCase() + '-' + Date.now().toString(16).toUpperCase();
-
-      if (window.AndroidBridge && window.AndroidBridge.signDocumentInBackground) {
-        const structured = JSON.stringify(getStructuredDocument());
-        window.AndroidBridge.signDocumentInBackground("USB_EIMZA", provider, signerName, pin, structured);
-      } else {
-        onBackgroundSignComplete("USB_EIMZA", provider, signerName, certHash);
-      }
-    }, 700);
-  }, 600);
+    const structured = JSON.stringify(getStructuredDocument());
+    if (window.AndroidBridge && window.AndroidBridge.signWithRealSmartCard) {
+      window.AndroidBridge.signWithRealSmartCard(certId, pin, structured);
+    } else {
+      setTimeout(() => {
+        onRealSignFailed("Android donanım köprüsüne erişilemedi.");
+      }, 500);
+    }
+  }, 400);
 }
+
+window.onRealSignFailed = function(errMsg) {
+  const statusEl = document.getElementById('sc-status');
+  const btn = document.getElementById('btn-do-eimza');
+  if (statusEl) {
+    statusEl.style.color = '#C62828';
+    statusEl.innerHTML = '❌ <strong>İmza Başarısız:</strong> ' + (errMsg || 'Kart hatası veya hatalı PIN.');
+  }
+  if (btn) {
+    btn.disabled = false;
+    btn.textContent = '✍️ Tekrar Dene';
+  }
+};
+
+window.onRealSignSuccess = function(realHash) {
+  const statusEl = document.getElementById('sc-status');
+  if (statusEl) {
+    statusEl.style.color = '#2E7D32';
+    statusEl.innerHTML = '✓ <strong>İmzalama Başarılı!</strong> CAdES-BES imzası UDF arşivine mühürlendi.';
+  }
+
+  const titleEl = document.getElementById('cert-display-name');
+  const signerName = titleEl ? titleEl.textContent : 'Avukat';
+  const issuerEl = document.getElementById('cert-display-issuer');
+  const issuerName = issuerEl ? issuerEl.textContent : 'Kamu Sertifikasyon Merkezi';
+  const now = new Date().toLocaleString('tr-TR');
+
+  const sealHtml = `
+    <div class="official-signature-seal" style="text-align: right; margin-top: 14px; margin-bottom: 8px;">
+      <div style="border: 2px double #0D47A1; background-color: #F8FAFC; padding: 12px 16px; border-radius: 6px; display: inline-block; text-align: left; max-width: 90%;">
+        <div style="font-weight: bold; font-size: 11pt; color: #0D47A1; margin-bottom: 4px;">
+          ✍️ 5070 SAYILI KANUN UYARINCA E-İMZA İLE İMZALANMIŞTIR
+        </div>
+        <div style="font-size: 10pt; color: #1A237E; line-height: 1.35;">
+          <strong>Sertifika Sahibi:</strong> ${signerName}<br>
+          <strong>Sertifika Sağlayıcı (NES):</strong> ${issuerName}<br>
+          <strong>İmza Standardı:</strong> CAdES-BES (5070 S.K. m. 4 ve m. 5)<br>
+          <strong>İmza Zamanı:</strong> ${now}<br>
+          <strong>Doğrulama Özeti (SHA-256):</strong> <code>${realHash}</code>
+        </div>
+      </div>
+    </div>
+    <p style="text-align: justify;"><br></p>
+  `;
+
+  setTimeout(() => {
+    closeModal('modal-smartcard-sign');
+    insertSignatureSeal(sealHtml);
+  }, 600);
+};
 
 // Hem E-İmza Hem Mobil İmza Arka Plandan Döndüğünde Çağrılan Metot
 function onBackgroundSignComplete(type, provider, signerName, hash) {
