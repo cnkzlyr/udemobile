@@ -57,8 +57,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: 'v3.3.4'
-          releaseName: 'CanEditor v3.3.4'
+          tagName: 'v3.4.0'
+          releaseName: 'CanEditor v3.4.0'
           releaseBody: 'CanEditor Cross-Platform Desktop GUI Release (Windows .exe/.msi, macOS .dmg, Linux .AppImage/.deb)'
           releaseDraft: false
           prerelease: false
