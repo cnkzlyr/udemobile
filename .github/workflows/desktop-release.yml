@@ -5,6 +5,11 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag to release (e.g. v3.3.4)'
+        required: false
+        default: 'v3.3.4'
 
 jobs:
   build-desktop:
