@@ -564,6 +564,11 @@ public class UdfEngine {
             }
         }
 
+        info.signatureCount = Math.max(signFiles.size(), info.signers.size());
+        if (info.signers.size() > 1 && !info.signers.isEmpty()) {
+            info.signerName = info.signers.get(0).signerName + " (ve " + (info.signers.size() - 1) + " imza daha)";
+        }
+
         info.isValid = allValid;
         if (info.isValid) {
             info.message = "İmza ve içerik özeti doğrulandı. Belge imzalandıktan sonra değiştirilmemiştir.";
@@ -600,7 +605,7 @@ public class UdfEngine {
         return org != null ? org : dn;
     }
 
-    private static byte[] readZipEntryFully(ZipFile zip, ZipEntry entry) throws IOException {
+    public static byte[] readZipEntryFully(ZipFile zip, ZipEntry entry) throws IOException {
         try (InputStream is = zip.getInputStream(entry);
              ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
             byte[] buf = new byte[8192];

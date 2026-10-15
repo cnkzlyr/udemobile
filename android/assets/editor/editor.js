@@ -621,7 +621,7 @@ function onMobileSignInputChanged() {
 }
 
 function executeMobileSignInApp() {
-  const op = document.getElementById('msign-operator').value;
+  const opSelect = document.getElementById('msign-operator').value;
   const phone = document.getElementById('msign-phone').value.trim();
   const tckn = document.getElementById('msign-tckn').value.trim();
   const signerName = (document.getElementById('msign-signer-name') ? document.getElementById('msign-signer-name').value.trim() : 'Av. Can KIZILYAR') || 'Av. Can KIZILYAR';
@@ -630,7 +630,7 @@ function executeMobileSignInApp() {
 
   if (phone.length < 10) {
     statusEl.style.color = '#C62828';
-    statusEl.textContent = 'Lütfen geçerli bir telefon numarası giriniz.';
+    statusEl.textContent = 'Lütfen geçerli bir telefon numarası giriniz (örn: 05xxxxxxxxx).';
     return;
   }
   if (tckn.length !== 11) {
@@ -642,28 +642,121 @@ function executeMobileSignInApp() {
   // Bilgileri kalıcı hafızaya yaz
   onMobileSignInputChanged();
 
+  // Operatör kodu (1: Turkcell, 2: Vodafone, 3: Türk Telekom)
+  let opCode = 1;
+  let opName = 'Turkcell';
+  if (opSelect === 'VODAFONE') {
+    opCode = 2;
+    opName = 'Vodafone';
+  } else if (opSelect === 'TURK_TELEKOM') {
+    opCode = 3;
+    opName = 'Türk Telekom';
+  }
+
   btn.disabled = true;
   statusEl.style.color = '#1565C0';
-  statusEl.innerHTML = '⏳ <strong>Adım 1/2:</strong> ' + op + ' Mobil İmza servisine bağlanılıyor...';
+  statusEl.innerHTML = `
+    <div style="padding: 10px; background-color: #E3F2FD; border: 1px solid #90CAF9; border-radius: 6px;">
+      <div style="font-weight: bold; margin-bottom: 4px;">📡 UYAP &amp; ${opName} Mobil İmza Gateway Bağlantısı Kuruluyor...</div>
+      <div style="font-size: 11px; color: #1976D2;">Doküman özeti hesaplanıyor ve SIM karta istek gönderiliyor.</div>
+    </div>
+  `;
+
+  if (window.AndroidBridge && window.AndroidBridge.performMobileSign) {
+    const docData = getStructuredDocument();
+    const structured = (typeof docData === 'string') ? docData : JSON.stringify(docData);
+    window.AndroidBridge.performMobileSign(phone, opCode, tckn, signerName, structured);
+  } else {
+    statusEl.style.color = '#C62828';
+    statusEl.textContent = 'Mobil imza motoru Android uygulaması içinde çalışır.';
+    btn.disabled = false;
+  }
+}
+
+window.onMobileSignWaiting = function(fingerPrint, apTransId) {
+  const statusEl = document.getElementById('msign-status');
+  if (!statusEl) return;
+  statusEl.innerHTML = `
+    <div style="padding: 12px; background-color: #FFF8E1; border: 1px solid #FFE082; border-radius: 8px; margin-top: 4px;">
+      <div style="font-weight: bold; color: #E65100; font-size: 13px; margin-bottom: 6px;">
+        🔔 SIM KARTINIZA ONAY BİLDİRİMİ GÖNDERİLDİ!
+      </div>
+      <div style="margin: 8px 0; background-color: #FFF; border: 2px dashed #FFB300; border-radius: 6px; padding: 10px; text-align: center;">
+        <span style="font-size: 11px; color: #555; display: block; margin-bottom: 2px;">Telefon Ekranındaki Parfüm / Doğrulama Kodu:</span>
+        <strong style="font-size: 24px; color: #0D47A1; letter-spacing: 3px;">${fingerPrint || '----'}</strong>
+      </div>
+      <div style="font-size: 11.5px; color: #4E342E; line-height: 1.4;">
+        Lütfen telefonunuza gelen operatör bildirim ekranındaki kodun yukarıdaki kodla <strong>birebir aynı</strong> olduğunu kontrol edip telefonunuzdan <strong>Mobil İmza PIN</strong> kodunuzu giriniz.
+      </div>
+      <div style="margin-top: 8px; font-size: 11px; color: #795548; display: flex; align-items: center; justify-content: center; gap: 6px;">
+        <span class="spinner" style="display:inline-block; width:12px; height:12px; border:2px solid #FF9800; border-top-color:transparent; border-radius:50%; animation:spin 1s linear infinite;"></span>
+        <span>Kullanıcı PIN onayı bekleniyor...</span>
+      </div>
+    </div>
+  `;
+};
+
+window.onMobileSignFailed = function(errMsg) {
+  const statusEl = document.getElementById('msign-status');
+  const btn = document.getElementById('btn-do-msign');
+  if (btn) btn.disabled = false;
+  if (!statusEl) return;
+  statusEl.innerHTML = `
+    <div style="padding: 10px; background-color: #FFEBEE; border: 1px solid #FFCDD2; border-radius: 6px; color: #C62828;">
+      <strong>❌ Mobil İmza Başarısız:</strong><br>
+      <span style="font-size: 11.5px;">${errMsg || 'İşlem tamamlanamadı.'}</span>
+    </div>
+  `;
+};
+
+window.onMobileSignSuccess = function(hash, sigInfo, signerName, tckn, opName) {
+  const statusEl = document.getElementById('msign-status');
+  if (statusEl) {
+    statusEl.innerHTML = `
+      <div style="padding: 10px; background-color: #E8F5E9; border: 1px solid #C8E6C9; border-radius: 6px; color: #2E7D32;">
+        <strong>✓ Mobil İmza Başarıyla Tamamlandı!</strong><br>
+        <span style="font-size: 11.5px;">TÜBİTAK UEKAE MA3 &amp; UYAP standardında mühürlendi.</span>
+      </div>
+    `;
+  }
+
+  // Belgeye resmi mobil imza bloğunu mühürle
+  const now = new Date().toLocaleString('tr-TR');
+  const maskedTckn = (tckn && tckn.length === 11) ? (tckn.substring(0, 3) + '*****' + tckn.substring(8)) : (tckn || '***');
+  const phone = document.getElementById('msign-phone') ? document.getElementById('msign-phone').value.trim() : '';
+  const maskedPhone = phone.length >= 10 ? (phone.substring(0, 4) + '***' + phone.substring(phone.length - 2)) : phone;
+
+  const sealHtml = `
+    <div class="official-signature-seal" style="text-align: right; margin-top: 14px; margin-bottom: 8px;">
+      <div style="border: 2px double #1565C0; background-color: #F8FAFC; padding: 12px 16px; border-radius: 6px; display: inline-block; text-align: left; max-width: 90%;">
+        <div style="font-weight: bold; font-size: 11pt; color: #0D47A1; margin-bottom: 4px;">
+          📱 GÜVENLİ ELEKTRONİK MOBİL İMZA İLE İMZALANMIŞTIR
+        </div>
+        <div style="font-size: 10pt; color: #1A237E; line-height: 1.35;">
+          <strong>İmzacı:</strong> ${signerName}<br>
+          <strong>Operatör &amp; Hat:</strong> ${opName} Mobil İmza (${maskedPhone})<br>
+          <strong>T.C. Kimlik No:</strong> ${maskedTckn}<br>
+          <strong>İmza Zamanı:</strong> ${now}<br>
+          <strong>Doğrulama Özeti (SHA-256):</strong> <code>${hash}</code> (5070 S.K.)
+        </div>
+      </div>
+    </div>
+    <p style="text-align: justify;"><br></p>
+  `;
+
+  const container = document.getElementById('editor-container');
+  if (container) {
+    container.insertAdjacentHTML('beforeend', sealHtml);
+  }
 
   setTimeout(() => {
-    const maskedPhone = phone.substring(0, 4) + '***' + phone.substring(phone.length - 2);
-    statusEl.innerHTML = '📲 <strong>Adım 2/2:</strong> ' + maskedPhone + ' numaralı SIM karta onay iletildi, yanıt alınıyor...';
-
-    setTimeout(() => {
-      const now = new Date().toLocaleString('tr-TR');
-      const hash = 'M-SIG-' + Math.random().toString(36).substring(2, 8).toUpperCase() + '-' + Date.now().toString(16).toUpperCase();
-
-      if (window.AndroidBridge && window.AndroidBridge.signDocumentInBackground) {
-        const docData = getStructuredDocument();
-        const structured = (typeof docData === 'string') ? docData : JSON.stringify(docData);
-        window.AndroidBridge.signDocumentInBackground("MOBIL_IMZA", op, signerName, phone, structured);
-      } else {
-        onBackgroundSignComplete("MOBIL_IMZA", op, signerName, hash);
-      }
-    }, 700);
-  }, 600);
-}
+    closeModal('modal-mobile-sign');
+    if (sigInfo) {
+      currentDocSignature = sigInfo;
+      updateSignatureBanner(sigInfo);
+    }
+  }, 900);
+};
 
 let smartCardPollInterval = null;
 let currentSmartCardCerts = [];
@@ -1397,9 +1490,14 @@ function updateSignatureBanner(data) {
   if (data.isValid) {
     banner.className = 'signature-status-banner valid';
     iconEl.textContent = '🟢';
-    const signer = data.signerName || 'Elektronik İmza Sahibi';
-    const iss = data.issuer ? ` (${data.issuer})` : '';
-    textEl.innerHTML = `<strong>Geçerli E-İmza:</strong> ${signer}${iss}`;
+    if (data.signers && data.signers.length > 1) {
+      const names = data.signers.map(s => s.signerName).join(', ');
+      textEl.innerHTML = `<strong>${data.signers.length} Geçerli E-İmza:</strong> ${names}`;
+    } else {
+      const signer = data.signerName || 'Elektronik İmza Sahibi';
+      const iss = data.issuer ? ` (${data.issuer})` : '';
+      textEl.innerHTML = `<strong>Geçerli E-İmza:</strong> ${signer}${iss}`;
+    }
   } else {
     banner.className = 'signature-status-banner invalid';
     iconEl.textContent = '🔴';
@@ -1444,6 +1542,7 @@ function populateSignatureDetailsModal(data) {
   const detValidity = document.getElementById('det-validity');
   const detAlgo = document.getElementById('det-algorithm');
   const detDigest = document.getElementById('det-digest-hex');
+  const certBox = document.getElementById('sig-cert-info-box');
 
   if (!data || !data.hasSignature) {
     if (mainBox) {
@@ -1482,7 +1581,11 @@ function populateSignatureDetailsModal(data) {
     }
     if (largeIcon) largeIcon.textContent = '🟢';
     if (heading) {
-      heading.textContent = 'Doküman Üzerinde Geçerli Elektronik İmza Bulundu';
+      if (data.signers && data.signers.length > 1) {
+        heading.textContent = `Dokümanda ${data.signers.length} Geçerli Elektronik İmza Bulundu`;
+      } else {
+        heading.textContent = 'Doküman Üzerinde Geçerli Elektronik İmza Bulundu';
+      }
       heading.style.color = '#1B5E20';
     }
     if (subtext) {
@@ -1523,12 +1626,35 @@ function populateSignatureDetailsModal(data) {
     }
   }
 
-  if (detSigner) detSigner.textContent = data.signerName || 'Bilinmeyen İmzacı';
-  if (detIssuer) detIssuer.textContent = data.issuer || 'Nitelikli Elektronik Sertifika Sağlayıcı';
-  if (detSerial) detSerial.textContent = data.serialNumber || '-';
-  if (detValidity) detValidity.textContent = (data.validFrom ? data.validFrom + ' - ' : '') + (data.validUntil || '-');
-  if (detAlgo) detAlgo.textContent = (data.signAlgorithm || 'SHA256withRSA') + ' / CAdES-BES (5070 S.K.)';
-  if (detDigest) detDigest.textContent = data.rawDigest || '-';
+  if (data.signers && data.signers.length > 1 && certBox) {
+    let cardsHtml = `
+      <div style="font-size: 11px; font-weight: bold; color: #475569; margin-bottom: 8px; text-transform: uppercase;">
+        Dokümandaki İmzalar (Toplam ${data.signers.length} E-İmza):
+      </div>
+    `;
+    data.signers.forEach((s, idx) => {
+      cardsHtml += `
+        <div style="border: 1px solid #90CAF9; background-color: #F8FAFC; border-radius: 6px; padding: 10px 12px; margin-bottom: 8px;">
+          <div style="font-weight: bold; color: #0D47A1; margin-bottom: 4px; font-size: 12px;">✍️ İmza #${idx + 1}: ${s.signerName}</div>
+          <div><strong>Sertifika Sağlayıcı (NES):</strong> ${s.issuer || '-'}</div>
+          <div><strong>Seri No:</strong> <code style="font-size: 11px; word-break: break-all;">${s.serialNumber || '-'}</code></div>
+          <div><strong>Geçerlilik Aralığı:</strong> ${(s.validFrom ? s.validFrom + ' - ' : '') + (s.validUntil || '-')}</div>
+          <div><strong>Algoritma:</strong> ${s.signAlgorithm || 'SHA256withRSA'} / CAdES-BES</div>
+        </div>
+      `;
+    });
+    cardsHtml += `
+      <div style="margin-top: 6px;"><strong>Belge Özet Değeri (SHA-256):</strong> <code style="font-size: 10.5px; word-break: break-all;">${data.rawDigest || '-'}</code></div>
+    `;
+    certBox.innerHTML = cardsHtml;
+  } else {
+    if (detSigner) detSigner.textContent = data.signerName || 'Bilinmeyen İmzacı';
+    if (detIssuer) detIssuer.textContent = data.issuer || 'Nitelikli Elektronik Sertifika Sağlayıcı';
+    if (detSerial) detSerial.textContent = data.serialNumber || '-';
+    if (detValidity) detValidity.textContent = (data.validFrom ? data.validFrom + ' - ' : '') + (data.validUntil || '-');
+    if (detAlgo) detAlgo.textContent = (data.signAlgorithm || 'SHA256withRSA') + ' / CAdES-BES (5070 S.K.)';
+    if (detDigest) detDigest.textContent = data.rawDigest || '-';
+  }
 }
 
 function recheckSignatureInModal() {

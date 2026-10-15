@@ -489,7 +489,11 @@ public class MainActivity extends Activity {
                 if (sig.isValid) {
                     String signer = sig.signerName.isEmpty() ? "Bilinmeyen İmzacı" : sig.signerName;
                     String issuer = sig.issuer.isEmpty() ? "" : " (" + sig.issuer + ")";
-                    tvSig.setText("🟢 GEÇERLİ E-İMZA: " + signer + issuer);
+                    if (sig.signers.size() > 1) {
+                        tvSig.setText("🟢 " + sig.signers.size() + " GEÇERLİ İMZA: " + signer);
+                    } else {
+                        tvSig.setText("🟢 GEÇERLİ E-İMZA: " + signer + issuer);
+                    }
                     tvSig.setTextColor(0xFF2E7D32); // Koyu yeşil
                     tvSig.setTypeface(null, android.graphics.Typeface.BOLD);
                 } else {

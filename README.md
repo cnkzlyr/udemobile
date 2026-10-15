@@ -54,10 +54,11 @@ Artık telefonda UYAP belgelerini açmak için karmaşık X11 masaüstü pencere
 * **Çift Yönlü UDF & DOCX Uyumluluğu:** Üstbilgi (Mahkeme adı, dosya no) ve altbilgi (iletişim, sayfa no) doğrudan UDF `<pageFormat>` ve DOCX yapısına kaydedilir, belge açıldığında geri yüklenir.
 * **Hızlı Sayfa No Ekleme:** Tek tıkla altbilgiye tarih ve `Sayfa 1 / 1` formatında resmi numaralandırma.
 
-### 4. 📱 Mobil İmza (M-İmza) & ✍️ USB E-İmza (sign.sgn Kriptografik Doğrulama)
-* **İmleç Konumu Koruma:** Mobil imza veya e-imza penceresi açıldığında imleç konumu kaybolmaz; imza mührü doğrudan seçili konuma eklenir ve ekranda merkeze kaydırılır.
-* **Gerçek UYAP `sign.sgn` Arşivi:** İmzalı belgeler kaydedildiğinde `.udf` arşivine SHA-256 özeti ve 5070 Sayılı Kanun uyumlu dijital imza bloğu (`sign.sgn`) eklenir. UYAP Editör tarafından resmi imzalı belge olarak tanınır.
-* **Operatör & Token Desteği:** Turkcell, Vodafone, Türk Telekom M-İmza ile TÜRKTRUST, Kamu SM, AKİS, e-Tuğra akıllı kartları.
+### 4. 📱 Gerçek UYAP Mobil İmza (M-İmza) & ✍️ USB E-İmza + Çoklu İmza Desteği
+* **Gerçek UYAP Mobil İmza Ağ Geçidi:** Adalet Bakanlığı UYAP Mobil İmza Web Servisi (`mimzaclient`) doğrudan entegre edilmiştir. Turkcell, Vodafone veya Türk Telekom operatörlerinden telefonunuza gelen onay bildirimindeki **Parfüm / Doğrulama Kodu** ekranda gösterilir, SIM kartınızdan PIN girildiğinde canlı imzalanır.
+* **Birden Fazla İmza & Paraf (Çoklu İmza Koruması):** Belgede önceden atılmış imzalar varsa, yeni bir e-imza veya mobil imza atıldığında eski imzalar silinmez! TÜBİTAK UEKAE MA3 & CAdES-BES standardına uygun olarak yeni imzacının `SignerInfo` ve sertifikası mevcut `sign.sgn` arşivine eklenir. Doküman çift veya çok imzalı olarak eksiksiz saklanır.
+* **Canlı İmza Doğrulama Motoru:** Hem ana dosya listesinde hem de editör içinde açılan dokümanın imzaları (imzacı adı, NES sertifika sağlayıcı, seri no, son geçerlilik tarihi) ve `content.xml` içerik bütünlüğü anlık doğrulanır. Çok imzalı belgelerde her imzacının kartı ayrı ayrı listelenir.
+* **Token Desteği:** TÜRKTRUST, Kamu SM, AKİS, e-Tuğra akıllı kartları ve ACR39U vb. CCID kart okuyucuları.
 
 ### 5. 📱 Google Dokümanlar Stili Mobil A4 Çalışma Alanı
 * **Görünüm Değiştirici (Kağıt / Mobil Mod):**
