@@ -306,7 +306,6 @@ public class UdfEngine {
 
             if (!renderedAny) {
                 // Fallback: Doğrudan paragrafları tara
-                NodeList paragraphs = doc.getElementsByTagName("paragraph");
                 for (int i = 0; i < paragraphs.getLength(); i++) {
                     Element p = (Element) paragraphs.item(i);
                     Node parent = p.getParentNode();
@@ -346,6 +345,8 @@ public class UdfEngine {
             } catch (Exception ignored) {}
             return err.toString();
         }
+    }
+
     private static void appendParagraphToHtml(Element p, String rawText, int textLen, java.util.Map<String, Integer> listCounters, StringBuilder outHtml) {
         String alignAttr = p.getAttribute("Alignment");
         String alignStyle = "justify";

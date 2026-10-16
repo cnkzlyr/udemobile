@@ -12,10 +12,16 @@ public final class R {
     public static final int badge_bg=0x7f010000;
     public static final int button_accent=0x7f010001;
     public static final int button_danger=0x7f010002;
-    public static final int button_primary=0x7f010003;
-    public static final int button_secondary=0x7f010004;
-    public static final int card_bg=0x7f010005;
-    public static final int preview_bg=0x7f010006;
+    public static final int button_pdf=0x7f010003;
+    public static final int button_primary=0x7f010004;
+    public static final int button_secondary=0x7f010005;
+    public static final int button_share=0x7f010006;
+    public static final int button_udf=0x7f010007;
+    public static final int button_word=0x7f010008;
+    public static final int card_bg=0x7f010009;
+    public static final int ic_launcher=0x7f01000a;
+    public static final int ic_launcher_round=0x7f01000b;
+    public static final int preview_bg=0x7f01000c;
   }
   public static final class id {
     public static final int appTitle=0x7f020000;
@@ -54,7 +60,11 @@ public final class R {
     public static final int activity_editor=0x7f030000;
     public static final int activity_main=0x7f030001;
   }
+  public static final class mipmap {
+    public static final int ic_launcher=0x7f040000;
+    public static final int ic_launcher_round=0x7f040001;
+  }
   public static final class string {
-    public static final int app_name=0x7f040000;
+    public static final int app_name=0x7f050000;
   }
 }
