@@ -296,6 +296,43 @@ select {
   user-select: none;
 }
 
+.udf-header-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  font-family: 'Times New Roman', Times, serif;
+  font-size: 9pt;
+  line-height: 1.2;
+  border-bottom: 0.5px solid #000;
+  padding-bottom: 3px;
+  margin-bottom: 8px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.udf-official-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  border-top: 0.5px solid #000;
+  padding-top: 4px;
+  font-family: Arial, sans-serif;
+  font-size: 7.5pt;
+  line-height: 1.2;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.udf-footer-qr-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.udf-footer-qr-container svg {
+  display: block;
+}
+
 /* Havelsan UYAP E-İmza Rozeti (Sağ Üst Köşe) */
 .official-doc-seal {
   position: absolute;
@@ -665,14 +702,14 @@ select {
   outline: none;
   font-family: "Times New Roman", Times, Georgia, serif;
   font-size: 12pt;
-  line-height: 1.35;
+  line-height: 1.2;
   color: #000000;
   min-height: 600px;
 }
 
 #editor-content p {
   margin: 0;
-  line-height: 1.35;
+  line-height: 1.2;
   text-align: justify;
   text-justify: inter-word;
   word-break: break-word;

@@ -1,6 +1,6 @@
 # ⚖️ CanEditor (UdeMobile) — Çapraz Platform UYAP & Word Editörü
 
-[![Sürüm](https://img.shields.io/badge/Sürüm-v3.4.4-blue.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v3.4.4)
+[![Sürüm](https://img.shields.io/badge/Sürüm-v3.4.5-blue.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v3.4.5)
 [![Platformlar](https://img.shields.io/badge/Platformlar-Android%20%7C%20Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Web-success.svg)](https://github.com/cnkzlyr/udemobile/releases)
 [![UYAP](https://img.shields.io/badge/Format-UYAP_UDF_v1.8-0D47A1.svg)](https://uyap.gov.tr)
 [![Word](https://img.shields.io/badge/Format-MS_DOCX_OpenXML-2B579A.svg?logo=microsoft-word&logoColor=white)](https://microsoft.com)
@@ -11,40 +11,30 @@
 
 ---
 
-## 🚀 Hızlı İndirme (v3.4.4)
+## 🚀 Hızlı İndirme (v3.4.5)
 
 | Platform | Paket Dosyası | Açıklama |
 | :--- | :--- | :--- |
-| **Android (Telefon & Tablet)** | [**CanEditor-v3.4.4.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.4.4/CanEditor-v3.4.4.apk) | Güncel mobil uygulama paketi |
-| **Android (Her Zaman En Son)** | [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.4.4/CanEditor-latest.apk) | Kalıcı son sürüm bağlantısı |
-| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v3.4.4.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v3.4.4/CanEditor-Portable-Web-GUI-v3.4.4.zip) | Kurulumsuz; zipten çıkarıp `index.html` açarak tüm işletim sistemlerinde doğrudan çalışır |
-| **Windows / macOS / Linux** | [**GitHub Releases Sayfası**](https://github.com/cnkzlyr/udemobile/releases/tag/v3.4.4) | GitHub Actions CI ile derlenen yerel ikili (.msi, .exe, .dmg, .AppImage, .deb, .rpm) paketleri |
+| **Android (Telefon & Tablet)** | [**CanEditor-v3.4.5.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.4.5/CanEditor-v3.4.5.apk) | Güncel mobil uygulama paketi |
+| **Android (Her Zaman En Son)** | [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.4.5/CanEditor-latest.apk) | Kalıcı son sürüm bağlantısı |
+| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v3.4.5.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v3.4.5/CanEditor-Portable-Web-GUI-v3.4.5.zip) | Kurulumsuz; zipten çıkarıp `index.html` açarak tüm işletim sistemlerinde doğrudan çalışır |
+| **Windows / macOS / Linux** | [**GitHub Releases Sayfası**](https://github.com/cnkzlyr/udemobile/releases/tag/v3.4.5) | GitHub Actions CI ile derlenen yerel ikili (.msi, .exe, .dmg, .AppImage, .deb, .rpm) paketleri |
 
 ---
 
-## 🌟 v3.4.4 ile Gelen Önemli Geliştirmeler
+## 🌟 v3.4.5 ile Gelen Önemli Geliştirmeler
 
-### 🛡️ 1. Orijinal UYAP & Celse Belgelerinde Bayt Bayt Bütünlük Koruması
-- **Sıfır Veri / Boyut Kaybı:** Resmi UYAP ve Celse uygulamasından indirilen `.udf` dosyalarında kullanıcı tarafından herhangi bir değişiklik yapılmadığı sürece (`!isDocumentModified`), dosya yeniden üretilmez; dosya boyutu (bayt bayt), dosya yapısı, `sign.sgn` (e-imza) ve `documentproperties.xml` (barkod / sicil metaverisi) **%100 orijinal haliyle** korunur.
-- **Kopya & Farklı Kaydet Koruması:** Değiştirilmemiş bir belge farklı adla veya kopya olarak kaydedildiğinde, doğrudan ikili dosya kopyalaması (`Files.copy`) yapılarak tüm elektronik imzalar ve arşiv metaverisi yeni dosyada aynen muhafaza edilir.
-- **Değişiklik Güvenlik Onayı:** İmzalı bir belgede metin değişikliği yapıldığında kullanıcı net şekilde uyarılır; onay verilmesi halinde `documentproperties.xml` (sicil/barkod) korunarak yalnızca içerik güncellenir.
+### 🎯 1. Milimetrik Sekme & Durak Hizalaması (Multi-Stop TabSet)
+- **Kusursuz İki Nokta (Colon) ve Sicil Hizası:** Çoklu durak yerleri (`TabSet="146.0:0:0,241.0:0:0"`) artık virgülle ayrılarak eksiksiz ayrıştırılır. `DOSYA NO`, `DURUŞMA TARİHİ`, `CELSE NO`, `HAKİM`, `CUMHURİYET SAVCISI`, `KATİP` satırlarındaki tüm iki noktalar (`:`) masaüstü UYAP editörüyle birebir aynı şekilde `5.15 cm` (`146.0 pt`) hizasında kilitlenir. Sicil numaraları ise `8.50 cm` (`241.0 pt`) sütununda tam dikey hizada yer alır; zig-zag oluşması tamamen engellenmiştir.
 
-### 📋 2. Duruşma Tutanağı, Gerekçeli Karar ve Tablo Desteği (`<field>` & `<table>`)
-- Resmi UYAP duruşma tutanaklarında, tensip zabıtlarında ve gerekçeli kararlarda mahkeme adı, esas/dosya numarası, taraf bilgileri ve vekil kayıtları `<field>` etiketleriyle tutulur. Artık tüm bu metaveri alanları hem Android hem de Masaüstü/Web motorunda eksiksiz görüntülenir.
-- Karar ve tutanakların sonundaki **Katip ve Hakim e-imza blokları (`<table>` yapısı)** çok sütunlu UYAP standart tablo düzeniyle kusursuz şekilde işlenir.
+### 🏷️ 2. Akıllı Üstbilgi Motoru (`<header startPage="2">`)
+- Resmi UYAP belgelerinde 1. sayfada üstbilgi gösterilmez. 2. sayfadan itibaren her sayfanın başında mahkeme adı ve dosya/duruşma bilgisi (`T.C. ... MAHKEMESİ / Dosya No: ...`) iki yana yaslı zarif bir üstbilgi bandı olarak otomatik eklenir.
 
-### ↺ 3. Güçlendirilmiş Geri Al / Yinele (Undo / Redo) Motoru
-- Sayfalama motorunun (`debouncedPagination`) ve sekme hizalama fonksiyonunun asenkron DOM güncellemeleri nedeniyle kullanıcı geri alıp ileri almak istediğinde yinele (redo) geçmişinin silinmesi sorunu tamamen giderilmiştir.
-- Kullanıcı gerçek bir klavye tuşuna basmadıkça veya biçimlendirme yapmadıkça sayfalama yan etkileri geçmiş adımlarını kesinlikle sıfırlayamaz.
+### 🛡️ 3. Resmi UYAP Doğrulama Metni & Dinamik QR / Barkod
+- `content.xml` içindeki `<webID>` ve `documentproperties.xml` içindeki `uyapdogrulamakodu` otomatik okunarak her sayfanın altbilgisine resmi doğrulama metni (`UYAP Bilişim Sistemindeki bu dokümana http://vatandas.uyap.gov.tr adresinden [kod] ile erişebilirsiniz.`) ve sağ köşede `{PAGE_NUM}/{TOTAL_PAGES}` ile dinamik SVG QR kod yerleştirilir.
 
-### 📐 4. Serbest İki Nokta (Colon) Boşlukları & Akıcı Metin Düzenleme
-- `DOSYA NO : ...` satırlarında iki noktadan sonraki boşlukların silinememesi sorunu giderilmiştir. Sekme hizalayıcının her tuş vuruşunda DOM düğümlerini sıfırlaması engellenerek Android klavye IME imleç kararlılığı sağlanmıştır.
-
-### 🖥️ 5. Tam Kapsamlı Çapraz Platform Dağıtım (Windows, macOS, Linux, Android)
-- Tauri v2 tabanlı yerel masaüstü derleme mimarisi optimize edilmiş; Windows (`.exe`, `.msi`), macOS (Universal `.dmg`, `.app`), Linux (`.AppImage`, `.deb`, `.rpm`) paketleri GitHub Actions CI ile otomatik derlenecek şekilde yapılandırılmıştır.
-
-### 🔄 6. Dahili Güncelleyici (In-App Updater)
-- Uygulama içinden doğrudan en son GitHub sürümü denetlenebilir ve veri kaybı olmadan kaydedilip güncellenebilir.
+### 📄 4. Hassas Sayfalama & Satır Kayması Koruması
+- Resmi UYAP `pageFormat` kenar boşlukları (`1.5 cm` kenarlar, `0.5 cm` alt) ve `1.2` satır aralığı standardı uygulanarak sayfa sonu satır kayması giderilmiş, resmi 18 sayfa düzeni birebir yakalanmıştır.
 
 ---
 

@@ -35,6 +35,7 @@ function isLegalMetadata(text) {
 // -------------------------------------------------------------
 async function parseUdfArrayBuffer(buffer) {
   let contentXml = null;
+  let docPropsXml = null;
   let hasSignature = false;
   let signatureInfo = { hasSignature: false, isValid: false, signers: [] };
 
@@ -42,6 +43,9 @@ async function parseUdfArrayBuffer(buffer) {
     const zip = await JSZip.loadAsync(buffer);
     if (zip.file("content.xml")) {
       contentXml = await zip.file("content.xml").async("text");
+    }
+    if (zip.file("documentproperties.xml")) {
+      docPropsXml = await zip.file("documentproperties.xml").async("text");
     }
     if (zip.file("sign.sgn")) {
       hasSignature = true;
@@ -72,20 +76,90 @@ async function parseUdfArrayBuffer(buffer) {
   const rawText = xmlDoc.querySelector("template > content")?.textContent || "";
   const runes = Array.from(rawText);
 
-  // Sayfa Ayarları
-  let leftMarginCm = 2.5, rightMarginCm = 2.5, topMarginCm = 2.5, bottomMarginCm = 2.5;
+  // Doğrulama Kodu Çözümleme (webID & documentproperties.xml)
+  const webIdEl = xmlDoc.querySelector("webID");
+  const webId = webIdEl ? (webIdEl.getAttribute("id") || "").trim() : "";
+  let uyapDogrulamaKodu = "";
+  if (docPropsXml) {
+    try {
+      const propsDoc = parser.parseFromString(docPropsXml, "application/xml");
+      const entries = propsDoc.querySelectorAll("entry");
+      entries.forEach(e => {
+        if ((e.getAttribute("key") || "").toLowerCase() === "uyapdogrulamakodu") {
+          uyapDogrulamaKodu = (e.textContent || "").trim();
+        }
+      });
+    } catch (e) {}
+  }
+  const verificationCode = webId || uyapDogrulamaKodu;
+
+  // Sayfa Ayarları (pageFormat veya pageSetup)
+  let leftMarginCm = 1.5, rightMarginCm = 1.5, topMarginCm = 1.5, bottomMarginCm = 1.5;
   let orientation = "portrait";
-  const ps = xmlDoc.querySelector("pageSetup");
-  if (ps) {
-    if (ps.getAttribute("leftMargin")) leftMarginCm = Math.round((parseFloat(ps.getAttribute("leftMargin")) / 28.35) * 10) / 10;
-    if (ps.getAttribute("rightMargin")) rightMarginCm = Math.round((parseFloat(ps.getAttribute("rightMargin")) / 28.35) * 10) / 10;
-    if (ps.getAttribute("topMargin")) topMarginCm = Math.round((parseFloat(ps.getAttribute("topMargin")) / 28.35) * 10) / 10;
-    if (ps.getAttribute("bottomMargin")) bottomMarginCm = Math.round((parseFloat(ps.getAttribute("bottomMargin")) / 28.35) * 10) / 10;
-    if (ps.getAttribute("orientation") === "2") orientation = "landscape";
+  const pf = xmlDoc.querySelector("pageFormat") || xmlDoc.querySelector("pageSetup");
+  if (pf) {
+    if (pf.getAttribute("leftMargin")) leftMarginCm = Math.round((parseFloat(pf.getAttribute("leftMargin")) / 28.3465) * 100) / 100;
+    if (pf.getAttribute("rightMargin")) rightMarginCm = Math.round((parseFloat(pf.getAttribute("rightMargin")) / 28.3465) * 100) / 100;
+    if (pf.getAttribute("topMargin")) topMarginCm = Math.round((parseFloat(pf.getAttribute("topMargin")) / 28.3465) * 100) / 100;
+    if (pf.getAttribute("bottomMargin")) bottomMarginCm = Math.round((parseFloat(pf.getAttribute("bottomMargin")) / 28.3465) * 100) / 100;
+    if (pf.getAttribute("orientation") === "2" || pf.getAttribute("paperOrientation") === "2") orientation = "landscape";
   }
 
-  const headerText = xmlDoc.querySelector("header > content")?.textContent || "";
+  // Header Çözümleme (startPage ve çoklu sütun desteği)
+  let headerHtml = "";
+  let headerStartPage = 1;
+  const headerElem = xmlDoc.querySelector("header");
+  if (headerElem) {
+    if (headerElem.getAttribute("startPage")) {
+      headerStartPage = parseInt(headerElem.getAttribute("startPage"), 10) || 1;
+    }
+    const headerParas = headerElem.querySelectorAll("paragraph");
+    if (headerParas.length > 0) {
+      let hText = "";
+      headerParas.forEach(p => {
+        Array.from(p.children).forEach(c => {
+          const s = parseInt(c.getAttribute("startOffset") || "-1", 10);
+          const l = parseInt(c.getAttribute("length") || "-1", 10);
+          if (s >= 0 && l > 0) {
+            hText += runes.slice(s, s + l).join("");
+          } else if (c.tagName.toLowerCase() === "tab") {
+            hText += "\t";
+          } else if (c.tagName.toLowerCase() === "space") {
+            hText += " ";
+          }
+        });
+      });
+      hText = hText.trim();
+      if (hText) {
+        if (hText.includes("\t")) {
+          const parts = hText.split(/\t+/);
+          headerHtml = `<div class="udf-header-bar" style="display:flex; justify-content:space-between; align-items:flex-end; font-family:'Times New Roman', serif; font-size:9pt; line-height:1.2; border-bottom:0.5px solid #000; padding-bottom:3px; margin-bottom:8px; width:100%; box-sizing:border-box;">
+            <span style="font-weight:bold;">${escapeHtmlStr(parts[0].trim())}</span>
+            <span>${escapeHtmlStr(parts.slice(1).join(" ").trim())}</span>
+          </div>`;
+        } else {
+          headerHtml = `<div class="udf-header-bar" style="display:flex; justify-content:center; align-items:center; font-family:'Times New Roman', serif; font-size:9pt; line-height:1.2; border-bottom:0.5px solid #000; padding-bottom:3px; margin-bottom:8px; width:100%; box-sizing:border-box;">
+            <span>${escapeHtmlStr(hText)}</span>
+          </div>`;
+        }
+      }
+    }
+  }
+
+  // Footer Çözümleme (Resmi UYAP Doğrulama & Barkod)
   const footerText = xmlDoc.querySelector("footer > content")?.textContent || "";
+  let footerHtml = "";
+  if (verificationCode) {
+    footerHtml = `<div class="udf-official-footer" style="display:flex; justify-content:space-between; align-items:flex-end; border-top:0.5px solid #000; padding-top:4px; font-family:Arial, sans-serif; font-size:7.5pt; line-height:1.2; width:100%; box-sizing:border-box;">
+      <div style="flex:1; max-width:82%; text-align:left; word-break:break-all; padding-right:8px;">
+        UYAP Bilişim Sistemindeki bu dokümana http://vatandas.uyap.gov.tr adresinden <strong>${escapeHtmlStr(verificationCode)}</strong> ile erişebilirsiniz.
+      </div>
+      <div style="display:flex; flex-direction:column; align-items:flex-end; min-width:60px;">
+        <span class="udf-footer-page-label" style="font-size:8.5pt; font-family:Arial, sans-serif; margin-bottom:2px;">{PAGE_NUM}/{TOTAL_PAGES}</span>
+        <div class="udf-footer-qr-container" data-verification-code="${escapeHtmlStr(verificationCode)}" style="width:34px; height:34px;"></div>
+      </div>
+    </div>`;
+  }
 
   function parseParagraphToHtml(p, runes) {
     let align = "justify";
@@ -96,12 +170,17 @@ async function parseUdfArrayBuffer(buffer) {
 
     let tabStopAttr = "";
     const tabSet = p.getAttribute("TabSet");
-    if (tabSet) {
-      const parts = tabSet.split(":");
-      const pt = parseFloat(parts[0]);
-      if (!isNaN(pt) && pt > 10) {
-        const cm = Math.round((pt / 28.3465) * 10) / 10;
-        tabStopAttr = ` data-tab-stops="${cm}"`;
+    if (tabSet && tabSet.trim()) {
+      const stops = [];
+      tabSet.split(",").forEach(s => {
+        const parts = s.trim().split(":");
+        const pt = parseFloat(parts[0]);
+        if (!isNaN(pt) && pt > 5) {
+          stops.push((Math.round((pt / 28.3465) * 100) / 100).toFixed(2));
+        }
+      });
+      if (stops.length > 0) {
+        tabStopAttr = ` data-tab-stops="${stops.join(",")}"`;
       }
     }
 
@@ -205,8 +284,12 @@ async function parseUdfArrayBuffer(buffer) {
   }
 
   return {
-    header: headerText,
+    header: "",
+    headerHtml,
+    headerStartPage,
     footer: footerText,
+    footerHtml,
+    verificationCode,
     leftMarginCm, rightMarginCm, topMarginCm, bottomMarginCm,
     paperOrientation: orientation,
     html: html,

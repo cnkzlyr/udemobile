@@ -51,55 +51,74 @@ public class UdfEngine {
         }
 
         String contentXml = null;
+        String docPropsXml = null;
         try (ZipFile zip = new ZipFile(file)) {
             ZipEntry contentEntry = zip.getEntry("content.xml");
             if (contentEntry == null) {
                 contentEntry = zip.getEntry("Content.xml");
             }
-        if (contentEntry == null) {
-            Enumeration<? extends ZipEntry> entries = zip.entries();
-            while (entries.hasMoreElements()) {
-                ZipEntry entry = entries.nextElement();
-                String name = entry.getName().toLowerCase();
-                if (name.endsWith("content.xml")) {
-                    contentEntry = entry;
-                    break;
+            if (contentEntry == null) {
+                Enumeration<? extends ZipEntry> entries = zip.entries();
+                while (entries.hasMoreElements()) {
+                    ZipEntry entry = entries.nextElement();
+                    String name = entry.getName().toLowerCase();
+                    if (name.endsWith("content.xml")) {
+                        contentEntry = entry;
+                        break;
+                    }
                 }
             }
-        }
-        if (contentEntry == null) {
-            Enumeration<? extends ZipEntry> entries2 = zip.entries();
-            while (entries2.hasMoreElements()) {
-                ZipEntry entry = entries2.nextElement();
-                String name = entry.getName().toLowerCase();
-                if (name.endsWith(".xml") && !name.contains("documentproperties") && !name.contains("meta")) {
-                    contentEntry = entry;
-                    break;
+            if (contentEntry == null) {
+                Enumeration<? extends ZipEntry> entries2 = zip.entries();
+                while (entries2.hasMoreElements()) {
+                    ZipEntry entry = entries2.nextElement();
+                    String name = entry.getName().toLowerCase();
+                    if (name.endsWith(".xml") && !name.contains("documentproperties") && !name.contains("meta")) {
+                        contentEntry = entry;
+                        break;
+                    }
                 }
             }
-        }
 
-        if (contentEntry != null) {
-            try (InputStream is = zip.getInputStream(contentEntry)) {
-                ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                byte[] buf = new byte[8192];
-                int r;
-                while ((r = is.read(buf)) != -1) {
-                    baos.write(buf, 0, r);
+            if (contentEntry != null) {
+                try (InputStream is = zip.getInputStream(contentEntry)) {
+                    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                    byte[] buf = new byte[8192];
+                    int r;
+                    while ((r = is.read(buf)) != -1) {
+                        baos.write(buf, 0, r);
+                    }
+                    contentXml = baos.toString("UTF-8");
                 }
-                contentXml = baos.toString("UTF-8");
             }
-        }
+
+            ZipEntry propsEntry = zip.getEntry("documentproperties.xml");
+            if (propsEntry == null) propsEntry = zip.getEntry("Documentproperties.xml");
+            if (propsEntry != null) {
+                try (InputStream is = zip.getInputStream(propsEntry)) {
+                    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                    byte[] buf = new byte[4096];
+                    int r;
+                    while ((r = is.read(buf)) != -1) {
+                        baos.write(buf, 0, r);
+                    }
+                    docPropsXml = baos.toString("UTF-8");
+                } catch (Exception ignored) {}
+            }
         }
 
         if (contentXml == null) {
             throw new IllegalStateException("UDF arşivi içinde content.xml bulunamadı.");
         }
 
-        return parseContentXmlToPayload(contentXml);
+        return parseContentXmlToPayload(contentXml, docPropsXml);
     }
 
     private static String parseContentXmlToPayload(String xml) {
+        return parseContentXmlToPayload(xml, null);
+    }
+
+    private static String parseContentXmlToPayload(String xml, String docPropsXml) {
         try {
             DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
             dbf.setNamespaceAware(false);
@@ -144,11 +163,61 @@ public class UdfEngine {
                 }
             }
 
-            // Header ve üstbilgi resmi/metni çözümleme
+            // Ham metni al
+            NodeList contentList = doc.getElementsByTagName("content");
+            String rawText = "";
+            for (int i = 0; i < contentList.getLength(); i++) {
+                Element c = (Element) contentList.item(i);
+                if (c.getParentNode() != null && "template".equals(c.getParentNode().getNodeName())) {
+                    rawText = c.getTextContent();
+                    break;
+                }
+            }
+            int textLen = rawText != null ? rawText.length() : 0;
+
+            // 2. Doğrulama Kodu Çözümleme (webID & documentproperties.xml)
+            String webId = "";
+            NodeList webIdList = doc.getElementsByTagName("webID");
+            if (webIdList.getLength() > 0) {
+                Element webIdEl = (Element) webIdList.item(0);
+                String idAttr = webIdEl.getAttribute("id");
+                if (idAttr != null) webId = idAttr.trim();
+            }
+
+            String uyapDogrulamaKodu = "";
+            String uyapSicil = "";
+            if (docPropsXml != null && !docPropsXml.trim().isEmpty()) {
+                try {
+                    DocumentBuilder dbProps = DocumentBuilderFactory.newInstance().newDocumentBuilder();
+                    Document propsDoc = dbProps.parse(new ByteArrayInputStream(docPropsXml.getBytes(StandardCharsets.UTF_8)));
+                    NodeList entries = propsDoc.getElementsByTagName("entry");
+                    for (int i = 0; i < entries.getLength(); i++) {
+                        Element entry = (Element) entries.item(i);
+                        String key = entry.getAttribute("key");
+                        String val = entry.getTextContent();
+                        if ("uyapdogrulamakodu".equalsIgnoreCase(key) && val != null) {
+                            uyapDogrulamaKodu = val.trim();
+                        } else if ("uyapsicil".equalsIgnoreCase(key) && val != null) {
+                            uyapSicil = val.trim();
+                        }
+                    }
+                } catch (Exception ignored) {}
+            }
+
+            String verificationCode = !webId.isEmpty() ? webId : uyapDogrulamaKodu;
+
+            // 3. Header ve üstbilgi resmi/metni çözümleme (startPage destekli)
             NodeList headers = doc.getElementsByTagName("header");
             String headerHtml = "";
+            int headerStartPage = 1;
             if (headers.getLength() > 0) {
                 Element headerElem = (Element) headers.item(0);
+                if (headerElem.hasAttribute("startPage")) {
+                    try {
+                        headerStartPage = Integer.parseInt(headerElem.getAttribute("startPage").trim());
+                    } catch (Exception ignored) {}
+                }
+
                 NodeList headerImgs = headerElem.getElementsByTagName("image");
                 if (headerImgs.getLength() > 0) {
                     Element hImg = (Element) headerImgs.item(0);
@@ -161,10 +230,62 @@ public class UdfEngine {
                                      "</div>";
                     }
                 }
-                if (headerHtml.isEmpty()) {
-                    String hText = headerElem.getTextContent();
-                    if (hText != null && !hText.trim().isEmpty()) {
-                        headerHtml = "<div class=\"udf-header-layout\" style=\"text-align:center;\">" + escapeHtml(hText.trim()) + "</div>";
+
+                if (headerHtml.isEmpty() && rawText != null) {
+                    NodeList headerParas = headerElem.getElementsByTagName("paragraph");
+                    if (headerParas.getLength() > 0) {
+                        StringBuilder hTextBuilder = new StringBuilder();
+                        for (int hp = 0; hp < headerParas.getLength(); hp++) {
+                            Element p = (Element) headerParas.item(hp);
+                            StringBuilder pStr = new StringBuilder();
+                            Node childNode = p.getFirstChild();
+                            while (childNode != null) {
+                                if (childNode.getNodeType() == Node.ELEMENT_NODE) {
+                                    Element ce = (Element) childNode;
+                                    String tag = ce.getTagName();
+                                    if ("content".equalsIgnoreCase(tag) || "field".equalsIgnoreCase(tag) || "space".equalsIgnoreCase(tag) || "tab".equalsIgnoreCase(tag)) {
+                                        String sStr = ce.getAttribute("startOffset");
+                                        String lStr = ce.getAttribute("length");
+                                        if (!sStr.isEmpty() && !lStr.isEmpty()) {
+                                            try {
+                                                int s = Integer.parseInt(sStr);
+                                                int l = Integer.parseInt(lStr);
+                                                if (s >= 0 && s < textLen) {
+                                                    int e = Math.min(s + l, textLen);
+                                                    pStr.append(rawText.substring(s, e));
+                                                }
+                                            } catch (Exception ignored) {}
+                                        } else if ("tab".equalsIgnoreCase(tag)) {
+                                            pStr.append("\t");
+                                        } else if ("space".equalsIgnoreCase(tag)) {
+                                            pStr.append(" ");
+                                        }
+                                    }
+                                }
+                                childNode = childNode.getNextSibling();
+                            }
+                            String line = pStr.toString().trim();
+                            if (!line.isEmpty()) {
+                                if (hTextBuilder.length() > 0) hTextBuilder.append(" ");
+                                hTextBuilder.append(line);
+                            }
+                        }
+                        String fullHeaderText = hTextBuilder.toString();
+                        if (!fullHeaderText.isEmpty()) {
+                            if (fullHeaderText.contains("\t")) {
+                                String[] hParts = fullHeaderText.split("\t+", 2);
+                                String leftPart = hParts[0].trim();
+                                String rightPart = hParts.length > 1 ? hParts[1].trim() : "";
+                                headerHtml = "<div class=\"udf-header-bar\" style=\"display:flex; justify-content:space-between; align-items:flex-end; font-family:'Times New Roman', serif; font-size:9pt; line-height:1.2; border-bottom:0.5px solid #000; padding-bottom:3px; margin-bottom:8px; width:100%; box-sizing:border-box;\">" +
+                                             "<span style=\"font-weight:bold;\">" + escapeHtml(leftPart) + "</span>" +
+                                             "<span>" + escapeHtml(rightPart) + "</span>" +
+                                             "</div>";
+                            } else {
+                                headerHtml = "<div class=\"udf-header-bar\" style=\"display:flex; justify-content:center; align-items:center; font-family:'Times New Roman', serif; font-size:9pt; line-height:1.2; border-bottom:0.5px solid #000; padding-bottom:3px; margin-bottom:8px; width:100%; box-sizing:border-box;\">" +
+                                             "<span>" + escapeHtml(fullHeaderText) + "</span>" +
+                                             "</div>";
+                            }
+                        }
                     }
                 }
             }
@@ -172,7 +293,7 @@ public class UdfEngine {
                 headerHtml = "<div class=\"udf-header-layout\" style=\"text-align:center;\">" + escapeHtml(headerText) + "</div>";
             }
 
-            // Footer ve altbilgi resmi çözümleme
+            // 4. Footer ve Altbilgi (Resmi UYAP Doğrulama & Barkod Alanı Dahil)
             NodeList footers = doc.getElementsByTagName("footer");
             String footerHtml = "";
             String footerForeStr = "Sayfa:";
@@ -210,40 +331,34 @@ public class UdfEngine {
                         }
                     }
                 }
-                if (footerHtml.isEmpty()) {
-                    String fText = footerElem.getTextContent();
-                    if (fText != null && !fText.trim().isEmpty()) {
-                        footerHtml = "<div class=\"udf-footer-layout\">" +
-                                     "<span class=\"udf-footer-text\">" + escapeHtml(fText.trim()) + "</span>" +
-                                     (hasPageNumber ? "<span class=\"udf-footer-page-label\">" + escapeHtml(footerForeStr) + " {PAGE_NUM} " + escapeHtml(footerSep) + " {TOTAL_PAGES}</span>" : "") +
-                                     "</div>";
-                    }
-                }
             }
-            if (footerHtml.isEmpty() && footerText != null && !footerText.isEmpty()) {
+
+            // Eğer UYAP doğrulama kodu varsa resmi UYAP altbilgisi oluştur:
+            if (!verificationCode.isEmpty()) {
+                footerHtml = "<div class=\"udf-official-footer\" style=\"display:flex; justify-content:space-between; align-items:flex-end; border-top:0.5px solid #000; padding-top:4px; font-family:Arial, sans-serif; font-size:7.5pt; line-height:1.2; width:100%; box-sizing:border-box;\">" +
+                             "<div style=\"flex:1; max-width:82%; text-align:left; word-break:break-all; padding-right:8px;\">" +
+                             "UYAP Bilişim Sistemindeki bu dokümana http://vatandas.uyap.gov.tr adresinden <strong>" + escapeHtml(verificationCode) + "</strong> ile erişebilirsiniz." +
+                             "</div>" +
+                             "<div style=\"display:flex; flex-direction:column; align-items:flex-end; min-width:60px;\">" +
+                             "<span class=\"udf-footer-page-label\" style=\"font-size:8.5pt; font-family:Arial, sans-serif; margin-bottom:2px;\">{PAGE_NUM}/{TOTAL_PAGES}</span>" +
+                             "<div class=\"udf-footer-qr-container\" data-verification-code=\"" + escapeHtml(verificationCode) + "\" style=\"width:34px; height:34px;\"></div>" +
+                             "</div>" +
+                             "</div>";
+            } else if (footerHtml.isEmpty() && footerText != null && !footerText.isEmpty()) {
                 footerHtml = "<div class=\"udf-footer-layout\">" +
                              "<span class=\"udf-footer-text\">" + escapeHtml(footerText) + "</span>" +
                              "<span class=\"udf-footer-page-label\">Sayfa: {PAGE_NUM} / {TOTAL_PAGES}</span>" +
                              "</div>";
             }
 
-            // 2. Ham metni al
-            NodeList contentList = doc.getElementsByTagName("content");
-            String rawText = "";
-            for (int i = 0; i < contentList.getLength(); i++) {
-                Element c = (Element) contentList.item(i);
-                if (c.getParentNode() != null && "template".equals(c.getParentNode().getNodeName())) {
-                    rawText = c.getTextContent();
-                    break;
-                }
-            }
-
             if (rawText == null || rawText.isEmpty()) {
                 JSONObject res = new JSONObject();
                 res.put("header", headerText);
                 res.put("headerHtml", headerHtml);
+                res.put("headerStartPage", headerStartPage);
                 res.put("footer", footerText);
                 res.put("footerHtml", footerHtml);
+                res.put("verificationCode", verificationCode);
                 res.put("leftMarginCm", leftMarginCm);
                 res.put("rightMarginCm", rightMarginCm);
                 res.put("topMarginCm", topMarginCm);
@@ -255,7 +370,7 @@ public class UdfEngine {
                 return res.toString();
             }
 
-            // 3. Paragrafları ve stilleri çözümle
+            // 5. Paragrafları ve stilleri çözümle
             NodeList paragraphs = doc.getElementsByTagName("paragraph");
             if (paragraphs.getLength() == 0) {
                 StringBuilder fallback = new StringBuilder();
@@ -268,17 +383,18 @@ public class UdfEngine {
                 JSONObject res = new JSONObject();
                 res.put("header", headerText);
                 res.put("headerHtml", headerHtml);
+                res.put("headerStartPage", headerStartPage);
                 res.put("footer", footerText);
                 res.put("footerHtml", footerHtml);
+                res.put("verificationCode", verificationCode);
                 res.put("html", fallback.toString());
                 return res.toString();
             }
 
             StringBuilder html = new StringBuilder();
-            int textLen = rawText.length();
             java.util.Map<String, Integer> listCounters = new java.util.HashMap<>();
 
-            // 3. Paragrafları, tabloları ve stilleri hiyerarşik olarak çözümle
+            // Paragrafları ve tabloları hiyerarşik olarak çözümle (header/footer hariç)
             Element elementsNode = null;
             NodeList elemList = doc.getElementsByTagName("elements");
             if (elemList.getLength() > 0) {
@@ -322,8 +438,10 @@ public class UdfEngine {
             JSONObject res = new JSONObject();
             res.put("header", headerText);
             res.put("headerHtml", headerHtml);
+            res.put("headerStartPage", headerStartPage);
             res.put("footer", footerText);
             res.put("footerHtml", footerHtml);
+            res.put("verificationCode", verificationCode);
             res.put("leftMarginCm", leftMarginCm);
             res.put("rightMarginCm", rightMarginCm);
             res.put("topMarginCm", topMarginCm);
@@ -363,16 +481,20 @@ public class UdfEngine {
         String firstLineIndent = p.getAttribute("FirstLineIndent");
         String tabSet = p.getAttribute("TabSet");
 
-        double tabStopCm = 0;
-        if (tabSet != null && !tabSet.isEmpty()) {
-            String[] parts = tabSet.split(":");
-            if (parts.length > 0) {
-                try {
-                    double pt = Double.parseDouble(parts[0].trim());
-                    if (pt > 10.0) {
-                        tabStopCm = Math.round((pt / 28.3465) * 10.0) / 10.0;
-                    }
-                } catch (Exception ignored) {}
+        List<String> stopsList = new ArrayList<>();
+        if (tabSet != null && !tabSet.trim().isEmpty()) {
+            String[] stops = tabSet.split(",");
+            for (String s : stops) {
+                String[] parts = s.trim().split(":");
+                if (parts.length > 0) {
+                    try {
+                        double pt = Double.parseDouble(parts[0].trim());
+                        if (pt > 5.0) {
+                            double cm = Math.round((pt / 28.3465) * 100.0) / 100.0;
+                            stopsList.add(String.format(Locale.US, "%.2f", cm));
+                        }
+                    } catch (Exception ignored) {}
+                }
             }
         }
 
@@ -525,8 +647,8 @@ public class UdfEngine {
 
         String formattedParagraphHtml = formatParagraphTabs(pContent.toString());
         outHtml.append("<p style=\"").append(styleAttr.toString()).append("\"");
-        if (tabStopCm > 0) {
-            outHtml.append(" data-tab-stops=\"").append(tabStopCm).append("\"");
+        if (!stopsList.isEmpty()) {
+            outHtml.append(" data-tab-stops=\"").append(String.join(",", stopsList)).append("\"");
         }
         outHtml.append(">")
                .append(formattedParagraphHtml)
@@ -578,7 +700,8 @@ public class UdfEngine {
 
     private static String formatParagraphTabs(String pHtml) {
         if (!pHtml.contains("\t")) return pHtml;
-        return pHtml.replace("\t", "<span class=\"udf-tab-space\" contenteditable=\"false\">&#8203;</span>");
+        return pHtml.replaceAll("\\t[ \\t]+", "<span class=\"udf-tab-space\" contenteditable=\"false\">&#8203;</span>")
+                    .replace("\t", "<span class=\"udf-tab-space\" contenteditable=\"false\">&#8203;</span>");
     }
 
     private static double parsePtToCm(String ptStr, double defaultCm) {

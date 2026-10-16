@@ -27,6 +27,9 @@ let copiedFormat = null;
 
 // --- Google Dokümanlar Yazdırma Düzeni & Zoom Motoru ---
 let currentDocFooterTemplate = '';
+let currentDocHeaderTemplate = '';
+let currentDocHeaderStartPage = 1;
+let currentDocVerificationCode = '';
 let currentZoom = 0.48;
 let isFitMode = true; // true = Google Dokümanlar stili uzaktan genel görünüm (A4 sığdır)
 let lastSelectedParagraphs = [];
@@ -224,6 +227,149 @@ function toggleViewMode() {
     applyAutoFitZoom();
     setTimeout(updatePagination, 100);
   }
+// Minimal standard QR Code generator (Byte Mode, Mask 0, ECC Level L, Version 1 to 4)
+function createQrSvg(text, size = 34) {
+  if (!text) return "";
+  const exp = new Uint8Array(512), log = new Uint8Array(256);
+  let x = 1;
+  for (let i = 0; i < 255; i++) {
+    exp[i] = exp[i + 255] = x;
+    log[x] = i;
+    x = (x << 1) ^ (x >= 128 ? 0x11d : 0);
+  }
+  function gmul(a, b) { return (a === 0 || b === 0) ? 0 : exp[log[a] + log[b]]; }
+
+  const bytes = new TextEncoder().encode(text);
+  let ver = 2, totalCodewords = 44, dataCapacity = 34, ecCount = 10;
+  if (bytes.length > 32) { ver = 3; totalCodewords = 70; dataCapacity = 44; ecCount = 15; }
+  if (bytes.length > 42) { ver = 4; totalCodewords = 100; dataCapacity = 64; ecCount = 20; }
+  const dim = 17 + 4 * ver;
+
+  const bits = [];
+  function pushBits(val, len) {
+    for (let i = len - 1; i >= 0; i--) bits.push((val >> i) & 1);
+  }
+  pushBits(0b0100, 4);
+  pushBits(bytes.length, 8);
+  for (const b of bytes) pushBits(b, 8);
+  pushBits(0, Math.min(4, dataCapacity * 8 - bits.length));
+  while (bits.length % 8 !== 0) bits.push(0);
+  const pads = [0xec, 0x11];
+  let pIdx = 0;
+  while (bits.length < dataCapacity * 8) {
+    pushBits(pads[pIdx % 2], 8);
+    pIdx++;
+  }
+
+  const dataCodewords = new Uint8Array(dataCapacity);
+  for (let i = 0; i < dataCapacity; i++) {
+    let b = 0;
+    for (let j = 0; j < 8; j++) b = (b << 1) | bits[i * 8 + j];
+    dataCodewords[i] = b;
+  }
+
+  let gen = [1];
+  for (let i = 0; i < ecCount; i++) {
+    const next = new Uint8Array(gen.length + 1);
+    for (let j = 0; j < gen.length; j++) {
+      next[j] ^= gmul(gen[j], exp[i]);
+      next[j + 1] ^= gen[j];
+    }
+    gen = next;
+  }
+
+  const ec = new Uint8Array(ecCount);
+  for (let i = 0; i < dataCapacity; i++) {
+    const factor = dataCodewords[i] ^ ec[0];
+    for (let j = 0; j < ecCount - 1; j++) {
+      ec[j] = ec[j + 1] ^ gmul(gen[j], factor);
+    }
+    ec[ecCount - 1] = gmul(gen[ecCount - 1], factor);
+  }
+
+  const allCodewords = new Uint8Array(totalCodewords);
+  allCodewords.set(dataCodewords, 0);
+  allCodewords.set(ec, dataCapacity);
+
+  const grid = Array.from({ length: dim }, () => new Int8Array(dim).fill(-1));
+  function setFunc(r, c, val) { grid[r][c] = val; }
+
+  function drawFinder(r0, c0) {
+    for (let r = -1; r <= 7; r++) {
+      for (let c = -1; c <= 7; c++) {
+        const nr = r0 + r, nc = c0 + c;
+        if (nr < 0 || nr >= dim || nc < 0 || nc >= dim) continue;
+        if (r >= 0 && r <= 6 && c >= 0 && c <= 6) {
+          setFunc(nr, nc, (r === 0 || r === 6 || c === 0 || c === 6 || (r >= 2 && r <= 4 && c >= 2 && c <= 4)) ? 1 : 0);
+        } else {
+          setFunc(nr, nc, 0);
+        }
+      }
+    }
+  }
+  drawFinder(0, 0);
+  drawFinder(0, dim - 7);
+  drawFinder(dim - 7, 0);
+
+  if (ver >= 2) {
+    const pos = dim - 7;
+    for (let r = -2; r <= 2; r++) {
+      for (let c = -2; c <= 2; c++) {
+        if (grid[pos + r][pos + c] === -1) {
+          setFunc(pos + r, pos + c, (Math.abs(r) === 2 || Math.abs(c) === 2 || (r === 0 && c === 0)) ? 1 : 0);
+        }
+      }
+    }
+  }
+
+  for (let i = 8; i < dim - 8; i++) {
+    if (grid[6][i] === -1) setFunc(6, i, i % 2 === 0 ? 1 : 0);
+    if (grid[i][6] === -1) setFunc(i, 6, i % 2 === 0 ? 1 : 0);
+  }
+  setFunc(4 * ver + 9, 8, 1);
+
+  const formatBits = 0b111011111000100;
+  for (let i = 0; i < 15; i++) {
+    const bit = (formatBits >> i) & 1;
+    if (i < 6) { setFunc(8, i, bit); setFunc(dim - 1 - i, 8, bit); }
+    else if (i === 6) { setFunc(8, 7, bit); setFunc(dim - 7, 8, bit); }
+    else if (i === 7) { setFunc(8, 8, bit); setFunc(dim - 8, 8, bit); }
+    else if (i === 8) { setFunc(7, 8, bit); setFunc(8, dim - 7, bit); }
+    else { setFunc(14 - i, 8, bit); setFunc(8, dim - 15 + i, bit); }
+  }
+
+  let bitIdx = 0;
+  const totalBits = totalCodewords * 8;
+  for (let right = dim - 1; right > 0; right -= 2) {
+    if (right === 6) right--;
+    const upward = ((dim - 1 - right) / 2) % 2 === 0;
+    for (let v = 0; v < dim; v++) {
+      const r = upward ? dim - 1 - v : v;
+      for (let d = 0; d < 2; d++) {
+        const c = right - d;
+        if (grid[r][c] === -1) {
+          let b = 0;
+          if (bitIdx < totalBits) {
+            b = (allCodewords[bitIdx >> 3] >> (7 - (bitIdx & 7))) & 1;
+            bitIdx++;
+          }
+          if ((r + c) % 2 === 0) b ^= 1;
+          grid[r][c] = b;
+        }
+      }
+    }
+  }
+
+  let pathD = "";
+  for (let r = 0; r < dim; r++) {
+    for (let c = 0; c < dim; c++) {
+      if (grid[r][c] === 1) {
+        pathD += `M${c + 1},${r + 1}h1v1h-1z `;
+      }
+    }
+  }
+  const viewBoxSize = dim + 2;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${viewBoxSize} ${viewBoxSize}" width="${size}" height="${size}" shape-rendering="crispEdges"><path d="${pathD}" fill="#000"/></svg>`;
 }
 
 // Otomatik A4 Sayfa Ayrımı (Havelsan UYAP Çoklu Sayfa Düzeni)
@@ -244,6 +390,16 @@ function getDocFooterHtml(pageNum, totalPages) {
     let tpl = currentDocFooterTemplate
       .replace(/\{PAGE_NUM\}/g, pageNum)
       .replace(/\{TOTAL_PAGES\}/g, totalPages);
+
+    if (tpl.includes('udf-footer-qr-container')) {
+      const match = tpl.match(/data-verification-code="([^"]+)"/);
+      const code = match ? match[1] : (currentDocVerificationCode || '');
+      if (code) {
+        const qrSvg = createQrSvg("https://vatandas.uyap.gov.tr/?k=" + encodeURIComponent(code), 34);
+        tpl = tpl.replace(/(<div class="udf-footer-qr-container"[^>]*>)(<\/div>)/, `$1${qrSvg}$2`);
+      }
+    }
+
     if (!tpl.includes('udf-footer-page-label') && currentDocPageNumberPos !== 'none' && pageNumHtml) {
       if (tpl.includes('</div>')) {
         tpl = tpl.replace('</div>', pageNumHtml + '</div>');
@@ -277,8 +433,8 @@ function updatePagination() {
   oldBreaks.forEach(b => b.remove());
 
   // A4 Sayfa kullanılabilir yükseklik hesabı:
-  const topCm = currentMargins.top || 2.0;
-  const bottomCm = currentMargins.bottom || 2.5;
+  const topCm = currentMargins.top || 1.5;
+  const bottomCm = currentMargins.bottom || 0.5;
   const isLandscape = currentMargins.orientation === 'landscape';
   const pageHeight = isLandscape ? 794 : 1123;
   const marginPx = (topCm + bottomCm) * 37.8; // cm to px
@@ -313,7 +469,7 @@ function updatePagination() {
     pageBreak.className = 'auto-page-break';
     pageBreak.setAttribute('contenteditable', 'false');
 
-    // Biten sayfanın altbilgisi (UYAP logolu veya numaralı)
+    // Biten sayfanın altbilgisi (UYAP logolu, doğrulamalı veya numaralı)
     const footerArea = document.createElement('div');
     footerArea.className = 'page-break-footer-area';
     footerArea.innerHTML = getDocFooterHtml(pageIndex, totalPages);
@@ -326,20 +482,24 @@ function updatePagination() {
     pageBreak.appendChild(deskGap);
     pageIndex++;
 
-    // Yeni sayfanın üst kenar boşluğu
+    // Yeni sayfanın üst kenar boşluğu (startPage destekli üstbilgi)
     const headerArea = document.createElement('div');
     headerArea.className = 'page-break-header-area';
     const docHeader = document.getElementById('doc-header');
     const headerRawText = docHeader ? (docHeader.innerText || '').replace(/[\r\n\t\s]+/g, ' ').trim() : '';
     const hasHeader = docHeader && headerRawText.length > 0 && docHeader.style.display !== 'none';
-    if (hasHeader) {
+    const shouldShowHeader = currentDocHeaderTemplate
+      ? (pageIndex >= currentDocHeaderStartPage)
+      : (hasHeader);
+
+    if (shouldShowHeader) {
       headerArea.classList.add('has-header');
       const hClone = document.createElement('div');
-      hClone.className = 'header-footer-box';
+      hClone.className = 'header-footer-box udf-running-header';
       hClone.style.borderBottom = 'none';
       hClone.style.padding = '0';
       hClone.style.margin = '0';
-      hClone.innerHTML = docHeader.innerHTML.trim();
+      hClone.innerHTML = currentDocHeaderTemplate ? currentDocHeaderTemplate : docHeader.innerHTML.trim();
       headerArea.appendChild(hClone);
     } else {
       headerArea.classList.add('no-header');
@@ -946,22 +1106,29 @@ function realignTabsInParagraph(p) {
   const m = getTabMetrics();
   if (!m) return;
 
+  // Ölçüm öncesi tüm sekmelerin genişliğini sıfırla (önceki hesaplamalardan bağımsız kesin ölçüm)
   tabSpaces.forEach(ts => {
+    ts.style.width = '0px';
     if (!ts.hasAttribute('contenteditable')) ts.setAttribute('contenteditable', 'false');
     if (!ts.textContent) ts.textContent = '\u200B';
     ts.style.display = 'inline-block';
+  });
+
+  // Sırayla her sekme boşluğunun genişliğini hedef durağa göre belirle
+  tabSpaces.forEach((ts, tabIdx) => {
     const tsRect = ts.getBoundingClientRect();
     const curCm = Math.max(0, (tsRect.left - m.left) / m.ppc);
-    let target = computeNextTabStop(stops, curCm);
+
+    // Belirtilen durak varsa doğrudan sıradaki durağı kullan, yoksa Word tarzı ızgarayı hesapla:
+    let target = (tabIdx < stops.length) ? stops[tabIdx] : computeNextTabStop(stops, curCm);
     let gap = target - curCm;
+
     // Satır sonuna taşmasın
     const room = m.widthCm - curCm;
     if (room > 0.1 && gap > room) gap = room;
-    gap = Math.max(0.1, gap);
+    gap = Math.max(0.05, gap);
     const targetWidth = (Math.round(gap * 1000) / 1000) + 'cm';
-    if (ts.style.width !== targetWidth) {
-      ts.style.width = targetWidth;
-    }
+    ts.style.width = targetWidth;
     ts.dataset.targetStop = String(Math.round((curCm + gap) * 100) / 100);
   });
 }
@@ -2889,17 +3056,31 @@ function setHtmlContent(content) {
       const data = JSON.parse(trimmed);
       if (data && typeof data === 'object') {
         if (data.headerHtml) {
-          headerEl.innerHTML = data.headerHtml;
-          headerEl.style.display = 'block';
+          currentDocHeaderTemplate = data.headerHtml;
+          currentDocHeaderStartPage = parseInt(data.headerStartPage || '1', 10);
+          if (currentDocHeaderStartPage <= 1) {
+            headerEl.innerHTML = data.headerHtml;
+            headerEl.style.display = 'block';
+          } else {
+            headerEl.innerHTML = '';
+            headerEl.style.display = 'none';
+          }
         } else if (data.header !== undefined && headerEl) {
           headerEl.innerText = data.header;
           headerEl.style.display = (data.header && data.header.trim()) ? 'block' : 'none';
+          currentDocHeaderTemplate = (data.header && data.header.trim()) ? `<div class="udf-header-bar" style="text-align:center;">${escapeHtml(data.header)}</div>` : '';
+          currentDocHeaderStartPage = 1;
         }
         if (data.footerHtml) {
           currentDocFooterTemplate = data.footerHtml;
         } else if (data.footer !== undefined && footerEl) {
           footerEl.innerText = data.footer;
           currentDocFooterTemplate = '';
+        }
+        if (data.verificationCode) {
+          currentDocVerificationCode = data.verificationCode;
+        } else {
+          currentDocVerificationCode = '';
         }
         if (data.leftMarginCm !== undefined) {
           applyPageSetup(data.leftMarginCm, data.rightMarginCm, data.topMarginCm, data.bottomMarginCm, data.paperOrientation === '2' ? 'landscape' : 'portrait', data.headerMarginCm, data.footerMarginCm);
