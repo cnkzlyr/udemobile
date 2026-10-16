@@ -1,6 +1,6 @@
 # ⚖️ CanEditor (UdeMobile) — Çapraz Platform UYAP & Word Editörü
 
-[![Sürüm](https://img.shields.io/badge/Sürüm-v3.4.5-blue.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v3.4.5)
+[![Sürüm](https://img.shields.io/badge/Sürüm-v3.4.6-blue.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v3.4.6)
 [![Platformlar](https://img.shields.io/badge/Platformlar-Android%20%7C%20Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Web-success.svg)](https://github.com/cnkzlyr/udemobile/releases)
 [![UYAP](https://img.shields.io/badge/Format-UYAP_UDF_v1.8-0D47A1.svg)](https://uyap.gov.tr)
 [![Word](https://img.shields.io/badge/Format-MS_DOCX_OpenXML-2B579A.svg?logo=microsoft-word&logoColor=white)](https://microsoft.com)
@@ -11,20 +11,23 @@
 
 ---
 
-## 🚀 Hızlı İndirme (v3.4.5)
+## 🚀 Hızlı İndirme (v3.4.6)
 
 | Platform | Paket Dosyası | Açıklama |
 | :--- | :--- | :--- |
-| **Android (Telefon & Tablet)** | [**CanEditor-v3.4.5.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.4.5/CanEditor-v3.4.5.apk) | Güncel mobil uygulama paketi |
-| **Android (Her Zaman En Son)** | [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.4.5/CanEditor-latest.apk) | Kalıcı son sürüm bağlantısı |
-| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v3.4.5.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v3.4.5/CanEditor-Portable-Web-GUI-v3.4.5.zip) | Kurulumsuz; zipten çıkarıp `index.html` açarak tüm işletim sistemlerinde doğrudan çalışır |
-| **Windows / macOS / Linux** | [**GitHub Releases Sayfası**](https://github.com/cnkzlyr/udemobile/releases/tag/v3.4.5) | GitHub Actions CI ile derlenen yerel ikili (.msi, .exe, .dmg, .AppImage, .deb, .rpm) paketleri |
+| **Android (Telefon & Tablet)** | [**CanEditor-v3.4.6.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.4.6/CanEditor-v3.4.6.apk) | Güncel mobil uygulama paketi |
+| **Android (Her Zaman En Son)** | [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.4.6/CanEditor-latest.apk) | Kalıcı son sürüm bağlantısı |
+| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v3.4.6.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v3.4.6/CanEditor-Portable-Web-GUI-v3.4.6.zip) | Kurulumsuz; zipten çıkarıp `index.html` açarak tüm işletim sistemlerinde doğrudan çalışır |
+| **Windows / macOS / Linux** | [**GitHub Releases Sayfası**](https://github.com/cnkzlyr/udemobile/releases/tag/v3.4.6) | GitHub Actions CI ile derlenen yerel ikili (.msi, .exe, .dmg, .AppImage, .deb, .rpm) paketleri |
 
 ---
 
-## 🌟 v3.4.5 ile Gelen Önemli Geliştirmeler
+## 🌟 v3.4.6 ile Gelen Önemli Geliştirmeler
 
-### 🎯 1. Milimetrik Sekme & Durak Hizalaması (Multi-Stop TabSet)
+### ⚡ 1. Editör Çalışma Motoru & Ekran Boyutlandırma / Kaydırma Düzeltmesi
+- Editör JavaScript derleme zincirindeki sözdizimi ayrıştırma hatası tamamen giderildi; `applyAutoFitZoom()`, A4 sayfa ölçekleme, akıcı dokunmatik kaydırma, çift parmak yakınlaştırma (pinch-to-zoom) ve belge yükleme motoru eksiksiz çalışır duruma getirildi.
+
+### 🎯 2. Milimetrik Sekme & Durak Hizalaması (Multi-Stop TabSet)
 - **Kusursuz İki Nokta (Colon) ve Sicil Hizası:** Çoklu durak yerleri (`TabSet="146.0:0:0,241.0:0:0"`) artık virgülle ayrılarak eksiksiz ayrıştırılır. `DOSYA NO`, `DURUŞMA TARİHİ`, `CELSE NO`, `HAKİM`, `CUMHURİYET SAVCISI`, `KATİP` satırlarındaki tüm iki noktalar (`:`) masaüstü UYAP editörüyle birebir aynı şekilde `5.15 cm` (`146.0 pt`) hizasında kilitlenir. Sicil numaraları ise `8.50 cm` (`241.0 pt`) sütununda tam dikey hizada yer alır; zig-zag oluşması tamamen engellenmiştir.
 
 ### 🏷️ 2. Akıllı Üstbilgi Motoru (`<header startPage="2">`)

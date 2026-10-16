@@ -227,6 +227,8 @@ function toggleViewMode() {
     applyAutoFitZoom();
     setTimeout(updatePagination, 100);
   }
+}
+
 // Minimal standard QR Code generator (Byte Mode, Mask 0, ECC Level L, Version 1 to 4)
 function createQrSvg(text, size = 34) {
   if (!text) return "";

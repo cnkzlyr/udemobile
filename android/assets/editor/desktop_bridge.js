@@ -349,6 +349,7 @@ async function parseDocxArrayBuffer(buffer) {
         if (val === "center") align = "center";
         else if (val === "right") align = "right";
         else if (val === "left") align = "left";
+      }
       let tabStopAttr = "";
       const tabsElem = node.querySelector("w\\:tabs, tabs");
       if (tabsElem) {

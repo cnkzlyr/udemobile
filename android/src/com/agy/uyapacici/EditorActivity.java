@@ -99,6 +99,13 @@ public class EditorActivity extends Activity {
         loadIncomingFile();
     }
 
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        loadIncomingFile();
+    }
+
     private void initViews() {
         editorWebView = findViewById(R.id.editorWebView);
         etDocTitle = findViewById(R.id.etDocTitle);
