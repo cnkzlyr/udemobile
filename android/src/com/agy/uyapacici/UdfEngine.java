@@ -278,188 +278,46 @@ public class UdfEngine {
             int textLen = rawText.length();
             java.util.Map<String, Integer> listCounters = new java.util.HashMap<>();
 
-            for (int i = 0; i < paragraphs.getLength(); i++) {
-                Element p = (Element) paragraphs.item(i);
-                Node parent = p.getParentNode();
-                if (parent != null) {
-                    String pName = parent.getNodeName();
-                    if ("header".equalsIgnoreCase(pName) || "footer".equalsIgnoreCase(pName)) {
-                        continue; // Üstbilgi ve altbilgi paragrafları gövdeye dahil edilmez
-                    }
-                }
-                String alignAttr = p.getAttribute("Alignment");
-                String alignStyle = "justify";
-                if ("1".equals(alignAttr)) alignStyle = "center";
-                else if ("2".equals(alignAttr)) alignStyle = "right";
-                else if ("0".equals(alignAttr) || alignAttr.isEmpty()) {
-                    // UYAP standardında sekme ve girinti içeren başlık paragrafları sola yaslıdır
-                    alignStyle = (p.hasAttribute("TabSet") || p.hasAttribute("Hanging")) ? "left" : "justify";
-                }
+            // 3. Paragrafları, tabloları ve stilleri hiyerarşik olarak çözümle
+            Element elementsNode = null;
+            NodeList elemList = doc.getElementsByTagName("elements");
+            if (elemList.getLength() > 0) {
+                elementsNode = (Element) elemList.item(0);
+            }
 
-                String spaceAbove = p.getAttribute("SpaceAbove");
-                String spaceBelow = p.getAttribute("SpaceBelow");
-                String hanging = p.getAttribute("Hanging");
-                String leftIndent = p.getAttribute("LeftIndent");
-                String firstLineIndent = p.getAttribute("FirstLineIndent");
-                String tabSet = p.getAttribute("TabSet");
-
-                double tabStopCm = 0;
-                if (tabSet != null && !tabSet.isEmpty()) {
-                    String[] parts = tabSet.split(":");
-                    if (parts.length > 0) {
-                        try {
-                            double pt = Double.parseDouble(parts[0].trim());
-                            if (pt > 10.0) {
-                                tabStopCm = Math.round((pt / 28.3465) * 10.0) / 10.0;
-                            }
-                        } catch (Exception ignored) {}
-                    }
-                }
-
-                StringBuilder styleAttr = new StringBuilder("text-align: ").append(alignStyle).append(";");
-                double ptAbove = 0;
-                double ptBelow = 0;
-                if (!spaceAbove.isEmpty()) {
-                    try { ptAbove = Double.parseDouble(spaceAbove); } catch (Exception ignored) {}
-                }
-                if (!spaceBelow.isEmpty()) {
-                    try { ptBelow = Double.parseDouble(spaceBelow); } catch (Exception ignored) {}
-                }
-                styleAttr.append(" margin-top: ").append(ptAbove).append("pt;");
-                styleAttr.append(" margin-bottom: ").append(ptBelow).append("pt;");
-                double fIndentPt = 0;
-                double hangPt = 0;
-                double lIndentPt = 0;
-                if (!firstLineIndent.isEmpty()) {
-                    try { fIndentPt = Double.parseDouble(firstLineIndent); } catch (Exception ignored) {}
-                }
-                if (!hanging.isEmpty()) {
-                    try { hangPt = Double.parseDouble(hanging); } catch (Exception ignored) {}
-                }
-                if (!leftIndent.isEmpty()) {
-                    try { lIndentPt = Double.parseDouble(leftIndent); } catch (Exception ignored) {}
-                }
-
-                if (hangPt > 30.0 && fIndentPt > 30.0) {
-                    double cm = Math.round((fIndentPt / 28.3465) * 100.0) / 100.0;
-                    styleAttr.append(" padding-left: ").append(cm).append("cm;");
-                } else if (hangPt > 30.0 && fIndentPt <= 0.0) {
-                    double cm = Math.round((hangPt / 28.3465) * 100.0) / 100.0;
-                    styleAttr.append(" padding-left: ").append(cm).append("cm; text-indent: -").append(cm).append("cm;");
-                } else if (fIndentPt > 0.0) {
-                    double cm = Math.round((fIndentPt / 28.3465) * 100.0) / 100.0;
-                    styleAttr.append(" text-indent: ").append(cm).append("cm;");
-                }
-                if (lIndentPt > 5.0 && hangPt <= 30.0) {
-                    double cm = Math.round((lIndentPt / 28.3465) * 100.0) / 100.0;
-                    styleAttr.append(" margin-left: ").append(cm).append("cm;");
-                }
-
-                StringBuilder pContent = new StringBuilder();
-
-                // UYAP Numaralandırma & Maddeleme Kontrolü
-                boolean isNumbered = "true".equalsIgnoreCase(p.getAttribute("Numbered")) || "1".equals(p.getAttribute("Numbered"));
-                boolean isBulleted = "true".equalsIgnoreCase(p.getAttribute("Bulleted")) || "1".equals(p.getAttribute("Bulleted"));
-                if (isNumbered) {
-                    String listId = p.getAttribute("ListId");
-                    if (listId == null || listId.isEmpty()) listId = "default";
-                    int count = listCounters.getOrDefault(listId, 0) + 1;
-                    listCounters.put(listId, count);
-
-                    String numType = p.getAttribute("NumberType");
-                    String listPrefix = count + ". ";
-                    if (numType != null && numType.contains("ROMAN")) {
-                        listPrefix = toRoman(count) + ". ";
-                    } else if (numType != null && (numType.contains("CHAR_SMALL") || numType.contains("ALPHA"))) {
-                        char ch = (char) ('a' + ((count - 1) % 26));
-                        listPrefix = ch + ") ";
-                    } else if (numType != null && numType.contains("CHAR_BIG")) {
-                        char ch = (char) ('A' + ((count - 1) % 26));
-                        listPrefix = ch + ". ";
-                    }
-                    pContent.append("<span style=\"font-weight:bold; margin-right:4px;\">").append(escapeHtml(listPrefix)).append("</span>");
-                } else if (isBulleted) {
-                    pContent.append("<span style=\"font-weight:bold; margin-right:6px;\">•</span>");
-                }
-
-                // Paragraf altındaki tüm elemanları (content, space, image) sırayla tara:
-                boolean hasContent = false;
-                Node childNode = p.getFirstChild();
-                while (childNode != null) {
-                    if (childNode.getNodeType() == Node.ELEMENT_NODE) {
-                        Element childElem = (Element) childNode;
+            boolean renderedAny = false;
+            if (elementsNode != null) {
+                Node child = elementsNode.getFirstChild();
+                while (child != null) {
+                    if (child.getNodeType() == Node.ELEMENT_NODE) {
+                        Element childElem = (Element) child;
                         String tagName = childElem.getTagName();
-
-                        if ("image".equalsIgnoreCase(tagName)) {
-                            String imgData = childElem.getAttribute("imageData");
-                            if (imgData != null && !imgData.trim().isEmpty()) {
-                                String wStr = childElem.getAttribute("width");
-                                String hStr = childElem.getAttribute("height");
-                                double wCm = parsePtToCm(wStr, 0);
-                                double hCm = parsePtToCm(hStr, 0);
-                                StringBuilder imgStyle = new StringBuilder("display:block; margin:6px auto; object-fit:contain;");
-                                if (wCm > 0) imgStyle.append(" max-width:").append(wCm).append("cm; width:100%;");
-                                else imgStyle.append(" max-width:95%; width:auto;");
-                                if (hCm > 0) imgStyle.append(" max-height:").append(hCm).append("cm;");
-                                else imgStyle.append(" height:auto;");
-
-                                pContent.append("<img src=\"data:image/png;base64,")
-                                        .append(imgData.trim())
-                                        .append("\" style=\"").append(imgStyle.toString()).append("\" />");
-                                hasContent = true;
-                            }
-                        } else if ("content".equalsIgnoreCase(tagName) || "space".equalsIgnoreCase(tagName)) {
-                            String startStr = childElem.getAttribute("startOffset");
-                            String lenStr = childElem.getAttribute("length");
-                            boolean bold = "true".equalsIgnoreCase(childElem.getAttribute("bold"));
-                            boolean italic = "true".equalsIgnoreCase(childElem.getAttribute("italic"));
-                            boolean underline = "true".equalsIgnoreCase(childElem.getAttribute("underline"));
-                            boolean subscript = "true".equalsIgnoreCase(childElem.getAttribute("subscript")) || "true".equalsIgnoreCase(childElem.getAttribute("Subscript"));
-                            boolean superscript = "true".equalsIgnoreCase(childElem.getAttribute("superscript")) || "true".equalsIgnoreCase(childElem.getAttribute("Superscript"));
-                            boolean strike = "true".equalsIgnoreCase(childElem.getAttribute("strikeThrough")) || "true".equalsIgnoreCase(childElem.getAttribute("strikethrough")) || "true".equalsIgnoreCase(childElem.getAttribute("StrikeThrough"));
-
-                            if (!startStr.isEmpty() && !lenStr.isEmpty()) {
-                                int start = Integer.parseInt(startStr);
-                                int len = Integer.parseInt(lenStr);
-                                if (start < textLen && start >= 0) {
-                                    int end = Math.min(start + len, textLen);
-                                    String chunk = rawText.substring(start, end);
-                                    if (chunk.endsWith("\r\n")) {
-                                        chunk = chunk.substring(0, chunk.length() - 2);
-                                    } else if (chunk.endsWith("\n") || chunk.endsWith("\r")) {
-                                        chunk = chunk.substring(0, chunk.length() - 1);
-                                    }
-
-                                    if (!chunk.isEmpty()) {
-                                        hasContent = true;
-                                        String escaped = escapeHtml(chunk).replace("\n", "<br>");
-                                        if (bold) escaped = "<strong>" + escaped + "</strong>";
-                                        if (italic) escaped = "<em>" + escaped + "</em>";
-                                        if (underline) escaped = "<u>" + escaped + "</u>";
-                                        if (subscript) escaped = "<sub>" + escaped + "</sub>";
-                                        if (superscript) escaped = "<sup>" + escaped + "</sup>";
-                                        if (strike) escaped = "<s>" + escaped + "</s>";
-                                        pContent.append(escaped);
-                                    }
-                                }
-                            }
+                        if ("paragraph".equalsIgnoreCase(tagName)) {
+                            appendParagraphToHtml(childElem, rawText, textLen, listCounters, html);
+                            renderedAny = true;
+                        } else if ("table".equalsIgnoreCase(tagName)) {
+                            appendTableToHtml(childElem, rawText, textLen, listCounters, html);
+                            renderedAny = true;
                         }
                     }
-                    childNode = childNode.getNextSibling();
+                    child = child.getNextSibling();
                 }
+            }
 
-                if (!hasContent) {
-                    pContent.append("<br>");
+            if (!renderedAny) {
+                // Fallback: Doğrudan paragrafları tara
+                NodeList paragraphs = doc.getElementsByTagName("paragraph");
+                for (int i = 0; i < paragraphs.getLength(); i++) {
+                    Element p = (Element) paragraphs.item(i);
+                    Node parent = p.getParentNode();
+                    if (parent != null) {
+                        String pName = parent.getNodeName();
+                        if ("header".equalsIgnoreCase(pName) || "footer".equalsIgnoreCase(pName) || "cell".equalsIgnoreCase(pName)) {
+                            continue;
+                        }
+                    }
+                    appendParagraphToHtml(p, rawText, textLen, listCounters, html);
                 }
-
-                String formattedParagraphHtml = formatParagraphTabs(pContent.toString());
-                html.append("<p style=\"").append(styleAttr.toString()).append("\"");
-                if (tabStopCm > 0) {
-                    html.append(" data-tab-stops=\"").append(tabStopCm).append("\"");
-                }
-                html.append(">")
-                    .append(formattedParagraphHtml)
-                    .append("</p>");
             }
 
             JSONObject res = new JSONObject();
@@ -488,6 +346,233 @@ public class UdfEngine {
             } catch (Exception ignored) {}
             return err.toString();
         }
+    private static void appendParagraphToHtml(Element p, String rawText, int textLen, java.util.Map<String, Integer> listCounters, StringBuilder outHtml) {
+        String alignAttr = p.getAttribute("Alignment");
+        String alignStyle = "justify";
+        if ("1".equals(alignAttr)) alignStyle = "center";
+        else if ("2".equals(alignAttr)) alignStyle = "right";
+        else if ("0".equals(alignAttr) || alignAttr.isEmpty()) {
+            alignStyle = (p.hasAttribute("TabSet") || p.hasAttribute("Hanging")) ? "left" : "justify";
+        }
+
+        String spaceAbove = p.getAttribute("SpaceAbove");
+        String spaceBelow = p.getAttribute("SpaceBelow");
+        String hanging = p.getAttribute("Hanging");
+        String leftIndent = p.getAttribute("LeftIndent");
+        String firstLineIndent = p.getAttribute("FirstLineIndent");
+        String tabSet = p.getAttribute("TabSet");
+
+        double tabStopCm = 0;
+        if (tabSet != null && !tabSet.isEmpty()) {
+            String[] parts = tabSet.split(":");
+            if (parts.length > 0) {
+                try {
+                    double pt = Double.parseDouble(parts[0].trim());
+                    if (pt > 10.0) {
+                        tabStopCm = Math.round((pt / 28.3465) * 10.0) / 10.0;
+                    }
+                } catch (Exception ignored) {}
+            }
+        }
+
+        StringBuilder styleAttr = new StringBuilder("text-align: ").append(alignStyle).append(";");
+        double ptAbove = 0;
+        double ptBelow = 0;
+        if (!spaceAbove.isEmpty()) {
+            try { ptAbove = Double.parseDouble(spaceAbove); } catch (Exception ignored) {}
+        }
+        if (!spaceBelow.isEmpty()) {
+            try { ptBelow = Double.parseDouble(spaceBelow); } catch (Exception ignored) {}
+        }
+        styleAttr.append(" margin-top: ").append(ptAbove).append("pt;");
+        styleAttr.append(" margin-bottom: ").append(ptBelow).append("pt;");
+        double fIndentPt = 0;
+        double hangPt = 0;
+        double lIndentPt = 0;
+        if (!firstLineIndent.isEmpty()) {
+            try { fIndentPt = Double.parseDouble(firstLineIndent); } catch (Exception ignored) {}
+        }
+        if (!hanging.isEmpty()) {
+            try { hangPt = Double.parseDouble(hanging); } catch (Exception ignored) {}
+        }
+        if (!leftIndent.isEmpty()) {
+            try { lIndentPt = Double.parseDouble(leftIndent); } catch (Exception ignored) {}
+        }
+
+        if (hangPt > 30.0 && fIndentPt > 30.0) {
+            double cm = Math.round((fIndentPt / 28.3465) * 100.0) / 100.0;
+            styleAttr.append(" padding-left: ").append(cm).append("cm;");
+        } else if (hangPt > 30.0 && fIndentPt <= 0.0) {
+            double cm = Math.round((hangPt / 28.3465) * 100.0) / 100.0;
+            styleAttr.append(" padding-left: ").append(cm).append("cm; text-indent: -").append(cm).append("cm;");
+        } else if (fIndentPt > 0.0) {
+            double cm = Math.round((fIndentPt / 28.3465) * 100.0) / 100.0;
+            styleAttr.append(" text-indent: ").append(cm).append("cm;");
+        }
+        if (lIndentPt > 5.0 && hangPt <= 30.0) {
+            double cm = Math.round((lIndentPt / 28.3465) * 100.0) / 100.0;
+            styleAttr.append(" margin-left: ").append(cm).append("cm;");
+        }
+
+        StringBuilder pContent = new StringBuilder();
+
+        // UYAP Numaralandırma & Maddeleme Kontrolü
+        boolean isNumbered = "true".equalsIgnoreCase(p.getAttribute("Numbered")) || "1".equals(p.getAttribute("Numbered"));
+        boolean isBulleted = "true".equalsIgnoreCase(p.getAttribute("Bulleted")) || "1".equals(p.getAttribute("Bulleted"));
+        if (isNumbered) {
+            String listId = p.getAttribute("ListId");
+            if (listId == null || listId.isEmpty()) listId = "default";
+            int count = listCounters.getOrDefault(listId, 0) + 1;
+            listCounters.put(listId, count);
+
+            String numType = p.getAttribute("NumberType");
+            String listPrefix = count + ". ";
+            if (numType != null && numType.contains("ROMAN")) {
+                listPrefix = toRoman(count) + ". ";
+            } else if (numType != null && (numType.contains("CHAR_SMALL") || numType.contains("ALPHA"))) {
+                char ch = (char) ('a' + ((count - 1) % 26));
+                listPrefix = ch + ") ";
+            } else if (numType != null && numType.contains("CHAR_BIG")) {
+                char ch = (char) ('A' + ((count - 1) % 26));
+                listPrefix = ch + ". ";
+            }
+            pContent.append("<span style=\"font-weight:bold; margin-right:4px;\">").append(escapeHtml(listPrefix)).append("</span>");
+        } else if (isBulleted) {
+            pContent.append("<span style=\"font-weight:bold; margin-right:6px;\">•</span>");
+        }
+
+        // Paragraf altındaki tüm elemanları (content, space, field, tab, image) sırayla tara:
+        boolean hasContent = false;
+        Node childNode = p.getFirstChild();
+        while (childNode != null) {
+            if (childNode.getNodeType() == Node.ELEMENT_NODE) {
+                Element childElem = (Element) childNode;
+                String tagName = childElem.getTagName();
+
+                if ("image".equalsIgnoreCase(tagName)) {
+                    String imgData = childElem.getAttribute("imageData");
+                    if (imgData != null && !imgData.trim().isEmpty()) {
+                        String wStr = childElem.getAttribute("width");
+                        String hStr = childElem.getAttribute("height");
+                        double wCm = parsePtToCm(wStr, 0);
+                        double hCm = parsePtToCm(hStr, 0);
+                        StringBuilder imgStyle = new StringBuilder("display:block; margin:6px auto; object-fit:contain;");
+                        if (wCm > 0) imgStyle.append(" max-width:").append(wCm).append("cm; width:100%;");
+                        else imgStyle.append(" max-width:95%; width:auto;");
+                        if (hCm > 0) imgStyle.append(" max-height:").append(hCm).append("cm;");
+                        else imgStyle.append(" height:auto;");
+
+                        pContent.append("<img src=\"data:image/png;base64,")
+                                .append(imgData.trim())
+                                .append("\" style=\"").append(imgStyle.toString()).append("\" />");
+                        hasContent = true;
+                    }
+                } else if ("content".equalsIgnoreCase(tagName) || "space".equalsIgnoreCase(tagName)
+                        || "field".equalsIgnoreCase(tagName) || "tab".equalsIgnoreCase(tagName)) {
+                    String startStr = childElem.getAttribute("startOffset");
+                    String lenStr = childElem.getAttribute("length");
+                    boolean bold = "true".equalsIgnoreCase(childElem.getAttribute("bold"));
+                    boolean italic = "true".equalsIgnoreCase(childElem.getAttribute("italic"));
+                    boolean underline = "true".equalsIgnoreCase(childElem.getAttribute("underline"));
+                    boolean subscript = "true".equalsIgnoreCase(childElem.getAttribute("subscript")) || "true".equalsIgnoreCase(childElem.getAttribute("Subscript"));
+                    boolean superscript = "true".equalsIgnoreCase(childElem.getAttribute("superscript")) || "true".equalsIgnoreCase(childElem.getAttribute("Superscript"));
+                    boolean strike = "true".equalsIgnoreCase(childElem.getAttribute("strikeThrough")) || "true".equalsIgnoreCase(childElem.getAttribute("strikethrough")) || "true".equalsIgnoreCase(childElem.getAttribute("StrikeThrough"));
+
+                    String chunk = "";
+                    if (!startStr.isEmpty() && !lenStr.isEmpty()) {
+                        try {
+                            int start = Integer.parseInt(startStr);
+                            int len = Integer.parseInt(lenStr);
+                            if (start < textLen && start >= 0) {
+                                int end = Math.min(start + len, textLen);
+                                chunk = rawText.substring(start, end);
+                            }
+                        } catch (Exception ignored) {}
+                    } else if ("tab".equalsIgnoreCase(tagName)) {
+                        chunk = "\t";
+                    } else if ("space".equalsIgnoreCase(tagName)) {
+                        chunk = " ";
+                    }
+
+                    if (!chunk.isEmpty()) {
+                        if (chunk.endsWith("\r\n")) {
+                            chunk = chunk.substring(0, chunk.length() - 2);
+                        } else if (chunk.endsWith("\n") || chunk.endsWith("\r")) {
+                            chunk = chunk.substring(0, chunk.length() - 1);
+                        }
+
+                        if (!chunk.isEmpty()) {
+                            hasContent = true;
+                            String escaped = escapeHtml(chunk).replace("\n", "<br>");
+                            if (bold) escaped = "<strong>" + escaped + "</strong>";
+                            if (italic) escaped = "<em>" + escaped + "</em>";
+                            if (underline) escaped = "<u>" + escaped + "</u>";
+                            if (subscript) escaped = "<sub>" + escaped + "</sub>";
+                            if (superscript) escaped = "<sup>" + escaped + "</sup>";
+                            if (strike) escaped = "<s>" + escaped + "</s>";
+                            pContent.append(escaped);
+                        }
+                    }
+                }
+            }
+            childNode = childNode.getNextSibling();
+        }
+
+        if (!hasContent) {
+            pContent.append("<br>");
+        }
+
+        String formattedParagraphHtml = formatParagraphTabs(pContent.toString());
+        outHtml.append("<p style=\"").append(styleAttr.toString()).append("\"");
+        if (tabStopCm > 0) {
+            outHtml.append(" data-tab-stops=\"").append(tabStopCm).append("\"");
+        }
+        outHtml.append(">")
+               .append(formattedParagraphHtml)
+               .append("</p>\n");
+    }
+
+    private static void appendTableToHtml(Element tableElem, String rawText, int textLen, java.util.Map<String, Integer> listCounters, StringBuilder outHtml) {
+        String borderAttr = tableElem.getAttribute("border");
+        boolean isBorderNone = "borderNone".equalsIgnoreCase(borderAttr) || "none".equalsIgnoreCase(borderAttr);
+        String tableStyle = isBorderNone
+            ? "width:100%; border-collapse:collapse; margin:12px 0; border:none;"
+            : "width:100%; border-collapse:collapse; margin:12px 0; border:1px solid #ccc;";
+
+        outHtml.append("<table style=\"").append(tableStyle).append("\">\n");
+
+        NodeList rows = tableElem.getElementsByTagName("row");
+        for (int r = 0; r < rows.getLength(); r++) {
+            Element rowElem = (Element) rows.item(r);
+            outHtml.append("  <tr style=\"border:none;\">\n");
+
+            NodeList cells = rowElem.getElementsByTagName("cell");
+            int cellCount = cells.getLength();
+            double cellWidthPct = cellCount > 0 ? (100.0 / cellCount) : 100.0;
+
+            for (int c = 0; c < cellCount; c++) {
+                Element cellElem = (Element) cells.item(c);
+                String cellStyle = isBorderNone
+                    ? "vertical-align:top; border:none; padding:4px 8px; width:" + String.format(Locale.US, "%.1f", cellWidthPct) + "%;"
+                    : "vertical-align:top; border:1px solid #ccc; padding:4px 8px; width:" + String.format(Locale.US, "%.1f", cellWidthPct) + "%;";
+
+                outHtml.append("    <td style=\"").append(cellStyle).append("\">\n");
+
+                NodeList cellParas = cellElem.getElementsByTagName("paragraph");
+                if (cellParas.getLength() == 0) {
+                    outHtml.append("&nbsp;");
+                } else {
+                    for (int pIdx = 0; pIdx < cellParas.getLength(); pIdx++) {
+                        Element p = (Element) cellParas.item(pIdx);
+                        appendParagraphToHtml(p, rawText, textLen, listCounters, outHtml);
+                    }
+                }
+
+                outHtml.append("    </td>\n");
+            }
+            outHtml.append("  </tr>\n");
+        }
+        outHtml.append("</table>\n");
     }
 
     private static String formatParagraphTabs(String pHtml) {

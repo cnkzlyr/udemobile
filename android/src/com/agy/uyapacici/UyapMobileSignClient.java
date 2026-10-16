@@ -82,10 +82,9 @@ public class UyapMobileSignClient {
         try {
             Intent intent = new Intent();
             intent.setClassName("com.termux", "com.termux.app.RunCommandService");
-            intent.setAction("com.termux.RUN_COMMAND");
-            intent.putExtra("com.termux.RUN_COMMAND_PATH", "/data/data/com.termux/files/home/eimza/udemobile_baslat.sh");
-            intent.putExtra("com.termux.RUN_COMMAND_ARGUMENTS", new String[]{"start"});
-            intent.putExtra("com.termux.RUN_COMMAND_WORKDIR", "/data/data/com.termux/files/home/eimza");
+            intent.putExtra("com.termux.RUN_COMMAND_PATH", "/data/data/com.termux/files/usr/bin/bash");
+            intent.putExtra("com.termux.RUN_COMMAND_ARGUMENTS", new String[]{"-c", "bash ~/eimza/udemobile_baslat.sh ensure >/dev/null 2>&1"});
+            intent.putExtra("com.termux.RUN_COMMAND_WORKDIR", "/data/data/com.termux/files/home");
             intent.putExtra("com.termux.RUN_COMMAND_BACKGROUND", true);
             intent.putExtra("com.termux.RUN_COMMAND_SESSION_ACTION", "0");
 

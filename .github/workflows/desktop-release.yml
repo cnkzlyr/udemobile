@@ -1,15 +1,10 @@
-name: Release Desktop GUI (Windows, macOS, Linux)
+name: CanEditor Cross-Platform Desktop GUI Release
 
 on:
   push:
     tags:
       - 'v*'
   workflow_dispatch:
-    inputs:
-      version:
-        description: 'Version tag to release (e.g. v3.3.4)'
-        required: false
-        default: 'v3.3.4'
 
 jobs:
   build-desktop:
@@ -20,11 +15,11 @@ jobs:
       matrix:
         include:
           - platform: 'macos-latest'
-            args: '--target universal-apple-darwin'
+            args: '--target universal-apple-darwin --ignore-version-mismatches'
           - platform: 'ubuntu-22.04'
-            args: ''
+            args: '--ignore-version-mismatches'
           - platform: 'windows-latest'
-            args: ''
+            args: '--ignore-version-mismatches'
 
     runs-on: ${{ matrix.platform }}
     steps:
@@ -34,9 +29,9 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
 
-      - name: Install Rust stable
+      - name: Setup Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
@@ -45,21 +40,24 @@ jobs:
         if: matrix.platform == 'ubuntu-22.04'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev patchelf
+
+      - name: Install Root Dependencies
+        run: npm install
 
       - name: Install Frontend Dependencies & Build
+        working-directory: frontend
         run: |
-          cd frontend
           npm install
           npm run build
 
       - name: Build Desktop Application (Tauri Action)
-        uses: tauri-apps/tauri-action@v0
+        uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: ${{ github.ref_name || 'v3.3.4' }}
-          releaseName: 'CanEditor ${{ github.ref_name || 'v3.3.4' }}'
+          tagName: ${{ github.ref_name }}
+          releaseName: 'CanEditor ${{ github.ref_name }}'
           releaseBody: 'CanEditor Cross-Platform Desktop GUI Release (Windows .exe/.msi, macOS .dmg, Linux .AppImage/.deb)'
           releaseDraft: false
           prerelease: false

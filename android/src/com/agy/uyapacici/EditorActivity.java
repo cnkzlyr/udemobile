@@ -94,6 +94,8 @@ public class EditorActivity extends Activity {
         setupWebView();
         setupListeners();
 
+        new Thread(this::ensureEimzaServiceRunning).start();
+
         loadIncomingFile();
     }
 
@@ -1012,33 +1014,17 @@ public class EditorActivity extends Activity {
                 String confirmedSigner = signerName;
                 String confirmedTckn = tckn;
 
-                if (isLocal) {
-                    for (int i = 0; i < 45; i++) { // 45 * 2s = 90 sn
+                for (int i = 0; i < 45; i++) { // 45 * 2s = 90 sn
+                    if (isLocal) {
                         Thread.sleep(2000);
-                        UyapMobileSignClient.PollResult pollRes = UyapMobileSignClient.pollSign(apTransId, phone, true);
-                        if (pollRes.success && pollRes.signedData != null && pollRes.signedData.length > 0) {
-                            signedDataBytes = pollRes.signedData;
-                            if (pollRes.signerName != null && !pollRes.signerName.isEmpty()) confirmedSigner = pollRes.signerName;
-                            if (pollRes.identityNo != null && !pollRes.identityNo.isEmpty()) confirmedTckn = pollRes.identityNo;
-                            break;
-                        } else if (!pollRes.waiting && !pollRes.success) {
-                            final String errMsg = pollRes.message;
-                            runOnUiThread(() -> {
-                                editorWebView.evaluateJavascript("onMobileSignFailed(" + JSONObject.quote(errMsg) + ");", null);
-                                tvSaveStatus.setText("Hata");
-                                Toast.makeText(EditorActivity.this, "Mobil İmza: " + errMsg, Toast.LENGTH_LONG).show();
-                            });
-                            return;
-                        }
                     }
-                } else {
-                    // Doğrudan UYAP SOAP Ağ Geçidi üzerinden PIN bekleme
-                    UyapMobileSignClient.PollResult pollRes = UyapMobileSignClient.pollSign(apTransId, phone, false);
+                    UyapMobileSignClient.PollResult pollRes = UyapMobileSignClient.pollSign(apTransId, phone, isLocal);
                     if (pollRes.success && pollRes.signedData != null && pollRes.signedData.length > 0) {
                         signedDataBytes = pollRes.signedData;
                         if (pollRes.signerName != null && !pollRes.signerName.isEmpty()) confirmedSigner = pollRes.signerName;
                         if (pollRes.identityNo != null && !pollRes.identityNo.isEmpty()) confirmedTckn = pollRes.identityNo;
-                    } else {
+                        break;
+                    } else if (!pollRes.waiting && !pollRes.success) {
                         final String errMsg = pollRes.message;
                         runOnUiThread(() -> {
                             editorWebView.evaluateJavascript("onMobileSignFailed(" + JSONObject.quote(errMsg) + ");", null);
@@ -1046,6 +1032,9 @@ public class EditorActivity extends Activity {
                             Toast.makeText(EditorActivity.this, "Mobil İmza: " + errMsg, Toast.LENGTH_LONG).show();
                         });
                         return;
+                    }
+                    if (!isLocal) {
+                        Thread.sleep(1500);
                     }
                 }
 

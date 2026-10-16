@@ -86,10 +86,7 @@ async function parseUdfArrayBuffer(buffer) {
   const headerText = xmlDoc.querySelector("header > content")?.textContent || "";
   const footerText = xmlDoc.querySelector("footer > content")?.textContent || "";
 
-  let html = "";
-  const paragraphs = xmlDoc.querySelectorAll("elements > paragraph");
-
-  paragraphs.forEach(p => {
+  function parseParagraphToHtml(p, runes) {
     let align = "justify";
     const al = p.getAttribute("Alignment");
     if (al === "1") align = "center";
@@ -111,29 +108,100 @@ async function parseUdfArrayBuffer(buffer) {
     let firstLabelText = "";
     let hasTab = false;
 
-    const contents = p.querySelectorAll("content");
-    contents.forEach((c, idx) => {
-      const start = parseInt(c.getAttribute("startOffset") || "0", 10);
-      const len = parseInt(c.getAttribute("length") || "0", 10);
-      const text = runes.slice(start, start + len).join("");
-      if (!firstLabelText && idx === 0) firstLabelText = text.trim();
-      if (text.includes("\t")) hasTab = true;
+    const children = Array.from(p.children);
+    children.forEach((c, idx) => {
+      const tag = c.tagName ? c.tagName.toLowerCase() : "";
+      if (tag === "image") {
+        const imgData = c.getAttribute("imageData");
+        if (imgData && imgData.trim()) {
+          pHtml += `<img src="data:image/png;base64,${imgData.trim()}" style="display:block; margin:6px auto; max-width:95%; height:auto;" />`;
+        }
+      } else if (tag === "content" || tag === "space" || tag === "field" || tag === "tab") {
+        let text = "";
+        if (c.hasAttribute("startOffset") && c.hasAttribute("length")) {
+          const start = parseInt(c.getAttribute("startOffset") || "0", 10);
+          const len = parseInt(c.getAttribute("length") || "0", 10);
+          text = runes.slice(start, start + len).join("");
+        } else if (tag === "tab") {
+          text = "\t";
+        } else if (tag === "space") {
+          text = " ";
+        }
 
-      let seg = escapeHtmlStr(text)
-        .replace(/\t/g, '<span class="udf-tab-space" contenteditable="false">&nbsp;</span>')
-        .replace(/\n/g, "<br>");
-      if (c.getAttribute("bold") === "true") seg = `<strong>${seg}</strong>`;
-      if (c.getAttribute("italic") === "true") seg = `<em>${seg}</em>`;
-      if (c.getAttribute("underline") === "true") seg = `<u>${seg}</u>`;
-      pHtml += seg;
+        if (!firstLabelText && idx === 0) firstLabelText = text.trim();
+        if (text.includes("\t")) hasTab = true;
+
+        let seg = escapeHtmlStr(text)
+          .replace(/\t/g, '<span class="udf-tab-space" contenteditable="false">&nbsp;</span>')
+          .replace(/\n/g, "<br>");
+        if (c.getAttribute("bold") === "true") seg = `<strong>${seg}</strong>`;
+        if (c.getAttribute("italic") === "true") seg = `<em>${seg}</em>`;
+        if (c.getAttribute("underline") === "true") seg = `<u>${seg}</u>`;
+        pHtml += seg;
+      }
     });
 
     if (!tabStopAttr && hasTab && isLegalMetadata(firstLabelText)) {
       tabStopAttr = ' data-tab-stops="5"';
     }
 
-    html += `<p style="text-align: ${align};"${tabStopAttr}>${pHtml || "<br>"}</p>\n`;
-  });
+    return `<p style="text-align: ${align};"${tabStopAttr}>${pHtml || "<br>"}</p>\n`;
+  }
+
+  function parseTableToHtml(tableElem, runes) {
+    const border = tableElem.getAttribute("border");
+    const isNone = border === "borderNone" || border === "none";
+    const tableStyle = isNone
+      ? "width:100%; border-collapse:collapse; margin:12px 0; border:none;"
+      : "width:100%; border-collapse:collapse; margin:12px 0; border:1px solid #ccc;";
+
+    let tblHtml = `<table style="${tableStyle}">\n`;
+    const rows = tableElem.querySelectorAll("row");
+    rows.forEach(r => {
+      tblHtml += `  <tr style="border:none;">\n`;
+      const cells = r.querySelectorAll("cell");
+      const cellWidthPct = cells.length > 0 ? (100 / cells.length).toFixed(1) : "100";
+      cells.forEach(cell => {
+        const cellStyle = isNone
+          ? `vertical-align:top; border:none; padding:4px 8px; width:${cellWidthPct}%;`
+          : `vertical-align:top; border:1px solid #ccc; padding:4px 8px; width:${cellWidthPct}%;`;
+        tblHtml += `    <td style="${cellStyle}">\n`;
+        const cellParas = cell.querySelectorAll("paragraph");
+        if (cellParas.length === 0) {
+          tblHtml += "&nbsp;";
+        } else {
+          cellParas.forEach(p => {
+            tblHtml += parseParagraphToHtml(p, runes);
+          });
+        }
+        tblHtml += `    </td>\n`;
+      });
+      tblHtml += `  </tr>\n`;
+    });
+    tblHtml += `</table>\n`;
+    return tblHtml;
+  }
+
+  let html = "";
+  const elementsNode = xmlDoc.querySelector("template > elements") || xmlDoc.querySelector("elements");
+
+  if (elementsNode && elementsNode.children.length > 0) {
+    Array.from(elementsNode.children).forEach(child => {
+      const tag = child.tagName ? child.tagName.toLowerCase() : "";
+      if (tag === "paragraph") {
+        html += parseParagraphToHtml(child, runes);
+      } else if (tag === "table") {
+        html += parseTableToHtml(child, runes);
+      }
+    });
+  } else {
+    const paragraphs = xmlDoc.querySelectorAll("paragraph");
+    paragraphs.forEach(p => {
+      const parentTag = p.parentElement ? p.parentElement.tagName.toLowerCase() : "";
+      if (parentTag === "header" || parentTag === "footer" || parentTag === "cell") return;
+      html += parseParagraphToHtml(p, runes);
+    });
+  }
 
   return {
     header: headerText,
