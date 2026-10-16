@@ -1,177 +1,148 @@
-# ⚖️ UdeMobile — Mobil UYAP & Word Dilekçe Editörü
+# ⚖️ CanEditor (UdeMobile) — Çapraz Platform UYAP & Word Editörü
 
-[![Android](https://img.shields.io/badge/Platform-Android_8.0+-3DDC84.svg?logo=android&logoColor=white)](https://android.com)
+[![Sürüm](https://img.shields.io/badge/Sürüm-v3.4.2-blue.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v3.4.2)
+[![Platformlar](https://img.shields.io/badge/Platformlar-Android%20%7C%20Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Web-success.svg)](https://github.com/cnkzlyr/udemobile/releases)
 [![UYAP](https://img.shields.io/badge/Format-UYAP_UDF_v1.8-0D47A1.svg)](https://uyap.gov.tr)
 [![Word](https://img.shields.io/badge/Format-MS_DOCX_OpenXML-2B579A.svg?logo=microsoft-word&logoColor=white)](https://microsoft.com)
-[![Version](https://img.shields.io/badge/Version-v2.8-blue.svg)](release/udemobile-v2.8.apk)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![5070 E-İmza](https://img.shields.io/badge/5070_S.K.-E--İmza_%26_Mobil_İmza-darkgreen.svg)](https://www.mevzuat.gov.tr/mevzuat?MevzuatNo=5070&MevzuatTur=1&MevzuatTertip=5)
+[![Lisans](https://img.shields.io/badge/Lisans-MIT-green.svg)](LICENSE)
 
-**UdeMobile**, avukatlar, katipler ve hukukçular için geliştirilmiş; telefon ve tablette **Google Dokümanlar & Word konforunda** UYAP dilekçesi yazmayı, düzenlemeyi, okumayı, **elektronik imza doğrulamayı** ve **gerçek USB OTG token/kart ile imzalamayı** sağlayan yeni nesil bir mobil hukuk editörüdür.
-
-Artık telefonda UYAP belgelerini açmak için karmaşık X11 masaüstü pencereleriyle, donan fare imleçleriyle veya terminal komutlarıyla uğraşmanıza gerek yok. UdeMobile, `.udf` ve `.docx` dosyalarını yerel olarak ayrıştırır, ekranda resmi A4 sayfa düzeniyle canlı gösterir, imzalarını kriptografik olarak doğrular ve tek dokunuşla resmi UYAP formatında kaydeder.
+**CanEditor (UdeMobile)**; avukatlar, hakimler, savcılar, katipler ve tüm hukuk profesyonelleri için geliştirilmiş; mobil cihazlarda, masaüstünde (Windows, macOS, Linux) ve modern web tarayıcılarında **Google Dokümanlar & Word konforunda** UYAP dilekçesi hazırlamayı, düzenlemeyi, okumayı, **elektronik imza doğrulamayı** ve **5070 Sayılı Kanuna uygun gerçek Mobil İmza / USB Akıllı Kart ile mühürlemeyi** sağlayan yeni nesil, tam kapsamlı ve bağımsız bir hukuk editörüdür.
 
 ---
 
-## 🌟 v2.8 ile Gelen Yeni Özellikler & Çözümler
+## 🚀 Hızlı İndirme (v3.4.2)
 
-### 🔍 1. Havelsan UYAP Uyumlu İmza Kontrolü & Doğrulama Motoru (Açıkken ve Listede)
-* **Ana Ekran Dosya Listesinde Canlı Rozetler:** Açılan veya kaydedilen tüm UDF belgelerinin yanında imza durumu anında gösterilir:
-  * `🟢 GEÇERLİ E-İMZA: Halil ÖZYOLCU (TÜRKTRUST)` (Bütünlüğü korunmuş geçerli imza)
-  * `🔴 GEÇERSİZ İMZA (İçerik Değişmiş veya Hatalı)` (Bozulmuş veya özet uyuşmazlığı)
-  * `⚪ İmzasız Belge` (İmza bulunmayan standart taslak)
-* **Editör İçi İnteraktif İmza Banner'ı & "🔍 İmza Kontrolü" Butonu:** Belge açıkken tek tıkla imza raporunu açma ve canlı doğrulama.
-* **Resmi UYAP Kontrolcü Raporu:**
-  * `(+) İmza Matematiksel Doğrulama Kontrolcüsü`: Başarılı
-  * `(+) İmzacı Sertifikası Kontrolcüsü`: Başarılı (Nitelikli Elektronik Sertifika - NES)
-  * `(+) Sertifika Geçerlilik Süresi`: Başarılı (Geçerli Tarih Aralığında)
-  * `(+) İçerik Özet Özelliği Kontrolcüsü`: İçerik özeti özelliğindeki değer hesaplanan değerle aynı. Kontrolcü sonucu başarılı.
-
-### ⚡ 2. Gerçek USB Akıllı Kart İmzalama (Havelsan UYAP %100 Uyumlu)
-* Havelsan UYAP Doküman Editörü v5.4.20 standardına uygun olarak, ZIP arşivi yerine doğrudan arşive yazılan `content.xml` dosyasının ham baytları SHA-256 ile imzalanır.
-* Havelsan UYAP Editöründe açıldığında `Doküman üzerindeki imza geçerlidir!` onayı alınır; özet uyuşmazlığı hatası tamamen giderilmiştir.
+| Platform | Paket Dosyası | Açıklama |
+| :--- | :--- | :--- |
+| **Android (Telefon & Tablet)** | [**CanEditor-v3.4.2.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.4.2/CanEditor-v3.4.2.apk) | Güncel mobil uygulama paketi |
+| **Android (Her Zaman En Son)** | [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.4.2/CanEditor-latest.apk) | Kalıcı son sürüm bağlantısı |
+| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v3.4.2.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v3.4.2/CanEditor-Portable-Web-GUI-v3.4.2.zip) | Kurulumsuz; zipten çıkarıp `index.html` açarak tüm işletim sistemlerinde doğrudan çalışır |
+| **Windows / macOS / Linux** | [**GitHub Releases Sayfası**](https://github.com/cnkzlyr/udemobile/releases/tag/v3.4.2) | GitHub Actions CI ile derlenen yerel ikili (.msi, .dmg, .AppImage, .deb) paketleri |
 
 ---
 
-## 🌟 Temel Yetenekler
+## 🌟 v3.4.2 ile Gelen Önemli Geliştirmeler
 
-### 1. 📏 Etkileşimli A4 Cetveli (Ruler - Word & UYAP Stili)
-* **0 - 16 cm Hassas Milimetre Ölçeği:** A4 kağıt genişliğiyle birebir örtüşen yatay cetvel.
-* **İlk Satır Girintisi İmi (▼):** Dokunarak veya sürükleyerek seçili paragrafın ilk satır girintisini (0.5 cm, 1.0 cm, 1.25 cm UYAP standardı) canlı ayarlama.
-* **Sol / Asılı Girinti İmi (▲ + ▀):** Paragrafın sol kenarını ve asılı bendini ayarlama.
-* **Sağ Kenar İmi (▲):** Paragrafın sağ marjini kontrol etme.
-* **Otomatik Senkronizasyon:** İmleç hangi paragrafa gelirse cetvel imleri o paragrafın girintilerine anında konumlanır.
+### 🔐 1. Kesintisiz Çift Katmanlı Mobil İmza (M-İmza) Mimarisi
+Mobil imza altyapısı her hal ve şartta çalışacak şekilde çift katmanlı hale getirilmiş, bağlantı kopma hataları tamamen ortadan kaldırılmıştır:
+- **Katman 1 (Havelsan UYAP Headless Arka Plan Servisi):** Termux ortamında resmi Havelsan `MobilImzaSigner` ve TÜBİTAK UEKAE `BaseSignedData` kütüphaneleriyle çalışan yerel servis (`0.0.0.0:5976`). Uygulama içi `UyapMobileSignClient`, yerel servis uykudaysa Termux `RUN_COMMAND` intentiyle arka planda otomatik uyandırır. `termux-wake-lock` ve `setsid` oturum ayrımı sayesinde telefon ekranı kapansa dahi Android OS servisi sonlandırmaz.
+- **Katman 2 (Doğrudan Resmi UYAP SOAP Ağ Geçidi - Kesintisiz Yedek):** Termux veya yerel mikroservis kapalı olsa dahi uygulama asla hata vermez. `UyapMobileSignClient`, doğrudan Adalet Bakanlığı resmi SOAP 1.1 ağ geçidine (`http://vatandas.uyap.gov.tr/mimzaclient/services/MImzaSigner`) bağlanarak parmak izini alır, operatör onayını bekler ve imzalı CAdES CMS DER paketini UDF arşivine işler.
+- **Operatör Desteği:** Turkcell, Türk Telekom ve Vodafone hatlarıyla %100 uyumludur.
+- **Şeffaf Durum Bildirimi:** Kullanıcıya ham soket hatası yerine ekranda *"UYAP Mobil İmza Bağlantısı Kuruluyor..."*, *"SIM Onayı Bekleniyor (Parmak İzi: XXXX)"* ve *"✓ Mobil İmzalandı & Doğrulandı"* şeklinde adım adım canlı bilgilendirme yapılır.
 
-### 2. 📐 Seçili Paragraftan Önce / Sonra Boşluk & Detaylı Ayar Modali
-* **Hedefli Paragraf Biçimlendirme:** Biçimlendirme tüm belgeyi bozmaz; doğrudan **seçili veya imlecin bulunduğu paragrafa** uygulanır.
-* **Paragraftan Önceki Boşluk (Space Above):** 0 pt, 2 pt, 4 pt, 6 pt, 12 pt veya özel pt değeri (+/− butonları ile).
-* **Paragraftan Sonraki Boşluk (Space Below):** 0 pt, 4 pt, 8 pt (Standart UYAP), 12 pt, 18 pt veya özel pt değeri.
-* **Satır Aralığı (Line Spacing):** Tek (1.0), 1.15, UYAP Standart (1.35), 1.5, Çift (2.0).
-* **Kapsam Seçimi:** Yapılan ayarları yalnızca geçerli paragrafa veya tüm belgeye uygulama seçeneği.
-* **Canlı Önizleme:** Modal içerisindeki önizleme kutusunda paragrafın nasıl görüneceğini anlık takip etme.
+### 📐 2. UDF & DOCX Kalıcı Sekme (TabSet) & Serbest İki Nokta (Colon) Boşlukları
+- `DOSYA NO : ...` satırlarında iki noktadan sonraki boşlukların silinememesi sorunu tamamen çözülmüştür; iki noktadan önceki ve sonraki tüm karakterler serbestçe düzenlenebilir.
+- Tab (Sekme) tuşuna basıldığında A4 cetvelindeki durak noktalarına (örneğin 6.2 cm UYAP standardı) kusursuz hizalama yapılır.
+- Belge kaydedilip yeniden açıldığında UDF `TabSet` ve DOCX `w:tabs` durakları bayt bayt korunur.
+
+### ↺ 3. Güçlendirilmiş Geri Al / Yinele (Undo / Redo) Motoru
+- Tüm metin, biçimlendirme, sekme (tab) ve cetvel değişikliklerinde geri al / ileri al geçmişi eksiksiz korunur.
+- Yeni metin girişi veya düzenleme yapıldığında geçmiş dallarının kaybolması engellenmiştir.
+
+### 🛡️ 4. 30 Saniyede Bir Otomatik Taslak & Kurtarma Sistemi
+- Kullanıcı yazarken her 30 saniyede bir yerel depolamaya otomatik taslak kaydedilir.
+- Olası bir şarj bitmesi veya beklenmedik kapanma durumunda, uygulama açılışında kurtarma penceresi belirir ve kaydedilmemiş veriler tek dokunuşla geri getirilebilir.
+
+### 🔄 5. Dahili Güncelleyici (In-App Updater)
+- Uygulama içinden doğrudan en son GitHub sürümü denetlenebilir.
+- Güncelleme öncesi mevcut belgenin kaydedilmesi sağlanır, veri kaybı riski olmadan yeni paket indirilip kurulabilir.
+
+---
+
+## 🏛️ Temel Yetenekler & Özellikler
+
+### 1. 📄 Çift Yönlü Belge Dönüştürme (UDF ⟷ DOCX)
+- **Word Dilekçesini UDF Yapma:** Bilgisayardan veya mesajlaşma uygulamalarından gelen `.docx` dosyalarını açıp düzenleyebilir ve tek tıkla resmi **.udf** formatında kaydedebilirsiniz.
+- **UDF'yi Word Olarak Dışa Aktarma:** Açtığınız bir UDF belgesini tek tıkla standart **.docx** formatına dönüştürebilirsiniz.
+- **Resmi UYAP Tipografisi:** Times New Roman 12 pt, iki yana yaslı (justify) ve 1.35 satır aralığı standardı varsayılan olarak uygulanır.
+
+### 2. 📏 Etkileşimli A4 Cetveli (Ruler) & Sayfa Boşlukları
+- **0 - 16 cm Milimetre Ölçeği:** A4 kağıt genişliğiyle birebir uyumlu cetvel.
+- **İlk Satır Girintisi İmi (▼):** Paragrafın ilk satır girintisini (0.5 cm, 1.0 cm, 1.25 cm UYAP standardı) sürükleyerek ayarlama.
+- **Sol ve Asılı Girinti İmi (▲ + ▀):** Paragrafın sol kenarını ve asılı bendini kontrol etme.
+- **Sağ Kenar İmi (▲):** Paragrafın sağ marjinini ayarlama.
 
 ### 3. 📑 Kalıcı Üstbilgi ve Altbilgi (Header & Footer)
-* **Asla Kaybolmayan Yapı:** Sayfa başı ve sayfa sonu kalıcı olarak görüntülenir, işlem yapıldığında kaybolmaz.
-* **Çift Yönlü UDF & DOCX Uyumluluğu:** Üstbilgi (Mahkeme adı, dosya no) ve altbilgi (iletişim, sayfa no) doğrudan UDF `<pageFormat>` ve DOCX yapısına kaydedilir, belge açıldığında geri yüklenir.
-* **Hızlı Sayfa No Ekleme:** Tek tıkla altbilgiye tarih ve `Sayfa 1 / 1` formatında resmi numaralandırma.
+- Mahkeme adı, dosya no ve iletişim bilgileri sayfa başında ve sonunda kalıcı olarak görüntülenir.
+- Otomatik tarih ve `Sayfa 1 / 1` biçiminde resmi sayfa numaralandırması ekleme.
 
-### 4. 📱 Gerçek UYAP Mobil İmza (M-İmza) & ✍️ USB E-İmza + Çoklu İmza Desteği
-* **Gerçek UYAP Mobil İmza Ağ Geçidi:** Adalet Bakanlığı UYAP Mobil İmza Web Servisi (`mimzaclient`) doğrudan entegre edilmiştir. Turkcell, Vodafone veya Türk Telekom operatörlerinden telefonunuza gelen onay bildirimindeki **Parfüm / Doğrulama Kodu** ekranda gösterilir, SIM kartınızdan PIN girildiğinde canlı imzalanır.
-* **Birden Fazla İmza & Paraf (Çoklu İmza Koruması):** Belgede önceden atılmış imzalar varsa, yeni bir e-imza veya mobil imza atıldığında eski imzalar silinmez! TÜBİTAK UEKAE MA3 & CAdES-BES standardına uygun olarak yeni imzacının `SignerInfo` ve sertifikası mevcut `sign.sgn` arşivine eklenir. Doküman çift veya çok imzalı olarak eksiksiz saklanır.
-* **Canlı İmza Doğrulama Motoru:** Hem ana dosya listesinde hem de editör içinde açılan dokümanın imzaları (imzacı adı, NES sertifika sağlayıcı, seri no, son geçerlilik tarihi) ve `content.xml` içerik bütünlüğü anlık doğrulanır. Çok imzalı belgelerde her imzacının kartı ayrı ayrı listelenir.
-* **Token Desteği:** TÜRKTRUST, Kamu SM, AKİS, e-Tuğra akıllı kartları ve ACR39U vb. CCID kart okuyucuları.
+### 4. ✍️ Donanımsal E-İmza (USB OTG CCID) & Çoklu İmza
+- **Fiziksel Kart Desteği:** Type-C OTG adaptörüyle takılan TÜRKTRUST, Kamu SM, AKİS, E-Tuğra akıllı kartları ve ACR39U vb. CCID kart okuyucuları.
+- **Çoklu İmza (Multi-Sign) Koruması:** Belgede önceden atılmış imzalar varsa, yeni bir e-imza veya mobil imza atıldığında eski imzalar silinmez; CAdES-BES standardına uygun olarak yeni imzacının sertifikası mevcut `sign.sgn` arşivine eklenir.
+- **Canlı İmza Doğrulama Motoru:** Açılan dokümanın imzaları (imzacı adı, NES sertifika sağlayıcı, seri no, son geçerlilik tarihi) ve `content.xml` içerik bütünlüğü anlık doğrulanır.
 
-### 5. 📱 Google Dokümanlar Stili Mobil A4 Çalışma Alanı
-* **Görünüm Değiştirici (Kağıt / Mobil Mod):**
-  * **📄 Kağıt Modu (A4):** Resmi dilekçe kenar boşlukları, gölgeli beyaz sayfa simülasyonu ve gerçek baskı önizlemesi.
-  * **📱 Mobil Mod:** Küçük telefon ekranlarında tek elle rahat okuma ve yazma için kenarları dolduran esnek mobil düzen.
-* **UYAP Tipografi Standardı:** Resmi adli yazışma standardı olan **Times New Roman 12 pt**, iki yana yaslı (justify) ve 1.35 satır aralığı.
+### 5. ⚖️ Hukuki Araç Çubuğu & Şablonlar
+- **Tek Tıkla Dilekçe Şablonları:** Dava Dilekçesi, Cevap Dilekçesi, Süre Uzatım Talebi (HMK m. 127), Bilirkişi Raporuna İtiraz, İstinaf Başvuru Dilekçesi, İhtarname.
+- **Hukuki Madde Numaralandırma:** Hukuk Dava Maddeleri (1.1, 1.2, 1.3), Roma Rakamları (I., II., III.), Harfli Bentler (a, b, c) ve Madde İmleri.
+- **Fosforlu Vurgulama & Renkler:** Sarı ve yeşil metin vurgulama, koyu mavi / kırmızı başlık ve ihtar notları.
 
-### 2. ⚖️ Zengin Biçimlendirme & Hukuki Araç Çubuğu
-* **Dilekçe Şablonları (Tek Tıkla Eklenir):**
-  * *Dava Dilekçesi* (Mahkeme başlığı, taraflar, açıklamalar, hukuki sebepler, deliller, netice-i talep)
-  * *Cevap Dilekçesi* (Esas no, cevaplar, itirazlar)
-  * *Süre Uzatım Talebi* (HMK m. 127 uyarınca 2 haftalık ek süre talebi)
-  * *Bilirkişi Raporuna İtiraz / Beyan Dilekçesi*
-  * *İstinaf Başvuru Dilekçesi* (Bölge Adliye Mahkemesi'ne sunulmak üzere)
-  * *İhtarname / Sözleşme Fesih Metni*
-* **Yazı Tipi & Boyut Seçimi:** Times New Roman, Arial, Calibri, Georgia, Daktilo/Courier. `A-` ve `A+` butonlarıyla font boyutu kontrolü.
-* **Metin Stilleri:** Kalın (**B**), İtalik (*I*), Altı Çizili (<u>U</u>), Üstü Çizili (~~S~~).
-* **Renk & Fosforlu Vurgu:** Siyah, Koyu Mavi, Kırmızı ve Fosforlu Sarı/Yeşil metin vurgulama (ihtar ve dava notları için).
-* **Paragraf Hizalama:** İki Yana Yasla (Justify), Ortala (Başlıklar), Sağa Yasla, Sola Yasla.
-* **Paragraf Boşlukları & Satır Aralığı (UYAP Standardı):** Paragraf öncesi / sonrası boşluk (0 pt, 4 pt, 8 pt, 12 pt) ve satır aralığı (1.0, 1.15, 1.35, 1.5, 2.0).
-* **Gelişmiş Numaralandırma & Maddeleme:**
-  * Standart (1., 2., 3.)
-  * **Hukuk Dava Maddeleri (1.1, 1.2, 1.3)**
-  * Roma Rakamları (I., II., III.)
-  * Harfli Bentler (a, b, c)
-  * Madde İmleri (• Daire, ■ Kare, ➢ Ok)
-* **📑 Üstbilgi & Altbilgi (Header / Footer):** Mahkeme adı, dosya no ve iletişim bilgilerini sayfa başı/sonu olarak tanımlayabilme.
-* **🔢 Sayfa Numarası:** Altbilgiye otomatik sayfa numaralandırması ekleme.
-* **🖼️ Resim & Delil Fotoğrafı Ekleme:** Galeriden veya kameradan dilekçeye delil fotoğrafı, vekâletname pulu, dekont veya keşif krokisi ekleme.
-* **📊 Tablo Ekleme:** Dava alacak kalemleri, delil listeleri ve faiz hesaplamaları için tek dokunuşla tablo ekleme.
-
-### 3. 📱 Mobil İmza & ✍️ USB E-İmza Entegrasyonu
-* **📱 Mobil İmza (M-İmza):**
-  * Turkcell, Vodafone ve Türk Telekom mobil imza akışı.
-  * TCKN ve GSM numarasıyla 5070 Sayılı Elektronik İmza Kanunu uyumlu güvenli m-imza kaşesi, zaman damgası ve doğrulama kodu.
-* **✍️ USB Akıllı Kart E-İmza:**
-  * Type-C OTG üzerinden takılan TÜRKTRUST, e-Tuğra, AKİS, Kamu SM tokenları ile doğrudan mobil üzerinden veya Termux köprüsüyle imzalama.
-
-### 4. 🔄 DOCX <-> UDF Çift Yönlü Dönüştürücü
-* **Word Dilekçesini UDF'ye Çevirme:** WhatsApp'tan veya bilgisayardan gelen `.docx` uzantılı bir Word dilekçesini açıp düzenleyebilir ve tek tıkla resmi **.udf** formatında kaydedebilirsiniz.
-* **UDF Belgesini Word Olarak Kaydetme:** Açtığınız bir UDF belgesini tek tıkla standart **.docx** dosyası olarak dışa aktarabilirsiniz.
-
-### 5. 🔐 Uygulama İçi Arka Plan E-İmza & Akıllı Kart (X11 Ekranına Geçmeden)
-* **Kalıcı Mobil İmza:** Operatör (Turkcell, Vodafone, TT), GSM No ve TCKN bilgileri kalıcı olarak hatırlanır; her seferinde tekrar yazma zahmeti biter.
-* **Uygulama İçi E-İmza (Headless):** X11 masaüstü ekranına geçiş yapmadan doğrudan uygulama içi pencereden akıllı kart/token (AKİS, TÜRKTRUST, e-Tuğra, vb.) sertifikası görüntülenir, PIN girilerek 5070 Sayılı Kanuna uygun CAdES-BES imzası arka planda üretilir.
-* **Bağımsız (Standalone) Çalışma:** Termux veya Termux:X11 kurulu olmayan cihazlarda da harici hiçbir gereksinime ihtiyaç duymadan resmi 5070 S.K. doğrulama kaşesi ve standart UDF üretimi kusursuz çalışır.
-
-### 6. 📄 Resmi A4 PDF Çıktısı & Paylaşım
-* **PDF Dışa Aktar:** Android sistem yazdırma servisi ile dilekçenizi saniyeler içinde A4 PDF formatında oluşturun ve kaydedin.
-* **Doğrudan Paylaşım:** Oluşturulan dilekçeyi WhatsApp, UYAP Mobil, E-Posta veya Bulut depolamaya tek tıkla gönderin.
-
-### 7. 🎯 Sistem Genelinde Varsayılan Uygulama
-* **Samsung Dosyalarım, WhatsApp, TickTick, Telegram:** Herhangi bir `.udf` veya `.docx` dosyasına dokunulduğunda "Birlikte Aç" menüsünde listelenir. "Her Zaman" seçilerek telefonun kalıcı varsayılan belge yöneticisi yapılır.
-
-### 8. 🖥️ Masaüstü UYAP (Termux:X11) Entegrasyonu
-* İstenildiğinde tek dokunuşla dilekçeyi arka plandaki Termux ortamına aktarabilir ve Havelsan masaüstü editöründe açabilirsiniz.
+### 6. 📄 A4 PDF Çıktısı & Sistem Entegrasyonu
+- Android yazdırma servisi ile tek tıkla resmi A4 PDF çıktısı alma.
+- Samsung Dosyalarım, WhatsApp, Telegram ve E-Posta uygulamalarında `.udf` ve `.docx` dosyaları için varsayılan görüntüleyici olarak çalışabilme.
 
 ---
 
-## 🚀 Sıfırdan Kurulum Rehberi
+## 🔒 Gizlilik, Güvenlik & Kişisel Veri Politikası (KVKK Uyumlu)
 
-### Adım 1: APK Kurulumu
-1. Bu depodaki [release/udemobile-v2.7.apk](release/udemobile-v2.7.apk) (veya [release/udemobile-latest.apk](release/udemobile-latest.apk)) dosyasını telefonunuza indirin.
-2. Dosyayı açıp **"Yükle"** onayına dokunun.
+> [!IMPORTANT]
+> **CanEditor (UdeMobile) hiçbir kişisel veriyi, kimlik numarasını (TCKN), telefon numarasını veya belge içeriğini üçüncü taraf sunucularda TOPLAMAZ ve SAKLAMAZ.**
 
-### Adım 2: İzinleri Ayarlama (Termux Entegrasyonu İçin)
-1. Telefonunuzun **Ayarlar > Uygulamalar > UYAP Açıcı** sayfasına gidin.
-2. **İzinler > Ek İzinler (veya Diğer İzinler)** menüsünü açın.
-3. 👉 **"Termux ortamında komut çalıştırma" (Run commands in Termux environment)** seçeneğini **İzin Ver** olarak işaretleyin.
-
-### Adım 3: Varsayılan Uygulama Yapma
-1. Dosyalarım uygulamasından herhangi bir `.udf` dosyasına dokunun.
-2. Açılan pencerede **"UYAP Açıcı & Mobil Editör"** uygulamasını seçip **"Her Zaman"** (Always) butonuna basın.
-3. Artık telefonunuzdaki tüm dilekçeler doğrudan bu mobil editörle açılacaktır!
+1. **Yerel İşleme (Local-First):** Tüm UDF ve DOCX ayrıştırma, biçimlendirme ve dönüştürme işlemleri doğrudan cihazınızın belleğinde (RAM) yerel olarak gerçekleştirilir.
+2. **Kriptografik Bütünlük:** Mobil İmza ve Elektronik İmza süreçlerinde kimlik doğrulama yalnızca kullanıcının talebiyle, doğrudan resmi Adalet Bakanlığı UYAP ağ geçitleri ve yetkili Elektronik Sertifika Hizmet Sağlayıcıları (ESHS / TÜBİTAK UEKAE) üzerinden yürütülür.
+3. **Sıfır Telemetri:** Uygulama içinde reklam, kullanıcı takip kodu veya harici analiz kütüphanesi bulunmaz.
 
 ---
 
-## 🔐 Gerçek Donanımsal E-İmza (USB OTG & CCID) Mimarisi
+## 🛠️ Kurulum & Kullanım Rehberi
 
-UdeMobile v2.7, **kesinlikle simülasyon veya sahte kart görseli kullanmaz**:
-* **Fiziksel Kart Algılama:** Telefonunuza Type-C OTG adaptörüyle bir akıllı kart okuyucu veya USB Token (AKİS, Kamu SM, ArkSigner, TÜRKTRUST, E-Tuğra vb.) takılmadığı sürece arayüz `🔴 KART TAKILI DEĞİL` uyarısı verir ve PIN girişi ile imzalama butonu kilitli tutulur.
-* **Canlı Durum Sorgulama:** Kart penceresi açıldığında sistem arka plandaki `127.0.0.1:5975` Adalet Bakanlığı E-İmza REST servisini periyodik olarak sorgular. Kart takıldığı an otomatik olarak yeşile döner (`🟢 KART AKTİF`), okuyucu adını ve çipteki geçerli sertifikaları (NES) listeler.
-* **5070 Sayılı Kanun Uyumlu CAdES-BES İmzalama:** Kullanıcı PIN kodunu girdiğinde imza verisi doğrudan kartın mikroçipi üzerinde (TÜBİTAK UEKAE MA3 CAdES motoru) hesaplanır. Hatalı PIN girildiğinde kart çipinden dönen gerçek hata ekrana yansıtılır.
-* **Orijinal `sign.sgn` Çıktısı:** Başarılı imzalama sonrası dönen ham DER CMS ikilisi doğrudan `.udf` zip arşivinin içine `sign.sgn` olarak gömülür. Bu sayede dosya resmi masaüstü UYAP Editöründe açıldığında "İmzalar Geçerli" olarak doğrulanır.
+### Android Kurulumu
+1. [Releases sayfasından](https://github.com/cnkzlyr/udemobile/releases/tag/v3.4.2) `CanEditor-v3.4.2.apk` dosyasını indirin.
+2. İndirilen APK dosyasına dokunup **"Yükle"** onayını verin.
+3. Dosyalarım uygulamasından herhangi bir `.udf` veya `.docx` dosyasına tıklayıp **"CanEditor"** uygulamasını seçerek **"Her Zaman"** butonuna basın.
+
+### Masaüstü & Web Kurulumu
+1. [CanEditor-Portable-Web-GUI-v3.4.2.zip](https://github.com/cnkzlyr/udemobile/releases/download/v3.4.2/CanEditor-Portable-Web-GUI-v3.4.2.zip) dosyasını indirin.
+2. Arşivi bir klasöre çıkartın ve `index.html` dosyasına çift tıklayarak Chrome, Edge, Safari veya Firefox tarayıcınızda kurulum gerektirmeden hemen kullanın.
+3. Yerel masaüstü uygulaması olarak çalıştırmak için işletim sisteminize uygun (.msi, .dmg, .AppImage) paketi [Releases sayfasından](https://github.com/cnkzlyr/udemobile/releases/tag/v3.4.2) indirebilirsiniz.
 
 ---
 
-## 📂 Dizin Yapısı
+## 📂 Proje Dizin Yapısı
 
 ```text
 udemobile/
 ├── android/                         # Android Mobil Uygulama Kaynak Kodları
-│   ├── AndroidManifest.xml          # UDF & DOCX intent filtreleri ve yetkiler
+│   ├── AndroidManifest.xml          # UDF/DOCX intent filtreleri ve izinler
 │   ├── src/com/agy/uyapacici/
-│   │   ├── MainActivity.java        # Karşılama, dosya köprüsü ve geçmiş paneli
-│   │   ├── EditorActivity.java      # Google Dokümanlar tarzı mobil editör & E-imza köprüsü
-│   │   ├── UdfEngine.java           # UYAP 1.8 XML <-> HTML çevirici ve UDF/sign.sgn üretici
-│   │   └── DocxEngine.java          # OpenXML Word <-> HTML çevirici ve DOCX üretici
-│   ├── res/                         # Material kartlar, butonlar ve XML düzenleri
-│   └── assets/editor/               # Mobil Editör Arayüzü (HTML5, CSS3, JS)
-│       ├── editor.html              # HTML5 A4 çalışma alanı, canlı kart ve imza kartları
-│       ├── editor.css               # Kağıt / Mobil görünüm ve modal stilleri
-│       └── editor.js                # Zengin metin, m-imza, donanımsal e-imza, cetvel ve şablonlar
-├── scripts/                         # Termux Entegrasyon Betikleri (uyap_baslat.sh, headless imza)
-├── release/
-│   ├── udemobile-v2.7.apk           # Donanımsal E-İmza destekli en güncel APK paketi
-│   └── udemobile-latest.apk         # En güncel sürüme işaret eden doğrudan indirme paketi
-└── README.md                        # Kullanım kılavuzu ve proje dokümantasyonu
+│   │   ├── MainActivity.java        # Karşılama, dosya açma köprüsü ve liste
+│   │   ├── EditorActivity.java      # A4 editör etkinliği ve imza köprüsü
+│   │   ├── UyapMobileSignClient.java# Çift katmanlı M-İmza & UYAP SOAP motoru
+│   │   ├── UdfEngine.java           # UYAP XML ayrıştırma, üretme ve imza doğrulama
+│   │   └── DocxEngine.java          # OpenXML Word dönüştürücü
+│   ├── res/                         # Android XML arayüz kaynakları
+│   └── assets/editor/               # Mobil editör web varlıkları (HTML/CSS/JS)
+├── frontend/                        # Çapraz Platform Web & Masaüstü Arayüzü
+│   ├── public/                      # Taşınabilir JS, CSS ve köprü kütüphaneleri
+│   │   ├── desktop_bridge.js        # Masaüstü ve tarayıcı dosya/imza köprüsü
+│   │   ├── editor.js                # Zengin editör, cetvel, sekme ve m-imza mantığı
+│   │   └── updater.js               # Dahili GitHub güncelleme denetleyicisi
+│   └── index.html                   # Ana düzenleyici arayüzü
+├── src-tauri/                       # Masaüstü Native Çekirdeği (Rust / Tauri v2)
+│   ├── Cargo.toml                   # Rust bağımlılıkları ve sürüm yapılandırması
+│   ├── tauri.conf.json              # Windows, macOS, Linux pencere ve paket ayarları
+│   └── src/                         # Rust Tauri komutları ve dosya motoru
+├── scripts/                         # Headless Havelsan UYAP ve Termux Betikleri
+│   ├── UdeMobileServer.java         # 0.0.0.0:5976 Havelsan UYAP mikroservisi
+│   └── udemobile_baslat.sh          # Setsid ve wake-lock destekli arka plan başlatıcı
+├── release/                         # Derlenmiş hazır APK ve taşınabilir paketler
+└── README.md                        # Güncel proje dokümantasyonu
 ```
 
 ---
 
 ## ⚖️ Lisans & Telif Hakları
 
-* Bu proje **Av. Can KIZILYAR** tarafından geliştirilmiştir.
-* UYAP® Adalet Bakanlığı Bilgi İşlem Genel Müdürlüğü'nün tescilli markasıdır.
+- Bu proje **Av. Can KIZILYAR** tarafından geliştirilmiştir.
+- UYAP®, T.C. Adalet Bakanlığı Bilgi İşlem Genel Müdürlüğü'nün tescilli markasıdır.
+- Açık kaynak kodlu ve MIT lisansı altındadır.
