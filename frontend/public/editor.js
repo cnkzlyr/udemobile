@@ -113,6 +113,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const editor = document.getElementById('editor-content');
   
   editor.addEventListener('input', () => {
+    markDocumentUserEdited();
     const ap = getActiveParagraph();
     if (ap && ap.querySelector('.udf-tab-space')) realignTabsInParagraph(ap);
     updateCounts();
@@ -153,7 +154,12 @@ document.addEventListener('DOMContentLoaded', () => {
   editor.addEventListener('keydown', (e) => {
     if (e.key === 'Tab') {
       e.preventDefault();
+      markDocumentUserEdited();
       handleTabAction();
+    } else if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key.length === 1) {
+      markDocumentUserEdited();
+    } else if (e.key === 'Backspace' || e.key === 'Delete' || e.key === 'Enter') {
+      markDocumentUserEdited();
     }
   });
 
@@ -941,11 +947,9 @@ function realignTabsInParagraph(p) {
   if (!m) return;
 
   tabSpaces.forEach(ts => {
-    ts.setAttribute('contenteditable', 'false');
-    if (ts.textContent !== '\u200B') ts.textContent = '\u200B';
+    if (!ts.hasAttribute('contenteditable')) ts.setAttribute('contenteditable', 'false');
+    if (!ts.textContent) ts.textContent = '\u200B';
     ts.style.display = 'inline-block';
-    ts.style.width = '0px';
-    ts.style.minWidth = '0px';
     const tsRect = ts.getBoundingClientRect();
     const curCm = Math.max(0, (tsRect.left - m.left) / m.ppc);
     let target = computeNextTabStop(stops, curCm);
@@ -954,7 +958,10 @@ function realignTabsInParagraph(p) {
     const room = m.widthCm - curCm;
     if (room > 0.1 && gap > room) gap = room;
     gap = Math.max(0.1, gap);
-    ts.style.width = (Math.round(gap * 1000) / 1000) + 'cm';
+    const targetWidth = (Math.round(gap * 1000) / 1000) + 'cm';
+    if (ts.style.width !== targetWidth) {
+      ts.style.width = targetWidth;
+    }
     ts.dataset.targetStop = String(Math.round((curCm + gap) * 100) / 100);
   });
 }
@@ -2731,7 +2738,16 @@ function setDocumentData(header, footer, htmlContent) {
 }
 
 // --- Değişiklik takibi (imzalı belgelerde imzaları korumak için) ---
+window.__userHasEditedDocument = false;
 window.__origDocSnapshot = null;
+
+function markDocumentUserEdited() {
+  window.__userHasEditedDocument = true;
+  if (window.AndroidBridge && window.AndroidBridge.setDocModified) {
+    try { window.AndroidBridge.setDocModified(true); } catch (e) {}
+  }
+}
+
 function snapshotDocument() {
   try {
     const d = getStructuredDocument();
@@ -2740,11 +2756,18 @@ function snapshotDocument() {
     return null;
   }
 }
+
 function markDocumentPristine() {
+  window.__userHasEditedDocument = false;
   window.__origDocSnapshot = snapshotDocument();
+  if (window.AndroidBridge && window.AndroidBridge.setDocModified) {
+    try { window.AndroidBridge.setDocModified(false); } catch (e) {}
+  }
   try { localStorage.removeItem(AUTOSAVE_STORAGE_KEY); } catch (x) {}
 }
+
 function isDocumentModified() {
+  if (!window.__userHasEditedDocument) return false;
   if (window.__origDocSnapshot === null) return true;
   return snapshotDocument() !== window.__origDocSnapshot;
 }
@@ -2905,6 +2928,7 @@ function setHtmlContent(content) {
     updateRulerFromActiveParagraph();
     updatePagination();
   }, 200);
+  setTimeout(markDocumentPristine, 400);
   setTimeout(() => { if (window.CanHistory) CanHistory.reset(); }, 450);
 }
 
@@ -2979,7 +3003,7 @@ function getStructuredDocument() {
     });
   } else {
     for (let node of nodes) {
-      if (node.classList && (node.classList.contains('auto-page-break') || node.classList.contains('page-break'))) {
+      if (node.classList && (node.classList.contains('auto-page-break') || node.classList.contains('page-break') || node.classList.contains('page-break-desk-gap') || node.classList.contains('page-break-header-area') || node.classList.contains('page-break-footer-area'))) {
         continue;
       }
       if (node.tagName && node.tagName.toLowerCase() === 'table') {

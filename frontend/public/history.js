@@ -86,7 +86,9 @@
     } catch (x) { /* seçim geri yüklenemezse sessizce geç */ }
   }
 
-  function commit() {
+  let isUserAction = false;
+
+  function commit(isManual) {
     clearTimeout(H.timer);
     H.timer = null;
     if (H.suppress || !ed()) return false;
@@ -97,17 +99,24 @@
       cur.sel = captureSelection() || cur.sel;
       return false;
     }
-    H.stack.length = H.idx + 1; // Yeni kullanıcı işlemi olduğunda yinele dalını kes
+    // Kullanıcı bir veya birkaç adım geri almışken, gerçek bir kullanıcı yazımı
+    // veya manuel commit gelmediyse sayfalama/reflow yüzünden yinele dalını kesme!
+    if (!isManual && !isUserAction && H.idx < H.stack.length - 1) {
+      return false;
+    }
+    isUserAction = false;
+    H.stack.length = H.idx + 1; // Yalnızca gerçek kullanıcı işlemi olduğunda yinele dalını kes
     H.stack.push({ html, sel: captureSelection() });
     if (H.stack.length > MAX_STEPS) H.stack.shift();
     H.idx = H.stack.length - 1;
     return true;
   }
 
-  function schedule() {
+  function schedule(fromUser) {
     if (H.suppress) return;
+    if (fromUser) isUserAction = true;
     clearTimeout(H.timer);
-    H.timer = setTimeout(commit, QUIET_MS);
+    H.timer = setTimeout(() => commit(false), QUIET_MS);
   }
 
   function apply(entry) {
@@ -116,6 +125,7 @@
     H.suppress = true;
     clearTimeout(H.timer);
     H.timer = null;
+    isUserAction = false;
     try {
       e.innerHTML = entry.html;
       restoreSelection(entry.sel);
@@ -127,11 +137,11 @@
     } catch (err) {
       console.warn('History apply hatası:', err);
     } finally {
-      // DOM güncellemelerinin MutationObserver tarafından sahte commit üretmesini önle
+      // DOM güncellemelerinin ve debouncedPagination (250ms) sahte commit üretmesini önle
       setTimeout(() => {
         if (H.observer) H.observer.takeRecords();
         H.suppress = false;
-      }, 80);
+      }, 500);
     }
     try {
       if (typeof showEditorToast === 'function') {
@@ -147,7 +157,7 @@
     if (H.timer) {
       clearTimeout(H.timer);
       H.timer = null;
-      commit(); // Bekleyen yazım varsa önce onu kaydet
+      if (isUserAction) commit(true);
     }
     if (H.idx <= 0) return false;
     H.idx--;
@@ -173,8 +183,9 @@
     H.stack = [];
     H.idx = -1;
     H.suppress = false;
+    isUserAction = false;
     if (H.observer) H.observer.takeRecords();
-    commit();
+    commit(true);
   }
 
   // Odak üst/altbilgideyse tarayıcının yerel geçmişi kullanılsın
@@ -186,6 +197,21 @@
   function init() {
     const e = ed();
     if (!e || H.observer) return;
+
+    // Kullanıcının doğrudan klavye/yazım hareketleri
+    e.addEventListener('input', () => {
+      if (H.suppress) return;
+      isUserAction = true;
+      schedule(true);
+    });
+    e.addEventListener('beforeinput', ev => {
+      if (ev.inputType === 'historyUndo') { ev.preventDefault(); undo(); }
+      else if (ev.inputType === 'historyRedo') { ev.preventDefault(); redo(); }
+      else if (!H.suppress) {
+        isUserAction = true;
+      }
+    });
+
     H.observer = new MutationObserver(records => {
       // Otomatik sayfa bölücü değişiklikleri kullanıcı değişikliği değildir: zamanlayıcıyı uzatmasın
       const real = records.some(r => {
@@ -198,10 +224,10 @@
         if (nodes.length && nodes.every(n => n.nodeType === 1 && n.classList && n.classList.contains('auto-page-break'))) return false;
         return true;
       });
-      if (real) schedule();
+      if (real) schedule(false);
     });
     H.observer.observe(e, { subtree: true, childList: true, characterData: true, attributes: true });
-    commit();
+    commit(true);
 
     document.addEventListener('keydown', ev => {
       if (!(ev.ctrlKey || ev.metaKey) || ev.altKey) return;
@@ -214,19 +240,13 @@
       ev.stopPropagation();
       isUndo ? undo() : redo();
     }, true);
-
-    // Ekran klavyesi / sistem menüsü geri al
-    e.addEventListener('beforeinput', ev => {
-      if (ev.inputType === 'historyUndo') { ev.preventDefault(); undo(); }
-      else if (ev.inputType === 'historyRedo') { ev.preventDefault(); redo(); }
-    });
   }
 
   window.CanHistory = {
     undo,
     redo,
     reset,
-    commit,
+    commit: () => commit(true),
     init,
     get size() { return H.stack.length; },
     get index() { return H.idx; },

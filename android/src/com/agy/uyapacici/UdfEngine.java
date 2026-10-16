@@ -577,7 +577,7 @@ public class UdfEngine {
 
     private static String formatParagraphTabs(String pHtml) {
         if (!pHtml.contains("\t")) return pHtml;
-        return pHtml.replace("\t", "<span class=\"udf-tab-space\" contenteditable=\"false\">&nbsp;</span>");
+        return pHtml.replace("\t", "<span class=\"udf-tab-space\" contenteditable=\"false\">&#8203;</span>");
     }
 
     private static double parsePtToCm(String ptStr, double defaultCm) {

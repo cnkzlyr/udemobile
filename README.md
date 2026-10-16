@@ -1,6 +1,6 @@
 # ⚖️ CanEditor (UdeMobile) — Çapraz Platform UYAP & Word Editörü
 
-[![Sürüm](https://img.shields.io/badge/Sürüm-v3.4.3-blue.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v3.4.3)
+[![Sürüm](https://img.shields.io/badge/Sürüm-v3.4.4-blue.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v3.4.4)
 [![Platformlar](https://img.shields.io/badge/Platformlar-Android%20%7C%20Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Web-success.svg)](https://github.com/cnkzlyr/udemobile/releases)
 [![UYAP](https://img.shields.io/badge/Format-UYAP_UDF_v1.8-0D47A1.svg)](https://uyap.gov.tr)
 [![Word](https://img.shields.io/badge/Format-MS_DOCX_OpenXML-2B579A.svg?logo=microsoft-word&logoColor=white)](https://microsoft.com)
@@ -11,42 +11,40 @@
 
 ---
 
-## 🚀 Hızlı İndirme (v3.4.3)
+## 🚀 Hızlı İndirme (v3.4.4)
 
 | Platform | Paket Dosyası | Açıklama |
 | :--- | :--- | :--- |
-| **Android (Telefon & Tablet)** | [**CanEditor-v3.4.3.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.4.3/CanEditor-v3.4.3.apk) | Güncel mobil uygulama paketi |
-| **Android (Her Zaman En Son)** | [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.4.3/CanEditor-latest.apk) | Kalıcı son sürüm bağlantısı |
-| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v3.4.3.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v3.4.3/CanEditor-Portable-Web-GUI-v3.4.3.zip) | Kurulumsuz; zipten çıkarıp `index.html` açarak tüm işletim sistemlerinde doğrudan çalışır |
-| **Windows / macOS / Linux** | [**GitHub Releases Sayfası**](https://github.com/cnkzlyr/udemobile/releases/tag/v3.4.3) | GitHub Actions CI ile derlenen yerel ikili (.msi, .exe, .dmg, .AppImage, .deb, .rpm) paketleri |
+| **Android (Telefon & Tablet)** | [**CanEditor-v3.4.4.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.4.4/CanEditor-v3.4.4.apk) | Güncel mobil uygulama paketi |
+| **Android (Her Zaman En Son)** | [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.4.4/CanEditor-latest.apk) | Kalıcı son sürüm bağlantısı |
+| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v3.4.4.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v3.4.4/CanEditor-Portable-Web-GUI-v3.4.4.zip) | Kurulumsuz; zipten çıkarıp `index.html` açarak tüm işletim sistemlerinde doğrudan çalışır |
+| **Windows / macOS / Linux** | [**GitHub Releases Sayfası**](https://github.com/cnkzlyr/udemobile/releases/tag/v3.4.4) | GitHub Actions CI ile derlenen yerel ikili (.msi, .exe, .dmg, .AppImage, .deb, .rpm) paketleri |
 
 ---
 
-## 🌟 v3.4.3 ile Gelen Önemli Geliştirmeler
+## 🌟 v3.4.4 ile Gelen Önemli Geliştirmeler
 
-### 📋 1. Duruşma Tutanağı, Gerekçeli Karar ve Tablo Desteği (`<field>` & `<table>`)
-- Resmi UYAP duruşma tutanaklarında, tensip zabıtlarında ve gerekçeli kararlarda mahkeme adı, esas/dosya numarası, taraf ad-soyadları ve vekil bilgileri `<field>` etiketleriyle saklanır. Önceki sürümlerde görünmeyen tüm bu metaveri alanları artık hem Android hem de Masaüstü/Web motorunda **%100 eksiksiz ve doğru biçimlendirmeyle** görüntülenir.
-- Karar ve tutanakların sonundaki **Katip ve Hakim e-imza blokları (`<table>` yapısı)**, çok sütunlu UYAP standart tablo düzeniyle (Katip solda, Hakim sağda) kusursuz şekilde işlenir.
+### 🛡️ 1. Orijinal UYAP & Celse Belgelerinde Bayt Bayt Bütünlük Koruması
+- **Sıfır Veri / Boyut Kaybı:** Resmi UYAP ve Celse uygulamasından indirilen `.udf` dosyalarında kullanıcı tarafından herhangi bir değişiklik yapılmadığı sürece (`!isDocumentModified`), dosya yeniden üretilmez; dosya boyutu (bayt bayt), dosya yapısı, `sign.sgn` (e-imza) ve `documentproperties.xml` (barkod / sicil metaverisi) **%100 orijinal haliyle** korunur.
+- **Kopya & Farklı Kaydet Koruması:** Değiştirilmemiş bir belge farklı adla veya kopya olarak kaydedildiğinde, doğrudan ikili dosya kopyalaması (`Files.copy`) yapılarak tüm elektronik imzalar ve arşiv metaverisi yeni dosyada aynen muhafaza edilir.
+- **Değişiklik Güvenlik Onayı:** İmzalı bir belgede metin değişikliği yapıldığında kullanıcı net şekilde uyarılır; onay verilmesi halinde `documentproperties.xml` (sicil/barkod) korunarak yalnızca içerik güncellenir.
 
-### 🖥️ 2. Tam Kapsamlı Çapraz Platform Dağıtım (Windows, macOS, Linux, Android)
-- Tauri v2 tabanlı yerel masaüstü derleme mimarisi optimize edilmiş ve CI iş akışı dinamik sürüm etiketleme desteğiyle güçlendirilmiştir.
-- Windows (`.exe` kurulum ve `.msi`), macOS (Universal `.dmg` & `.app`), Linux (`.AppImage`, `.deb`, `.rpm`) paketleri GitHub Releases üzerinden indirilebilir.
+### 📋 2. Duruşma Tutanağı, Gerekçeli Karar ve Tablo Desteği (`<field>` & `<table>`)
+- Resmi UYAP duruşma tutanaklarında, tensip zabıtlarında ve gerekçeli kararlarda mahkeme adı, esas/dosya numarası, taraf bilgileri ve vekil kayıtları `<field>` etiketleriyle tutulur. Artık tüm bu metaveri alanları hem Android hem de Masaüstü/Web motorunda eksiksiz görüntülenir.
+- Karar ve tutanakların sonundaki **Katip ve Hakim e-imza blokları (`<table>` yapısı)** çok sütunlu UYAP standart tablo düzeniyle kusursuz şekilde işlenir.
 
-### 🔐 3. Kesintisiz Çift Katmanlı Mobil İmza & Headless Havelsan Uyumu
-- **Arka Plan Servis Ön Isıtması:** Uygulama açıldığında yerel Havelsan UYAP mikroservisi (`0.0.0.0:5976`) arka planda sessizce hazır hale getirilir.
-- **Doğrudan SOAP & Yerel Çift Hat:** Yerel servis uykudaysa otomatik uyandırılır, uyanmasa dahi doğrudan Adalet Bakanlığı resmi SOAP ağ geçidi üzerinden kullanıcı PIN onayı kesintisiz biçimde beklenir ve zaman aşımına uğramadan mühürlenir.
-- Turkcell, Türk Telekom ve Vodafone hatlarıyla tam uyumluluk korunur.
+### ↺ 3. Güçlendirilmiş Geri Al / Yinele (Undo / Redo) Motoru
+- Sayfalama motorunun (`debouncedPagination`) ve sekme hizalama fonksiyonunun asenkron DOM güncellemeleri nedeniyle kullanıcı geri alıp ileri almak istediğinde yinele (redo) geçmişinin silinmesi sorunu tamamen giderilmiştir.
+- Kullanıcı gerçek bir klavye tuşuna basmadıkça veya biçimlendirme yapmadıkça sayfalama yan etkileri geçmiş adımlarını kesinlikle sıfırlayamaz.
 
-### 📐 4. UDF & DOCX Kalıcı Sekme (TabSet) & Serbest İki Nokta (Colon) Boşlukları
-- `DOSYA NO : ...` satırlarında iki noktadan sonraki boşlukların silinememesi sorunu tamamen çözülmüştür; iki noktadan önceki ve sonraki tüm karakterler serbestçe düzenlenebilir.
-- Tab (Sekme) tuşuna basıldığında A4 cetvelindeki durak noktalarına (örneğin 6.2 cm UYAP standardı) kusursuz hizalama yapılır.
+### 📐 4. Serbest İki Nokta (Colon) Boşlukları & Akıcı Metin Düzenleme
+- `DOSYA NO : ...` satırlarında iki noktadan sonraki boşlukların silinememesi sorunu giderilmiştir. Sekme hizalayıcının her tuş vuruşunda DOM düğümlerini sıfırlaması engellenerek Android klavye IME imleç kararlılığı sağlanmıştır.
 
-### ↺ 5. Güçlendirilmiş Geri Al / Yinele (Undo / Redo) Motoru & 30 Sn Otomatik Kurtarma
-- Tüm metin, biçimlendirme, sekme (tab) ve cetvel değişikliklerinde geri al / ileri al geçmişi eksiksiz korunur.
-- 30 saniyede bir yerel depolamaya otomatik taslak kaydedilir; beklenmedik kapanmalarda veri kaybı önlenir.
+### 🖥️ 5. Tam Kapsamlı Çapraz Platform Dağıtım (Windows, macOS, Linux, Android)
+- Tauri v2 tabanlı yerel masaüstü derleme mimarisi optimize edilmiş; Windows (`.exe`, `.msi`), macOS (Universal `.dmg`, `.app`), Linux (`.AppImage`, `.deb`, `.rpm`) paketleri GitHub Actions CI ile otomatik derlenecek şekilde yapılandırılmıştır.
 
 ### 🔄 6. Dahili Güncelleyici (In-App Updater)
-- Uygulama içinden doğrudan en son GitHub sürümü denetlenebilir ve veri kaybı olmadan güncellenebilir.
+- Uygulama içinden doğrudan en son GitHub sürümü denetlenebilir ve veri kaybı olmadan kaydedilip güncellenebilir.
 
 ---
 
@@ -97,14 +95,14 @@
 ## 🛠️ Kurulum & Kullanım Rehberi
 
 ### Android Kurulumu
-1. [Releases sayfasından](https://github.com/cnkzlyr/udemobile/releases/tag/v3.4.2) `CanEditor-v3.4.2.apk` dosyasını indirin.
+1. [Releases sayfasından](https://github.com/cnkzlyr/udemobile/releases/tag/v3.4.4) `CanEditor-v3.4.4.apk` dosyasını indirin.
 2. İndirilen APK dosyasına dokunup **"Yükle"** onayını verin.
 3. Dosyalarım uygulamasından herhangi bir `.udf` veya `.docx` dosyasına tıklayıp **"CanEditor"** uygulamasını seçerek **"Her Zaman"** butonuna basın.
 
 ### Masaüstü & Web Kurulumu
-1. [CanEditor-Portable-Web-GUI-v3.4.2.zip](https://github.com/cnkzlyr/udemobile/releases/download/v3.4.2/CanEditor-Portable-Web-GUI-v3.4.2.zip) dosyasını indirin.
+1. [CanEditor-Portable-Web-GUI-v3.4.4.zip](https://github.com/cnkzlyr/udemobile/releases/download/v3.4.4/CanEditor-Portable-Web-GUI-v3.4.4.zip) dosyasını indirin.
 2. Arşivi bir klasöre çıkartın ve `index.html` dosyasına çift tıklayarak Chrome, Edge, Safari veya Firefox tarayıcınızda kurulum gerektirmeden hemen kullanın.
-3. Yerel masaüstü uygulaması olarak çalıştırmak için işletim sisteminize uygun (.msi, .dmg, .AppImage) paketi [Releases sayfasından](https://github.com/cnkzlyr/udemobile/releases/tag/v3.4.2) indirebilirsiniz.
+3. Yerel masaüstü uygulaması olarak çalıştırmak için işletim sisteminize uygun (.msi, .dmg, .AppImage) paketi [Releases sayfasından](https://github.com/cnkzlyr/udemobile/releases/tag/v3.4.4) indirebilirsiniz.
 
 ---
 

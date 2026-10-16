@@ -4,6 +4,7 @@
  */
 
 let currentDocFileName = "Yeni_Dilekce.udf";
+let currentDocOriginalBuffer = null;
 
 // Helper: XML Escape
 function escapeXml(str) {
@@ -502,6 +503,7 @@ async function handleFileOpen(file) {
 
   try {
     const buffer = await file.arrayBuffer();
+    currentDocOriginalBuffer = buffer.slice(0);
     const isDocx = name.toLowerCase().endsWith(".docx");
     let result;
     if (isDocx) {
@@ -556,12 +558,22 @@ async function triggerOpenDocument() {
 }
 
 async function triggerSaveUdf() {
-  if (!window.getStructuredDocument) return;
-  const docData = window.getStructuredDocument();
   let name = (document.getElementById("desktopDocTitle")?.value || currentDocFileName).trim();
   if (!name.toLowerCase().endsWith(".udf")) {
     name = name.replace(/\.docx$/i, "") + ".udf";
   }
+
+  const isModified = window.isDocumentModified ? window.isDocumentModified() : false;
+  if (!isModified && currentDocOriginalBuffer) {
+    const blob = new Blob([currentDocOriginalBuffer], { type: "application/octet-stream" });
+    downloadBlob(blob, name);
+    const statusEl = document.getElementById("desktopStatusMsg");
+    if (statusEl) statusEl.innerText = "✓ UDF Korunarak Kaydedildi";
+    return;
+  }
+
+  if (!window.getStructuredDocument) return;
+  const docData = window.getStructuredDocument();
   const blob = await generateUdfBlob(docData);
   downloadBlob(blob, name);
   const statusEl = document.getElementById("desktopStatusMsg");

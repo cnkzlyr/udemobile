@@ -305,14 +305,39 @@ public class EditorActivity extends Activity {
             final String finalJson = cleanJsonString(rawResult);
             final File targetFile = resolveTargetFile(isDocx ? ".docx" : ".udf");
 
-            // İmzalı UDF'nin üzerine yazılacaksa imzaları koru
-            if (!isDocx && targetFile.equals(currentFile) && udfHasSignature(currentFile)) {
-                if (!docModified) {
-                    tvSaveStatus.setText("✓ İmzalı belge korunuyor");
-                    Toast.makeText(EditorActivity.this, "Belgede değişiklik yok — imzalı dosya olduğu gibi korundu.", Toast.LENGTH_SHORT).show();
+            final boolean isSigned = (currentFile != null && udfHasSignature(currentFile));
+
+            // Belgede hiçbir değişiklik yapılmamışsa: orijinal dosyayı asla bozma, bit'i bit'ine koru
+            if (!isDocx && !docModified && currentFile != null && currentFile.exists()) {
+                if (targetFile.equals(currentFile)) {
+                    tvSaveStatus.setText(isSigned ? "✓ İmzalı belge korunuyor" : "✓ Belge korunuyor");
+                    Toast.makeText(EditorActivity.this, "Belgede değişiklik yok — orijinal dosya olduğu gibi korundu.", Toast.LENGTH_SHORT).show();
                     if (andOpenInDesktop) openInDesktopUyap(targetFile.getAbsolutePath());
                     return;
+                } else {
+                    // Farklı adla kaydet veya kopya: Orijinal dosyayı bit'i bit'ine kopyala!
+                    try {
+                        java.nio.file.Files.copy(currentFile.toPath(), targetFile.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                        currentFile = targetFile;
+                        markPristineOnUi();
+                        runOnUiThread(() -> {
+                            etDocTitle.setText(targetFile.getName());
+                            String time = new SimpleDateFormat("HH:mm", Locale.getDefault()).format(new Date());
+                            tvSaveStatus.setText("✓ Kopya Kaydedildi (" + time + ")");
+                            Toast.makeText(EditorActivity.this, "✓ " + targetFile.getName() + " kaydedildi (orijinal e-imza ve yapı korundu).", Toast.LENGTH_SHORT).show();
+                            if (andOpenInDesktop) openInDesktopUyap(targetFile.getAbsolutePath());
+                        });
+                        return;
+                    } catch (Exception e) {
+                        Toast.makeText(EditorActivity.this, "Kopya oluşturma hatası: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                        tvSaveStatus.setText("Kayıt Hatası");
+                        return;
+                    }
                 }
+            }
+
+            // İmzalı UDF üzerinde değişiklik yapıldıysa kullanıcıya onay sor
+            if (!isDocx && targetFile.equals(currentFile) && isSigned) {
                 new AlertDialog.Builder(EditorActivity.this)
                     .setTitle("İmzalı belge değiştirildi")
                     .setMessage("Bu belge elektronik olarak imzalı. Değişiklikleri kaydederseniz belgedeki TÜM imzalar geçersiz olacağı için kaldırılacaktır.\n\nİmzaları korumak istiyorsanız İptal'e basın ve belge adını değiştirerek ayrı bir kopya olarak kaydedin.")
@@ -331,7 +356,13 @@ public class EditorActivity extends Activity {
                 if (isDocx) {
                     DocxEngine.saveStructuredToDocx(finalJson, targetFile);
                 } else {
-                    UdfEngine.saveStructuredToUdf(finalJson, targetFile);
+                    if (currentFile != null && currentFile.exists() && currentFile.getName().toLowerCase(Locale.ROOT).endsWith(".udf")) {
+                        byte[] contentBytes = UdfEngine.generateContentXmlBytes(finalJson);
+                        // Orijinal dosyadaki documentproperties.xml ve diğer ekleri koru, imzaları kaldır
+                        UdfEngine.writeUdfPreserving(currentFile, targetFile, contentBytes, null);
+                    } else {
+                        UdfEngine.saveStructuredToUdf(finalJson, targetFile);
+                    }
                 }
                 currentFile = targetFile;
                 markPristineOnUi();
