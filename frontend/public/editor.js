@@ -991,6 +991,7 @@ function initRuler() {
   }
 
   setupMarkerDragging('marker-first-line', 'firstLine', activeCm);
+  setupMarkerDragging('marker-hanging-indent', 'hangingIndent', activeCm);
   setupMarkerDragging('marker-left-indent', 'leftIndent', activeCm);
   setupMarkerDragging('marker-right-indent', 'rightIndent', activeCm);
 
@@ -1002,8 +1003,8 @@ function initRuler() {
   rulerScale.onclick = (e) => {
     if (activeDragMarker) return;
     
-    // Eğer tıklanan bir sekme durağı ise setupTabStopDragging ele alacaktır
-    if (e.target && e.target.classList.contains('ruler-tab-stop')) {
+    // Eğer tıklanan bir sekme durağı veya cetvel imi ise atla
+    if (e.target && (e.target.closest('.ruler-tab-stop') || e.target.closest('.ruler-marker'))) {
       return;
     }
 
@@ -1267,31 +1268,75 @@ function setupMarkerDragging(markerId, type, activeCm) {
   const marker = document.getElementById(markerId);
   const scale = document.getElementById('ruler-scale');
   if (!marker || !scale) return;
+  if (marker._dragBound) return;
+  marker._dragBound = true;
 
   function onStart(e) {
     e.preventDefault();
     e.stopPropagation();
     activeDragMarker = markerId;
 
+    const isLandscape = currentMargins.orientation === 'landscape';
+    const totalPageCm = isLandscape ? 29.7 : 21.0;
+    const currentActiveCm = Math.max(5, totalPageCm - (currentMargins.left || 2.5) - (currentMargins.right || 2.5));
+
+    const p = getActiveParagraph();
+    let initLeftCm = 0;
+    let initTextIndentCm = 0;
+    if (p) {
+      const marginL = parseToCm(p.style.marginLeft);
+      const paddingL = parseToCm(p.style.paddingLeft);
+      const compL = parseToCm(window.getComputedStyle(p).marginLeft);
+      initLeftCm = (marginL || paddingL) ? (marginL + paddingL) : compL;
+      initTextIndentCm = parseToCm(p.style.textIndent || window.getComputedStyle(p).textIndent);
+    }
+    const initFirstLineRulerCm = Math.max(0, initLeftCm + initTextIndentCm);
+
+    const firstMarker = document.getElementById('marker-first-line');
+    const hangingMarker = document.getElementById('marker-hanging-indent');
+    const leftMarker = document.getElementById('marker-left-indent');
+    const rightMarker = document.getElementById('marker-right-indent');
+
     const moveHandler = (moveEvent) => {
       const clientX = moveEvent.touches ? moveEvent.touches[0].clientX : moveEvent.clientX;
       const rect = scale.getBoundingClientRect();
       const x = clientX - rect.left;
       const pct = Math.max(0, Math.min(1, x / rect.width));
-      const cm = Math.round((pct * activeCm) * 4) / 4;
+      const cm = Math.round((pct * currentActiveCm) * 4) / 4;
 
       if (type === 'firstLine') {
-        marker.style.left = (pct * 100) + '%';
-        setFirstLineIndent(cm);
+        // Üstteki aşağı bakan ok: Yalnızca ilk satırın başlangıç hizasını ayarlar
+        const targetFirst = Math.max(0, Math.min(currentActiveCm - 0.5, cm));
+        if (firstMarker) firstMarker.style.left = (targetFirst / currentActiveCm * 100) + '%';
+        setFirstLineIndent(targetFirst, initLeftCm);
+      } else if (type === 'hangingIndent') {
+        // Alttaki yukarı bakan ok: Asılı girinti ayarını yapar (2. ve sonraki taşan satırların hizası).
+        // İlk satırın cetvel üzerindeki mutlak konumu sabit kalır!
+        const targetHanging = Math.max(0, Math.min(currentActiveCm - 0.5, cm));
+        if (hangingMarker) hangingMarker.style.left = (targetHanging / currentActiveCm * 100) + '%';
+        if (leftMarker) leftMarker.style.left = (targetHanging / currentActiveCm * 100) + '%';
+        setHangingIndent(targetHanging, initFirstLineRulerCm);
       } else if (type === 'leftIndent') {
-        marker.style.left = (pct * 100) + '%';
-        setLeftIndent(cm);
+        // Alttaki dikdörtgen: Tüm paragrafı blok halinde taşır.
+        // İlk satır ile asılı satırlar arasındaki bağıl mesafe (initTextIndentCm) korunur!
+        let delta = cm - initLeftCm;
+        if (initFirstLineRulerCm + delta < 0) delta = -initFirstLineRulerCm;
+        if (initLeftCm + delta < 0) delta = -initLeftCm;
+        const targetLeft = Math.max(0, Math.min(currentActiveCm - 0.5, initLeftCm + delta));
+        const targetFirst = Math.max(0, Math.min(currentActiveCm - 0.5, initFirstLineRulerCm + delta));
+        if (leftMarker) leftMarker.style.left = (targetLeft / currentActiveCm * 100) + '%';
+        if (hangingMarker) hangingMarker.style.left = (targetLeft / currentActiveCm * 100) + '%';
+        if (firstMarker) firstMarker.style.left = (targetFirst / currentActiveCm * 100) + '%';
+        setFullParagraphIndent(targetLeft, initTextIndentCm);
       } else if (type === 'rightIndent') {
         const rightPct = 1 - pct;
-        marker.style.right = (rightPct * 100) + '%';
-        marker.style.left = 'auto';
-        const rightCm = Math.round((rightPct * activeCm) * 4) / 4;
-        setRightIndent(rightCm);
+        const rightCm = Math.round((rightPct * currentActiveCm) * 4) / 4;
+        const targetRight = Math.max(0, Math.min(currentActiveCm - 1, rightCm));
+        if (rightMarker) {
+          rightMarker.style.right = (targetRight / currentActiveCm * 100) + '%';
+          rightMarker.style.left = 'auto';
+        }
+        setRightIndent(targetRight);
       }
     };
 
@@ -1301,6 +1346,10 @@ function setupMarkerDragging(markerId, type, activeCm) {
       window.removeEventListener('touchmove', moveHandler);
       window.removeEventListener('touchend', upHandler);
       setTimeout(() => { activeDragMarker = null; }, 120);
+      updateCounts();
+      debouncedPagination();
+      if (typeof markDirty === 'function') markDirty();
+      if (window.CanHistory) CanHistory.commit();
     };
 
     window.addEventListener('mousemove', moveHandler);
@@ -1331,6 +1380,7 @@ function updateRulerFromActiveParagraph() {
   if (!p) return;
 
   const firstMarker = document.getElementById('marker-first-line');
+  const hangingMarker = document.getElementById('marker-hanging-indent');
   const leftMarker = document.getElementById('marker-left-indent');
   const rightMarker = document.getElementById('marker-right-indent');
   if (!firstMarker || !leftMarker || !rightMarker) return;
@@ -1339,11 +1389,20 @@ function updateRulerFromActiveParagraph() {
   const totalPageCm = isLandscape ? 29.7 : 21.0;
   const activeCm = Math.max(5, totalPageCm - (currentMargins.left || 2.5) - (currentMargins.right || 2.5));
 
-  let firstCm = parseToCm(p.style.textIndent || window.getComputedStyle(p).textIndent);
-  let leftCm = parseToCm(p.style.marginLeft || window.getComputedStyle(p).marginLeft);
-  let rightCm = parseToCm(p.style.marginRight || window.getComputedStyle(p).marginRight);
+  const marginL = parseToCm(p.style.marginLeft);
+  const paddingL = parseToCm(p.style.paddingLeft);
+  const compL = parseToCm(window.getComputedStyle(p).marginLeft);
+  const leftCm = (marginL || paddingL) ? (marginL + paddingL) : compL;
+  const textIndentCm = parseToCm(p.style.textIndent || window.getComputedStyle(p).textIndent);
+  const rightCm = parseToCm(p.style.marginRight || window.getComputedStyle(p).marginRight);
 
-  firstMarker.style.left = Math.min(100, Math.max(0, (firstCm / activeCm) * 100)) + '%';
+  // İlk satırın cetvel üzerindeki mutlak konumu = sol/asılı girinti + ilk satır girintisi
+  const firstLineRulerCm = Math.max(0, leftCm + textIndentCm);
+
+  firstMarker.style.left = Math.min(100, Math.max(0, (firstLineRulerCm / activeCm) * 100)) + '%';
+  if (hangingMarker) {
+    hangingMarker.style.left = Math.min(100, Math.max(0, (leftCm / activeCm) * 100)) + '%';
+  }
   leftMarker.style.left = Math.min(100, Math.max(0, (leftCm / activeCm) * 100)) + '%';
   rightMarker.style.right = Math.min(100, Math.max(0, (rightCm / activeCm) * 100)) + '%';
   rightMarker.style.left = 'auto';
@@ -1374,20 +1433,45 @@ function parseToCm(valStr) {
   return parseFloat(valStr) || 0;
 }
 
-function setFirstLineIndent(cm) {
+function setFirstLineIndent(targetFirstRulerCm, bodyLeftCm) {
   const targets = getSelectedParagraphs();
   targets.forEach(p => {
-    p.style.textIndent = cm + 'cm';
+    const curLeft = (bodyLeftCm !== undefined) ? bodyLeftCm : parseToCm(p.style.marginLeft || window.getComputedStyle(p).marginLeft);
+    p.style.textIndent = Math.round((targetFirstRulerCm - curLeft) * 100) / 100 + 'cm';
+  });
+  updateCounts();
+}
+
+function setHangingIndent(targetHangingCm, fixedFirstLineRulerCm) {
+  const targets = getSelectedParagraphs();
+  targets.forEach(p => {
+    let firstLineRuler = fixedFirstLineRulerCm;
+    if (firstLineRuler === undefined) {
+      const curLeft = parseToCm(p.style.marginLeft || window.getComputedStyle(p).marginLeft);
+      const curIndent = parseToCm(p.style.textIndent || window.getComputedStyle(p).textIndent);
+      firstLineRuler = curLeft + curIndent;
+    }
+    p.style.marginLeft = targetHangingCm + 'cm';
+    p.style.textIndent = Math.round((firstLineRuler - targetHangingCm) * 100) / 100 + 'cm';
+    if (p.style.paddingLeft) p.style.removeProperty('padding-left');
+  });
+  updateCounts();
+}
+
+function setFullParagraphIndent(targetLeftCm, preservedTextIndentCm) {
+  const targets = getSelectedParagraphs();
+  targets.forEach(p => {
+    p.style.marginLeft = targetLeftCm + 'cm';
+    if (preservedTextIndentCm !== undefined) {
+      p.style.textIndent = preservedTextIndentCm + 'cm';
+    }
+    if (p.style.paddingLeft) p.style.removeProperty('padding-left');
   });
   updateCounts();
 }
 
 function setLeftIndent(cm) {
-  const targets = getSelectedParagraphs();
-  targets.forEach(p => {
-    p.style.marginLeft = cm + 'cm';
-  });
-  updateCounts();
+  setFullParagraphIndent(cm);
 }
 
 function setRightIndent(cm) {
