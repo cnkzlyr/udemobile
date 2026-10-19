@@ -84,6 +84,7 @@ public class MainActivity extends Activity {
         loadRecentDocuments();
 
         requestTermuxPermissionIfNeeded();
+        checkStoragePermission();
 
         handleIntent(getIntent());
     }
@@ -231,6 +232,24 @@ public class MainActivity extends Activity {
         }
     }
 
+    private void checkStoragePermission() {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+            if (!Environment.isExternalStorageManager()) {
+                try {
+                    Intent intent = new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION);
+                    intent.setData(Uri.parse("package:" + getPackageName()));
+                    startActivity(intent);
+                    Toast.makeText(this, "UYAP ve Word belgelerini sorunsuz açabilmek için lütfen 'Tüm dosyalara erişim' iznini veriniz.", Toast.LENGTH_LONG).show();
+                } catch (Exception e) {
+                    try {
+                        Intent intent = new Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION);
+                        startActivity(intent);
+                    } catch (Exception ignored) {}
+                }
+            }
+        }
+    }
+
     private void openAppSettings() {
         try {
             Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
@@ -287,18 +306,10 @@ public class MainActivity extends Activity {
                     }
                 }
 
-                File destDir = new File(Environment.getExternalStorageDirectory(), "Documents/UYAP_Belgelerim");
-                if (!destDir.exists()) {
-                    destDir.mkdirs();
-                }
-
-                File destFile = new File(destDir, displayName);
-                if (!destDir.canWrite()) {
-                    File fallbackDir = getExternalFilesDir(null);
-                    if (fallbackDir != null) {
-                        destFile = new File(fallbackDir, displayName);
-                    }
-                }
+                // 1. Önce daima yazma garantili uygulama içi özel çalışma alanına kaydet:
+                File safeDir = new File(getFilesDir(), "opened_docs");
+                if (!safeDir.exists()) safeDir.mkdirs();
+                File destFile = new File(safeDir, displayName);
 
                 try (InputStream in = getContentResolver().openInputStream(uri);
                      FileOutputStream out = new FileOutputStream(destFile)) {
@@ -318,6 +329,24 @@ public class MainActivity extends Activity {
                         destFile = properFile;
                     }
                 }
+
+                // 2. Eğer harici depolamaya erişim izni varsa UYAP_Belgelerim klasörüne de eşitle:
+                try {
+                    File extDir = new File(Environment.getExternalStorageDirectory(), "Documents/UYAP_Belgelerim");
+                    if (extDir.exists() || extDir.mkdirs()) {
+                        File extFile = new File(extDir, destFile.getName());
+                        try (InputStream in = new java.io.FileInputStream(destFile);
+                             FileOutputStream out = new FileOutputStream(extFile)) {
+                            byte[] buf = new byte[32768];
+                            int l;
+                            while ((l = in.read(buf)) != -1) out.write(buf, 0, l);
+                            out.flush();
+                        }
+                        if (extFile.exists() && extFile.length() > 0) {
+                            destFile = extFile;
+                        }
+                    }
+                } catch (Exception ignored) {}
 
                 final File savedFile = destFile;
                 runOnUiThread(() -> {

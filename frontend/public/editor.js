@@ -1,4 +1,14 @@
 // UdeMobile Profesyonel Mobil Editör Motoru
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
 let currentFontSize = 12;
 let isMobileView = false;
 let isRulerVisible = true;
@@ -528,7 +538,7 @@ function updatePagination() {
 
 function debouncedPagination() {
   clearTimeout(paginationTimer);
-  paginationTimer = setTimeout(updatePagination, 250);
+  paginationTimer = setTimeout(updatePagination, 700);
 }
 
 // Üstbilgi ve Altbilgiye Odaklanma (Asla kaybolmaz, doğrudan düzenlenir)
@@ -1296,38 +1306,69 @@ function setupMarkerDragging(markerId, type, activeCm) {
     const hangingMarker = document.getElementById('marker-hanging-indent');
     const leftMarker = document.getElementById('marker-left-indent');
     const rightMarker = document.getElementById('marker-right-indent');
+    const guideLine = document.getElementById('ruler-guide-line');
+    const tooltip = document.getElementById('ruler-tooltip');
+
+    const startClientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const initialRect = scale.getBoundingClientRect();
+    const startPct = Math.max(0, Math.min(1, (startClientX - initialRect.left) / initialRect.width));
+    const startTouchCm = Math.round((startPct * currentActiveCm) * 4) / 4;
+
+    if (guideLine) {
+      guideLine.style.display = 'block';
+      guideLine.style.left = startClientX + 'px';
+    }
 
     const moveHandler = (moveEvent) => {
       const clientX = moveEvent.touches ? moveEvent.touches[0].clientX : moveEvent.clientX;
       const rect = scale.getBoundingClientRect();
       const x = clientX - rect.left;
       const pct = Math.max(0, Math.min(1, x / rect.width));
-      const cm = Math.round((pct * currentActiveCm) * 4) / 4;
+      const currentCm = Math.round((pct * currentActiveCm) * 4) / 4;
+      const delta = currentCm - startTouchCm;
+
+      if (guideLine) {
+        guideLine.style.left = clientX + 'px';
+      }
+
+      let tipText = '';
+      let markerPosPct = 0;
 
       if (type === 'firstLine') {
-        // Üstteki aşağı bakan ok: Yalnızca ilk satırın başlangıç hizasını ayarlar
-        const targetFirst = Math.max(0, Math.min(currentActiveCm - 0.5, cm));
-        if (firstMarker) firstMarker.style.left = (targetFirst / currentActiveCm * 100) + '%';
-        setFirstLineIndent(targetFirst, initLeftCm);
-      } else if (type === 'hangingIndent') {
-        // Alttaki yukarı bakan ok: Asılı girinti ayarını yapar (2. ve sonraki taşan satırların hizası).
-        // İlk satırın cetvel üzerindeki mutlak konumu sabit kalır!
-        const targetHanging = Math.max(0, Math.min(currentActiveCm - 0.5, cm));
-        if (hangingMarker) hangingMarker.style.left = (targetHanging / currentActiveCm * 100) + '%';
-        if (leftMarker) leftMarker.style.left = (targetHanging / currentActiveCm * 100) + '%';
-        setHangingIndent(targetHanging, initFirstLineRulerCm);
-      } else if (type === 'leftIndent') {
-        // Alttaki dikdörtgen: Tüm paragrafı blok halinde taşır.
-        // İlk satır ile asılı satırlar arasındaki bağıl mesafe (initTextIndentCm) korunur!
-        let delta = cm - initLeftCm;
-        if (initFirstLineRulerCm + delta < 0) delta = -initFirstLineRulerCm;
-        if (initLeftCm + delta < 0) delta = -initLeftCm;
-        const targetLeft = Math.max(0, Math.min(currentActiveCm - 0.5, initLeftCm + delta));
+        // 1. Üstteki Aşağı Bakan Üçgen (İlk Satır Girintisi):
+        // Yalnızca ilk satırı taşır. Asılı girinti ve sol girinti kutusu SABİT kalır.
         const targetFirst = Math.max(0, Math.min(currentActiveCm - 0.5, initFirstLineRulerCm + delta));
-        if (leftMarker) leftMarker.style.left = (targetLeft / currentActiveCm * 100) + '%';
-        if (hangingMarker) hangingMarker.style.left = (targetLeft / currentActiveCm * 100) + '%';
+        markerPosPct = (targetFirst / currentActiveCm * 100);
+        if (firstMarker) firstMarker.style.left = markerPosPct + '%';
+        if (hangingMarker) hangingMarker.style.left = (initLeftCm / currentActiveCm * 100) + '%';
+        if (leftMarker) leftMarker.style.left = (initLeftCm / currentActiveCm * 100) + '%';
+        setFirstLineIndent(targetFirst, initLeftCm);
+        tipText = `İlk Satır: ${targetFirst.toFixed(2)} cm`;
+      } else if (type === 'hangingIndent') {
+        // 2. Ortadaki Yukarı Bakan Üçgen (Asılı Girinti):
+        // 2. ve sonraki satırların girintisini ayarlar. Altındaki kutu onunla birlikte hareket eder.
+        // İLK SATIRIN CETVELDEKİ POZİSYONU SABİT KALIR.
+        const targetHanging = Math.max(0, Math.min(currentActiveCm - 0.5, initLeftCm + delta));
+        markerPosPct = (targetHanging / currentActiveCm * 100);
+        if (hangingMarker) hangingMarker.style.left = markerPosPct + '%';
+        if (leftMarker) leftMarker.style.left = markerPosPct + '%';
+        if (firstMarker) firstMarker.style.left = (initFirstLineRulerCm / currentActiveCm * 100) + '%';
+        setHangingIndent(targetHanging, initFirstLineRulerCm);
+        tipText = `Asılı Girinti: ${targetHanging.toFixed(2)} cm`;
+      } else if (type === 'leftIndent') {
+        // 3. En Alttaki Dikdörtgen Kutu (Sol Girinti - Tüm Paragraf):
+        // TÜM PARAGRAFI BLOK HALİNDE TAŞIR. İlk satır ve asılı satırlar arasındaki fark korunur.
+        let safeDelta = delta;
+        if (initLeftCm + safeDelta < 0) safeDelta = -initLeftCm;
+        if (initFirstLineRulerCm + safeDelta < 0) safeDelta = -initFirstLineRulerCm;
+        const targetLeft = Math.max(0, Math.min(currentActiveCm - 0.5, initLeftCm + safeDelta));
+        const targetFirst = Math.max(0, Math.min(currentActiveCm - 0.5, initFirstLineRulerCm + safeDelta));
+        markerPosPct = (targetLeft / currentActiveCm * 100);
+        if (leftMarker) leftMarker.style.left = markerPosPct + '%';
+        if (hangingMarker) hangingMarker.style.left = markerPosPct + '%';
         if (firstMarker) firstMarker.style.left = (targetFirst / currentActiveCm * 100) + '%';
         setFullParagraphIndent(targetLeft, initTextIndentCm);
+        tipText = `Tüm Paragraf: ${targetLeft.toFixed(2)} cm`;
       } else if (type === 'rightIndent') {
         const rightPct = 1 - pct;
         const rightCm = Math.round((rightPct * currentActiveCm) * 4) / 4;
@@ -1337,6 +1378,14 @@ function setupMarkerDragging(markerId, type, activeCm) {
           rightMarker.style.left = 'auto';
         }
         setRightIndent(targetRight);
+        tipText = `Sağ Kenar Girintisi: ${targetRight.toFixed(2)} cm`;
+        markerPosPct = (1 - (targetRight / currentActiveCm)) * 100;
+      }
+
+      if (tooltip && tipText) {
+        tooltip.style.display = 'block';
+        tooltip.textContent = tipText;
+        tooltip.style.left = Math.min(rect.width - 45, Math.max(45, (markerPosPct / 100) * rect.width)) + 'px';
       }
     };
 
@@ -1345,6 +1394,8 @@ function setupMarkerDragging(markerId, type, activeCm) {
       window.removeEventListener('mouseup', upHandler);
       window.removeEventListener('touchmove', moveHandler);
       window.removeEventListener('touchend', upHandler);
+      if (guideLine) guideLine.style.display = 'none';
+      if (tooltip) tooltip.style.display = 'none';
       setTimeout(() => { activeDragMarker = null; }, 120);
       updateCounts();
       debouncedPagination();
@@ -1376,6 +1427,7 @@ function toggleRuler() {
 }
 
 function updateRulerFromActiveParagraph() {
+  if (activeDragMarker) return;
   const p = getActiveParagraph();
   if (!p) return;
 
@@ -3869,35 +3921,10 @@ function execBubbleCmd(cmd) {
   hideFloatingContextMenu();
 }
 
-// --- DİNAMİK KAYDIRMA BLUR BANTLARI (Progressive Dynamic Blur) ---
+// --- DİNAMİK KAYDIRMA BLUR BANTLARI (Performans ve klavye akıcılığı için devre dışı) ---
 function initDynamicScrollBlur() {
-  const scrollWrapper = document.getElementById('page-wrapper');
   const blurTop = document.getElementById('scroll-blur-top');
   const blurBottom = document.getElementById('scroll-blur-bottom');
-
-  if (!scrollWrapper || !blurTop || !blurBottom) return;
-
-  function updateBlurState() {
-    const st = scrollWrapper.scrollTop;
-    const maxScroll = scrollWrapper.scrollHeight - scrollWrapper.clientHeight;
-
-    if (st > 12) {
-      blurTop.classList.add('visible');
-    } else {
-      blurTop.classList.remove('visible');
-    }
-
-    if (maxScroll - st > 20) {
-      blurBottom.classList.add('visible');
-    } else {
-      blurBottom.classList.remove('visible');
-    }
-  }
-
-  scrollWrapper.addEventListener('scroll', () => {
-    updateBlurState();
-    hideFloatingContextMenu();
-  }, { passive: true });
-
-  setTimeout(updateBlurState, 300);
+  if (blurTop) blurTop.style.display = 'none';
+  if (blurBottom) blurBottom.style.display = 'none';
 }

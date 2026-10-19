@@ -171,6 +171,21 @@ public class EditorActivity extends Activity {
 
     private void loadIncomingFile() {
         String path = getIntent().getStringExtra(EXTRA_FILE_PATH);
+        if ((path == null || path.trim().isEmpty()) && getIntent().getData() != null) {
+            try {
+                Uri dataUri = getIntent().getData();
+                String displayName = "belge_" + System.currentTimeMillis() + ".udf";
+                File cacheFile = new File(getCacheDir(), displayName);
+                try (InputStream in = getContentResolver().openInputStream(dataUri);
+                     FileOutputStream out = new FileOutputStream(cacheFile)) {
+                    byte[] buf = new byte[32768];
+                    int l;
+                    while ((l = in.read(buf)) != -1) out.write(buf, 0, l);
+                    out.flush();
+                }
+                path = cacheFile.getAbsolutePath();
+            } catch (Exception ignored) {}
+        }
         if (path != null && !path.trim().isEmpty()) {
             currentFile = new File(path);
             if (currentFile.exists()) {
