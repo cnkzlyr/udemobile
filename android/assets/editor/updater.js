@@ -10,7 +10,7 @@
 (function () {
   'use strict';
 
-  const VERSION = '3.4.7';
+  const VERSION = '3.4.8';
   const REPO = 'cnkzlyr/udemobile';
   const API = 'https://api.github.com/repos/' + REPO + '/releases/latest';
   const LS_LAST = 'caneditor_update_last_check';

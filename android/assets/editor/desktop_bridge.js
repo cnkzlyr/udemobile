@@ -76,6 +76,19 @@ async function parseUdfArrayBuffer(buffer) {
   const rawText = xmlDoc.querySelector("template > content")?.textContent || "";
   const runes = Array.from(rawText);
 
+  // UYAP Şablon Alanı Veri Haritası (<data>)
+  const dataMap = {};
+  const dataNodes = xmlDoc.querySelectorAll("data, template > data");
+  dataNodes.forEach(dNode => {
+    Array.from(dNode.children).forEach(child => {
+      const key = (child.tagName || "").toLowerCase();
+      const val = (child.textContent || "");
+      if (val.trim() && (!dataMap[key] || !dataMap[key].trim())) {
+        dataMap[key] = val;
+      }
+    });
+  });
+
   // Doğrulama Kodu Çözümleme (webID & documentproperties.xml)
   const webIdEl = xmlDoc.querySelector("webID");
   const webId = webIdEl ? (webIdEl.getAttribute("id") || "").trim() : "";
@@ -118,14 +131,19 @@ async function parseUdfArrayBuffer(buffer) {
       let hText = "";
       headerParas.forEach(p => {
         Array.from(p.children).forEach(c => {
-          const s = parseInt(c.getAttribute("startOffset") || "-1", 10);
-          const l = parseInt(c.getAttribute("length") || "-1", 10);
-          if (s >= 0 && l > 0) {
-            hText += runes.slice(s, s + l).join("");
-          } else if (c.tagName.toLowerCase() === "tab") {
-            hText += "\t";
-          } else if (c.tagName.toLowerCase() === "space") {
-            hText += " ";
+          const fieldName = (c.getAttribute("fieldName") || "").toLowerCase();
+          if (fieldName && dataMap[fieldName] !== undefined && dataMap[fieldName].trim() !== "") {
+            hText += dataMap[fieldName];
+          } else {
+            const s = parseInt(c.getAttribute("startOffset") || "-1", 10);
+            const l = parseInt(c.getAttribute("length") || "-1", 10);
+            if (s >= 0 && l > 0) {
+              hText += runes.slice(s, s + l).join("");
+            } else if (c.tagName.toLowerCase() === "tab") {
+              hText += "\t";
+            } else if (c.tagName.toLowerCase() === "space") {
+              hText += " ";
+            }
           }
         });
       });
@@ -198,7 +216,10 @@ async function parseUdfArrayBuffer(buffer) {
         }
       } else if (tag === "content" || tag === "space" || tag === "field" || tag === "tab") {
         let text = "";
-        if (c.hasAttribute("startOffset") && c.hasAttribute("length")) {
+        const fieldName = (c.getAttribute("fieldName") || "").toLowerCase();
+        if (fieldName && dataMap[fieldName] !== undefined && dataMap[fieldName].trim() !== "") {
+          text = dataMap[fieldName];
+        } else if (c.hasAttribute("startOffset") && c.hasAttribute("length")) {
           const start = parseInt(c.getAttribute("startOffset") || "0", 10);
           const len = parseInt(c.getAttribute("length") || "0", 10);
           text = runes.slice(start, start + len).join("");
@@ -576,24 +597,24 @@ function downloadBlob(blob, filename) {
 // -------------------------------------------------------------
 // 6. DOSYA AÇMA & SÜRÜKLE BIRAK YÖNETİCİSİ
 // -------------------------------------------------------------
-async function handleFileOpen(file) {
-  if (!file) return;
-  const name = file.name;
-  currentDocFileName = name;
-  updateDocTitleDisplay(name);
+async function openDocumentFromBytes(buffer, name, path) {
+  if (!buffer) return;
+  const fileName = name || (path ? path.split(/[/\\]/).pop() : "Belge.udf");
+  currentDocFileName = fileName;
+  updateDocTitleDisplay(fileName);
 
   const statusEl = document.getElementById("desktopStatusMsg");
   if (statusEl) statusEl.innerText = "Belge okunuyor...";
 
   try {
-    const buffer = await file.arrayBuffer();
-    currentDocOriginalBuffer = buffer.slice(0);
-    const isDocx = name.toLowerCase().endsWith(".docx");
+    const arrayBuffer = buffer instanceof ArrayBuffer ? buffer : (buffer.buffer ? buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength) : new Uint8Array(buffer).buffer);
+    currentDocOriginalBuffer = arrayBuffer.slice(0);
+    const isDocx = fileName.toLowerCase().endsWith(".docx");
     let result;
     if (isDocx) {
-      result = await parseDocxArrayBuffer(buffer);
+      result = await parseDocxArrayBuffer(arrayBuffer);
     } else {
-      result = await parseUdfArrayBuffer(buffer);
+      result = await parseUdfArrayBuffer(arrayBuffer);
     }
 
     if (window.setHtmlContent) {
@@ -602,14 +623,27 @@ async function handleFileOpen(file) {
 
     if (result.signature) {
       updateSignatureBadge(result.signature);
+      if (typeof updateSignatureBanner === 'function') updateSignatureBanner(result.signature);
+      if (typeof onDocumentSignatureChecked === 'function') onDocumentSignatureChecked(result.signature);
     } else {
       updateSignatureBadge({ hasSignature: false, isValid: false });
+      if (typeof updateSignatureBanner === 'function') updateSignatureBanner({ hasSignature: false, isValid: false });
     }
 
     if (statusEl) statusEl.innerText = "✓ Açıldı";
   } catch (err) {
     alert("Belge okuma hatası: " + err.message);
     if (statusEl) statusEl.innerText = "Hata";
+  }
+}
+
+async function handleFileOpen(file) {
+  if (!file) return;
+  try {
+    const buffer = await file.arrayBuffer();
+    await openDocumentFromBytes(buffer, file.name, file.name);
+  } catch (err) {
+    alert("Belge okuma hatası: " + err.message);
   }
 }
 
@@ -742,4 +776,22 @@ window.addEventListener("DOMContentLoaded", () => {
       }
     }
   });
+
+  // Tauri Başlangıç Dosyası Kontrolü (Birlikte Aç / CLI Dosya Parametresi)
+  const checkTauriStartupFile = () => {
+    try {
+      const invoke = window.__TAURI__?.core?.invoke || (window.__TAURI_INTERNALS__ && window.__TAURI_INTERNALS__.invoke);
+      if (invoke) {
+        invoke('get_startup_file').then((res) => {
+          if (res && res.data && res.data.length > 0) {
+            const u8 = new Uint8Array(res.data);
+            openDocumentFromBytes(u8.buffer, res.name, res.path);
+          }
+        }).catch(err => console.warn('Tauri get_startup_file:', err));
+      }
+    } catch (e) {
+      console.warn('Tauri startup check error:', e);
+    }
+  };
+  setTimeout(checkTauriStartupFile, 200);
 });

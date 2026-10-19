@@ -206,6 +206,25 @@ public class UdfEngine {
 
             String verificationCode = !webId.isEmpty() ? webId : uyapDogrulamaKodu;
 
+            // 2.5. UYAP Şablon Alanı Veri Haritası (<data>)
+            java.util.Map<String, String> dataMap = new java.util.HashMap<>();
+            NodeList dataNodes = doc.getElementsByTagName("data");
+            for (int d = 0; d < dataNodes.getLength(); d++) {
+                Element dElem = (Element) dataNodes.item(d);
+                Node dChild = dElem.getFirstChild();
+                while (dChild != null) {
+                    if (dChild.getNodeType() == Node.ELEMENT_NODE) {
+                        Element cElem = (Element) dChild;
+                        String k = cElem.getTagName().toLowerCase();
+                        String v = cElem.getTextContent();
+                        if (v != null && !v.trim().isEmpty() && (!dataMap.containsKey(k) || dataMap.get(k).trim().isEmpty())) {
+                            dataMap.put(k, v);
+                        }
+                    }
+                    dChild = dChild.getNextSibling();
+                }
+            }
+
             // 3. Header ve üstbilgi resmi/metni çözümleme (startPage destekli)
             NodeList headers = doc.getElementsByTagName("header");
             String headerHtml = "";
@@ -244,21 +263,26 @@ public class UdfEngine {
                                     Element ce = (Element) childNode;
                                     String tag = ce.getTagName();
                                     if ("content".equalsIgnoreCase(tag) || "field".equalsIgnoreCase(tag) || "space".equalsIgnoreCase(tag) || "tab".equalsIgnoreCase(tag)) {
-                                        String sStr = ce.getAttribute("startOffset");
-                                        String lStr = ce.getAttribute("length");
-                                        if (!sStr.isEmpty() && !lStr.isEmpty()) {
-                                            try {
-                                                int s = Integer.parseInt(sStr);
-                                                int l = Integer.parseInt(lStr);
-                                                if (s >= 0 && s < textLen) {
-                                                    int e = Math.min(s + l, textLen);
-                                                    pStr.append(rawText.substring(s, e));
-                                                }
-                                            } catch (Exception ignored) {}
-                                        } else if ("tab".equalsIgnoreCase(tag)) {
-                                            pStr.append("\t");
-                                        } else if ("space".equalsIgnoreCase(tag)) {
-                                            pStr.append(" ");
+                                        String fieldName = ce.getAttribute("fieldName");
+                                        if (fieldName != null && !fieldName.trim().isEmpty() && dataMap.containsKey(fieldName.trim().toLowerCase()) && !dataMap.get(fieldName.trim().toLowerCase()).trim().isEmpty()) {
+                                            pStr.append(dataMap.get(fieldName.trim().toLowerCase()));
+                                        } else {
+                                            String sStr = ce.getAttribute("startOffset");
+                                            String lStr = ce.getAttribute("length");
+                                            if (!sStr.isEmpty() && !lStr.isEmpty()) {
+                                                try {
+                                                    int s = Integer.parseInt(sStr);
+                                                    int l = Integer.parseInt(lStr);
+                                                    if (s >= 0 && s < textLen) {
+                                                        int e = Math.min(s + l, textLen);
+                                                        pStr.append(rawText.substring(s, e));
+                                                    }
+                                                } catch (Exception ignored) {}
+                                            } else if ("tab".equalsIgnoreCase(tag)) {
+                                                pStr.append("\t");
+                                            } else if ("space".equalsIgnoreCase(tag)) {
+                                                pStr.append(" ");
+                                            }
                                         }
                                     }
                                 }
@@ -409,10 +433,10 @@ public class UdfEngine {
                         Element childElem = (Element) child;
                         String tagName = childElem.getTagName();
                         if ("paragraph".equalsIgnoreCase(tagName)) {
-                            appendParagraphToHtml(childElem, rawText, textLen, listCounters, html);
+                            appendParagraphToHtml(childElem, rawText, textLen, listCounters, dataMap, html);
                             renderedAny = true;
                         } else if ("table".equalsIgnoreCase(tagName)) {
-                            appendTableToHtml(childElem, rawText, textLen, listCounters, html);
+                            appendTableToHtml(childElem, rawText, textLen, listCounters, dataMap, html);
                             renderedAny = true;
                         }
                     }
@@ -431,7 +455,7 @@ public class UdfEngine {
                             continue;
                         }
                     }
-                    appendParagraphToHtml(p, rawText, textLen, listCounters, html);
+                    appendParagraphToHtml(p, rawText, textLen, listCounters, dataMap, html);
                 }
             }
 
@@ -465,7 +489,7 @@ public class UdfEngine {
         }
     }
 
-    private static void appendParagraphToHtml(Element p, String rawText, int textLen, java.util.Map<String, Integer> listCounters, StringBuilder outHtml) {
+    private static void appendParagraphToHtml(Element p, String rawText, int textLen, java.util.Map<String, Integer> listCounters, java.util.Map<String, String> dataMap, StringBuilder outHtml) {
         String alignAttr = p.getAttribute("Alignment");
         String alignStyle = "justify";
         if ("1".equals(alignAttr)) alignStyle = "center";
@@ -594,6 +618,7 @@ public class UdfEngine {
                         || "field".equalsIgnoreCase(tagName) || "tab".equalsIgnoreCase(tagName)) {
                     String startStr = childElem.getAttribute("startOffset");
                     String lenStr = childElem.getAttribute("length");
+                    String fieldName = childElem.getAttribute("fieldName");
                     boolean bold = "true".equalsIgnoreCase(childElem.getAttribute("bold"));
                     boolean italic = "true".equalsIgnoreCase(childElem.getAttribute("italic"));
                     boolean underline = "true".equalsIgnoreCase(childElem.getAttribute("underline"));
@@ -602,7 +627,9 @@ public class UdfEngine {
                     boolean strike = "true".equalsIgnoreCase(childElem.getAttribute("strikeThrough")) || "true".equalsIgnoreCase(childElem.getAttribute("strikethrough")) || "true".equalsIgnoreCase(childElem.getAttribute("StrikeThrough"));
 
                     String chunk = "";
-                    if (!startStr.isEmpty() && !lenStr.isEmpty()) {
+                    if (fieldName != null && !fieldName.trim().isEmpty() && dataMap != null && dataMap.containsKey(fieldName.trim().toLowerCase()) && !dataMap.get(fieldName.trim().toLowerCase()).trim().isEmpty()) {
+                        chunk = dataMap.get(fieldName.trim().toLowerCase());
+                    } else if (!startStr.isEmpty() && !lenStr.isEmpty()) {
                         try {
                             int start = Integer.parseInt(startStr);
                             int len = Integer.parseInt(lenStr);
@@ -655,7 +682,7 @@ public class UdfEngine {
                .append("</p>\n");
     }
 
-    private static void appendTableToHtml(Element tableElem, String rawText, int textLen, java.util.Map<String, Integer> listCounters, StringBuilder outHtml) {
+    private static void appendTableToHtml(Element tableElem, String rawText, int textLen, java.util.Map<String, Integer> listCounters, java.util.Map<String, String> dataMap, StringBuilder outHtml) {
         String borderAttr = tableElem.getAttribute("border");
         boolean isBorderNone = "borderNone".equalsIgnoreCase(borderAttr) || "none".equalsIgnoreCase(borderAttr);
         String tableStyle = isBorderNone
@@ -687,7 +714,7 @@ public class UdfEngine {
                 } else {
                     for (int pIdx = 0; pIdx < cellParas.getLength(); pIdx++) {
                         Element p = (Element) cellParas.item(pIdx);
-                        appendParagraphToHtml(p, rawText, textLen, listCounters, outHtml);
+                        appendParagraphToHtml(p, rawText, textLen, listCounters, dataMap, outHtml);
                     }
                 }
 

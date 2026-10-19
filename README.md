@@ -1,6 +1,6 @@
 # ⚖️ CanEditor (UdeMobile) — Çapraz Platform UYAP & Word Editörü
 
-[![Sürüm](https://img.shields.io/badge/Sürüm-v3.4.7-blue.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v3.4.7)
+[![Sürüm](https://img.shields.io/badge/Sürüm-v3.4.8-blue.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v3.4.8)
 [![Platformlar](https://img.shields.io/badge/Platformlar-Android%20%7C%20Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Web-success.svg)](https://github.com/cnkzlyr/udemobile/releases)
 [![UYAP](https://img.shields.io/badge/Format-UYAP_UDF_v1.8-0D47A1.svg)](https://uyap.gov.tr)
 [![Word](https://img.shields.io/badge/Format-MS_DOCX_OpenXML-2B579A.svg?logo=microsoft-word&logoColor=white)](https://microsoft.com)
@@ -11,18 +11,27 @@
 
 ---
 
-## 🚀 Hızlı İndirme (v3.4.7)
+## 🚀 Hızlı İndirme (v3.4.8)
 
 | Platform | Paket Dosyası | Açıklama |
 | :--- | :--- | :--- |
-| **Android (Telefon & Tablet)** | [**CanEditor-v3.4.7.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.4.7/CanEditor-v3.4.7.apk) | Güncel mobil uygulama paketi |
-| **Android (Her Zaman En Son)** | [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.4.7/CanEditor-latest.apk) | Kalıcı son sürüm bağlantısı |
-| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v3.4.7.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v3.4.7/CanEditor-Portable-Web-GUI-v3.4.7.zip) | Kurulumsuz; zipten çıkarıp `index.html` açarak tüm işletim sistemlerinde doğrudan çalışır |
-| **Windows / macOS / Linux** | [**GitHub Releases Sayfası**](https://github.com/cnkzlyr/udemobile/releases/tag/v3.4.7) | GitHub Actions CI ile derlenen yerel ikili (.msi, .exe, .dmg, .AppImage, .deb, .rpm) paketleri |
+| **Android (Telefon & Tablet)** | [**CanEditor-v3.4.8.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.4.8/CanEditor-v3.4.8.apk) | Güncel mobil uygulama paketi |
+| **Android (Her Zaman En Son)** | [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.4.8/CanEditor-latest.apk) | Kalıcı son sürüm bağlantısı |
+| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v3.4.8.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v3.4.8/CanEditor-Portable-Web-GUI-v3.4.8.zip) | Kurulumsuz; zipten çıkarıp `index.html` açarak tüm işletim sistemlerinde doğrudan çalışır |
+| **Windows / macOS / Linux** | [**GitHub Releases Sayfası**](https://github.com/cnkzlyr/udemobile/releases/tag/v3.4.8) | GitHub Actions CI ile derlenen yerel ikili (.msi, .exe, .dmg, .AppImage, .deb, .rpm) paketleri |
 
 ---
 
-## 🌟 v3.4.7 ile Gelen Önemli Geliştirmeler
+## 🌟 v3.4.8 ile Gelen Önemli Geliştirmeler
+
+### 📱 1. Mobil Yakınlaştırma & Yatay Kaydırma (Pinch-to-Zoom & Horizontal Pan) Düzeltmesi
+- Sayfa görünümünde (paper-view) yakınlaştırma yapıldığında sayfanın sol kenarının kırpılması ve dokunarak sağa-sola kaydırılamaması (stuck scroll) sorunu giderildi. Kapsayıcı hiza kilitlenmesi çözülerek dokunmatik çift yönlü kaydırma (`touch-action: pan-x pan-y pinch-zoom`) ve sayfa merkezlemesi optimize edildi.
+
+### 🖥️ 2. Masaüstü UDF/DOCX Birlikte Aç (Open With) Desteği
+- Windows Dosya Gezgini'nde veya masaüstünde bir `.udf` ya da `.docx` dosyasına sağ tıklayıp "Birlikte Aç" (Open With) seçildiğinde veya dosya ilişkilendirmesiyle çift tıklandığında boş belge açılması sorunu çözüldü. Başlangıç komut satırı argümanları yakalanarak hedeflenen belge otomatik yüklenir.
+
+### 📑 3. UYAP Portal İcra & Dava Talep Şablonları Desteği (`<data>` & `<field fieldName>`)
+- UYAP Avukat / Vatandaş Portalından indirilen icra genel talepleri ve form tabanlı UDF'lerdeki şablon yer tutucularının (`il_ilce`, `ilgiliIcraMudurlugu`, `dosyaNo`, `borcluBilgisi`, `talepAciklama`, `tarih`, `alacakliAvukatAdiSoyadi`) ham değişken adı olarak kalması sorunu giderildi. `<data>` etiketlerindeki gerçek form alanları hem masaüstü Web/Tauri hem de Android motorunda (Java & JS) çözümlenerek dokümana yerleştirildi.
 
 ### 📏 1. Word Standardında Akıllı Cetvel & Bağımsız Asılı Girinti (Hanging Indent)
 - **Asılı Girinti (Alttaki Yukarı Bakan Ok):** Satır sonuna gelindiğinde aşağı taşan 2. ve sonraki satırların başlangıç hizasını bağımsız olarak belirler. Sürüklendiğinde ilk satırın konumunu bozmaz.

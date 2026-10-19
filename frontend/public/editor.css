@@ -410,28 +410,31 @@ select {
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: normal;
   -webkit-overflow-scrolling: touch;
-  overscroll-behavior-y: contain;
-  scroll-behavior: auto;
+  touch-action: pan-x pan-y pinch-zoom;
 }
 
 #sheet-wrapper {
   display: flex;
-  justify-content: center;
-  align-items: flex-start;
-  width: 100%;
+  flex-direction: column;
+  align-items: center;
+  min-width: 100%;
+  width: max-content;
   min-height: 100%;
+  margin: 0 auto;
 }
 
 #page-wrapper.paper-view #sheet-container {
   width: var(--sheet-width);
+  min-width: var(--sheet-width);
   max-width: var(--sheet-width);
   display: flex;
   flex-direction: column;
   position: relative;
   margin: 0 auto;
   zoom: var(--doc-zoom, 1);
+  box-sizing: border-box;
 }
 
 /* ETKİLEŞİMLİ CETVEL */

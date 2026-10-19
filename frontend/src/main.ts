@@ -69,10 +69,28 @@ document.getElementById('fileInput')?.addEventListener('change', async (e) => {
     const rawText = globalXmlDoc.querySelector("template > content")?.textContent || "";
     const runes = Array.from(rawText);
 
+    const dataMap: Record<string, string> = {};
+    globalXmlDoc.querySelectorAll("data, template > data").forEach(dNode => {
+      Array.from(dNode.children).forEach(child => {
+        const key = child.tagName.toLowerCase();
+        const val = child.textContent || "";
+        if (val.trim() && (!dataMap[key] || !dataMap[key].trim())) {
+          dataMap[key] = val;
+        }
+      });
+    });
+
     globalXmlDoc.querySelectorAll("content, image, tab, space, field").forEach(item => {
-      const start = parseInt(item.getAttribute("startOffset") || "0");
-      const len = parseInt(item.getAttribute("length") || "0");
-      if (item.tagName === "content") item.setAttribute("data-text", runes.slice(start, start + len).join(""));
+      const fieldName = (item.getAttribute("fieldName") || "").toLowerCase();
+      if (fieldName && dataMap[fieldName] !== undefined && dataMap[fieldName].trim()) {
+        item.setAttribute("data-text", dataMap[fieldName]);
+      } else {
+        const start = parseInt(item.getAttribute("startOffset") || "0");
+        const len = parseInt(item.getAttribute("length") || "0");
+        if (item.tagName === "content" || item.tagName === "field") {
+          item.setAttribute("data-text", runes.slice(start, start + len).join(""));
+        }
+      }
     });
 
     document.getElementById('body-zone')!.innerHTML = "";

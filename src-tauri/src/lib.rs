@@ -163,6 +163,43 @@ fn install_update(app: tauri::AppHandle, path: String) -> Result<(), String> {
     Ok(())
 }
 
+#[derive(serde::Serialize)]
+pub struct StartupFile {
+    pub name: String,
+    pub path: String,
+    pub data: Vec<u8>,
+}
+
+#[tauri::command]
+fn get_startup_file() -> Option<StartupFile> {
+    for arg in std::env::args().skip(1) {
+        if arg.starts_with("--") || arg.starts_with("-") {
+            continue;
+        }
+        let p = std::path::Path::new(&arg);
+        if p.is_file() {
+            if let Ok(data) = std::fs::read(p) {
+                let name = p
+                    .file_name()
+                    .map(|n| n.to_string_lossy().to_string())
+                    .unwrap_or_else(|| "Belge.udf".to_string());
+                return Some(StartupFile {
+                    name,
+                    path: p.to_string_lossy().to_string(),
+                    data,
+                });
+            }
+        }
+    }
+    None
+}
+
+#[tauri::command]
+fn read_file_binary(path: String) -> Result<Vec<u8>, String> {
+    let p = std::path::Path::new(&path);
+    std::fs::read(p).map_err(|e| format!("Dosya okunamadı: {}", e))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -172,7 +209,9 @@ pub fn run() {
             platform_info,
             start_update_download,
             update_download_progress,
-            install_update
+            install_update,
+            get_startup_file,
+            read_file_binary
         ])
         .run(tauri::generate_context!())
         .expect("Tauri motoru başlatılamadı");
