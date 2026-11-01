@@ -867,25 +867,38 @@ public class UdfEngine {
                 Map<String, Integer> fCounters = new HashMap<>();
                 Node fChild = footerElem.getFirstChild();
                 boolean hasFooterImg = false;
+                String pageLabelText = escapeHtml(footerForeStr != null ? footerForeStr.trim() : "Sayfa:") + " {PAGE_NUM}" + escapeHtml(footerSep != null ? footerSep.trim() : "/") + "{TOTAL_PAGES}";
                 while (fChild != null) {
                     if (fChild.getNodeType() == Node.ELEMENT_NODE) {
                         Element fce = (Element) fChild;
                         String fTag = fce.getTagName();
+                        Element imgElem = null;
                         if ("image".equalsIgnoreCase(fTag)) {
-                            String fImgData = fce.getAttribute("imageData");
+                            imgElem = fce;
+                        } else if ("paragraph".equalsIgnoreCase(fTag)) {
+                            NodeList pImgs = fce.getElementsByTagName("image");
+                            String pPlain = extractPlainTextFromContainer(fce, rawText, textLen, dataMap);
+                            if (pImgs.getLength() > 0 && (pPlain == null || pPlain.trim().isEmpty())) {
+                                imgElem = (Element) pImgs.item(0);
+                            }
+                        }
+                        if (imgElem != null) {
+                            String fImgData = imgElem.getAttribute("imageData");
                             if (fImgData != null && !fImgData.trim().isEmpty()) {
-                                String wStr = fce.getAttribute("width");
-                                String hStr = fce.getAttribute("height");
+                                String wStr = imgElem.getAttribute("width");
+                                String hStr = imgElem.getAttribute("height");
+                                double wCm = parsePtToCm(wStr, 0);
                                 double hCm = parsePtToCm(hStr, 1.76);
                                 hasFooterImg = true;
+                                String dimStyle = "max-height:" + (hCm > 0 ? hCm + "cm" : "50px") + ";" + (wCm > 0 ? " max-width:" + wCm + "cm;" : " max-width:82%;") + " width:auto; object-fit:contain;";
                                 if (hasPageNumber) {
                                     fBuilder.append("<div class=\"udf-footer-layout\">")
-                                            .append("<img class=\"udf-footer-img\" data-udf-width=\"").append(escapeHtml(wStr)).append("\" data-udf-height=\"").append(escapeHtml(hStr)).append("\" src=\"data:image/png;base64,").append(fImgData.trim()).append("\" style=\"max-height:").append(hCm > 0 ? hCm + "cm" : "50px").append("; width:auto;\" />")
-                                            .append("<span class=\"udf-footer-page-label\">").append(escapeHtml(footerForeStr)).append(" {PAGE_NUM} ").append(escapeHtml(footerSep)).append(" {TOTAL_PAGES}</span>")
+                                            .append("<img class=\"udf-footer-img\" data-udf-width=\"").append(escapeHtml(wStr)).append("\" data-udf-height=\"").append(escapeHtml(hStr)).append("\" src=\"data:image/png;base64,").append(fImgData.trim()).append("\" style=\"").append(dimStyle).append("\" />")
+                                            .append("<span class=\"udf-footer-page-label\">").append(pageLabelText).append("</span>")
                                             .append("</div>");
                                 } else {
                                     fBuilder.append("<div class=\"udf-footer-layout full-banner\" style=\"justify-content:center; border-top:none;\">")
-                                            .append("<img class=\"udf-footer-img\" data-udf-width=\"").append(escapeHtml(wStr)).append("\" data-udf-height=\"").append(escapeHtml(hStr)).append("\" src=\"data:image/png;base64,").append(fImgData.trim()).append("\" style=\"max-height:").append(hCm > 0 ? hCm + "cm" : "50px").append("; max-width:100%; width:auto; object-fit:contain;\" />")
+                                            .append("<img class=\"udf-footer-img\" data-udf-width=\"").append(escapeHtml(wStr)).append("\" data-udf-height=\"").append(escapeHtml(hStr)).append("\" src=\"data:image/png;base64,").append(fImgData.trim()).append("\" style=\"").append(dimStyle).append("\" />")
                                             .append("</div>");
                                 }
                             }
@@ -904,7 +917,7 @@ public class UdfEngine {
                 }
                 if (!hasFooterImg && hasPageNumber) {
                     fBuilder.append("<div class=\"udf-footer-layout\" style=\"display:flex; justify-content:flex-end; width:100%;\">")
-                            .append("<span class=\"udf-footer-page-label\">").append(escapeHtml(footerForeStr)).append(" {PAGE_NUM} ").append(escapeHtml(footerSep)).append(" {TOTAL_PAGES}</span>")
+                            .append("<span class=\"udf-footer-page-label\">").append(pageLabelText).append("</span>")
                             .append("</div>");
                 }
                 footerHtml = fBuilder.toString();
@@ -1239,6 +1252,27 @@ public class UdfEngine {
         if (Math.abs(totalLeftPt) > 0.1) {
             double cm = Math.round((totalLeftPt / 28.3465) * 100.0) / 100.0;
             styleAttr.append(" margin-left: ").append(cm).append("cm;");
+            if (hangPt > 0.5) {
+                boolean hasHangStop = false;
+                for (String existing : stopsList) {
+                    try {
+                        if (Math.abs(Double.parseDouble(existing) - cm) < 0.06) {
+                            hasHangStop = true;
+                            break;
+                        }
+                    } catch (Exception ignored) {}
+                }
+                if (!hasHangStop) {
+                    stopsList.add(String.format(Locale.US, "%.2f", cm));
+                    stopsList.sort((a, b) -> {
+                        try {
+                            return Double.compare(Double.parseDouble(a), Double.parseDouble(b));
+                        } catch (Exception e) {
+                            return 0;
+                        }
+                    });
+                }
+            }
         }
         if (Math.abs(textIndentPt) > 0.1) {
             double cm = Math.round((textIndentPt / 28.3465) * 100.0) / 100.0;
@@ -1361,6 +1395,9 @@ public class UdfEngine {
 
                         if (!chunk.isEmpty()) {
                             hasContent = true;
+                            if (isHeaderOrFooter && chunk.trim().matches("^[-_]{10,}$")) {
+                                styleAttr.append(" white-space: nowrap; overflow: hidden; text-overflow: clip;");
+                            }
                             String escaped = escapeHtml(chunk).replace("\n", "<br>");
                             if (bold) escaped = "<strong>" + escaped + "</strong>";
                             if (italic) escaped = "<em>" + escaped + "</em>";

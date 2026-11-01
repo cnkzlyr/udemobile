@@ -25,7 +25,7 @@ body {
   overflow: hidden;
 }
 
-/* Üst Biçimlendirme Araç Çubuğu (2 Satırlı Ergonomik Düzen) */
+/* Üst Biçimlendirme Araç Çubuğu (3 Satırlı Yazılı UYAP Düzeni) */
 #toolbar-container {
   background-color: #FFFFFF;
   border-bottom: 1px solid #DADCE0;
@@ -46,7 +46,7 @@ body {
   overflow-x: auto;
   white-space: nowrap;
   width: 100%;
-  height: 33px;
+  height: 30px;
   scrollbar-width: none;
   gap: 3px;
 }
@@ -63,51 +63,56 @@ body {
 
 .divider {
   width: 1px;
-  height: 24px;
+  height: 22px;
   background-color: #E0E0E0;
-  margin: 0 3px;
+  margin: 0 2px;
   flex-shrink: 0;
 }
 
 .tool-btn {
-  background: none;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  width: 32px;
-  height: 32px;
-  display: flex;
+  background: #F8F9FA;
+  border: 1px solid #E0E3E7;
+  border-radius: 5px;
+  width: auto;
+  min-width: 28px;
+  height: 28px;
+  padding: 0 6px;
+  gap: 3px;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 13px;
-  color: #444746;
+  font-size: 11px;
+  color: #3C4043;
   cursor: pointer;
   flex-shrink: 0;
-  font-weight: 500;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 .tool-btn:active, .tool-btn.active {
   background-color: #E8F0FE;
   color: #1A73E8;
-  border-color: #D2E3FC;
+  border-color: #AECBFA;
 }
 
 .tool-btn svg {
-  width: 17px;
-  height: 17px;
+  width: 15px;
+  height: 15px;
   fill: currentColor;
+  flex-shrink: 0;
 }
 
 .tool-btn.text-btn {
   width: auto;
-  padding: 0 6px;
-  font-size: 11.5px;
+  padding: 0 7px;
+  font-size: 11px;
   font-weight: 600;
 }
 
 .tab-mini-btn {
   width: auto !important;
   padding: 0 7px !important;
-  font-size: 11.5px !important;
+  font-size: 11px !important;
   font-weight: bold !important;
   background-color: #EEF4FE !important;
   border: 1px solid #D2E3FC !important;
@@ -115,13 +120,13 @@ body {
 }
 
 .view-toggle-btn {
-  width: 32px;
-  height: 32px;
-  padding: 0;
+  width: auto;
+  height: 28px;
+  padding: 0 7px;
   background-color: #EEF4FE;
   color: #1A73E8;
   border: 1px solid #D2E3FC;
-  font-size: 13px;
+  font-size: 11px;
 }
 
 .sign-btn {
@@ -131,37 +136,38 @@ body {
 }
 
 #font-size-label {
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: bold;
   color: #1A73E8;
-  padding: 0 2px;
+  padding: 0 3px;
   min-width: 26px;
   text-align: center;
 }
 
 select {
-  height: 32px;
-  border-radius: 6px;
+  height: 28px;
+  border-radius: 5px;
   border: 1px solid #DADCE0;
   background-color: #F8F9FA;
-  font-size: 12px;
-  font-weight: 500;
+  font-size: 11px;
+  font-weight: 600;
   color: #1F1F1F;
-  padding: 0 4px;
+  padding: 0 5px;
   outline: none;
-  max-width: 85px;
+  max-width: 125px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-#select-template { max-width: 82px; }
-#select-font-family { max-width: 90px; }
-#select-text-case { max-width: 48px; }
-#select-text-color { max-width: 44px; }
-#select-highlight-color { max-width: 44px; }
-#select-paragraph-spacing { max-width: 48px; }
-#select-line-spacing { max-width: 48px; }
-#select-list-style { max-width: 48px; }
+#select-template { max-width: 110px; }
+#select-font-family { max-width: 125px; }
+#select-text-case { max-width: 102px; }
+#select-text-color { max-width: 96px; }
+#select-highlight-color { max-width: 88px; }
+#select-paragraph-spacing { max-width: 102px; }
+#select-line-spacing { max-width: 104px; }
+#select-list-style { max-width: 108px; }
+#select-page-number { max-width: 102px; }
 
 /* Çoklu A4 Sayfa Ayrımı (Havelsan UYAP & Google Dokümanlar Stili) */
 .auto-page-break {
@@ -179,7 +185,7 @@ select {
   padding: 10px var(--page-margin-right, 2.5cm) 18px var(--page-margin-left, 2.5cm);
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.28);
   box-sizing: border-box;
-  min-height: 48px;
+  min-height: 24px;
 }
 
 .page-break-desk-gap {
@@ -213,13 +219,13 @@ select {
 }
 
 .page-break-header-area.has-header {
-  padding-top: 8px !important;
-  padding-bottom: 8px !important;
+  padding-top: 8px;
+  padding-bottom: 8px;
 }
 
 .page-break-header-area.no-header {
-  padding-top: var(--page-margin-top, 2.5cm) !important;
-  padding-bottom: 0 !important;
+  padding-top: var(--page-margin-top, 2.5cm);
+  padding-bottom: 0;
   min-height: 0;
 }
 
@@ -234,8 +240,8 @@ select {
   align-items: center;
   justify-content: center;
   width: 100%;
-  padding-top: 6px;
-  border-top: 1px solid #D5D8DC;
+  padding-top: 2px;
+  border-top: none;
 }
 
 .udf-footer-layout .udf-footer-img,
@@ -293,6 +299,7 @@ select {
   min-width: 0;
   overflow: hidden;
   line-height: 1;
+  text-indent: 0 !important;
   user-select: none;
 }
 
@@ -791,18 +798,18 @@ select {
 
 /* Editör İçeriği & Tipografi */
 #editor-content {
-  flex: 1;
+  flex: 0 0 auto;
   outline: none;
   font-family: "Times New Roman", Times, Georgia, serif;
   font-size: 12pt;
-  line-height: 1.2;
+  line-height: 1.15;
   color: #000000;
-  min-height: 600px;
+  min-height: 0;
 }
 
 #editor-content p {
   margin: 0;
-  line-height: 1.2;
+  line-height: 1.15;
   text-align: justify;
   text-justify: inter-word;
   word-break: break-word;
@@ -824,6 +831,16 @@ select {
   border-radius: 4px;
   margin: 10px 0;
   display: block;
+}
+
+.auto-page-break img,
+.header-footer-box img,
+.udf-header-img,
+.udf-footer-img {
+  border: none !important;
+  border-radius: 0 !important;
+  margin: 0 auto !important;
+  box-shadow: none !important;
 }
 
 /* Resmi İmza & Sertifika Kaşesi */

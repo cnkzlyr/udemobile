@@ -458,7 +458,7 @@ async function parseUdfArrayBuffer(buffer) {
 
   const listCounters = {};
 
-  function parseParagraphToHtml(p) {
+  function parseParagraphToHtml(p, isHeaderOrFooter = false) {
     const al = resolveAttr(p, "Alignment");
     let align = "left";
     if (al === "1") align = "center";
@@ -497,17 +497,25 @@ async function parseUdfArrayBuffer(buffer) {
     }
 
     let dataAttrs = "";
+    const stops = [];
     if (tabSet && tabSet.trim()) {
-      const stops = [];
       tabSet.split(",").forEach(s => {
         const pt = parseFloat(s.trim().split(":")[0]);
         if (!isNaN(pt) && pt > 0.5) {
           stops.push((Math.round((pt / 28.3465) * 100) / 100).toFixed(2));
         }
       });
-      if (stops.length > 0) dataAttrs += ` data-tab-stops="${stops.join(",")}"`;
       dataAttrs += ` data-udf-tabset="${escapeHtmlStr(tabSet)}"`;
     }
+    if (hangPt > 0.5 && Math.abs(totalLeftPt) > 0.1) {
+      const hangCm = Math.round((totalLeftPt / 28.3465) * 100) / 100;
+      const hasHang = stops.some(s => Math.abs(parseFloat(s) - hangCm) < 0.06);
+      if (!hasHang) {
+        stops.push(hangCm.toFixed(2));
+        stops.sort((a, b) => parseFloat(a) - parseFloat(b));
+      }
+    }
+    if (stops.length > 0) dataAttrs += ` data-tab-stops="${stops.join(",")}"`;
     if (lineSpacing) dataAttrs += ` data-udf-linespacing="${escapeHtmlStr(lineSpacing)}"`;
 
     let pHtml = "";
@@ -579,6 +587,9 @@ async function parseUdfArrayBuffer(buffer) {
 
         if (chunk) {
           hasContent = true;
+          if (isHeaderOrFooter && /^[-_]{10,}$/.test(chunk.trim())) {
+            styleStr += " white-space: nowrap; overflow: hidden; text-overflow: clip;";
+          }
           const bold = c.hasAttribute("bold") ? c.getAttribute("bold") === "true" : pBold;
           const italic = c.hasAttribute("italic") ? c.getAttribute("italic") === "true" : pItalic;
           const underline = c.hasAttribute("underline") ? c.getAttribute("underline") === "true" : pUnderline;
@@ -686,7 +697,7 @@ async function parseUdfArrayBuffer(buffer) {
           headerHtml += `<div class="udf-header-layout" style="text-align:center; padding-bottom:4px;"><img class="udf-header-img" data-udf-width="${escapeHtmlStr(wStr)}" data-udf-height="${escapeHtmlStr(hStr)}" src="data:image/png;base64,${hImgData.trim()}" style="max-height:${hCm}cm; width:auto; object-fit:contain;" /></div>`;
         }
       } else if (hTag === "paragraph") {
-        const pStr = parseParagraphToHtml(hc);
+        const pStr = parseParagraphToHtml(hc, true);
         if (!pStr.includes("<br></p>") || !headerHtml) headerHtml += pStr;
       } else if (hTag === "table") {
         headerHtml += parseTableToHtml(hc);
@@ -712,30 +723,49 @@ async function parseUdfArrayBuffer(buffer) {
     if (footerElem.hasAttribute("pageNumber-start")) footerPageStart = footerElem.getAttribute("pageNumber-start");
 
     let hasFooterImg = false;
+    const pageLabelText = `${escapeHtmlStr((footerForeStr || "Sayfa:").trim())} {PAGE_NUM}${escapeHtmlStr((footerSep || "/").trim())}{TOTAL_PAGES}`;
     Array.from(footerElem.children).forEach(fc => {
       const fTag = (fc.tagName || "").toLowerCase();
+      let imgEl = null;
       if (fTag === "image") {
-        const fImgData = fc.getAttribute("imageData");
+        imgEl = fc;
+      } else if (fTag === "paragraph") {
+        const pImg = fc.querySelector("image");
+        if (pImg) {
+          let pTxt = "";
+          fc.querySelectorAll("content, field").forEach(cn => {
+            const s = parseInt(cn.getAttribute("startOffset") || "0", 10);
+            const l = parseInt(cn.getAttribute("length") || "0", 10);
+            if (s >= 0 && l > 0 && s < textLen) pTxt += rawText.substring(s, Math.min(s + l, textLen));
+          });
+          pTxt = pTxt.replace(/[\uFFFC\u00B8\r\n\t\s]+/g, "");
+          if (!pTxt) imgEl = pImg;
+        }
+      }
+      if (imgEl) {
+        const fImgData = imgEl.getAttribute("imageData");
         if (fImgData && fImgData.trim()) {
           hasFooterImg = true;
-          const wStr = fc.getAttribute("width") || "";
-          const hStr = fc.getAttribute("height") || "";
+          const wStr = imgEl.getAttribute("width") || "";
+          const hStr = imgEl.getAttribute("height") || "";
+          const wCm = wStr ? Math.round((parseFloat(wStr) / 28.3465) * 100) / 100 : 0;
           const hCm = hStr ? Math.round((parseFloat(hStr) / 28.3465) * 100) / 100 : 1.76;
+          const dimStyle = `max-height:${hCm}cm;${wCm > 0 ? ` max-width:${wCm}cm;` : " max-width:82%;"} width:auto; object-fit:contain;`;
           if (hasPageNum) {
-            footerHtml += `<div class="udf-footer-layout"><img class="udf-footer-img" data-udf-width="${escapeHtmlStr(wStr)}" data-udf-height="${escapeHtmlStr(hStr)}" src="data:image/png;base64,${fImgData.trim()}" style="max-height:${hCm}cm; width:auto;" /><span class="udf-footer-page-label">${escapeHtmlStr(footerForeStr)} {PAGE_NUM} ${escapeHtmlStr(footerSep)} {TOTAL_PAGES}</span></div>`;
+            footerHtml += `<div class="udf-footer-layout"><img class="udf-footer-img" data-udf-width="${escapeHtmlStr(wStr)}" data-udf-height="${escapeHtmlStr(hStr)}" src="data:image/png;base64,${fImgData.trim()}" style="${dimStyle}" /><span class="udf-footer-page-label">${pageLabelText}</span></div>`;
           } else {
-            footerHtml += `<div class="udf-footer-layout full-banner" style="justify-content:center; border-top:none;"><img class="udf-footer-img" data-udf-width="${escapeHtmlStr(wStr)}" data-udf-height="${escapeHtmlStr(hStr)}" src="data:image/png;base64,${fImgData.trim()}" style="max-height:${hCm}cm; max-width:100%; width:auto; object-fit:contain;" /></div>`;
+            footerHtml += `<div class="udf-footer-layout full-banner" style="justify-content:center; border-top:none;"><img class="udf-footer-img" data-udf-width="${escapeHtmlStr(wStr)}" data-udf-height="${escapeHtmlStr(hStr)}" src="data:image/png;base64,${fImgData.trim()}" style="${dimStyle}" /></div>`;
           }
         }
       } else if (fTag === "paragraph") {
-        const pStr = parseParagraphToHtml(fc);
+        const pStr = parseParagraphToHtml(fc, true);
         if (!pStr.includes("<br></p>")) footerHtml += pStr;
       } else if (fTag === "table") {
         footerHtml += parseTableToHtml(fc);
       }
     });
     if (!hasFooterImg && hasPageNum) {
-      footerHtml += `<div class="udf-footer-layout" style="display:flex; justify-content:flex-end; width:100%;"><span class="udf-footer-page-label">${escapeHtmlStr(footerForeStr)} {PAGE_NUM} ${escapeHtmlStr(footerSep)} {TOTAL_PAGES}</span></div>`;
+      footerHtml += `<div class="udf-footer-layout" style="display:flex; justify-content:flex-end; width:100%;"><span class="udf-footer-page-label">${pageLabelText}</span></div>`;
     }
   }
 

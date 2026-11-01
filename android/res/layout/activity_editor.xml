@@ -103,13 +103,14 @@
         <Button
             android:id="@+id/btnDesktopUyap"
             android:layout_width="wrap_content"
-            android:layout_height="34dp"
-            android:text="🖥️"
+            android:layout_height="32dp"
+            android:text="🖥️ UYAP"
             android:textColor="#FFFFFF"
-            android:textSize="12sp"
+            android:textSize="11sp"
+            android:textStyle="bold"
             android:background="@drawable/badge_bg"
-            android:paddingStart="6dp"
-            android:paddingEnd="6dp" />
+            android:paddingStart="7dp"
+            android:paddingEnd="7dp" />
 
     </LinearLayout>
 

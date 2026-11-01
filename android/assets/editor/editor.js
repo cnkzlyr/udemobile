@@ -191,7 +191,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Araç çubuğu butonlarının editördeki metin seçimini kaybetmesini engelle:
-  const toolbar = document.querySelector('.toolbar');
+  const toolbar = document.getElementById('toolbar-container') || document.querySelector('.toolbar');
   if (toolbar) {
     toolbar.addEventListener('mousedown', (e) => {
       recordCurrentSelection();
@@ -227,13 +227,13 @@ function toggleViewMode() {
   if (isMobileView) {
     wrapper.classList.remove('paper-view');
     wrapper.classList.add('mobile-view');
-    if (btn) btn.textContent = '📄';
+    if (btn) btn.innerHTML = '📄 <span>Kağıt</span>';
     const oldBreaks = document.querySelectorAll('.auto-page-break');
     oldBreaks.forEach(b => b.remove());
   } else {
     wrapper.classList.remove('mobile-view');
     wrapper.classList.add('paper-view');
-    if (btn) btn.textContent = '📱';
+    if (btn) btn.innerHTML = '📱 <span>Görünüm</span>';
     applyAutoFitZoom();
     setTimeout(updatePagination, 100);
   }
@@ -434,38 +434,180 @@ function applyPageNumberChoice(choice) {
   showEditorToast('Sayfa numarası konumu güncellendi');
 }
 
+function isEmptyFillerParagraph(el) {
+  if (!el || !el.tagName) return false;
+  const tag = el.tagName.toLowerCase();
+  if (tag !== 'p' && tag !== 'div') return false;
+  if (el.classList && (el.classList.contains('auto-page-break') || el.classList.contains('page-break') || el.classList.contains('official-signature-seal'))) return false;
+  if (el.querySelector && el.querySelector('img, table, svg, hr, input')) return false;
+  const txt = (el.innerText || el.textContent || '').replace(/[\u200B\u00A0\r\n\t\s]+/g, '');
+  return txt.length === 0;
+}
+
+function getOffsetTopInSheet(el, sheet) {
+  let y = 0;
+  let cur = el;
+  while (cur && cur !== sheet && cur !== document.body) {
+    y += cur.offsetTop || 0;
+    cur = cur.offsetParent;
+  }
+  return y;
+}
+
 function updatePagination() {
   try { realignAllTabs(); } catch (e) {}
   if (isMobileView) return;
   const editor = document.getElementById('editor-content');
   if (!editor) return;
 
-  // Önceki otomatik sayfa bölücüleri temizle
+  // Önceki otomatik sayfa bölücüleri ve sönümlenen boş satır stillerini temizle
   const oldBreaks = editor.querySelectorAll('.auto-page-break');
   oldBreaks.forEach(b => b.remove());
+  editor.querySelectorAll('[data-page-filler-collapsed]').forEach(el => {
+    el.style.height = '';
+    el.style.minHeight = '';
+    el.style.marginTop = el.getAttribute('data-orig-mt') || '';
+    el.style.marginBottom = el.getAttribute('data-orig-mb') || '';
+    el.style.overflow = '';
+    el.removeAttribute('data-page-filler-collapsed');
+    el.removeAttribute('data-orig-mt');
+    el.removeAttribute('data-orig-mb');
+  });
 
-  // A4 Sayfa kullanılabilir yükseklik hesabı:
-  const topCm = currentMargins.top || 1.5;
-  const bottomCm = currentMargins.bottom || 0.5;
+  const sheet = document.getElementById('a4-sheet');
+  const docHeader = document.getElementById('doc-header');
+  const footerEl = document.getElementById('doc-footer');
+
+  // Resimler henüz yüklenmediyse yüklendiğinde sayfa yapısını yeniden hesapla
+  if (sheet) {
+    sheet.querySelectorAll('img').forEach(img => {
+      if (!img.complete && !img._paginationBound) {
+        img._paginationBound = true;
+        img.addEventListener('load', () => { debouncedPagination(); }, { once: true });
+      }
+    });
+  }
+
+  // Havelsan UYAP (tr.com.havelsan.uyap.system.swing.wp.b.ar) birebir A4 sayfa geometrisi:
+  const PPC = 37.795275; // 1 cm = 37.795275 px (96 DPI)
   const isLandscape = currentMargins.orientation === 'landscape';
   const pageHeight = isLandscape ? 794 : 1123;
-  const marginPx = (topCm + bottomCm) * 37.8; // cm to px
-  const printableHeight = Math.max(450, pageHeight - marginPx);
+  const topMarginPx = (!isNaN(parseFloat(currentMargins.top)) ? parseFloat(currentMargins.top) : 2.5) * PPC;
+  const bottomMarginPx = (!isNaN(parseFloat(currentMargins.bottom)) ? parseFloat(currentMargins.bottom) : 2.5) * PPC;
+  const headerOffsetPx = (!isNaN(parseFloat(currentMargins.header)) ? parseFloat(currentMargins.header) : 0.7) * PPC;
+  const footerOffsetPx = (!isNaN(parseFloat(currentMargins.footer)) ? parseFloat(currentMargins.footer) : 0.7) * PPC;
+
+  if (footerEl) {
+    footerEl.style.marginTop = '0px';
+    footerEl.style.paddingTop = '0px';
+    footerEl.style.paddingBottom = '0px';
+    footerEl.innerHTML = getDocFooterHtml(1, 1);
+    footerEl.style.display = 'block';
+    footerEl.style.border = 'none';
+  }
+
+  const headerRawText = docHeader ? (docHeader.innerText || '').replace(/[\r\n\t\s]+/g, ' ').trim() : '';
+  const headerHasImg = docHeader ? !!docHeader.querySelector('img, table, svg') : false;
+  const hasHeaderOnPage1 = !!(docHeader && (headerRawText.length > 0 || headerHasImg) && docHeader.style.display !== 'none');
+  if (docHeader) {
+    docHeader.style.paddingTop = '0px';
+    docHeader.style.paddingBottom = '0px';
+    docHeader.style.marginTop = '0px';
+  }
+
+  const headerHeightPx = hasHeaderOnPage1 ? (docHeader.offsetHeight || 0) : 0;
+  const footerHeightPx = footerEl ? (footerEl.offsetHeight || 24) : 24;
+
+  // Havelsan UYAP ar.s() ve ar.u() formülü:
+  const topInsetPx = hasHeaderOnPage1 ? Math.max(topMarginPx, headerOffsetPx + headerHeightPx) : topMarginPx;
+  const bottomInsetPx = Math.max(bottomMarginPx, footerOffsetPx + footerHeightPx);
+  const printableHeight = Math.max(450, pageHeight - topInsetPx - bottomInsetPx);
+
+  if (sheet) {
+    sheet.style.paddingTop = Math.round(hasHeaderOnPage1 ? headerOffsetPx : topMarginPx) + 'px';
+    sheet.style.paddingBottom = Math.round(footerOffsetPx) + 'px';
+  }
+  if (docHeader) {
+    docHeader.style.marginBottom = hasHeaderOnPage1
+      ? Math.max(0, Math.round(topInsetPx - headerOffsetPx - headerHeightPx)) + 'px'
+      : '0px';
+  }
 
   // 1. Geçiş: Toplam sayfa sayısını ve bölünecek çocuk indekslerini hesapla
   let currentAccumHeight = 0;
+  let prevMb = 0;
+  let consecutiveEmptyCount = 0;
   const children = Array.from(editor.children);
   const breakIndices = [];
+  const pageUsedHeights = [];
 
   for (let i = 0; i < children.length; i++) {
     const child = children[i];
-    if (child.classList && (child.classList.contains('auto-page-break') || child.classList.contains('page-break'))) continue;
-    const h = child.offsetHeight || 28;
-    if (currentAccumHeight + h >= printableHeight && currentAccumHeight > 0) {
-      breakIndices.push(i);
-      currentAccumHeight = h;
+    if (!child || !child.tagName) continue;
+    if (child.classList && child.classList.contains('auto-page-break')) continue;
+    if (child.classList && child.classList.contains('page-break')) {
+      if (i + 1 < children.length) {
+        breakIndices.push(i + 1);
+        pageUsedHeights.push(Math.min(printableHeight, currentAccumHeight));
+        currentAccumHeight = 0;
+        prevMb = 0;
+        consecutiveEmptyCount = 0;
+      }
+      continue;
+    }
+
+    const cs = window.getComputedStyle(child);
+    const mt = parseFloat(cs.marginTop) || 0;
+    const mb = parseFloat(cs.marginBottom) || 0;
+    const gap = (currentAccumHeight === 0) ? mt : Math.max(prevMb, mt);
+    const rawH = child.offsetHeight || 18.4;
+    const h = rawH + gap;
+    const isEmpty = isEmptyFillerParagraph(child);
+
+    // Sayfanın alt kısmında 3 veya daha fazla ardışık boş satır (Enter) bırakılarak
+    // bir sonraki sayfaya itilmiş başlık/paragraf kontrolü (Örn: SONUÇ VE TALEP:):
+    const pushedByBlankRun = (!isEmpty && consecutiveEmptyCount >= 3 && currentAccumHeight >= printableHeight * 0.65);
+
+    if ((currentAccumHeight + h > printableHeight || pushedByBlankRun) && currentAccumHeight > 0) {
+      if (isEmpty) {
+        // Sayfa sonunu aşan boş dolgu paragraflarının yeni sayfanın başına taşmasını engelle
+        const collapseEl = (el) => {
+          el.setAttribute('data-page-filler-collapsed', '1');
+          el.setAttribute('data-orig-mt', el.style.marginTop || '');
+          el.setAttribute('data-orig-mb', el.style.marginBottom || '');
+          el.style.height = '0px';
+          el.style.minHeight = '0px';
+          el.style.marginTop = '0px';
+          el.style.marginBottom = '0px';
+          el.style.overflow = 'hidden';
+        };
+        collapseEl(child);
+        while (i + 1 < children.length && isEmptyFillerParagraph(children[i + 1])) {
+          i++;
+          collapseEl(children[i]);
+        }
+        if (i + 1 < children.length) {
+          breakIndices.push(i + 1);
+          pageUsedHeights.push(Math.min(printableHeight, currentAccumHeight));
+        }
+        currentAccumHeight = 0;
+        prevMb = 0;
+        consecutiveEmptyCount = 0;
+      } else {
+        breakIndices.push(i);
+        pageUsedHeights.push(Math.min(printableHeight, currentAccumHeight));
+        currentAccumHeight = rawH + mt;
+        prevMb = mb;
+        consecutiveEmptyCount = 0;
+      }
     } else {
       currentAccumHeight += h;
+      prevMb = mb;
+      if (isEmpty) {
+        consecutiveEmptyCount++;
+      } else {
+        consecutiveEmptyCount = 0;
+      }
     }
   }
 
@@ -481,9 +623,13 @@ function updatePagination() {
     pageBreak.className = 'auto-page-break';
     pageBreak.setAttribute('contenteditable', 'false');
 
-    // Biten sayfanın altbilgisi (UYAP logolu, doğrulamalı veya numaralı)
+    // Biten sayfanın altbilgisi (Her sayfanın tam A4 = 1123px yüksekliğinde olması için kalan boşlukla doldurulur)
     const footerArea = document.createElement('div');
     footerArea.className = 'page-break-footer-area';
+    const usedH = pageUsedHeights[b] || 0;
+    const remSpace = Math.max(4, Math.round((printableHeight - usedH) + Math.max(0, bottomInsetPx - footerOffsetPx - footerHeightPx)));
+    footerArea.style.paddingTop = remSpace + 'px';
+    footerArea.style.paddingBottom = Math.round(footerOffsetPx) + 'px';
     footerArea.innerHTML = getDocFooterHtml(pageIndex, totalPages);
     pageBreak.appendChild(footerArea);
 
@@ -497,36 +643,69 @@ function updatePagination() {
     // Yeni sayfanın üst kenar boşluğu (startPage destekli üstbilgi)
     const headerArea = document.createElement('div');
     headerArea.className = 'page-break-header-area';
-    const docHeader = document.getElementById('doc-header');
-    const headerRawText = docHeader ? (docHeader.innerText || '').replace(/[\r\n\t\s]+/g, ' ').trim() : '';
-    const hasHeader = docHeader && headerRawText.length > 0 && docHeader.style.display !== 'none';
     const shouldShowHeader = currentDocHeaderTemplate
       ? (pageIndex >= currentDocHeaderStartPage)
-      : (hasHeader);
+      : (hasHeaderOnPage1);
 
     if (shouldShowHeader) {
       headerArea.classList.add('has-header');
+      headerArea.style.paddingTop = Math.round(headerOffsetPx) + 'px';
+      headerArea.style.paddingBottom = Math.max(0, Math.round(topInsetPx - headerOffsetPx - headerHeightPx)) + 'px';
       const hClone = document.createElement('div');
       hClone.className = 'header-footer-box udf-running-header';
       hClone.style.borderBottom = 'none';
       hClone.style.padding = '0';
       hClone.style.margin = '0';
-      hClone.innerHTML = currentDocHeaderTemplate ? currentDocHeaderTemplate : docHeader.innerHTML.trim();
+      hClone.innerHTML = currentDocHeaderTemplate ? currentDocHeaderTemplate : (docHeader ? docHeader.innerHTML.trim() : '');
       headerArea.appendChild(hClone);
     } else {
       headerArea.classList.add('no-header');
+      headerArea.style.paddingTop = Math.round(topMarginPx) + 'px';
+      headerArea.style.paddingBottom = '0px';
     }
     pageBreak.appendChild(headerArea);
 
     editor.insertBefore(pageBreak, child);
   }
 
-  // Son sayfanın altbilgisini güncelle
-  const footerEl = document.getElementById('doc-footer');
+  // Son sayfanın altbilgisini güncelle ve son sayfayı da tam A4 yüksekliğine doldur
   if (footerEl) {
     footerEl.innerHTML = getDocFooterHtml(totalPages, totalPages);
     footerEl.style.display = 'block';
     footerEl.style.border = 'none';
+    const lastRemSpace = Math.max(8, Math.round((printableHeight - Math.min(printableHeight, currentAccumHeight)) + Math.max(0, bottomInsetPx - footerOffsetPx - footerHeightPx)));
+    footerEl.style.marginTop = lastRemSpace + 'px';
+  }
+
+  // 3. Geçiş: Tüm sayfaları (1..N) piksel hassasiyetinde tam A4 boyuna (1123px / 794px) kilitle
+  if (sheet) {
+    const allBreaks = Array.from(editor.querySelectorAll('.auto-page-break'));
+    for (let b = 0; b < allBreaks.length; b++) {
+      const pb = allBreaks[b];
+      const fArea = pb.querySelector('.page-break-footer-area');
+      const gapEl = pb.querySelector('.page-break-desk-gap');
+      if (!fArea || !gapEl) continue;
+      const prevGap = (b > 0) ? allBreaks[b - 1].querySelector('.page-break-desk-gap') : null;
+      const pageStartY = prevGap ? (getOffsetTopInSheet(prevGap, sheet) + (prevGap.offsetHeight || 28)) : 0;
+      const pageEndY = getOffsetTopInSheet(gapEl, sheet);
+      const actualPageH = pageEndY - pageStartY;
+      const diff = pageHeight - actualPageH;
+      if (Math.abs(diff) > 1) {
+        const curPadTop = parseFloat(fArea.style.paddingTop) || 0;
+        fArea.style.paddingTop = Math.max(4, Math.round(curPadTop + diff)) + 'px';
+      }
+    }
+    if (footerEl) {
+      const lastGap = (allBreaks.length > 0) ? allBreaks[allBreaks.length - 1].querySelector('.page-break-desk-gap') : null;
+      const lastStartY = lastGap ? (getOffsetTopInSheet(lastGap, sheet) + (lastGap.offsetHeight || 28)) : 0;
+      const sheetBottomY = getOffsetTopInSheet(footerEl, sheet) + footerEl.offsetHeight + Math.round(footerOffsetPx);
+      const actualLastPageH = sheetBottomY - lastStartY;
+      const lastDiff = pageHeight - actualLastPageH;
+      if (Math.abs(lastDiff) > 1) {
+        const curMt = parseFloat(footerEl.style.marginTop) || 0;
+        footerEl.style.marginTop = Math.max(8, Math.round(curMt + lastDiff)) + 'px';
+      }
+    }
   }
 
   // Durum çubuğunda sayfa sayısını göster
@@ -699,12 +878,12 @@ function changeLineSpacing(val) {
 
 // --- SAYFA YAPISI VE KENAR BOŞLUKLARI MOTORU ---
 function applyPageSetup(left, right, top, bottom, orientation, header, footer) {
-  if (left !== undefined && left !== null) currentMargins.left = parseFloat(left) || 2.5;
-  if (right !== undefined && right !== null) currentMargins.right = parseFloat(right) || 2.5;
-  if (top !== undefined && top !== null) currentMargins.top = parseFloat(top) || 2.5;
-  if (bottom !== undefined && bottom !== null) currentMargins.bottom = parseFloat(bottom) || 2.5;
-  if (header !== undefined && header !== null) currentMargins.header = parseFloat(header) || 1.25;
-  if (footer !== undefined && footer !== null) currentMargins.footer = parseFloat(footer) || 1.25;
+  if (left !== undefined && left !== null && !isNaN(parseFloat(left))) currentMargins.left = parseFloat(left);
+  if (right !== undefined && right !== null && !isNaN(parseFloat(right))) currentMargins.right = parseFloat(right);
+  if (top !== undefined && top !== null && !isNaN(parseFloat(top))) currentMargins.top = parseFloat(top);
+  if (bottom !== undefined && bottom !== null && !isNaN(parseFloat(bottom))) currentMargins.bottom = parseFloat(bottom);
+  if (header !== undefined && header !== null && !isNaN(parseFloat(header))) currentMargins.header = parseFloat(header);
+  if (footer !== undefined && footer !== null && !isNaN(parseFloat(footer))) currentMargins.footer = parseFloat(footer);
   if (orientation) currentMargins.orientation = orientation;
 
   const root = document.documentElement;
@@ -3338,8 +3517,10 @@ function extractParagraphNode(node) {
   }
 
   const pText = runs.map(r => r.type === 'image' ? '\u00b8' : (r.text || '')).join('');
-  const spaceAbove = node.style && node.style.marginTop ? (parseFloat(node.style.marginTop) || 0.0) : 0.0;
-  const spaceBelow = node.style && node.style.marginBottom ? (parseFloat(node.style.marginBottom) || 0.0) : 0.0;
+  const rawMt = (node.getAttribute && node.getAttribute('data-orig-mt')) || (node.style && node.style.marginTop) || '';
+  const rawMb = (node.getAttribute && node.getAttribute('data-orig-mb')) || (node.style && node.style.marginBottom) || '';
+  const spaceAbove = rawMt ? (parseFloat(rawMt) || 0.0) : 0.0;
+  const spaceBelow = rawMb ? (parseFloat(rawMb) || 0.0) : 0.0;
   let lineSpacing = 0.0;
   if (node.dataset && node.dataset.udfLinespacing !== undefined && node.dataset.udfLinespacing !== '') {
     lineSpacing = parseFloat(node.dataset.udfLinespacing) || 0.0;
