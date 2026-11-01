@@ -3215,24 +3215,29 @@ function setHtmlContent(content) {
           footerEl.innerText = data.footer;
           currentDocFooterTemplate = '';
         }
+        window.currentDocFooterPageSpec = data.footerPageSpec || '';
+        window.currentDocFooterForeStr = data.footerForeStr || 'Sayfa:';
+        window.currentDocFooterSep = data.footerSep || '/';
+        window.currentDocFooterPageStart = data.footerPageStart || '1';
         if (data.verificationCode) {
           currentDocVerificationCode = data.verificationCode;
         } else {
           currentDocVerificationCode = '';
         }
         if (data.leftMarginCm !== undefined) {
-          applyPageSetup(data.leftMarginCm, data.rightMarginCm, data.topMarginCm, data.bottomMarginCm, data.paperOrientation === '2' ? 'landscape' : 'portrait', data.headerMarginCm, data.footerMarginCm);
+          applyPageSetup(data.leftMarginCm, data.rightMarginCm, data.topMarginCm, data.bottomMarginCm, data.paperOrientation === '2' || data.paperOrientation === 'landscape' ? 'landscape' : 'portrait', data.headerMarginCm, data.footerMarginCm);
         }
         if (data.html) {
           editor.innerHTML = data.html;
           updateCounts();
           setTimeout(() => {
             applyAutoFitZoom();
+            if (typeof realignAllTabs === 'function') realignAllTabs();
             updateRulerFromActiveParagraph();
             updatePagination();
           }, 200);
           setTimeout(markDocumentPristine, 400);
-  setTimeout(() => { if (window.CanHistory) CanHistory.reset(); }, 450);
+          setTimeout(() => { if (window.CanHistory) CanHistory.reset(); }, 450);
           return;
         }
       }
@@ -3302,61 +3307,231 @@ function getPlainText() {
   return parts.join('\n\n');
 }
 
-// Belgeyi Java UDF & DOCX Üreticileri için Üstbilgi, Altbilgi ve Paragraflar Olarak Çıkar
+// Belgeyi Java/Web UDF & DOCX Üreticileri için Üstbilgi, Altbilgi, Tablo, Görsel ve Paragraflar Olarak Çıkar
+function extractParagraphNode(node) {
+  let align = 3;
+  const textAlign = node.style ? node.style.textAlign : '';
+  if (textAlign === 'center') align = 1;
+  else if (textAlign === 'right') align = 2;
+  else if (textAlign === 'left') align = 0;
+  else align = 3;
+
+  const runs = [];
+  const skipListPrefix = !!(node.dataset && (node.dataset.udfNumbered === 'true' || node.dataset.udfBulleted === 'true'));
+  parseInlineRuns(node, runs, {
+    bold: false,
+    italic: false,
+    underline: false,
+    subscript: false,
+    superscript: false,
+    strikethrough: false,
+    fontFamily: '',
+    fontSize: 0,
+    color: '',
+    backgroundColor: '',
+    skipListPrefix: skipListPrefix
+  });
+
+  // Paragrafın en sonundaki tekil boş <br> kaynaklı '\n' karakterini temizle
+  if (runs.length === 1 && runs[0].type !== 'image' && runs[0].text === '\n') {
+    runs.length = 0;
+  }
+
+  const pText = runs.map(r => r.type === 'image' ? '\u00b8' : (r.text || '')).join('');
+  const spaceAbove = node.style && node.style.marginTop ? (parseFloat(node.style.marginTop) || 0.0) : 0.0;
+  const spaceBelow = node.style && node.style.marginBottom ? (parseFloat(node.style.marginBottom) || 0.0) : 0.0;
+  let lineSpacing = 0.0;
+  if (node.dataset && node.dataset.udfLinespacing !== undefined && node.dataset.udfLinespacing !== '') {
+    lineSpacing = parseFloat(node.dataset.udfLinespacing) || 0.0;
+  } else if (node.style && node.style.lineHeight) {
+    const lh = parseFloat(node.style.lineHeight) || 0.0;
+    if (lh > 1.2) lineSpacing = Math.max(0, Math.round((lh - 1.15) * 100) / 100);
+  }
+  const firstLineIndent = parseToCm(node.style ? node.style.textIndent : '');
+  const leftIndent = parseToCm(node.style ? (node.style.marginLeft || node.style.paddingLeft) : '');
+  const rightIndent = parseToCm(node.style ? node.style.marginRight : '');
+
+  const pObj = {
+    type: 'paragraph',
+    text: pText,
+    align: align,
+    spaceAbove: spaceAbove,
+    spaceBelow: spaceBelow,
+    lineSpacing: lineSpacing,
+    firstLineIndent: firstLineIndent,
+    leftIndent: leftIndent,
+    rightIndent: rightIndent,
+    tabStops: (node.dataset && node.dataset.tabStops) ? node.dataset.tabStops : '',
+    udfTabSet: (node.dataset && node.dataset.udfTabset) ? node.dataset.udfTabset : '',
+    runs: runs
+  };
+  if (node.dataset && node.dataset.udfNumbered === 'true') {
+    pObj.numbered = true;
+    if (node.dataset.udfNumberType) pObj.numberType = node.dataset.udfNumberType;
+    if (node.dataset.udfListId) pObj.listId = node.dataset.udfListId;
+    if (node.dataset.udfListLevel) pObj.listLevel = node.dataset.udfListLevel;
+  } else if (node.dataset && node.dataset.udfBulleted === 'true') {
+    pObj.bulleted = true;
+  }
+  return pObj;
+}
+
+function extractTableNode(tableNode) {
+  let border = (tableNode.dataset && tableNode.dataset.udfBorder) ? tableNode.dataset.udfBorder : '';
+  if (!border) {
+    const bStyle = tableNode.style ? tableNode.style.border : '';
+    border = (bStyle && bStyle.includes('none')) ? 'borderNone' : 'borderCell';
+  }
+  const colSpans = (tableNode.dataset && tableNode.dataset.udfColSpans) ? tableNode.dataset.udfColSpans : '';
+  const rows = [];
+
+  const trElements = [];
+  for (let child of tableNode.children) {
+    const t = child.tagName ? child.tagName.toLowerCase() : '';
+    if (t === 'tr') {
+      trElements.push(child);
+    } else if (t === 'tbody' || t === 'thead' || t === 'tfoot') {
+      for (let sub of child.children) {
+        if (sub.tagName && sub.tagName.toLowerCase() === 'tr') trElements.push(sub);
+      }
+    }
+  }
+
+  for (let tr of trElements) {
+    const cells = [];
+    for (let td of tr.children) {
+      const cTag = td.tagName ? td.tagName.toLowerCase() : '';
+      if (cTag !== 'td' && cTag !== 'th') continue;
+      const cellParagraphs = [];
+      let hasBlockChildren = false;
+      for (let cc of td.children) {
+        const ccTag = cc.tagName ? cc.tagName.toLowerCase() : '';
+        if (ccTag === 'p' || ccTag === 'div') {
+          cellParagraphs.push(extractParagraphNode(cc));
+          hasBlockChildren = true;
+        } else if (ccTag === 'table') {
+          cellParagraphs.push(extractTableNode(cc));
+          hasBlockChildren = true;
+        }
+      }
+      if (!hasBlockChildren) {
+        cellParagraphs.push(extractParagraphNode(td));
+      }
+      cells.push({
+        colSpan: parseInt(td.getAttribute('colspan') || '1', 10) || 1,
+        rowSpan: parseInt(td.getAttribute('rowspan') || '1', 10) || 1,
+        paragraphs: cellParagraphs
+      });
+    }
+    if (cells.length > 0) {
+      rows.push({ cells: cells });
+    }
+  }
+
+  return {
+    type: 'table',
+    border: border,
+    colSpans: colSpans,
+    rows: rows
+  };
+}
+
+function extractHeaderFooterBlocks(htmlStr) {
+  if (!htmlStr || !htmlStr.trim()) return [];
+  const temp = document.createElement('div');
+  temp.innerHTML = htmlStr;
+  if (temp.querySelector('.udf-official-footer')) return [];
+  const blocks = [];
+  for (let child of temp.children) {
+    const tag = child.tagName ? child.tagName.toLowerCase() : '';
+    if (child.classList && (child.classList.contains('udf-header-layout') || child.classList.contains('udf-footer-layout'))) {
+      const img = child.querySelector('img');
+      if (img && img.src && img.src.includes('base64,')) {
+        const b64 = img.src.split('base64,')[1].trim();
+        const wPt = parseFloat(img.dataset.udfWidth) || 118.0;
+        const hPt = parseFloat(img.dataset.udfHeight) || 50.0;
+        blocks.push({ type: 'image', imageData: b64, widthPt: wPt, heightPt: hPt });
+      }
+    } else if (tag === 'p') {
+      blocks.push(extractParagraphNode(child));
+    } else if (tag === 'table') {
+      blocks.push(extractTableNode(child));
+    } else if (child.classList && child.classList.contains('udf-header-bar')) {
+      const txt = (child.innerText || '').trim();
+      if (txt) {
+        blocks.push({
+          type: 'paragraph',
+          text: txt,
+          align: 1,
+          spaceAbove: 0,
+          spaceBelow: 0,
+          lineSpacing: 0,
+          firstLineIndent: 0,
+          leftIndent: 0,
+          rightIndent: 0,
+          runs: [{ text: txt, bold: true, italic: false, underline: false }]
+        });
+      }
+    }
+  }
+  return blocks;
+}
+
 function getStructuredDocument() {
   const container = document.getElementById('editor-content');
   const paragraphs = [];
-  
+
   const nodes = container.children;
   if (!nodes || nodes.length === 0) {
+    const rawTxt = (container.innerText || '').replace(/\u200B/g, '');
     paragraphs.push({
-      text: container.innerText || '',
+      type: 'paragraph',
+      text: rawTxt,
       align: 3,
-      spaceAbove: 1.0,
-      spaceBelow: 1.0,
+      spaceAbove: 0.0,
+      spaceBelow: 0.0,
       lineSpacing: 0.0,
       firstLineIndent: 0.0,
       leftIndent: 0.0,
       rightIndent: 0.0,
-      runs: [{ text: container.innerText || '', bold: false, italic: false, underline: false }]
+      runs: rawTxt ? [{ text: rawTxt, bold: false, italic: false, underline: false }] : []
     });
   } else {
     for (let node of nodes) {
       if (node.classList && (node.classList.contains('auto-page-break') || node.classList.contains('page-break') || node.classList.contains('page-break-desk-gap') || node.classList.contains('page-break-header-area') || node.classList.contains('page-break-footer-area'))) {
         continue;
       }
-      if (node.tagName && node.tagName.toLowerCase() === 'table') {
-        const rows = node.querySelectorAll('tr');
-        for (let row of rows) {
-          const cells = row.querySelectorAll('th, td');
-          let rowText = '';
-          for (let cell of cells) {
-            rowText += (cell.innerText || '').trim() + '\t';
-          }
-          paragraphs.push({
-            text: rowText.trim(),
-            align: 0,
-            spaceAbove: 1.0,
-            spaceBelow: 1.0,
-            lineSpacing: 0.0,
-            firstLineIndent: 0.0,
-            leftIndent: 0.0,
-            rightIndent: 0.0,
-            runs: [{ text: rowText.trim(), bold: row.querySelector('th') !== null, italic: false, underline: false }]
-          });
-        }
+      if (node.classList && node.classList.contains('udf-page-break')) {
+        paragraphs.push({ type: 'pageBreak' });
+        continue;
+      }
+      const tag = node.tagName ? node.tagName.toLowerCase() : '';
+      if (tag === 'table') {
+        paragraphs.push(extractTableNode(node));
+        continue;
+      }
+      if (tag === 'ol' || tag === 'ul') {
+        const isOrdered = tag === 'ol';
+        const items = node.querySelectorAll('li');
+        items.forEach(li => {
+          const pObj = extractParagraphNode(li);
+          if (isOrdered) pObj.numbered = true;
+          else pObj.bulleted = true;
+          paragraphs.push(pObj);
+        });
         continue;
       }
 
       if (node.classList && (node.classList.contains('official-signature-seal') || node.classList.contains('seal-wrapper-block') || node.querySelector('.official-signature-seal'))) {
-        const sealText = (node.innerText || '').trim();
+        const sealText = (node.innerText || '').replace(/\u200B/g, '').trim();
         if (sealText) {
           paragraphs.push({
+            type: 'paragraph',
             text: sealText,
-            align: 2, // Sağa yaslı resmi imza bloğu
+            align: 2,
             spaceAbove: 8.0,
             spaceBelow: 4.0,
-            lineSpacing: 1.15,
+            lineSpacing: 0.0,
             firstLineIndent: 0.0,
             leftIndent: 0.0,
             rightIndent: 0.0,
@@ -3366,52 +3541,41 @@ function getStructuredDocument() {
         continue;
       }
 
-      let align = 3;
-      const textAlign = node.style ? node.style.textAlign : '';
-      if (textAlign === 'center') align = 1;
-      else if (textAlign === 'right') align = 2;
-      else if (textAlign === 'left') align = 0;
-      else align = 3;
-
-      const pText = node.innerText || '';
-      const runs = [];
-      parseInlineRuns(node, runs, false, false, false);
-
-      const spaceAbove = node.style && node.style.marginTop ? (parseFloat(node.style.marginTop) || 1.0) : 1.0;
-      const spaceBelow = node.style && node.style.marginBottom ? (parseFloat(node.style.marginBottom) || 1.0) : 1.0;
-      const lineSpacing = node.style && node.style.lineHeight ? (parseFloat(node.style.lineHeight) || 0.0) : 0.0;
-      const firstLineIndent = parseToCm(node.style ? node.style.textIndent : '');
-      const leftIndent = parseToCm(node.style ? node.style.marginLeft : '');
-      const rightIndent = parseToCm(node.style ? node.style.marginRight : '');
-
-      paragraphs.push({
-        text: pText,
-        align: align,
-        spaceAbove: spaceAbove,
-        spaceBelow: spaceBelow,
-        lineSpacing: lineSpacing,
-        firstLineIndent: firstLineIndent,
-        leftIndent: leftIndent,
-        rightIndent: rightIndent,
-        tabStops: (node.dataset && node.dataset.tabStops) ? node.dataset.tabStops : '',
-        runs: runs.length > 0 ? runs : [{ text: pText, bold: false, italic: false, underline: false }]
-      });
+      paragraphs.push(extractParagraphNode(node));
     }
   }
 
   const headerEl = document.getElementById('doc-header');
   const footerEl = document.getElementById('doc-footer');
   const hasSeal = container.querySelectorAll('.official-signature-seal').length > 0;
+  const headerSourceHtml = currentDocHeaderTemplate || (headerEl ? headerEl.innerHTML : '');
+  const footerSourceHtml = currentDocFooterTemplate || (footerEl ? footerEl.innerHTML : '');
+  const headerParagraphs = extractHeaderFooterBlocks(headerSourceHtml);
+  const footerParagraphs = extractHeaderFooterBlocks(footerSourceHtml);
+
+  let footerCleanText = '';
+  if (footerEl && !footerEl.querySelector('.udf-official-footer') && !footerEl.querySelector('.udf-footer-page-label')) {
+    footerCleanText = (footerEl.innerText || '').replace(/\u200B/g, '').trim();
+  }
 
   const docPayload = {
-    header: headerEl ? (headerEl.innerText || '').trim() : '',
-    footer: footerEl ? (footerEl.innerText || '').trim() : '',
+    header: headerEl ? (headerEl.innerText || '').replace(/\u200B/g, '').trim() : '',
+    headerStartPage: currentDocHeaderStartPage || 1,
+    headerParagraphs: headerParagraphs,
+    footer: footerCleanText,
+    footerPageSpec: window.currentDocFooterPageSpec || '',
+    footerForeStr: window.currentDocFooterForeStr || 'Sayfa:',
+    footerSep: window.currentDocFooterSep || '/',
+    footerPageStart: window.currentDocFooterPageStart || '1',
+    footerParagraphs: footerParagraphs,
     isSigned: hasSeal,
     margins: currentMargins,
     leftMarginCm: currentMargins.left,
     rightMarginCm: currentMargins.right,
     topMarginCm: currentMargins.top,
     bottomMarginCm: currentMargins.bottom,
+    headerMarginCm: currentMargins.header || 0.7,
+    footerMarginCm: currentMargins.footer || 0.7,
     paperOrientation: currentMargins.orientation === 'landscape' ? '2' : '1',
     paragraphs: paragraphs
   };
@@ -3419,70 +3583,149 @@ function getStructuredDocument() {
   return docPayload;
 }
 
-function parseInlineRuns(element, runs, bold, italic, underline, subscript, superscript, strikethrough) {
+function parseInlineRuns(element, runs, state) {
+  const st = state || {};
   for (let child of element.childNodes) {
     if (child.nodeType === Node.TEXT_NODE) {
-      if (child.textContent) {
-        runs.push({
-          text: child.textContent,
-          bold: !!bold,
-          italic: !!italic,
-          underline: !!underline,
-          subscript: !!subscript,
-          superscript: !!superscript,
-          strikethrough: !!strikethrough
-        });
+      const cleanText = (child.textContent || '').replace(/\u200B/g, '');
+      if (cleanText) {
+        const runObj = {
+          text: cleanText,
+          bold: !!st.bold,
+          italic: !!st.italic,
+          underline: !!st.underline,
+          subscript: !!st.subscript,
+          superscript: !!st.superscript,
+          strikethrough: !!st.strikethrough
+        };
+        if (st.fontFamily) runObj.fontFamily = st.fontFamily;
+        if (st.fontSize > 0) runObj.fontSize = st.fontSize;
+        if (st.color) runObj.color = st.color;
+        if (st.backgroundColor) runObj.backgroundColor = st.backgroundColor;
+        runs.push(runObj);
       }
     } else if (child.nodeType === Node.ELEMENT_NODE) {
       if (child.classList && (child.classList.contains('auto-page-break') || child.classList.contains('page-break'))) {
         continue;
       }
+      if (st.skipListPrefix && child.classList && child.classList.contains('udf-list-prefix')) {
+        continue;
+      }
       if (child.classList && child.classList.contains('udf-tab-label')) {
-        const isBold = child.querySelector('strong, b') !== null || !!bold;
-        const txt = (child.textContent || '').trim();
+        const isBold = child.querySelector('strong, b') !== null || !!st.bold;
+        const txt = (child.textContent || '').replace(/\u200B/g, '').trim();
         runs.push({
           text: txt + '\t',
           bold: isBold,
-          italic: !!italic,
-          underline: !!underline,
-          subscript: !!subscript,
-          superscript: !!superscript,
-          strikethrough: !!strikethrough
+          italic: !!st.italic,
+          underline: !!st.underline,
+          subscript: !!st.subscript,
+          superscript: !!st.superscript,
+          strikethrough: !!st.strikethrough
         });
         continue;
       }
       if (child.classList && child.classList.contains('udf-colon')) {
         runs.push({
           text: ':',
-          bold: !!bold,
-          italic: !!italic,
-          underline: !!underline,
-          subscript: !!subscript,
-          superscript: !!superscript,
-          strikethrough: !!strikethrough
+          bold: !!st.bold,
+          italic: !!st.italic,
+          underline: !!st.underline,
+          subscript: !!st.subscript,
+          superscript: !!st.superscript,
+          strikethrough: !!st.strikethrough
         });
         continue;
       }
       if (child.classList && child.classList.contains('udf-tab-space')) {
         runs.push({
           text: '\t',
-          bold: !!bold,
-          italic: !!italic,
-          underline: !!underline,
-          subscript: !!subscript,
-          superscript: !!superscript,
-          strikethrough: !!strikethrough
+          bold: !!st.bold,
+          italic: !!st.italic,
+          underline: !!st.underline,
+          subscript: !!st.subscript,
+          superscript: !!st.superscript,
+          strikethrough: !!st.strikethrough
         });
         continue;
       }
-      const tag = child.tagName.toLowerCase();
-      const isB = bold || tag === 'b' || tag === 'strong' || (child.style && child.style.fontWeight === 'bold');
-      const isI = italic || tag === 'i' || tag === 'em' || (child.style && child.style.fontStyle === 'italic');
-      const isU = underline || tag === 'u' || (child.style && child.style.textDecoration && child.style.textDecoration.includes('underline'));
-      const isSub = subscript || tag === 'sub';
-      const isSup = superscript || tag === 'sup';
-      const isStrike = strikethrough || tag === 's' || tag === 'strike' || (child.style && child.style.textDecoration && child.style.textDecoration.includes('line-through'));
-      parseInlineRuns(child, runs, isB, isI, isU, isSub, isSup, isStrike);
+      const tag = child.tagName ? child.tagName.toLowerCase() : '';
+      if (tag === 'br') {
+        runs.push({
+          text: '\n',
+          bold: !!st.bold,
+          italic: !!st.italic,
+          underline: !!st.underline,
+          subscript: !!st.subscript,
+          superscript: !!st.superscript,
+          strikethrough: !!st.strikethrough
+        });
+        continue;
+      }
+      if (tag === 'img') {
+        const src = child.getAttribute('src') || '';
+        if (src.includes('base64,')) {
+          const b64 = src.split('base64,')[1].trim();
+          let wPt = parseFloat(child.dataset ? child.dataset.udfWidth : '') || 0;
+          let hPt = parseFloat(child.dataset ? child.dataset.udfHeight : '') || 0;
+          if (!wPt && child.style && child.style.width) {
+            wPt = parseToCm(child.style.width) * 28.3465;
+          }
+          if (!hPt && child.style && child.style.height) {
+            hPt = parseToCm(child.style.height) * 28.3465;
+          }
+          if (!wPt) wPt = (child.width || 120) * 0.75;
+          if (!hPt) hPt = (child.height || 60) * 0.75;
+          runs.push({
+            type: 'image',
+            imageData: b64,
+            widthPt: wPt,
+            heightPt: hPt
+          });
+        }
+        continue;
+      }
+
+      const fw = child.style ? child.style.fontWeight : '';
+      const isB = st.bold || tag === 'b' || tag === 'strong' || fw === 'bold' || parseInt(fw, 10) >= 600;
+      const isI = st.italic || tag === 'i' || tag === 'em' || (child.style && child.style.fontStyle === 'italic');
+      const td = child.style ? (child.style.textDecoration || child.style.textDecorationLine || '') : '';
+      const isU = st.underline || tag === 'u' || td.includes('underline');
+      const isSub = st.subscript || tag === 'sub';
+      const isSup = st.superscript || tag === 'sup';
+      const isStrike = st.strikethrough || tag === 's' || tag === 'strike' || tag === 'del' || td.includes('line-through');
+
+      let fontFamily = st.fontFamily || '';
+      if (child.style && child.style.fontFamily) fontFamily = child.style.fontFamily;
+      else if (tag === 'font' && child.getAttribute('face')) fontFamily = child.getAttribute('face');
+
+      let fontSize = st.fontSize || 0;
+      if (child.style && child.style.fontSize) {
+        const fsStr = child.style.fontSize.trim();
+        if (fsStr.endsWith('pt')) fontSize = parseFloat(fsStr) || 0;
+        else if (fsStr.endsWith('px')) fontSize = Math.round(((parseFloat(fsStr) || 16) * 0.75) * 10) / 10;
+      }
+
+      let color = st.color || '';
+      if (child.style && child.style.color) color = child.style.color;
+      else if (tag === 'font' && child.getAttribute('color')) color = child.getAttribute('color');
+
+      let bgColor = st.backgroundColor || '';
+      if (child.style && child.style.backgroundColor) bgColor = child.style.backgroundColor;
+
+      parseInlineRuns(child, runs, {
+        bold: isB,
+        italic: isI,
+        underline: isU,
+        subscript: isSub,
+        superscript: isSup,
+        strikethrough: isStrike,
+        fontFamily: fontFamily,
+        fontSize: fontSize,
+        color: color,
+        backgroundColor: bgColor,
+        skipListPrefix: st.skipListPrefix
+      });
     }
   }
 }

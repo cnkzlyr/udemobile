@@ -1,6 +1,6 @@
 # ⚖️ CanEditor (UdeMobile) — Çapraz Platform UYAP & Word Editörü
 
-[![Sürüm](https://img.shields.io/badge/Sürüm-v3.4.8-blue.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v3.4.8)
+[![Sürüm](https://img.shields.io/badge/Sürüm-v3.5.0-blue.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v3.5.0)
 [![Platformlar](https://img.shields.io/badge/Platformlar-Android%20%7C%20Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Web-success.svg)](https://github.com/cnkzlyr/udemobile/releases)
 [![UYAP](https://img.shields.io/badge/Format-UYAP_UDF_v1.8-0D47A1.svg)](https://uyap.gov.tr)
 [![Word](https://img.shields.io/badge/Format-MS_DOCX_OpenXML-2B579A.svg?logo=microsoft-word&logoColor=white)](https://microsoft.com)
@@ -11,18 +11,24 @@
 
 ---
 
-## 🚀 Hızlı İndirme (v3.4.8)
+## 🚀 Hızlı İndirme (v3.5.0)
 
 | Platform | Paket Dosyası | Açıklama |
 | :--- | :--- | :--- |
-| **Android (Telefon & Tablet)** | [**CanEditor-v3.4.8.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.4.8/CanEditor-v3.4.8.apk) | Güncel mobil uygulama paketi |
-| **Android (Her Zaman En Son)** | [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.4.8/CanEditor-latest.apk) | Kalıcı son sürüm bağlantısı |
-| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v3.4.8.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v3.4.8/CanEditor-Portable-Web-GUI-v3.4.8.zip) | Kurulumsuz; zipten çıkarıp `index.html` açarak tüm işletim sistemlerinde doğrudan çalışır |
-| **Windows / macOS / Linux** | [**GitHub Releases Sayfası**](https://github.com/cnkzlyr/udemobile/releases/tag/v3.4.8) | GitHub Actions CI ile derlenen yerel ikili (.msi, .exe, .dmg, .AppImage, .deb, .rpm) paketleri |
+| **Android (Telefon & Tablet)** | [**CanEditor-v3.5.0.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.5.0/CanEditor-v3.5.0.apk) | Güncel mobil uygulama paketi |
+| **Android (Her Zaman En Son)** | [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.5.0/CanEditor-latest.apk) | Kalıcı son sürüm bağlantısı |
+| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v3.5.0.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v3.5.0/CanEditor-Portable-Web-GUI-v3.5.0.zip) | Kurulumsuz; zipten çıkarıp `index.html` açarak tüm işletim sistemlerinde doğrudan çalışır |
+| **Windows / macOS / Linux** | [**GitHub Releases Sayfası**](https://github.com/cnkzlyr/udemobile/releases/tag/v3.5.0) | GitHub Actions CI ile derlenen yerel ikili (.msi, .exe, .dmg, .AppImage, .deb, .rpm) paketleri |
 
 ---
 
-## 🌟 v3.4.8 ile Gelen Önemli Geliştirmeler
+## 🌟 v3.5.0 ile Gelen Önemli Geliştirmeler
+
+### 🏛️ 1. Resmi Havelsan UYAP Doküman Editörü (`format_id="1.8"`) ile 1:1 Birebir Uyumluluk
+- **Birebir Girinti ve Cetvel Matematiği:** Havelsan UYAP `ParagraphView` / `RowView` (`LeftIndent`, `FirstLineIndent`, `Hanging`, `RightIndent`) hesaplama motoru tersine mühendislikle birebir modellendi (`margin-left = LeftIndent + Hanging`, `text-indent = FirstLineIndent - Hanging`). Kaydetme sırasında asılı girintilerin (`Hanging`) sekme durağıyla ezilmesi hatası tamamen giderildi.
+- **Tablo, Görsel, Üstbilgi ve Altbilgi Kayıt Desteği:** Tabloların (`<table>`, `<row>`, `<cell>`, `columnSpans`, `border`), satır içi ve üstbilgi/altbilgi görsellerinin (`<image imageData="..." startOffset="..." length="1"/>` ve `\u00b8` karakter yer tutucusu) ve çoklu sekme duraklarının (`<tab>` + `TabSet`) hem UDF hem DOCX formatında kayıpsız okunması ve üretilmesi sağlandı.
+- **Evrensel Belge Açıcı (Sıfır Hata Garantisi):** Standart ZIP UDF ve OOXML DOCX belgelerinin yanı sıra sıkıştırılmamış düz XML `.udf`, `.udf` uzantılı Word `.docx`, eski nesil OLE2 Word 97-2003 ikili `.doc` / `.doc.udf` (`FIB` + `Clx Piece Table` CP1254/UTF-16LE çözümleyici), `RTF`, UTF-8 BOM'lu XML ve 0 baytlık boş dosyaların tamamı hatasız açılır.
+- **Gelişmiş OOXML (`.docx`) Motoru:** `<w:b w:val="0"/>`, `<w:i w:val="0"/>`, `<w:u w:val="none"/>` niteliklerinin yanlışlıkla aktif sayılması ve paragraf sonu `<w:br/>` etiketlerinin fazladan boş satır üretmesi hataları düzeltildi; `word/media/*` gömülü görselleri, `word/styles.xml` ve `word/numbering.xml` desteği eklendi.
 
 ### 📱 1. Mobil Yakınlaştırma & Yatay Kaydırma (Pinch-to-Zoom & Horizontal Pan) Düzeltmesi
 - Sayfa görünümünde (paper-view) yakınlaştırma yapıldığında sayfanın sol kenarının kırpılması ve dokunarak sağa-sola kaydırılamaması (stuck scroll) sorunu giderildi. Kapsayıcı hiza kilitlenmesi çözülerek dokunmatik çift yönlü kaydırma (`touch-action: pan-x pan-y pinch-zoom`) ve sayfa merkezlemesi optimize edildi.
@@ -103,14 +109,14 @@
 ## 🛠️ Kurulum & Kullanım Rehberi
 
 ### Android Kurulumu
-1. [Releases sayfasından](https://github.com/cnkzlyr/udemobile/releases/tag/v3.4.4) `CanEditor-v3.4.4.apk` dosyasını indirin.
+1. [Releases sayfasından](https://github.com/cnkzlyr/udemobile/releases/tag/v3.5.0) `CanEditor-v3.5.0.apk` dosyasını indirin.
 2. İndirilen APK dosyasına dokunup **"Yükle"** onayını verin.
 3. Dosyalarım uygulamasından herhangi bir `.udf` veya `.docx` dosyasına tıklayıp **"CanEditor"** uygulamasını seçerek **"Her Zaman"** butonuna basın.
 
 ### Masaüstü & Web Kurulumu
-1. [CanEditor-Portable-Web-GUI-v3.4.4.zip](https://github.com/cnkzlyr/udemobile/releases/download/v3.4.4/CanEditor-Portable-Web-GUI-v3.4.4.zip) dosyasını indirin.
+1. [CanEditor-Portable-Web-GUI-v3.5.0.zip](https://github.com/cnkzlyr/udemobile/releases/download/v3.5.0/CanEditor-Portable-Web-GUI-v3.5.0.zip) dosyasını indirin.
 2. Arşivi bir klasöre çıkartın ve `index.html` dosyasına çift tıklayarak Chrome, Edge, Safari veya Firefox tarayıcınızda kurulum gerektirmeden hemen kullanın.
-3. Yerel masaüstü uygulaması olarak çalıştırmak için işletim sisteminize uygun (.msi, .dmg, .AppImage) paketi [Releases sayfasından](https://github.com/cnkzlyr/udemobile/releases/tag/v3.4.4) indirebilirsiniz.
+3. Yerel masaüstü uygulaması olarak çalıştırmak için işletim sisteminize uygun (.msi, .dmg, .AppImage) paketi [Releases sayfasından](https://github.com/cnkzlyr/udemobile/releases/tag/v3.5.0) indirebilirsiniz.
 
 ---
 
