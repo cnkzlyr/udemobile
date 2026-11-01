@@ -1864,16 +1864,11 @@ ${pXml}    </office:text>
 // 3C. ÇOK SAYFALI ADLİ TIFF EVRAKI ÜRETİCİ
 // -------------------------------------------------------------
 async function generateTiffBlob(docData) {
-  const sheet = document.getElementById("a4-sheet");
-  const editor = document.getElementById("editor-content");
-  if (!sheet) throw new Error("Sayfa bulunamadı.");
-
-  const pages = [];
+  const pageSheets = Array.from(document.querySelectorAll(".a4-sheet-page"));
   const width = 794;
   const height = 1123;
-
-  const breakElements = editor ? Array.from(editor.querySelectorAll(".auto-page-break")) : [];
-  const totalPages = breakElements.length + 1;
+  const pages = [];
+  const totalPages = Math.max(1, pageSheets.length);
 
   for (let p = 1; p <= totalPages; p++) {
     const canvas = document.createElement("canvas");
@@ -1883,9 +1878,29 @@ async function generateTiffBlob(docData) {
     ctx.fillStyle = "#FFFFFF";
     ctx.fillRect(0, 0, width, height);
 
-    ctx.fillStyle = "#000000";
+    const sheet = pageSheets[p - 1];
+    if (sheet) {
+      ctx.fillStyle = "#000000";
+      ctx.font = '11pt "Times New Roman", serif';
+      const body = sheet.querySelector(".page-body-box") || sheet;
+      const text = body.innerText || "";
+      const lines = text.split("\n");
+      let y = 100;
+      for (const line of lines) {
+        if (y > height - 100) break;
+        const trimmed = line.trim();
+        if (trimmed) {
+          ctx.fillText(trimmed.substring(0, 85), 80, y);
+          y += 22;
+        } else {
+          y += 12;
+        }
+      }
+    }
+
+    ctx.fillStyle = "#333333";
     ctx.font = '10pt "Times New Roman", serif';
-    ctx.fillText(`Sayfa: ${p} / ${totalPages}`, width - 150, height - 40);
+    ctx.fillText(`Sayfa: ${p} / ${totalPages}`, width - 180, height - 40);
 
     pages.push(ctx.getImageData(0, 0, width, height));
   }
@@ -2099,7 +2114,7 @@ async function triggerSaveDocx() {
 }
 
 async function triggerSaveAs(format) {
-  let base = (document.getElementById("desktopDocTitle")?.value || currentDocFileName).trim();
+  let base = (document.getElementById("desktopDocTitle")?.value || window.currentDocFileName || (typeof currentDocFileName !== 'undefined' ? currentDocFileName : '') || "Dilekce").trim();
   base = base.replace(/\.(udf|docx|pdf|tiff|tif|odt)$/i, "");
   if (!base) base = "Dilekce";
 
@@ -2146,7 +2161,7 @@ async function triggerSaveAs(format) {
 }
 
 async function triggerShareFormat(format) {
-  let base = (document.getElementById("desktopDocTitle")?.value || currentDocFileName).trim();
+  let base = (document.getElementById("desktopDocTitle")?.value || window.currentDocFileName || (typeof currentDocFileName !== 'undefined' ? currentDocFileName : '') || "Dilekce").trim();
   base = base.replace(/\.(udf|docx|pdf|tiff|tif|odt)$/i, "");
   if (!base) base = "Dilekce";
 

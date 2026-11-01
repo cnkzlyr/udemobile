@@ -294,7 +294,8 @@ public class EditorActivity extends Activity {
 
     private void injectHtmlContent(String html) {
         String quoted = JSONObject.quote(html != null ? html : "");
-        editorWebView.evaluateJavascript("setHtmlContent(" + quoted + ");", null);
+        String quotedTitle = JSONObject.quote(etDocTitle != null ? etDocTitle.getText().toString() : "Dilekce.udf");
+        editorWebView.evaluateJavascript("window.currentDocFileName = " + quotedTitle + "; setHtmlContent(" + quoted + ");", null);
     }
 
     private String cleanJsonString(String raw) {

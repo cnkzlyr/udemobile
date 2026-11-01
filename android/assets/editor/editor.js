@@ -455,7 +455,6 @@ function getOffsetTopInSheet(el, sheet) {
 }
 
 // --- HAVELSAN UYAP 1:1 FİZİKSEL A4 ÇOKLU SAYFA VE KART YÖNETİMİ ---
-let paginationTimer = null;
 let isPaginating = false;
 
 function saveSelectionState() {
@@ -572,15 +571,21 @@ function updatePagination() {
     const hasHeaderTemplate = !!(currentDocHeaderTemplate && currentDocHeaderTemplate.trim());
     if (hasHeaderTemplate) {
       if (currentDocHeaderTemplate.includes('udf-header-img') || currentDocHeaderTemplate.includes('<img')) {
-        headerHeightPx = 54; // Havelsan logo 50pt + 4pt margin
+        headerHeightPx = 76; // Havelsan logo 50pt-54pt + padding
       } else {
-        headerHeightPx = 30;
+        headerHeightPx = 32;
       }
     }
 
-    let footerHeightPx = 28;
-    if (currentDocFooterTemplate && (currentDocFooterTemplate.includes('udf-footer-img') || currentDocFooterTemplate.includes('<img'))) {
-      footerHeightPx = 64; // Havelsan altbilgi görseli (50pt) + padding
+    let footerHeightPx = 30;
+    if (currentDocFooterTemplate) {
+      if (currentDocFooterTemplate.includes('udf-footer-img') || currentDocFooterTemplate.includes('<img')) {
+        footerHeightPx = 76; // Havelsan altbilgi görseli (54pt = 72px) + padding
+      } else if (currentDocFooterTemplate.includes('udf-official-footer') || currentDocVerificationCode) {
+        footerHeightPx = 42; // UYAP doğrulama kodlu resmi altbilgi
+      } else {
+        footerHeightPx = 32;
+      }
     }
 
     // Havelsan UYAP ar.s() ve ar.u() formülü:
@@ -618,6 +623,14 @@ function updatePagination() {
     let currentAccumHeight = 0;
     let prevMb = 0;
 
+    const getCapacityForPage = (pNum) => {
+      const showH = hasHeaderTemplate && (pNum >= (currentDocHeaderStartPage || 1));
+      const tInset = Math.round(showH ? Math.max(topMarginPx, headerOffsetPx + headerHeightPx) : topMarginPx);
+      return Math.max(350, pageH - tInset - bottomInsetPx);
+    };
+
+    let targetCap = getCapacityForPage(1);
+
     for (let i = 0; i < allNodes.length; i++) {
       const node = allNodes[i];
       if (!node) continue;
@@ -629,6 +642,7 @@ function updatePagination() {
           currentPageNodes = [];
           currentAccumHeight = 0;
           prevMb = 0;
+          targetCap = getCapacityForPage(pagesData.length + 1);
         }
         continue;
       }
@@ -641,11 +655,12 @@ function updatePagination() {
       const gap = (currentAccumHeight === 0) ? mt : Math.max(prevMb, mt);
       const h = rawH + gap;
 
-      if ((currentAccumHeight + h > printableH) && currentPageNodes.length > 0) {
+      if ((currentAccumHeight + h > targetCap) && currentPageNodes.length > 0) {
         pagesData.push(currentPageNodes);
         currentPageNodes = [node];
         currentAccumHeight = rawH + mt;
         prevMb = mb;
+        targetCap = getCapacityForPage(pagesData.length + 1);
       } else {
         currentPageNodes.push(node);
         currentAccumHeight += h;
@@ -670,6 +685,9 @@ function updatePagination() {
 
     for (let pIdx = 0; pIdx < totalPages; pIdx++) {
       const pageNum = pIdx + 1;
+      const showH = hasHeaderTemplate && (pageNum >= (currentDocHeaderStartPage || 1));
+      const tInset = Math.round(showH ? Math.max(topMarginPx, headerOffsetPx + headerHeightPx) : topMarginPx);
+      const pPrintableH = Math.max(350, pageH - tInset - bottomInsetPx);
 
       // Sayfalar arası masaüstü gri boşluğu
       if (pIdx > 0) {
@@ -709,9 +727,12 @@ function updatePagination() {
       if (pageNum === 1) headerBox.id = 'doc-header';
       headerBox.setAttribute('contenteditable', 'true');
       headerBox.setAttribute('spellcheck', 'false');
+      headerBox.style.top = Math.round(headerOffsetPx) + 'px';
+      headerBox.style.left = Math.round(leftMarginPx) + 'px';
+      headerBox.style.width = printableW + 'px';
+      headerBox.style.height = headerHeightPx + 'px';
 
-      const shouldShowHeader = hasHeaderTemplate && (pageNum >= (currentDocHeaderStartPage || 1));
-      if (shouldShowHeader) {
+      if (showH) {
         headerBox.innerHTML = currentDocHeaderTemplate;
         headerBox.style.display = 'flex';
       } else {
@@ -732,6 +753,10 @@ function updatePagination() {
       bodyBox.setAttribute('spellcheck', 'true');
       bodyBox.setAttribute('autocomplete', 'off');
       bodyBox.setAttribute('autocapitalize', 'sentences');
+      bodyBox.style.top = tInset + 'px';
+      bodyBox.style.left = Math.round(leftMarginPx) + 'px';
+      bodyBox.style.width = printableW + 'px';
+      bodyBox.style.height = pPrintableH + 'px';
 
       const pNodes = pagesData[pIdx] || [];
       pNodes.forEach(n => bodyBox.appendChild(n));
@@ -758,6 +783,10 @@ function updatePagination() {
       footerBox.className = 'page-footer-box';
       if (pageNum === 1) footerBox.id = 'doc-footer';
       footerBox.setAttribute('contenteditable', 'false');
+      footerBox.style.bottom = Math.round(footerOffsetPx) + 'px';
+      footerBox.style.left = Math.round(leftMarginPx) + 'px';
+      footerBox.style.width = printableW + 'px';
+      footerBox.style.height = footerHeightPx + 'px';
       footerBox.innerHTML = getDocFooterHtml(pageNum, totalPages);
       pageSheet.appendChild(footerBox);
 
@@ -785,10 +814,20 @@ function debouncedPagination(delay = 500) {
 function focusHeaderFooter() {
   const header = document.getElementById('doc-header');
   const footer = document.getElementById('doc-footer');
-  if (document.activeElement === header) {
+  if (header && header.style.display === 'none') {
+    header.style.display = 'flex';
+    if (!header.innerHTML.trim()) header.innerHTML = '<p style="text-align:center;"><br></p>';
+    currentDocHeaderTemplate = header.innerHTML;
+    currentDocHeaderStartPage = 1;
+    debouncedPagination(100);
+    header.focus();
+    header.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return;
+  }
+  if (header && document.activeElement === header && footer) {
     footer.focus();
     footer.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  } else {
+  } else if (header) {
     header.focus();
     header.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
@@ -3428,9 +3467,12 @@ if (document.readyState === 'loading') {
 
 function setHtmlContent(content) {
   if (!content) return;
-  const editor = document.getElementById('editor-content');
-  const headerEl = document.getElementById('doc-header');
-  const footerEl = document.getElementById('doc-footer');
+
+  const container = document.getElementById('pages-container') || document.getElementById('sheet-container');
+  let targetHtml = '';
+  let headerHtmlToSet = '';
+  let footerHtmlToSet = '';
+  let headerStartPageToSet = 1;
 
   // JSON Yapılandırılmış Belge veya Düz HTML Kontrolü
   const trimmed = content.trim();
@@ -3440,68 +3482,75 @@ function setHtmlContent(content) {
       if (data && typeof data === 'object') {
         if (data.headerHtml) {
           currentDocHeaderTemplate = data.headerHtml;
+          headerHtmlToSet = data.headerHtml;
           currentDocHeaderStartPage = parseInt(data.headerStartPage || '1', 10);
-          if (currentDocHeaderStartPage <= 1) {
-            headerEl.innerHTML = data.headerHtml;
-            headerEl.style.display = 'block';
-          } else {
-            headerEl.innerHTML = '';
-            headerEl.style.display = 'none';
-          }
-        } else if (data.header !== undefined && headerEl) {
-          headerEl.innerText = data.header;
-          headerEl.style.display = (data.header && data.header.trim()) ? 'block' : 'none';
+          headerStartPageToSet = currentDocHeaderStartPage;
+        } else if (data.header !== undefined) {
           currentDocHeaderTemplate = (data.header && data.header.trim()) ? `<div class="udf-header-bar" style="text-align:center;">${escapeHtml(data.header)}</div>` : '';
           currentDocHeaderStartPage = 1;
+          headerHtmlToSet = currentDocHeaderTemplate;
+          headerStartPageToSet = 1;
+        } else {
+          currentDocHeaderTemplate = '';
         }
+
         if (data.footerHtml) {
           currentDocFooterTemplate = data.footerHtml;
-        } else if (data.footer !== undefined && footerEl) {
-          footerEl.innerText = data.footer;
+          footerHtmlToSet = data.footerHtml;
+        } else if (data.footer !== undefined) {
+          currentDocFooterTemplate = (data.footer && data.footer.trim()) ? `<div class="udf-footer-layout"><span class="udf-footer-text">${escapeHtml(data.footer)}</span></div>` : '';
+          footerHtmlToSet = currentDocFooterTemplate;
+        } else {
           currentDocFooterTemplate = '';
         }
+
         window.currentDocFooterPageSpec = data.footerPageSpec || '';
         window.currentDocFooterForeStr = data.footerForeStr || 'Sayfa:';
         window.currentDocFooterSep = data.footerSep || '/';
         window.currentDocFooterPageStart = data.footerPageStart || '1';
-        if (data.verificationCode) {
-          currentDocVerificationCode = data.verificationCode;
-        } else {
-          currentDocVerificationCode = '';
-        }
+        currentDocVerificationCode = data.verificationCode || '';
         window.currentDocSicil = data.sicil || '';
+
         if (data.leftMarginCm !== undefined) {
-          applyPageSetup(data.leftMarginCm, data.rightMarginCm, data.topMarginCm, data.bottomMarginCm, data.paperOrientation === '2' || data.paperOrientation === 'landscape' ? 'landscape' : 'portrait', data.headerMarginCm, data.footerMarginCm);
+          applyPageSetup(data.leftMarginCm, data.rightMarginCm, data.topMarginCm, data.bottomMarginCm,
+            data.paperOrientation === '2' || data.paperOrientation === 'landscape' ? 'landscape' : 'portrait',
+            data.headerMarginCm, data.footerMarginCm);
         }
-        if (data.html) {
-          const p1 = document.querySelector('.page-body-box') || document.getElementById('editor-content');
-          if (p1) p1.innerHTML = data.html;
-          updateCounts();
-          setTimeout(() => {
-            applyAutoFitZoom();
-            if (typeof realignAllTabs === 'function') realignAllTabs();
-            updateRulerFromActiveParagraph();
-            updatePagination();
-          }, 150);
-          setTimeout(markDocumentPristine, 400);
-          setTimeout(() => { if (window.CanHistory) CanHistory.reset(); }, 450);
-          return;
-        }
+
+        targetHtml = data.html || '';
       }
     } catch (e) {
-      // JSON değilse düz metin veya html olarak yüklemeye devam et
+      targetHtml = content;
     }
+  } else {
+    targetHtml = content;
   }
 
-  const p1 = document.querySelector('.page-body-box') || document.getElementById('editor-content');
-  if (p1) p1.innerHTML = content;
+  // Konteyneri tek ve tertemiz bir başlangıç sayfasına sıfırla (eski sayfa kalıntılarını temizle)
+  if (container) {
+    const showHdr = !!(headerHtmlToSet && headerStartPageToSet <= 1);
+    container.innerHTML = `
+      <div class="a4-sheet-page" data-page-number="1" id="page-1">
+        <div id="official-doc-seal" class="official-doc-seal" onclick="openSignatureModal()" title="Elektronik İmza Doğrulama ve Detayları" style="display: none;">
+          <div class="seal-medal">⚖️</div>
+          <div class="seal-ribbon"></div>
+        </div>
+        <div id="doc-header" class="page-header-box" contenteditable="true" spellcheck="false" style="display:${showHdr ? 'flex' : 'none'};">${showHdr ? headerHtmlToSet : ''}</div>
+        <div id="editor-content" class="page-body-box" contenteditable="true" spellcheck="true" autocomplete="off" autocapitalize="sentences">${targetHtml}</div>
+        <div id="doc-footer" class="page-footer-box" contenteditable="false">${footerHtmlToSet ? getDocFooterHtml(1, 1) : ''}</div>
+      </div>
+    `;
+  }
+
   updateCounts();
   setTimeout(() => {
+    applyAutoFitZoom();
+    if (typeof realignAllTabs === 'function') realignAllTabs();
     updateRulerFromActiveParagraph();
     updatePagination();
-  }, 150);
-  setTimeout(markDocumentPristine, 400);
-  setTimeout(() => { if (window.CanHistory) CanHistory.reset(); }, 450);
+  }, 100);
+  setTimeout(markDocumentPristine, 350);
+  setTimeout(() => { if (window.CanHistory) CanHistory.reset(); }, 400);
 }
 
 function getHtmlContent() {
