@@ -1230,8 +1230,8 @@ public class UdfEngine {
         if (!lineSpacing.isEmpty()) {
             try {
                 double ls = Double.parseDouble(lineSpacing);
-                if (ls > 0.05) {
-                    double cssLh = Math.round((1.15 + ls) * 100.0) / 100.0;
+                if (ls > 0.01) {
+                    double cssLh = Math.round((1.0 + ls) * 100.0) / 100.0;
                     styleAttr.append(" line-height: ").append(String.format(Locale.US, "%.2f", cssLh)).append(";");
                 }
             } catch (Exception ignored) {}

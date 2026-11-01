@@ -482,8 +482,8 @@ async function parseUdfArrayBuffer(buffer) {
     let styleStr = `text-align: ${align}; margin-top: ${spaceAbove}pt; margin-bottom: ${spaceBelow}pt;`;
     if (lineSpacing) {
       const ls = parseFloat(lineSpacing);
-      if (!isNaN(ls) && ls > 0.05) {
-        styleStr += ` line-height: ${(1.15 + ls).toFixed(2)};`;
+      if (!isNaN(ls) && ls > 0.01) {
+        styleStr += ` line-height: ${(1.0 + ls).toFixed(2)};`;
       }
     }
 

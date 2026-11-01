@@ -454,302 +454,331 @@ function getOffsetTopInSheet(el, sheet) {
   return y;
 }
 
+// --- HAVELSAN UYAP 1:1 FİZİKSEL A4 ÇOKLU SAYFA VE KART YÖNETİMİ ---
+let paginationTimer = null;
+let isPaginating = false;
+
+function saveSelectionState() {
+  const sel = window.getSelection ? window.getSelection() : null;
+  if (!sel || sel.rangeCount === 0) return null;
+  const range = sel.getRangeAt(0);
+  const container = range.startContainer;
+  let p = container.nodeType === Node.ELEMENT_NODE ? container : container.parentElement;
+  while (p && !p.classList.contains('page-body-box') && p.parentElement && !p.parentElement.classList.contains('page-body-box')) {
+    p = p.parentElement;
+  }
+  if (!p || p.classList.contains('page-body-box')) return null;
+
+  p.setAttribute('data-cursor-target', '1');
+  return {
+    offset: range.startOffset,
+    isText: container.nodeType === Node.TEXT_NODE
+  };
+}
+
+function restoreSelectionState(saved) {
+  if (!saved) return;
+  const target = document.querySelector('[data-cursor-target="1"]');
+  if (!target) return;
+  target.removeAttribute('data-cursor-target');
+
+  try {
+    const sel = window.getSelection();
+    if (!sel) return;
+    sel.removeAllRanges();
+    const range = document.createRange();
+
+    if (saved.isText && target.firstChild) {
+      let node = target.firstChild;
+      let curOff = 0;
+      while (node) {
+        if (node.nodeType === Node.TEXT_NODE) {
+          const len = node.textContent.length;
+          if (curOff + len >= saved.offset) {
+            range.setStart(node, Math.min(len, Math.max(0, saved.offset - curOff)));
+            range.collapse(true);
+            sel.addRange(range);
+            return;
+          }
+          curOff += len;
+        }
+        node = node.nextSibling;
+      }
+    }
+    range.selectNodeContents(target);
+    range.collapse(false);
+    sel.addRange(range);
+  } catch (e) {}
+}
+
 function updatePagination() {
-  try { realignAllTabs(); } catch (e) {}
-  if (isMobileView) return;
-  const editor = document.getElementById('editor-content');
-  if (!editor) return;
+  if (isMobileView || isPaginating) return;
+  isPaginating = true;
+  try {
+    try { realignAllTabs(); } catch (e) {}
 
-  // Önceki otomatik sayfa bölücüleri ve sönümlenen boş satır stillerini temizle
-  const oldBreaks = editor.querySelectorAll('.auto-page-break');
-  oldBreaks.forEach(b => b.remove());
-  editor.querySelectorAll('[data-page-filler-collapsed]').forEach(el => {
-    el.style.height = '';
-    el.style.minHeight = '';
-    el.style.marginTop = el.getAttribute('data-orig-mt') || '';
-    el.style.marginBottom = el.getAttribute('data-orig-mb') || '';
-    el.style.overflow = '';
-    el.removeAttribute('data-page-filler-collapsed');
-    el.removeAttribute('data-orig-mt');
-    el.removeAttribute('data-orig-mb');
-  });
+    const container = document.getElementById('pages-container') || document.getElementById('sheet-container');
+    if (!container) return;
 
-  const sheet = document.getElementById('a4-sheet');
-  const docHeader = document.getElementById('doc-header');
-  const footerEl = document.getElementById('doc-footer');
-
-  // Resimler henüz yüklenmediyse yüklendiğinde sayfa yapısını yeniden hesapla
-  if (sheet) {
-    sheet.querySelectorAll('img').forEach(img => {
-      if (!img.complete && !img._paginationBound) {
-        img._paginationBound = true;
-        img.addEventListener('load', () => { debouncedPagination(); }, { once: true });
-      }
-    });
-  }
-
-  // Havelsan UYAP (tr.com.havelsan.uyap.system.swing.wp.b.ar) birebir A4 sayfa geometrisi:
-  const PPC = 37.795275; // 1 cm = 37.795275 px (96 DPI)
-  const isLandscape = currentMargins.orientation === 'landscape';
-  const pageHeight = isLandscape ? 794 : 1123;
-  const topMarginPx = (!isNaN(parseFloat(currentMargins.top)) ? parseFloat(currentMargins.top) : 2.5) * PPC;
-  const bottomMarginPx = (!isNaN(parseFloat(currentMargins.bottom)) ? parseFloat(currentMargins.bottom) : 2.5) * PPC;
-  const headerOffsetPx = (!isNaN(parseFloat(currentMargins.header)) ? parseFloat(currentMargins.header) : 0.7) * PPC;
-  const footerOffsetPx = (!isNaN(parseFloat(currentMargins.footer)) ? parseFloat(currentMargins.footer) : 0.7) * PPC;
-
-  if (footerEl) {
-    footerEl.style.marginTop = '0px';
-    footerEl.style.paddingTop = '0px';
-    footerEl.style.paddingBottom = '0px';
-    footerEl.innerHTML = getDocFooterHtml(1, 1);
-    footerEl.style.display = 'block';
-    footerEl.style.border = 'none';
-  }
-
-  const headerRawText = docHeader ? (docHeader.innerText || '').replace(/[\r\n\t\s]+/g, ' ').trim() : '';
-  const headerHasImg = docHeader ? !!docHeader.querySelector('img, table, svg') : false;
-  const hasHeaderOnPage1 = !!(docHeader && (headerRawText.length > 0 || headerHasImg) && docHeader.style.display !== 'none');
-  if (docHeader) {
-    docHeader.style.paddingTop = '0px';
-    docHeader.style.paddingBottom = '0px';
-    docHeader.style.marginTop = '0px';
-  }
-
-  const headerHeightPx = hasHeaderOnPage1 ? (docHeader.offsetHeight || 0) : 0;
-  let footerHeightPx = footerEl ? (footerEl.offsetHeight || 24) : 24;
-  const footerImg = footerEl ? footerEl.querySelector('img') : null;
-  if (footerImg) {
-    const attrH = footerImg.getAttribute('data-udf-height');
-    const parsedH = attrH ? (parseFloat(attrH) * 1.333) : 0;
-    const styleMaxH = footerImg.style.maxHeight ? (parseFloat(footerImg.style.maxHeight) * (footerImg.style.maxHeight.includes('cm') ? 37.8 : 1)) : 0;
-    const estImgH = Math.max(parsedH, styleMaxH, 50);
-    footerHeightPx = Math.max(footerHeightPx, Math.round(estImgH + 16));
-  }
-
-  // Havelsan UYAP ar.s() ve ar.u() formülü:
-  const topInsetPx = hasHeaderOnPage1 ? Math.max(topMarginPx, headerOffsetPx + headerHeightPx) : topMarginPx;
-  const bottomInsetPx = Math.max(bottomMarginPx, footerOffsetPx + footerHeightPx);
-  const printableHeight = Math.max(450, pageHeight - topInsetPx - bottomInsetPx);
-
-  if (sheet) {
-    sheet.style.paddingTop = Math.round(hasHeaderOnPage1 ? headerOffsetPx : topMarginPx) + 'px';
-    sheet.style.paddingBottom = Math.round(footerOffsetPx) + 'px';
-    sheet.querySelectorAll('.sheet-watermark-overlay').forEach(w => w.remove());
-    const sicilVal = (window.currentDocSicil || '').trim();
-    if (sicilVal) {
-      const spans = Array(15).fill(`<span>${escapeHtml(sicilVal)}</span>`).join('');
-      sheet.insertAdjacentHTML('afterbegin', `<div class="sheet-watermark-overlay" aria-hidden="true">${spans}</div>`);
-    }
-  }
-  if (docHeader) {
-    docHeader.style.marginBottom = hasHeaderOnPage1
-      ? Math.max(0, Math.round(topInsetPx - headerOffsetPx - headerHeightPx)) + 'px'
-      : '0px';
-  }
-
-  // 1. Geçiş: Toplam sayfa sayısını ve bölünecek çocuk indekslerini hesapla
-  let currentAccumHeight = 0;
-  let prevMb = 0;
-  let consecutiveEmptyCount = 0;
-  const children = Array.from(editor.children);
-  const breakIndices = [];
-  const pageUsedHeights = [];
-
-  function isHeadingElement(el) {
-    if (!el || !el.tagName) return false;
-    const tag = el.tagName.toUpperCase();
-    if (/^H[1-6]$/.test(tag)) return true;
-    const cs = window.getComputedStyle ? window.getComputedStyle(el) : null;
-    const fw = cs ? cs.fontWeight : (el.style.fontWeight || '');
-    const isBold = fw === 'bold' || parseInt(fw, 10) >= 600 || el.querySelector('b, strong');
-    const txt = (el.innerText || '').trim();
-    if (isBold && txt.length > 0 && txt.length < 130) {
-      if (txt.endsWith(':') || /^[I|V|X|0-9]+[\.\)]\s+/i.test(txt) || (txt === txt.toUpperCase() && txt.length > 3)) {
-        return true;
+    // 1. Gather all body content nodes across all pages in order
+    const existingBodyBoxes = Array.from(container.querySelectorAll('.page-body-box'));
+    let allNodes = [];
+    if (existingBodyBoxes.length > 0) {
+      existingBodyBoxes.forEach(bb => {
+        Array.from(bb.children).forEach(child => {
+          if (!child.classList.contains('auto-page-break') &&
+              !child.classList.contains('page-break-desk-gap') &&
+              !child.classList.contains('page-desk-gap') &&
+              !child.classList.contains('page-break-footer-area') &&
+              !child.classList.contains('page-break-header-area')) {
+            allNodes.push(child);
+          }
+        });
+      });
+    } else {
+      const editor = document.getElementById('editor-content');
+      if (editor) {
+        allNodes = Array.from(editor.children).filter(child =>
+          !child.classList.contains('auto-page-break') &&
+          !child.classList.contains('page-break-desk-gap') &&
+          !child.classList.contains('page-desk-gap')
+        );
       }
     }
-    return false;
-  }
 
-  for (let i = 0; i < children.length; i++) {
-    const child = children[i];
-    if (!child || !child.tagName) continue;
-    if (child.classList && child.classList.contains('auto-page-break')) continue;
-    if (child.classList && child.classList.contains('page-break')) {
-      if (i + 1 < children.length) {
-        breakIndices.push(i + 1);
-        pageUsedHeights.push(Math.min(printableHeight, currentAccumHeight));
-        currentAccumHeight = 0;
-        prevMb = 0;
-        consecutiveEmptyCount = 0;
-      }
-      continue;
+    if (allNodes.length === 0) {
+      const p = document.createElement('p');
+      p.style.textAlign = 'justify';
+      p.innerHTML = '<br>';
+      allNodes.push(p);
     }
 
-    const cs = window.getComputedStyle(child);
-    const mt = parseFloat(cs.marginTop) || 0;
-    const mb = parseFloat(cs.marginBottom) || 0;
-    const gap = (currentAccumHeight === 0) ? mt : Math.max(prevMb, mt);
-    const rawH = child.offsetHeight || 18.4;
-    const h = rawH + gap;
-    const isEmpty = isEmptyFillerParagraph(child);
+    // 2. Havelsan UYAP (tr.com.havelsan.uyap.system.swing.wp.b.ar) birebir A4 geometri hesapları:
+    const PPC = 37.795275; // 1 cm = 37.795275 px (96 DPI)
+    const isLandscape = currentMargins.orientation === 'landscape';
+    const pageW = isLandscape ? 1123 : 794;
+    const pageH = isLandscape ? 794 : 1123;
+    const leftMarginPx = (!isNaN(parseFloat(currentMargins.left)) ? parseFloat(currentMargins.left) : 2.5) * PPC;
+    const rightMarginPx = (!isNaN(parseFloat(currentMargins.right)) ? parseFloat(currentMargins.right) : 2.5) * PPC;
+    const topMarginPx = (!isNaN(parseFloat(currentMargins.top)) ? parseFloat(currentMargins.top) : 2.5) * PPC;
+    const bottomMarginPx = (!isNaN(parseFloat(currentMargins.bottom)) ? parseFloat(currentMargins.bottom) : 2.5) * PPC;
+    const headerOffsetPx = (!isNaN(parseFloat(currentMargins.header)) ? parseFloat(currentMargins.header) : 0.501) * PPC;
+    const footerOffsetPx = (!isNaN(parseFloat(currentMargins.footer)) ? parseFloat(currentMargins.footer) : 0.501) * PPC;
 
-    // Sayfanın alt kısmında 3 veya daha fazla ardışık boş satır (Enter) bırakılarak
-    // bir sonraki sayfaya itilmiş başlık/paragraf kontrolü (Örn: SONUÇ VE TALEP:):
-    const pushedByBlankRun = (!isEmpty && consecutiveEmptyCount >= 3 && currentAccumHeight >= printableHeight * 0.65);
-    const isHeading = isHeadingElement(child);
-    const wouldLeaveHeadingOrphaned = isHeading && (i + 1 < children.length) && (currentAccumHeight + h + 24 > printableHeight);
+    const printableW = Math.max(300, Math.round(pageW - leftMarginPx - rightMarginPx));
 
-    if ((currentAccumHeight + h > printableHeight || pushedByBlankRun || wouldLeaveHeadingOrphaned) && currentAccumHeight > 0) {
-      if (isEmpty) {
-        // Sayfa sonunu aşan boş dolgu paragraflarının yeni sayfanın başına taşmasını engelle
-        const collapseEl = (el) => {
-          el.setAttribute('data-page-filler-collapsed', '1');
-          el.setAttribute('data-orig-mt', el.style.marginTop || '');
-          el.setAttribute('data-orig-mb', el.style.marginBottom || '');
-          el.style.height = '0px';
-          el.style.minHeight = '0px';
-          el.style.marginTop = '0px';
-          el.style.marginBottom = '0px';
-          el.style.overflow = 'hidden';
-        };
-        collapseEl(child);
-        while (i + 1 < children.length && isEmptyFillerParagraph(children[i + 1])) {
-          i++;
-          collapseEl(children[i]);
-        }
-        if (i + 1 < children.length) {
-          breakIndices.push(i + 1);
-          pageUsedHeights.push(Math.min(printableHeight, currentAccumHeight));
-        }
-        currentAccumHeight = 0;
-        prevMb = 0;
-        consecutiveEmptyCount = 0;
+    // Üstbilgi ve Altbilgi yükseklikleri
+    let headerHeightPx = 0;
+    const hasHeaderTemplate = !!(currentDocHeaderTemplate && currentDocHeaderTemplate.trim());
+    if (hasHeaderTemplate) {
+      if (currentDocHeaderTemplate.includes('udf-header-img') || currentDocHeaderTemplate.includes('<img')) {
+        headerHeightPx = 54; // Havelsan logo 50pt + 4pt margin
       } else {
-        breakIndices.push(i);
-        pageUsedHeights.push(Math.min(printableHeight, currentAccumHeight));
+        headerHeightPx = 30;
+      }
+    }
+
+    let footerHeightPx = 28;
+    if (currentDocFooterTemplate && (currentDocFooterTemplate.includes('udf-footer-img') || currentDocFooterTemplate.includes('<img'))) {
+      footerHeightPx = 64; // Havelsan altbilgi görseli (50pt) + padding
+    }
+
+    // Havelsan UYAP ar.s() ve ar.u() formülü:
+    const topInsetPx = Math.round(hasHeaderTemplate ? Math.max(topMarginPx, headerOffsetPx + headerHeightPx) : topMarginPx);
+    const bottomInsetPx = Math.round(Math.max(bottomMarginPx, footerOffsetPx + footerHeightPx));
+    const printableH = Math.max(350, pageH - topInsetPx - bottomInsetPx);
+
+    // Konteyner CSS değişkenlerini ayarla
+    container.style.setProperty('--sheet-width', pageW + 'px');
+    container.style.setProperty('--sheet-height', pageH + 'px');
+    container.style.setProperty('--page-margin-left', Math.round(leftMarginPx) + 'px');
+    container.style.setProperty('--page-margin-right', Math.round(rightMarginPx) + 'px');
+    container.style.setProperty('--printable-width', printableW + 'px');
+    container.style.setProperty('--top-inset', topInsetPx + 'px');
+    container.style.setProperty('--bottom-inset', bottomInsetPx + 'px');
+    container.style.setProperty('--printable-height', printableH + 'px');
+    container.style.setProperty('--header-offset', Math.round(headerOffsetPx) + 'px');
+    container.style.setProperty('--footer-offset', Math.round(footerOffsetPx) + 'px');
+    container.style.setProperty('--header-height', headerHeightPx + 'px');
+    container.style.setProperty('--footer-height', footerHeightPx + 'px');
+
+    // 3. Görünmez ölçüm konteyneri ile her paragrafın A4 printableW genişliğindeki gerçek yüksekliğini ölç:
+    let measurer = document.getElementById('pagination-measurer');
+    if (!measurer) {
+      measurer = document.createElement('div');
+      measurer.id = 'pagination-measurer';
+      measurer.style.cssText = `position: absolute; visibility: hidden; pointer-events: none; left: -9999px; top: 0; width: ${printableW}px; box-sizing: border-box; font-family: "Times New Roman", Times, serif; font-size: 12pt; line-height: 1.15;`;
+      document.body.appendChild(measurer);
+    } else {
+      measurer.style.width = printableW + 'px';
+    }
+
+    const pagesData = [];
+    let currentPageNodes = [];
+    let currentAccumHeight = 0;
+    let prevMb = 0;
+
+    for (let i = 0; i < allNodes.length; i++) {
+      const node = allNodes[i];
+      if (!node) continue;
+
+      // Kullanıcının veya UDF'in eklediği sayfa sonu
+      if (node.classList && (node.classList.contains('page-break') || node.classList.contains('udf-page-break') || node.getAttribute('data-udf-page-break') === 'true')) {
+        if (currentPageNodes.length > 0) {
+          pagesData.push(currentPageNodes);
+          currentPageNodes = [];
+          currentAccumHeight = 0;
+          prevMb = 0;
+        }
+        continue;
+      }
+
+      measurer.appendChild(node);
+      const cs = window.getComputedStyle(node);
+      const mt = parseFloat(cs.marginTop) || 0;
+      const mb = parseFloat(cs.marginBottom) || 0;
+      const rawH = node.offsetHeight || 18.4;
+      const gap = (currentAccumHeight === 0) ? mt : Math.max(prevMb, mt);
+      const h = rawH + gap;
+
+      if ((currentAccumHeight + h > printableH) && currentPageNodes.length > 0) {
+        pagesData.push(currentPageNodes);
+        currentPageNodes = [node];
         currentAccumHeight = rawH + mt;
         prevMb = mb;
-        consecutiveEmptyCount = 0;
-      }
-    } else {
-      currentAccumHeight += h;
-      prevMb = mb;
-      if (isEmpty) {
-        consecutiveEmptyCount++;
       } else {
-        consecutiveEmptyCount = 0;
+        currentPageNodes.push(node);
+        currentAccumHeight += h;
+        prevMb = mb;
       }
     }
-  }
 
-  const totalPages = breakIndices.length + 1;
-
-  // 2. Geçiş: Sayfa ayırıcıları ekle
-  let pageIndex = 1;
-  for (let b = 0; b < breakIndices.length; b++) {
-    const child = children[breakIndices[b]];
-    if (!child) continue;
-
-    const pageBreak = document.createElement('div');
-    pageBreak.className = 'auto-page-break';
-    pageBreak.setAttribute('contenteditable', 'false');
-
-    // Biten sayfanın altbilgisi (Her sayfanın tam A4 = 1123px yüksekliğinde olması için kalan boşlukla doldurulur)
-    const footerArea = document.createElement('div');
-    footerArea.className = 'page-break-footer-area';
-    const usedH = pageUsedHeights[b] || 0;
-    const remSpace = Math.max(4, Math.round((printableHeight - usedH) + Math.max(0, bottomInsetPx - footerOffsetPx - footerHeightPx)));
-    footerArea.style.paddingTop = remSpace + 'px';
-    footerArea.style.paddingBottom = Math.round(footerOffsetPx) + 'px';
-    footerArea.innerHTML = getDocFooterHtml(pageIndex, totalPages);
-    pageBreak.appendChild(footerArea);
-
-    // Fiziksel kağıtlar arası Havelsan masaüstü gri boşluğu (Üstteki sayfa numarasını gösterir)
-    const deskGap = document.createElement('div');
-    deskGap.className = 'page-break-desk-gap';
-    deskGap.setAttribute('data-page-label', `Sayfa ${pageIndex}`);
-    pageBreak.appendChild(deskGap);
-    pageIndex++;
-
-    // Yeni sayfanın üst kenar boşluğu (startPage destekli üstbilgi)
-    const headerArea = document.createElement('div');
-    headerArea.className = 'page-break-header-area';
-    const shouldShowHeader = currentDocHeaderTemplate
-      ? (pageIndex >= currentDocHeaderStartPage)
-      : (hasHeaderOnPage1);
-
-    if (shouldShowHeader) {
-      headerArea.classList.add('has-header');
-      headerArea.style.paddingTop = Math.round(headerOffsetPx) + 'px';
-      headerArea.style.paddingBottom = Math.max(0, Math.round(topInsetPx - headerOffsetPx - headerHeightPx)) + 'px';
-      const hClone = document.createElement('div');
-      hClone.className = 'header-footer-box udf-running-header';
-      hClone.style.borderBottom = 'none';
-      hClone.style.padding = '0';
-      hClone.style.margin = '0';
-      hClone.innerHTML = currentDocHeaderTemplate ? currentDocHeaderTemplate : (docHeader ? docHeader.innerHTML.trim() : '');
-      headerArea.appendChild(hClone);
-    } else {
-      headerArea.classList.add('no-header');
-      headerArea.style.paddingTop = Math.round(topMarginPx) + 'px';
-      headerArea.style.paddingBottom = '0px';
+    if (currentPageNodes.length > 0 || pagesData.length === 0) {
+      pagesData.push(currentPageNodes);
     }
-    pageBreak.appendChild(headerArea);
 
-    editor.insertBefore(pageBreak, child);
-  }
+    const totalPages = pagesData.length;
 
-  // Son sayfanın altbilgisini güncelle ve son sayfayı da tam A4 yüksekliğine doldur
-  if (footerEl) {
-    footerEl.innerHTML = getDocFooterHtml(totalPages, totalPages);
-    footerEl.style.display = 'block';
-    footerEl.style.border = 'none';
-    const lastRemSpace = Math.max(8, Math.round((printableHeight - Math.min(printableHeight, currentAccumHeight)) + Math.max(0, bottomInsetPx - footerOffsetPx - footerHeightPx)));
-    footerEl.style.marginTop = lastRemSpace + 'px';
-  }
+    // 4. Fiziksel A4 Kart Sayfalarını İnşa Et
+    const savedSel = saveSelectionState();
+    container.innerHTML = '';
 
-  // 3. Geçiş: Tüm sayfaları (1..N) piksel hassasiyetinde tam A4 boyuna (1123px / 794px) kilitle
-  if (sheet) {
-    const allBreaks = Array.from(editor.querySelectorAll('.auto-page-break'));
-    for (let b = 0; b < allBreaks.length; b++) {
-      const pb = allBreaks[b];
-      const fArea = pb.querySelector('.page-break-footer-area');
-      const gapEl = pb.querySelector('.page-break-desk-gap');
-      if (!fArea || !gapEl) continue;
-      const prevGap = (b > 0) ? allBreaks[b - 1].querySelector('.page-break-desk-gap') : null;
-      const pageStartY = prevGap ? (getOffsetTopInSheet(prevGap, sheet) + (prevGap.offsetHeight || 28)) : 0;
-      const pageEndY = getOffsetTopInSheet(gapEl, sheet);
-      const actualPageH = pageEndY - pageStartY;
-      const diff = pageHeight - actualPageH;
-      if (Math.abs(diff) > 1) {
-        const curPadTop = parseFloat(fArea.style.paddingTop) || 0;
-        fArea.style.paddingTop = Math.max(4, Math.round(curPadTop + diff)) + 'px';
+    const sicilVal = (window.currentDocSicil || '').trim();
+    const watermarkHtml = sicilVal
+      ? `<div class="sheet-watermark-overlay" aria-hidden="true">${Array(15).fill(`<span>${escapeHtml(sicilVal)}</span>`).join('')}</div>`
+      : '';
+
+    for (let pIdx = 0; pIdx < totalPages; pIdx++) {
+      const pageNum = pIdx + 1;
+
+      // Sayfalar arası masaüstü gri boşluğu
+      if (pIdx > 0) {
+        const gap = document.createElement('div');
+        gap.className = 'page-desk-gap';
+        gap.setAttribute('data-page-label', `Sayfa ${pIdx} / ${totalPages}`);
+        gap.innerHTML = `<span class="page-desk-chip">Sayfa ${pIdx} / ${totalPages}</span>`;
+        container.appendChild(gap);
       }
-    }
-    if (footerEl) {
-      const lastGap = (allBreaks.length > 0) ? allBreaks[allBreaks.length - 1].querySelector('.page-break-desk-gap') : null;
-      const lastStartY = lastGap ? (getOffsetTopInSheet(lastGap, sheet) + (lastGap.offsetHeight || 28)) : 0;
-      const sheetBottomY = getOffsetTopInSheet(footerEl, sheet) + footerEl.offsetHeight + Math.round(footerOffsetPx);
-      const actualLastPageH = sheetBottomY - lastStartY;
-      const lastDiff = pageHeight - actualLastPageH;
-      if (Math.abs(lastDiff) > 1) {
-        const curMt = parseFloat(footerEl.style.marginTop) || 0;
-        footerEl.style.marginTop = Math.max(8, Math.round(curMt + lastDiff)) + 'px';
-      }
-    }
-  }
 
-  // Durum çubuğunda sayfa sayısını göster
-  const statusEl = document.getElementById('stat-page-count');
-  if (statusEl) {
-    statusEl.textContent = `Sayfa 1 / ${totalPages}`;
+      // Fiziksel A4 Kağıt Kartı (Tam 1123px x 794px, Asla Uzamaz!)
+      const pageSheet = document.createElement('div');
+      pageSheet.className = 'a4-sheet-page' + (isLandscape ? ' landscape' : '');
+      pageSheet.setAttribute('data-page-number', pageNum);
+      pageSheet.id = `page-${pageNum}`;
+
+      // Filigran
+      if (watermarkHtml) {
+        pageSheet.insertAdjacentHTML('afterbegin', watermarkHtml);
+      }
+
+      // Sayfa 1'de Resmi E-İmza Rozeti
+      if (pageNum === 1) {
+        const sealDiv = document.createElement('div');
+        sealDiv.id = 'official-doc-seal';
+        sealDiv.className = 'official-doc-seal';
+        sealDiv.onclick = openSignatureModal;
+        sealDiv.title = 'Elektronik İmza Doğrulama ve Detayları';
+        sealDiv.style.display = window.currentDocHasSignature ? 'flex' : 'none';
+        sealDiv.innerHTML = '<div class="seal-medal">⚖️</div><div class="seal-ribbon"></div>';
+        pageSheet.appendChild(sealDiv);
+      }
+
+      // 1. Rezerve Üstbilgi Alanı (Üst Yazı)
+      const headerBox = document.createElement('div');
+      headerBox.className = 'page-header-box';
+      if (pageNum === 1) headerBox.id = 'doc-header';
+      headerBox.setAttribute('contenteditable', 'true');
+      headerBox.setAttribute('spellcheck', 'false');
+
+      const shouldShowHeader = hasHeaderTemplate && (pageNum >= (currentDocHeaderStartPage || 1));
+      if (shouldShowHeader) {
+        headerBox.innerHTML = currentDocHeaderTemplate;
+        headerBox.style.display = 'flex';
+      } else {
+        headerBox.innerHTML = '';
+        headerBox.style.display = 'none';
+      }
+      headerBox.addEventListener('input', () => {
+        currentDocHeaderTemplate = headerBox.innerHTML;
+        debouncedPagination(400);
+      });
+      pageSheet.appendChild(headerBox);
+
+      // 2. Rezerve Gövde Metin Alanı (Printable Body)
+      const bodyBox = document.createElement('div');
+      bodyBox.className = 'page-body-box';
+      if (pageNum === 1) bodyBox.id = 'editor-content';
+      bodyBox.setAttribute('contenteditable', 'true');
+      bodyBox.setAttribute('spellcheck', 'true');
+      bodyBox.setAttribute('autocomplete', 'off');
+      bodyBox.setAttribute('autocapitalize', 'sentences');
+
+      const pNodes = pagesData[pIdx] || [];
+      pNodes.forEach(n => bodyBox.appendChild(n));
+      if (pNodes.length === 0) {
+        bodyBox.innerHTML = '<p style="text-align: justify;"><br></p>';
+      }
+
+      bodyBox.addEventListener('input', function() {
+        markDocumentUserEdited();
+        const ap = getActiveParagraph();
+        if (ap && ap.querySelector('.udf-tab-space')) realignTabsInParagraph(ap);
+        updateCounts();
+        if (this.scrollHeight > this.clientHeight + 2) {
+          debouncedPagination(120);
+        } else {
+          debouncedPagination(600);
+        }
+      });
+
+      pageSheet.appendChild(bodyBox);
+
+      // 3. Rezerve Altbilgi Alanı (Alt Yazı ve Sayfa Numarası)
+      const footerBox = document.createElement('div');
+      footerBox.className = 'page-footer-box';
+      if (pageNum === 1) footerBox.id = 'doc-footer';
+      footerBox.setAttribute('contenteditable', 'false');
+      footerBox.innerHTML = getDocFooterHtml(pageNum, totalPages);
+      pageSheet.appendChild(footerBox);
+
+      container.appendChild(pageSheet);
+    }
+
+    restoreSelectionState(savedSel);
+
+    // Durum çubuğunda sayfa sayısını göster
+    const statusEl = document.getElementById('stat-page-count');
+    if (statusEl) {
+      statusEl.textContent = `Sayfa 1 / ${totalPages}`;
+    }
+  } finally {
+    isPaginating = false;
   }
 }
 
-function debouncedPagination() {
+function debouncedPagination(delay = 500) {
   clearTimeout(paginationTimer);
-  paginationTimer = setTimeout(updatePagination, 700);
+  paginationTimer = setTimeout(updatePagination, delay);
 }
 
 // Üstbilgi ve Altbilgiye Odaklanma (Asla kaybolmaz, doğrudan düzenlenir)
@@ -822,42 +851,42 @@ function adjustFontSize(delta) {
   }
 }
 
-// --- PARAGRAF BULMA VE HEDEFLİ SEÇİM ---
+// --- PARAGRAF BULMA VE HEDEFLİ SEÇİM (Tüm Sayfalar Uyumlu) ---
 function getActiveParagraph() {
-  const selection = window.getSelection();
-  const editor = document.getElementById('editor-content');
-  if (selection && selection.rangeCount > 0 && editor && editor.contains(selection.anchorNode)) {
+  const selection = window.getSelection ? window.getSelection() : null;
+  if (selection && selection.rangeCount > 0) {
     let node = selection.anchorNode;
-    while (node && node !== editor && node !== document.body) {
-      if (node.nodeType === Node.ELEMENT_NODE) {
-        const tag = node.tagName.toLowerCase();
-        if (tag === 'p' || tag === 'li' || tag === 'blockquote' || (tag === 'div' && node.parentNode === editor)) {
-          lastActiveParagraph = node;
-          return node;
+    if (!node) return lastActiveParagraph;
+    let el = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
+    const bodyBox = el ? (el.closest ? el.closest('.page-body-box') : null) : null;
+    if (bodyBox) {
+      while (el && el !== bodyBox && el !== document.body) {
+        const tag = el.tagName ? el.tagName.toLowerCase() : '';
+        if (tag === 'p' || tag === 'li' || tag === 'blockquote' || (tag === 'div' && el.parentNode === bodyBox)) {
+          lastActiveParagraph = el;
+          return el;
         }
+        el = el.parentElement;
       }
-      node = node.parentNode;
     }
   }
-  if (lastActiveParagraph && editor && editor.contains(lastActiveParagraph)) {
+  if (lastActiveParagraph && document.body.contains(lastActiveParagraph)) {
     return lastActiveParagraph;
   }
-  const ps = editor ? editor.querySelectorAll('p, li, blockquote') : [];
+  const ps = document.querySelectorAll('.page-body-box p, .page-body-box li, #editor-content p');
   return ps.length > 0 ? ps[0] : null;
 }
 
 function getSelectedParagraphs() {
-  const selection = window.getSelection();
-  const editor = document.getElementById('editor-content');
-  // İmleç editörde ve seçim yoksa: sadece imlecin bulunduğu paragraf (eski çoklu seçime dönme)
-  if (selection && selection.rangeCount > 0 && selection.isCollapsed && editor && editor.contains(selection.anchorNode)) {
-    const cp = getActiveParagraph();
-    return cp ? [cp] : [];
+  const selection = window.getSelection ? window.getSelection() : null;
+  const cp = getActiveParagraph();
+  if (selection && selection.rangeCount > 0 && selection.isCollapsed && cp) {
+    return [cp];
   }
-  if (selection && selection.rangeCount > 0 && !selection.isCollapsed && editor && editor.contains(selection.anchorNode)) {
+  if (selection && selection.rangeCount > 0 && !selection.isCollapsed) {
     try {
       const range = selection.getRangeAt(0);
-      const allBlocks = Array.from(editor.querySelectorAll('p, li, blockquote'));
+      const allBlocks = Array.from(document.querySelectorAll('.page-body-box p, .page-body-box li, .page-body-box blockquote, #editor-content p'));
       const intersected = allBlocks.filter(b => range.intersectsNode(b));
       if (intersected.length > 0) {
         lastSelectedParagraphs = intersected;
@@ -867,13 +896,12 @@ function getSelectedParagraphs() {
   }
 
   // Seçim araç çubuğuna tıklanması nedeniyle odak kaybında önceden kaydedilen seçimi kullan:
-  if (lastSelectedParagraphs && lastSelectedParagraphs.length > 0 && editor) {
-    const valid = lastSelectedParagraphs.filter(p => editor.contains(p));
+  if (lastSelectedParagraphs && lastSelectedParagraphs.length > 0) {
+    const valid = lastSelectedParagraphs.filter(p => document.body.contains(p));
     if (valid.length > 0) return valid;
   }
 
-  const p = getActiveParagraph();
-  return p ? [p] : [];
+  return cp ? [cp] : [];
 }
 
 // Hızlı Paragraf Boşluğu (Önce & Sonra - Yalnızca Seçili Paragraflara Uygulanır)
@@ -2949,9 +2977,15 @@ function setBtnState(id, isActive) {
   }
 }
 
-// Kelime ve Karakter Sayımı
+// Kelime ve Karakter Sayımı (Tüm Sayfalar)
 function updateCounts() {
-  const text = document.getElementById('editor-content').innerText || '';
+  const bodyBoxes = Array.from(document.querySelectorAll('.page-body-box'));
+  let text = '';
+  if (bodyBoxes.length > 0) {
+    text = bodyBoxes.map(b => b.innerText || '').join('\n');
+  } else {
+    text = (document.getElementById('editor-content') || {}).innerText || '';
+  }
   const trimmed = text.trim();
   const wordCount = trimmed ? trimmed.split(/\s+/).length : 0;
   const charCount = text.length;
@@ -3440,14 +3474,15 @@ function setHtmlContent(content) {
           applyPageSetup(data.leftMarginCm, data.rightMarginCm, data.topMarginCm, data.bottomMarginCm, data.paperOrientation === '2' || data.paperOrientation === 'landscape' ? 'landscape' : 'portrait', data.headerMarginCm, data.footerMarginCm);
         }
         if (data.html) {
-          editor.innerHTML = data.html;
+          const p1 = document.querySelector('.page-body-box') || document.getElementById('editor-content');
+          if (p1) p1.innerHTML = data.html;
           updateCounts();
           setTimeout(() => {
             applyAutoFitZoom();
             if (typeof realignAllTabs === 'function') realignAllTabs();
             updateRulerFromActiveParagraph();
             updatePagination();
-          }, 200);
+          }, 150);
           setTimeout(markDocumentPristine, 400);
           setTimeout(() => { if (window.CanHistory) CanHistory.reset(); }, 450);
           return;
@@ -3458,18 +3493,24 @@ function setHtmlContent(content) {
     }
   }
 
-  editor.innerHTML = content;
+  const p1 = document.querySelector('.page-body-box') || document.getElementById('editor-content');
+  if (p1) p1.innerHTML = content;
   updateCounts();
   setTimeout(() => {
     updateRulerFromActiveParagraph();
     updatePagination();
-  }, 200);
+  }, 150);
   setTimeout(markDocumentPristine, 400);
   setTimeout(() => { if (window.CanHistory) CanHistory.reset(); }, 450);
 }
 
 function getHtmlContent() {
-  return document.getElementById('editor-content').innerHTML;
+  const bodyBoxes = Array.from(document.querySelectorAll('.page-body-box'));
+  if (bodyBoxes.length > 0) {
+    return bodyBoxes.map(b => b.innerHTML).join('');
+  }
+  const ed = document.getElementById('editor-content');
+  return ed ? ed.innerHTML : '';
 }
 
 function getPlainText() {
@@ -3692,12 +3733,21 @@ function extractHeaderFooterBlocks(htmlStr) {
 }
 
 function getStructuredDocument() {
-  const container = document.getElementById('editor-content');
   const paragraphs = [];
+  const bodyBoxes = Array.from(document.querySelectorAll('.page-body-box'));
+  let nodes = [];
+  if (bodyBoxes.length > 0) {
+    bodyBoxes.forEach(bb => {
+      Array.from(bb.children).forEach(c => nodes.push(c));
+    });
+  } else {
+    const container = document.getElementById('editor-content');
+    if (container) nodes = Array.from(container.children);
+  }
 
-  const nodes = container.children;
   if (!nodes || nodes.length === 0) {
-    const rawTxt = (container.innerText || '').replace(/\u200B/g, '');
+    const p1 = document.querySelector('.page-body-box') || document.getElementById('editor-content');
+    const rawTxt = (p1 ? p1.innerText : '').replace(/\u200B/g, '');
     paragraphs.push({
       type: 'paragraph',
       text: rawTxt,
@@ -3712,7 +3762,7 @@ function getStructuredDocument() {
     });
   } else {
     for (let node of nodes) {
-      if (node.classList && (node.classList.contains('auto-page-break') || node.classList.contains('page-break') || node.classList.contains('page-break-desk-gap') || node.classList.contains('page-break-header-area') || node.classList.contains('page-break-footer-area'))) {
+      if (node.classList && (node.classList.contains('auto-page-break') || node.classList.contains('page-break-desk-gap') || node.classList.contains('page-desk-gap') || node.classList.contains('page-break-header-area') || node.classList.contains('page-break-footer-area'))) {
         continue;
       }
       if (node.classList && node.classList.contains('udf-page-break')) {
@@ -4399,34 +4449,32 @@ function openPrintPreview() {
   }
 
   container.innerHTML = '';
-  const sheet = document.getElementById('a4-sheet');
-  if (!sheet) return;
+  const pagesContainer = document.getElementById('pages-container') || document.getElementById('sheet-container') || document.getElementById('a4-sheet');
+  if (!pagesContainer) return;
 
-  const isLandscape = sheet.classList.contains('landscape');
-  const sheetClone = sheet.cloneNode(true);
-  sheetClone.id = 'print-preview-sheet-clone';
-  sheetClone.style.transform = `scale(${printPreviewScale})`;
-  sheetClone.style.transformOrigin = 'top center';
-  sheetClone.style.margin = '0 auto';
-  sheetClone.style.boxShadow = '0 8px 24px rgba(0,0,0,0.45)';
-  sheetClone.style.pointerEvents = 'none';
+  const isLandscape = currentMargins.orientation === 'landscape';
+  const clone = pagesContainer.cloneNode(true);
+  clone.id = 'print-preview-pages-clone';
+  clone.style.transform = `scale(${printPreviewScale})`;
+  clone.style.transformOrigin = 'top center';
+  clone.style.margin = '0 auto';
+  clone.style.pointerEvents = 'none';
 
-  const edContent = sheetClone.querySelector('#editor-content');
-  if (edContent) {
-    edContent.removeAttribute('contenteditable');
-  }
+  clone.querySelectorAll('.page-body-box, .page-header-box, #editor-content, #doc-header').forEach(el => {
+    el.removeAttribute('contenteditable');
+  });
 
   const wrapper = document.createElement('div');
   wrapper.className = 'print-preview-sheet-wrapper';
   wrapper.style.display = 'flex';
   wrapper.style.justifyContent = 'center';
   wrapper.style.width = '100%';
-  wrapper.style.height = Math.round(sheet.offsetHeight * printPreviewScale + 40) + 'px';
-  wrapper.appendChild(sheetClone);
+  wrapper.style.height = Math.round(pagesContainer.offsetHeight * printPreviewScale + 60) + 'px';
+  wrapper.appendChild(clone);
 
   container.appendChild(wrapper);
 
-  const totalPages = parseInt(document.getElementById('total-pages')?.innerText || '1', 10);
+  const totalPages = document.querySelectorAll('.a4-sheet-page').length || 1;
   const indicator = document.getElementById('preview-page-indicator');
   if (indicator) {
     indicator.innerText = `Toplam ${totalPages} Sayfa (A4 ${isLandscape ? 'Yatay' : 'Dikey'})`;
@@ -4446,13 +4494,13 @@ function closePrintPreview() {
 
 function printPreviewZoom(delta) {
   printPreviewScale = Math.max(0.3, Math.min(2.0, printPreviewScale + delta));
-  const sheetClone = document.getElementById('print-preview-sheet-clone');
-  const sheet = document.getElementById('a4-sheet');
-  if (sheetClone && sheet) {
-    sheetClone.style.transform = `scale(${printPreviewScale})`;
-    const wrapper = sheetClone.parentElement;
+  const clone = document.getElementById('print-preview-pages-clone');
+  const pagesContainer = document.getElementById('pages-container') || document.getElementById('sheet-container') || document.getElementById('a4-sheet');
+  if (clone && pagesContainer) {
+    clone.style.transform = `scale(${printPreviewScale})`;
+    const wrapper = clone.parentElement;
     if (wrapper) {
-      wrapper.style.height = Math.round(sheet.offsetHeight * printPreviewScale + 40) + 'px';
+      wrapper.style.height = Math.round(pagesContainer.offsetHeight * printPreviewScale + 60) + 'px';
     }
   }
   const zoomLabel = document.getElementById('preview-zoom-label');
@@ -4463,10 +4511,10 @@ function printPreviewZoom(delta) {
 
 function printPreviewFit() {
   const container = document.getElementById('print-preview-body');
-  const sheet = document.getElementById('a4-sheet');
-  if (!container || !sheet) return;
+  const pagesContainer = document.getElementById('pages-container') || document.getElementById('sheet-container') || document.getElementById('a4-sheet');
+  if (!container || !pagesContainer) return;
   const availW = container.clientWidth - 60;
-  const isLandscape = sheet.classList.contains('landscape');
+  const isLandscape = currentMargins.orientation === 'landscape';
   const sheetW = isLandscape ? 1123 : 794;
   if (availW > 100 && sheetW > 0) {
     printPreviewScale = Math.max(0.3, Math.min(1.5, Math.round((availW / sheetW) * 100) / 100));

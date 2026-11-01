@@ -290,43 +290,51 @@
         <!-- Düşey Kılavuz Hizalama Çizgisi -->
         <div id="ruler-guide-line" class="ruler-guide-line" style="display: none;"></div>
 
-        <div id="a4-sheet">
+        <!-- Havelsan UYAP Fiziksel A4 Çoklu Sayfa Konteyneri -->
+        <div id="pages-container" class="pages-container">
+          <div class="a4-sheet-page" data-page-number="1" id="page-1">
 
-          <!-- Havelsan UYAP E-İmza Rozeti (Sağ Üst Köşe) -->
-          <div id="official-doc-seal" class="official-doc-seal" onclick="openSignatureModal()" title="Elektronik İmza Doğrulama ve Detayları" style="display: none;">
-            <div class="seal-medal">⚖️</div>
-            <div class="seal-ribbon"></div>
-          </div>
+            <!-- Havelsan UYAP E-İmza Rozeti (Sağ Üst Köşe) -->
+            <div id="official-doc-seal" class="official-doc-seal" onclick="openSignatureModal()" title="Elektronik İmza Doğrulama ve Detayları" style="display: none;">
+              <div class="seal-medal">⚖️</div>
+              <div class="seal-ribbon"></div>
+            </div>
 
-          <!-- Üstbilgi Alanı (Header) -->
-          <div id="doc-header" class="header-footer-box" contenteditable="true" spellcheck="false" data-placeholder="Üstbilgi eklemek için buraya dokunun (örn: Mahkeme Adı, Dosya No)...">T.C. İSTANBUL ANADOLU 1. ASLİYE HUKUK MAHKEMESİ — Dosya No: 2026/.... Esas</div>
+            <!-- Rezerve Üstbilgi Alanı (Header) -->
+            <div id="doc-header" class="page-header-box" contenteditable="true" spellcheck="false" data-placeholder="Üstbilgi eklemek için buraya dokunun (örn: Mahkeme Adı, Dosya No)...">T.C. İSTANBUL ANADOLU 1. ASLİYE HUKUK MAHKEMESİ — Dosya No: 2026/.... Esas</div>
 
-          <!-- Ana Editör İçeriği -->
-          <div id="editor-content" contenteditable="true" spellcheck="true" autocomplete="off" autocapitalize="sentences">
-            <p style="text-align: center;"><strong>... NÖBETÇİ ASLİYE HUKUK MAHKEMESİ HÂKİMLİĞİ'NE</strong></p>
-            <p style="text-align: justify;"><br></p>
-            <p style="text-align: justify;"><strong>DOSYA NO :</strong> 2026/.... Esas</p>
-            <p style="text-align: justify;"><strong>DAVACI :</strong> [Davacı Adı Soyadı / Ünvanı - TCKN / VKN]</p>
-            <p style="text-align: justify;"><strong>VEKİLİ :</strong> Av. [Vekil Adı Soyadı] - Baro Sicil No / UETS</p>
-            <p style="text-align: justify;"><strong>DAVALI :</strong> [Davalı Adı Soyadı / Ünvanı]</p>
-            <p style="text-align: justify;"><strong>DAVA KONUSU :</strong> [Davanın Konusu ve Talebin Özeti]</p>
-            <p style="text-align: justify;"><br></p>
-            <p style="text-align: justify;"><strong>AÇIKLAMALAR :</strong></p>
-            <p style="text-align: justify; text-indent: 28px; margin-top: 4pt; margin-bottom: 8pt;">1.1-) Müvekkil ile davalı taraf arasındaki hukuki ilişki çerçevesinde ...</p>
-            <p style="text-align: justify; text-indent: 28px; margin-top: 4pt; margin-bottom: 8pt;">1.2-) Davalı taraf edimlerini usul ve yasaya aykırı şekilde ifa etmemiştir ...</p>
-            <p style="text-align: justify;"><br></p>
-            <p style="text-align: justify;"><strong>HUKUKİ SEBEPLER :</strong> 6100 sayılı HMK, 6098 sayılı TBK, TTK ve ilgili mevzuat.</p>
-            <p style="text-align: justify;"><strong>DELİLLER :</strong> Fatura, banka dekontları, tanık, bilirkişi raporu, yemin ve her türlü yasal delil.</p>
-            <p style="text-align: justify;"><br></p>
-            <p style="text-align: justify;"><strong>NETİCE-İ TALEP :</strong> Yukarıda arz ve izah edilen nedenlerle haklı davamızın kabulüne, yargılama giderleri ile vekâlet ücretinin davalıya tahmiline karar verilmesini saygıyla vekâleten arz ve talep ederiz.</p>
-            <p style="text-align: right;"><br></p>
-            <p style="text-align: right;"><strong>Davacı Vekili</strong><br>Av. [Adınız Soyadınız]<br><em>(5070 Sayılı Kanun Uyarınca E-İmzalıdır)</em></p>
-          </div>
+            <!-- Rezerve Gövde Alanı (Sayfa 1 Metni) -->
+            <div id="editor-content" class="page-body-box" contenteditable="true" spellcheck="true" autocomplete="off" autocapitalize="sentences">
+              <p style="text-align: center;"><strong>... NÖBETÇİ ASLİYE HUKUK MAHKEMESİ HÂKİMLİĞİ'NE</strong></p>
+              <p style="text-align: justify;"><br></p>
+              <p style="text-align: justify;"><strong>DOSYA NO :</strong> 2026/.... Esas</p>
+              <p style="text-align: justify;"><strong>DAVACI :</strong> [Davacı Adı Soyadı / Ünvanı - TCKN / VKN]</p>
+              <p style="text-align: justify;"><strong>VEKİLİ :</strong> Av. [Vekil Adı Soyadı] - Baro Sicil No / UETS</p>
+              <p style="text-align: justify;"><strong>DAVALI :</strong> [Davalı Adı Soyadı / Ünvanı]</p>
+              <p style="text-align: justify;"><strong>DAVA KONUSU :</strong> [Davanın Konusu ve Talebin Özeti]</p>
+              <p style="text-align: justify;"><br></p>
+              <p style="text-align: justify;"><strong>AÇIKLAMALAR :</strong></p>
+              <p style="text-align: justify; text-indent: 28px; margin-top: 4pt; margin-bottom: 8pt;">1.1-) Müvekkil ile davalı taraf arasındaki hukuki ilişki çerçevesinde ...</p>
+              <p style="text-align: justify; text-indent: 28px; margin-top: 4pt; margin-bottom: 8pt;">1.2-) Davalı taraf edimlerini usul ve yasaya aykırı şekilde ifa etmemiştir ...</p>
+              <p style="text-align: justify;"><br></p>
+              <p style="text-align: justify;"><strong>HUKUKİ SEBEPLER :</strong> 6100 sayılı HMK, 6098 sayılı TBK, TTK ve ilgili mevzuat.</p>
+              <p style="text-align: justify;"><strong>DELİLLER :</strong> Fatura, banka dekontları, tanık, bilirkişi raporu, yemin ve her türlü yasal delil.</p>
+              <p style="text-align: justify;"><br></p>
+              <p style="text-align: justify;"><strong>NETİCE-İ TALEP :</strong> Yukarıda arz ve izah edilen nedenlerle haklı davamızın kabulüne, yargılama giderleri ile vekâlet ücretinin davalıya tahmiline karar verilmesini saygıyla vekâleten arz ve talep ederiz.</p>
+              <p style="text-align: right;"><br></p>
+              <p style="text-align: right;"><strong>Davacı Vekili</strong><br>Av. [Adınız Soyadınız]<br><em>(5070 Sayılı Kanun Uyarınca E-İmzalıdır)</em></p>
+            </div>
 
-          <!-- Altbilgi Alanı (Footer) -->
-          <div id="doc-footer" class="header-footer-box" contenteditable="true" spellcheck="false" data-placeholder="Altbilgi eklemek için buraya dokunun (örn: Büro Adresi, UETS, Sayfa No)...">Adres: [Büro Adresi / Telefon / UETS Adresi] &nbsp;|&nbsp; Sayfa: 1 / 1</div>
+            <!-- Rezerve Altbilgi Alanı (Footer) -->
+            <div id="doc-footer" class="page-footer-box" contenteditable="false">
+              <div class="udf-footer-layout">
+                <span class="udf-footer-text">Adres: [Büro Adresi / Telefon / UETS Adresi]</span>
+                <span class="udf-footer-page-label">Sayfa: 1 / 1</span>
+              </div>
+            </div>
 
-        </div> <!-- #a4-sheet -->
+          </div> <!-- #page-1 -->
+        </div> <!-- #pages-container -->
       </div> <!-- #sheet-container -->
     </div> <!-- #sheet-wrapper -->
   </div> <!-- #page-wrapper -->
@@ -534,6 +542,7 @@
             <select id="p-line-spacing" class="modal-input" onchange="updateParagraphPreview()">
               <option value="1.0">1.0 satır (Tek)</option>
               <option value="1.15">1.15 satır</option>
+              <option value="1.16">1.16 satır (Havelsan UYAP LineSpacing 0.16)</option>
               <option value="1.35" selected>1.35 satır (UYAP Standart)</option>
               <option value="1.5">1.5 satır (Geniş)</option>
               <option value="2.0">2.0 satır (Çift)</option>
@@ -696,20 +705,20 @@
           </div>
 
           <div class="param-col" style="margin-top: 10px;">
-            <label class="modal-label">Üstbilgi Payı (cm):</label>
+            <label class="modal-label">Kenardan Üst Yazı (cm):</label>
             <div class="stepper-box">
-              <button type="button" class="stepper-btn" onclick="stepMargin('header', -0.25)">−</button>
-              <input type="number" id="m-header" class="stepper-input" value="1.25" min="0" max="6" step="0.25" oninput="updateMarginPreview()">
-              <button type="button" class="stepper-btn" onclick="stepMargin('header', 0.25)">+</button>
+              <button type="button" class="stepper-btn" onclick="stepMargin('header', -0.1)">−</button>
+              <input type="number" id="m-header" class="stepper-input" value="0.5" min="0" max="6" step="0.1" oninput="updateMarginPreview()">
+              <button type="button" class="stepper-btn" onclick="stepMargin('header', 0.1)">+</button>
             </div>
           </div>
 
           <div class="param-col" style="margin-top: 10px;">
-            <label class="modal-label">Altbilgi Payı (cm):</label>
+            <label class="modal-label">Kenardan Alt Yazı (cm):</label>
             <div class="stepper-box">
-              <button type="button" class="stepper-btn" onclick="stepMargin('footer', -0.25)">−</button>
-              <input type="number" id="m-footer" class="stepper-input" value="1.25" min="0" max="6" step="0.25" oninput="updateMarginPreview()">
-              <button type="button" class="stepper-btn" onclick="stepMargin('footer', 0.25)">+</button>
+              <button type="button" class="stepper-btn" onclick="stepMargin('footer', -0.1)">−</button>
+              <input type="number" id="m-footer" class="stepper-input" value="0.5" min="0" max="6" step="0.1" oninput="updateMarginPreview()">
+              <button type="button" class="stepper-btn" onclick="stepMargin('footer', 0.1)">+</button>
             </div>
           </div>
         </div>
