@@ -129,7 +129,46 @@
                 <data android:mimeType="application/msword" />
             </intent-filter>
 
-            <!-- 7. Samsung Files "Birlikte Aç" & Fallback -->
+            <!-- 7. PDF Belgeleri -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="content" />
+                <data android:scheme="file" />
+                <data android:mimeType="application/pdf" />
+                <data android:pathSuffix=".pdf" />
+                <data android:pathSuffix=".PDF" />
+            </intent-filter>
+
+            <!-- 8. TIFF / TIF Görüntüleri -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="content" />
+                <data android:scheme="file" />
+                <data android:mimeType="image/tiff" />
+                <data android:mimeType="image/tif" />
+                <data android:pathSuffix=".tiff" />
+                <data android:pathSuffix=".tif" />
+                <data android:pathSuffix=".TIFF" />
+                <data android:pathSuffix=".TIF" />
+            </intent-filter>
+
+            <!-- 9. OpenDocument Metin (ODT) -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="content" />
+                <data android:scheme="file" />
+                <data android:mimeType="application/vnd.oasis.opendocument.text" />
+                <data android:pathSuffix=".odt" />
+                <data android:pathSuffix=".ODT" />
+            </intent-filter>
+
+            <!-- 10. Samsung Files "Birlikte Aç" & Fallback -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />

@@ -516,7 +516,15 @@ function updatePagination() {
   }
 
   const headerHeightPx = hasHeaderOnPage1 ? (docHeader.offsetHeight || 0) : 0;
-  const footerHeightPx = footerEl ? (footerEl.offsetHeight || 24) : 24;
+  let footerHeightPx = footerEl ? (footerEl.offsetHeight || 24) : 24;
+  const footerImg = footerEl ? footerEl.querySelector('img') : null;
+  if (footerImg) {
+    const attrH = footerImg.getAttribute('data-udf-height');
+    const parsedH = attrH ? (parseFloat(attrH) * 1.333) : 0;
+    const styleMaxH = footerImg.style.maxHeight ? (parseFloat(footerImg.style.maxHeight) * (footerImg.style.maxHeight.includes('cm') ? 37.8 : 1)) : 0;
+    const estImgH = Math.max(parsedH, styleMaxH, 50);
+    footerHeightPx = Math.max(footerHeightPx, Math.round(estImgH + 16));
+  }
 
   // Havelsan UYAP ar.s() ve ar.u() formülü:
   const topInsetPx = hasHeaderOnPage1 ? Math.max(topMarginPx, headerOffsetPx + headerHeightPx) : topMarginPx;
@@ -526,6 +534,12 @@ function updatePagination() {
   if (sheet) {
     sheet.style.paddingTop = Math.round(hasHeaderOnPage1 ? headerOffsetPx : topMarginPx) + 'px';
     sheet.style.paddingBottom = Math.round(footerOffsetPx) + 'px';
+    sheet.querySelectorAll('.sheet-watermark-overlay').forEach(w => w.remove());
+    const sicilVal = (window.currentDocSicil || '').trim();
+    if (sicilVal) {
+      const spans = Array(15).fill(`<span>${escapeHtml(sicilVal)}</span>`).join('');
+      sheet.insertAdjacentHTML('afterbegin', `<div class="sheet-watermark-overlay" aria-hidden="true">${spans}</div>`);
+    }
   }
   if (docHeader) {
     docHeader.style.marginBottom = hasHeaderOnPage1
@@ -540,6 +554,22 @@ function updatePagination() {
   const children = Array.from(editor.children);
   const breakIndices = [];
   const pageUsedHeights = [];
+
+  function isHeadingElement(el) {
+    if (!el || !el.tagName) return false;
+    const tag = el.tagName.toUpperCase();
+    if (/^H[1-6]$/.test(tag)) return true;
+    const cs = window.getComputedStyle ? window.getComputedStyle(el) : null;
+    const fw = cs ? cs.fontWeight : (el.style.fontWeight || '');
+    const isBold = fw === 'bold' || parseInt(fw, 10) >= 600 || el.querySelector('b, strong');
+    const txt = (el.innerText || '').trim();
+    if (isBold && txt.length > 0 && txt.length < 130) {
+      if (txt.endsWith(':') || /^[I|V|X|0-9]+[\.\)]\s+/i.test(txt) || (txt === txt.toUpperCase() && txt.length > 3)) {
+        return true;
+      }
+    }
+    return false;
+  }
 
   for (let i = 0; i < children.length; i++) {
     const child = children[i];
@@ -567,8 +597,10 @@ function updatePagination() {
     // Sayfanın alt kısmında 3 veya daha fazla ardışık boş satır (Enter) bırakılarak
     // bir sonraki sayfaya itilmiş başlık/paragraf kontrolü (Örn: SONUÇ VE TALEP:):
     const pushedByBlankRun = (!isEmpty && consecutiveEmptyCount >= 3 && currentAccumHeight >= printableHeight * 0.65);
+    const isHeading = isHeadingElement(child);
+    const wouldLeaveHeadingOrphaned = isHeading && (i + 1 < children.length) && (currentAccumHeight + h + 24 > printableHeight);
 
-    if ((currentAccumHeight + h > printableHeight || pushedByBlankRun) && currentAccumHeight > 0) {
+    if ((currentAccumHeight + h > printableHeight || pushedByBlankRun || wouldLeaveHeadingOrphaned) && currentAccumHeight > 0) {
       if (isEmpty) {
         // Sayfa sonunu aşan boş dolgu paragraflarının yeni sayfanın başına taşmasını engelle
         const collapseEl = (el) => {
@@ -3403,6 +3435,7 @@ function setHtmlContent(content) {
         } else {
           currentDocVerificationCode = '';
         }
+        window.currentDocSicil = data.sicil || '';
         if (data.leftMarginCm !== undefined) {
           applyPageSetup(data.leftMarginCm, data.rightMarginCm, data.topMarginCm, data.bottomMarginCm, data.paperOrientation === '2' || data.paperOrientation === 'landscape' ? 'landscape' : 'portrait', data.headerMarginCm, data.footerMarginCm);
         }
@@ -4352,3 +4385,96 @@ function initDynamicScrollBlur() {
   if (blurTop) blurTop.style.display = 'none';
   if (blurBottom) blurBottom.style.display = 'none';
 }
+
+// --- YAZDIRMA ÖNİZLEME (PRINT PREVIEW) ---
+let printPreviewScale = 0.8;
+
+function openPrintPreview() {
+  if (typeof updatePagination === 'function') updatePagination();
+  const modal = document.getElementById('modal-print-preview');
+  const container = document.getElementById('print-preview-body');
+  if (!modal || !container) {
+    if (typeof triggerDirectPrint === 'function') triggerDirectPrint();
+    return;
+  }
+
+  container.innerHTML = '';
+  const sheet = document.getElementById('a4-sheet');
+  if (!sheet) return;
+
+  const isLandscape = sheet.classList.contains('landscape');
+  const sheetClone = sheet.cloneNode(true);
+  sheetClone.id = 'print-preview-sheet-clone';
+  sheetClone.style.transform = `scale(${printPreviewScale})`;
+  sheetClone.style.transformOrigin = 'top center';
+  sheetClone.style.margin = '0 auto';
+  sheetClone.style.boxShadow = '0 8px 24px rgba(0,0,0,0.45)';
+  sheetClone.style.pointerEvents = 'none';
+
+  const edContent = sheetClone.querySelector('#editor-content');
+  if (edContent) {
+    edContent.removeAttribute('contenteditable');
+  }
+
+  const wrapper = document.createElement('div');
+  wrapper.className = 'print-preview-sheet-wrapper';
+  wrapper.style.display = 'flex';
+  wrapper.style.justifyContent = 'center';
+  wrapper.style.width = '100%';
+  wrapper.style.height = Math.round(sheet.offsetHeight * printPreviewScale + 40) + 'px';
+  wrapper.appendChild(sheetClone);
+
+  container.appendChild(wrapper);
+
+  const totalPages = parseInt(document.getElementById('total-pages')?.innerText || '1', 10);
+  const indicator = document.getElementById('preview-page-indicator');
+  if (indicator) {
+    indicator.innerText = `Toplam ${totalPages} Sayfa (A4 ${isLandscape ? 'Yatay' : 'Dikey'})`;
+  }
+  const zoomLabel = document.getElementById('preview-zoom-label');
+  if (zoomLabel) {
+    zoomLabel.innerText = Math.round(printPreviewScale * 100) + '%';
+  }
+
+  modal.style.display = 'flex';
+}
+
+function closePrintPreview() {
+  const modal = document.getElementById('modal-print-preview');
+  if (modal) modal.style.display = 'none';
+}
+
+function printPreviewZoom(delta) {
+  printPreviewScale = Math.max(0.3, Math.min(2.0, printPreviewScale + delta));
+  const sheetClone = document.getElementById('print-preview-sheet-clone');
+  const sheet = document.getElementById('a4-sheet');
+  if (sheetClone && sheet) {
+    sheetClone.style.transform = `scale(${printPreviewScale})`;
+    const wrapper = sheetClone.parentElement;
+    if (wrapper) {
+      wrapper.style.height = Math.round(sheet.offsetHeight * printPreviewScale + 40) + 'px';
+    }
+  }
+  const zoomLabel = document.getElementById('preview-zoom-label');
+  if (zoomLabel) {
+    zoomLabel.innerText = Math.round(printPreviewScale * 100) + '%';
+  }
+}
+
+function printPreviewFit() {
+  const container = document.getElementById('print-preview-body');
+  const sheet = document.getElementById('a4-sheet');
+  if (!container || !sheet) return;
+  const availW = container.clientWidth - 60;
+  const isLandscape = sheet.classList.contains('landscape');
+  const sheetW = isLandscape ? 1123 : 794;
+  if (availW > 100 && sheetW > 0) {
+    printPreviewScale = Math.max(0.3, Math.min(1.5, Math.round((availW / sheetW) * 100) / 100));
+    printPreviewZoom(0);
+  }
+}
+
+window.openPrintPreview = openPrintPreview;
+window.closePrintPreview = closePrintPreview;
+window.printPreviewZoom = printPreviewZoom;
+window.printPreviewFit = printPreviewFit;

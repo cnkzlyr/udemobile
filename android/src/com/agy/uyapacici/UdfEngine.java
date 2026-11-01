@@ -843,6 +843,7 @@ public class UdfEngine {
             String footerPageSpec = "";
             String footerPageStart = "1";
             boolean hasPageNumber = false;
+            String pageLabelText = "Sayfa: {PAGE_NUM}/{TOTAL_PAGES}";
             if (footers.getLength() > 0) {
                 Element footerElem = (Element) footers.item(0);
                 if (footerElem.hasAttribute("pageNumber-foreStr")) {
@@ -862,12 +863,12 @@ public class UdfEngine {
                 if (footerElem.hasAttribute("pageNumber-start")) {
                     footerPageStart = footerElem.getAttribute("pageNumber-start");
                 }
+                pageLabelText = escapeHtml(footerForeStr != null ? footerForeStr.trim() : "Sayfa:") + " {PAGE_NUM}" + escapeHtml(footerSep != null ? footerSep.trim() : "/") + "{TOTAL_PAGES}";
 
                 StringBuilder fBuilder = new StringBuilder();
                 Map<String, Integer> fCounters = new HashMap<>();
                 Node fChild = footerElem.getFirstChild();
                 boolean hasFooterImg = false;
-                String pageLabelText = escapeHtml(footerForeStr != null ? footerForeStr.trim() : "Sayfa:") + " {PAGE_NUM}" + escapeHtml(footerSep != null ? footerSep.trim() : "/") + "{TOTAL_PAGES}";
                 while (fChild != null) {
                     if (fChild.getNodeType() == Node.ELEMENT_NODE) {
                         Element fce = (Element) fChild;
@@ -926,17 +927,26 @@ public class UdfEngine {
                 }
             }
 
-            // Eğer UYAP doğrulama kodu varsa resmi UYAP altbilgisi oluştur:
+            // Eğer UYAP doğrulama kodu varsa ve belge altbilgisi mevcutsa sağ tarafa QR kod ekle, yoksa resmi altbilgi oluştur:
             if (!verificationCode.isEmpty()) {
-                footerHtml = "<div class=\"udf-official-footer\" style=\"display:flex; justify-content:space-between; align-items:flex-end; border-top:0.5px solid #000; padding-top:4px; font-family:Arial, sans-serif; font-size:7.5pt; line-height:1.2; width:100%; box-sizing:border-box;\">" +
-                             "<div style=\"flex:1; max-width:82%; text-align:left; word-break:break-all; padding-right:8px;\">" +
-                             "UYAP Bilişim Sistemindeki bu dokümana http://vatandas.uyap.gov.tr adresinden <strong>" + escapeHtml(verificationCode) + "</strong> ile erişebilirsiniz." +
-                             "</div>" +
-                             "<div style=\"display:flex; flex-direction:column; align-items:flex-end; min-width:60px;\">" +
-                             "<span class=\"udf-footer-page-label\" style=\"font-size:8.5pt; font-family:Arial, sans-serif; margin-bottom:2px;\">{PAGE_NUM}/{TOTAL_PAGES}</span>" +
-                             "<div class=\"udf-footer-qr-container\" data-verification-code=\"" + escapeHtml(verificationCode) + "\" style=\"width:34px; height:34px;\"></div>" +
-                             "</div>" +
-                             "</div>";
+                if (!footerHtml.isEmpty()) {
+                    if (footerHtml.contains("udf-footer-page-label")) {
+                        footerHtml = footerHtml.replace("<span class=\"udf-footer-page-label\">" + pageLabelText + "</span>",
+                            "<div class=\"udf-footer-right\" style=\"display:flex; flex-direction:column; align-items:flex-end; gap:2px;\"><span class=\"udf-footer-page-label\">" + pageLabelText + "</span><div class=\"udf-footer-qr-container\" data-verification-code=\"" + escapeHtml(verificationCode) + "\" style=\"width:34px; height:34px;\"></div></div>");
+                    } else {
+                        footerHtml += "<div class=\"udf-footer-right\" style=\"display:flex; flex-direction:column; align-items:flex-end; gap:2px;\"><div class=\"udf-footer-qr-container\" data-verification-code=\"" + escapeHtml(verificationCode) + "\" style=\"width:34px; height:34px;\"></div></div>";
+                    }
+                } else {
+                    footerHtml = "<div class=\"udf-official-footer\" style=\"display:flex; justify-content:space-between; align-items:flex-end; border-top:0.5px solid #000; padding-top:4px; font-family:Arial, sans-serif; font-size:7.5pt; line-height:1.2; width:100%; box-sizing:border-box;\">" +
+                                 "<div style=\"flex:1; max-width:82%; text-align:left; word-break:break-all; padding-right:8px;\">" +
+                                 "UYAP Bilişim Sistemindeki bu dokümana http://vatandas.uyap.gov.tr adresinden <strong>" + escapeHtml(verificationCode) + "</strong> ile erişebilirsiniz." +
+                                 "</div>" +
+                                 "<div style=\"display:flex; flex-direction:column; align-items:flex-end; min-width:60px;\">" +
+                                 "<span class=\"udf-footer-page-label\" style=\"font-size:8.5pt; font-family:Arial, sans-serif; margin-bottom:2px;\">{PAGE_NUM}/{TOTAL_PAGES}</span>" +
+                                 "<div class=\"udf-footer-qr-container\" data-verification-code=\"" + escapeHtml(verificationCode) + "\" style=\"width:34px; height:34px;\"></div>" +
+                                 "</div>" +
+                                 "</div>";
+                }
             } else if (footerHtml.isEmpty() && footerText != null && !footerText.isEmpty()) {
                 footerHtml = "<div class=\"udf-footer-layout\">" +
                              "<span class=\"udf-footer-text\">" + escapeHtml(footerText) + "</span>" +
@@ -956,6 +966,7 @@ public class UdfEngine {
                 res.put("footerSep", footerSep);
                 res.put("footerPageStart", footerPageStart);
                 res.put("verificationCode", verificationCode);
+            res.put("sicil", uyapSicil);
                 res.put("leftMarginCm", leftMarginCm);
                 res.put("rightMarginCm", rightMarginCm);
                 res.put("topMarginCm", topMarginCm);
@@ -985,6 +996,7 @@ public class UdfEngine {
                 res.put("footer", footerText);
                 res.put("footerHtml", footerHtml);
                 res.put("verificationCode", verificationCode);
+            res.put("sicil", uyapSicil);
                 res.put("leftMarginCm", leftMarginCm);
                 res.put("rightMarginCm", rightMarginCm);
                 res.put("topMarginCm", topMarginCm);
@@ -1052,6 +1064,7 @@ public class UdfEngine {
             res.put("footerSep", footerSep);
             res.put("footerPageStart", footerPageStart);
             res.put("verificationCode", verificationCode);
+            res.put("sicil", uyapSicil);
             res.put("leftMarginCm", leftMarginCm);
             res.put("rightMarginCm", rightMarginCm);
             res.put("topMarginCm", topMarginCm);

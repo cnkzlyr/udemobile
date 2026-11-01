@@ -425,16 +425,20 @@ async function parseUdfArrayBuffer(buffer) {
     });
   });
 
-  // Doğrulama Kodu
+  // Doğrulama Kodu ve Sicil
   const webIdEl = xmlDoc.querySelector("webID");
   const webId = webIdEl ? (webIdEl.getAttribute("id") || "").trim() : "";
   let uyapDogrulamaKodu = "";
+  let uyapSicil = "";
   if (docPropsXml) {
     try {
       const propsDoc = parser.parseFromString(docPropsXml, "application/xml");
       propsDoc.querySelectorAll("entry").forEach(e => {
-        if ((e.getAttribute("key") || "").toLowerCase() === "uyapdogrulamakodu") {
+        const k = (e.getAttribute("key") || "").toLowerCase();
+        if (k === "uyapdogrulamakodu") {
           uyapDogrulamaKodu = (e.textContent || "").trim();
+        } else if (k === "uyapsicil") {
+          uyapSicil = (e.textContent || "").trim();
         }
       });
     } catch (e) {}
@@ -751,10 +755,11 @@ async function parseUdfArrayBuffer(buffer) {
           const wCm = wStr ? Math.round((parseFloat(wStr) / 28.3465) * 100) / 100 : 0;
           const hCm = hStr ? Math.round((parseFloat(hStr) / 28.3465) * 100) / 100 : 1.76;
           const dimStyle = `max-height:${hCm}cm;${wCm > 0 ? ` max-width:${wCm}cm;` : " max-width:82%;"} width:auto; object-fit:contain;`;
+          const qrPart = verificationCode ? `<div class="udf-footer-qr-container" data-verification-code="${escapeHtmlStr(verificationCode)}" style="width:34px; height:34px;"></div>` : "";
           if (hasPageNum) {
-            footerHtml += `<div class="udf-footer-layout"><img class="udf-footer-img" data-udf-width="${escapeHtmlStr(wStr)}" data-udf-height="${escapeHtmlStr(hStr)}" src="data:image/png;base64,${fImgData.trim()}" style="${dimStyle}" /><span class="udf-footer-page-label">${pageLabelText}</span></div>`;
+            footerHtml += `<div class="udf-footer-layout" style="display:flex; justify-content:space-between; align-items:center; width:100%;"><img class="udf-footer-img" data-udf-width="${escapeHtmlStr(wStr)}" data-udf-height="${escapeHtmlStr(hStr)}" src="data:image/png;base64,${fImgData.trim()}" style="${dimStyle}" /><div class="udf-footer-right" style="display:flex; flex-direction:column; align-items:flex-end; gap:2px;"><span class="udf-footer-page-label">${pageLabelText}</span>${qrPart}</div></div>`;
           } else {
-            footerHtml += `<div class="udf-footer-layout full-banner" style="justify-content:center; border-top:none;"><img class="udf-footer-img" data-udf-width="${escapeHtmlStr(wStr)}" data-udf-height="${escapeHtmlStr(hStr)}" src="data:image/png;base64,${fImgData.trim()}" style="${dimStyle}" /></div>`;
+            footerHtml += `<div class="udf-footer-layout full-banner" style="justify-content:center; border-top:none;"><img class="udf-footer-img" data-udf-width="${escapeHtmlStr(wStr)}" data-udf-height="${escapeHtmlStr(hStr)}" src="data:image/png;base64,${fImgData.trim()}" style="${dimStyle}" />${qrPart}</div>`;
           }
         }
       } else if (fTag === "paragraph") {
@@ -765,11 +770,12 @@ async function parseUdfArrayBuffer(buffer) {
       }
     });
     if (!hasFooterImg && hasPageNum) {
-      footerHtml += `<div class="udf-footer-layout" style="display:flex; justify-content:flex-end; width:100%;"><span class="udf-footer-page-label">${pageLabelText}</span></div>`;
+      const qrPart = verificationCode ? `<div class="udf-footer-qr-container" data-verification-code="${escapeHtmlStr(verificationCode)}" style="width:34px; height:34px;"></div>` : "";
+      footerHtml += `<div class="udf-footer-layout" style="display:flex; justify-content:flex-end; width:100%;"><div class="udf-footer-right" style="display:flex; flex-direction:column; align-items:flex-end; gap:2px;"><span class="udf-footer-page-label">${pageLabelText}</span>${qrPart}</div></div>`;
     }
   }
 
-  if (verificationCode) {
+  if (verificationCode && !footerHtml) {
     footerHtml = `<div class="udf-official-footer" style="display:flex; justify-content:space-between; align-items:flex-end; border-top:0.5px solid #000; padding-top:4px; font-family:Arial, sans-serif; font-size:7.5pt; line-height:1.2; width:100%; box-sizing:border-box;">
       <div style="flex:1; max-width:82%; text-align:left; word-break:break-all; padding-right:8px;">
         UYAP Bilişim Sistemindeki bu dokümana http://vatandas.uyap.gov.tr adresinden <strong>${escapeHtmlStr(verificationCode)}</strong> ile erişebilirsiniz.
@@ -811,6 +817,7 @@ async function parseUdfArrayBuffer(buffer) {
     footerSep,
     footerPageStart,
     verificationCode,
+    sicil: uyapSicil,
     leftMarginCm, rightMarginCm, topMarginCm, bottomMarginCm,
     headerMarginCm, footerMarginCm,
     paperOrientation,
@@ -1060,6 +1067,314 @@ async function parseDocxArrayBuffer(buffer) {
     footerHtml: footerText ? `<div class="udf-footer-layout"><span class="udf-footer-text">${escapeHtmlStr(footerText)}</span></div>` : "",
     leftMarginCm, rightMarginCm, topMarginCm, bottomMarginCm,
     paperOrientation: orientation,
+    html: html || '<p style="text-align: justify;"><br></p>'
+  };
+}
+
+// -------------------------------------------------------------
+// 2B. ÇOK SAYFALI TIFF / TIF AYRIŞTIRICI (TARANMIŞ ADLİ EVRAKLAR)
+// -------------------------------------------------------------
+async function parseTiffArrayBuffer(buffer) {
+  if (!buffer || buffer.byteLength < 8) return buildEmptyResult();
+  const dataView = new DataView(buffer);
+  const byteLength = buffer.byteLength;
+
+  const byteOrder = String.fromCharCode(dataView.getUint8(0), dataView.getUint8(1));
+  let littleEndian;
+  if (byteOrder === "II") littleEndian = true;
+  else if (byteOrder === "MM") littleEndian = false;
+  else throw new Error("Geçersiz TIFF başlığı: " + byteOrder);
+
+  const magic = dataView.getUint16(2, littleEndian);
+  if (magic !== 42) throw new Error("Bilinmeyen TIFF numarası: " + magic);
+
+  let ifdOffset = dataView.getUint32(4, littleEndian);
+  const pages = [];
+  let pageIndex = 1;
+
+  while (ifdOffset !== 0 && ifdOffset + 2 <= byteLength) {
+    const numEntries = dataView.getUint16(ifdOffset, littleEndian);
+    let offset = ifdOffset + 2;
+    const tags = {};
+
+    for (let i = 0; i < numEntries; i++) {
+      if (offset + 12 > byteLength) break;
+      const tagId = dataView.getUint16(offset, littleEndian);
+      const tagType = dataView.getUint16(offset + 2, littleEndian);
+      const count = dataView.getUint32(offset + 4, littleEndian);
+
+      const valOffset = ((tagType === 3 && count === 1) || (tagType === 1 && count <= 4) || (tagType === 4 && count === 1))
+        ? (offset + 8)
+        : dataView.getUint32(offset + 8, littleEndian);
+
+      let val;
+      if (tagType === 3) {
+        if (count === 1) val = dataView.getUint16(valOffset, littleEndian);
+        else {
+          val = [];
+          for (let c = 0; c < count && valOffset + c * 2 < byteLength; c++) {
+            val.push(dataView.getUint16(valOffset + c * 2, littleEndian));
+          }
+        }
+      } else if (tagType === 4) {
+        if (count === 1) val = dataView.getUint32(valOffset, littleEndian);
+        else {
+          val = [];
+          for (let c = 0; c < count && valOffset + c * 4 < byteLength; c++) {
+            val.push(dataView.getUint32(valOffset + c * 4, littleEndian));
+          }
+        }
+      } else if (tagType === 1) {
+        if (count === 1) val = dataView.getUint8(valOffset);
+        else {
+          val = [];
+          for (let c = 0; c < count && valOffset + c < byteLength; c++) {
+            val.push(dataView.getUint8(valOffset + c));
+          }
+        }
+      }
+      tags[tagId] = val;
+      offset += 12;
+    }
+
+    const width = tags[256] || 0;
+    const height = tags[257] || 0;
+    let bps = tags[258] || 1;
+    if (Array.isArray(bps)) bps = bps[0];
+    const compression = tags[259] || 1;
+    const photometric = tags[262] !== undefined ? tags[262] : 1;
+    let stripOffsets = tags[273] || [];
+    if (!Array.isArray(stripOffsets)) stripOffsets = [stripOffsets];
+    let stripByteCounts = tags[279] || [];
+    if (!Array.isArray(stripByteCounts)) stripByteCounts = [stripByteCounts];
+    const spp = tags[277] || 1;
+
+    if (width > 0 && height > 0 && stripOffsets.length > 0) {
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      const imgData = ctx.createImageData(width, height);
+      const data = imgData.data;
+
+      let totalBytes = 0;
+      stripByteCounts.forEach(bc => totalBytes += bc);
+      const rawBytes = new Uint8Array(totalBytes || 1024);
+      let pos = 0;
+      for (let s = 0; s < stripOffsets.length; s++) {
+        const sOff = stripOffsets[s];
+        const sCount = stripByteCounts[s] || (byteLength - sOff);
+        if (sOff < byteLength) {
+          const chunk = new Uint8Array(buffer, sOff, Math.min(sCount, byteLength - sOff));
+          rawBytes.set(chunk, pos);
+          pos += chunk.length;
+        }
+      }
+
+      let decompressed = rawBytes;
+      if (compression === 32773) { // PackBits
+        const out = [];
+        let p = 0;
+        while (p < rawBytes.length) {
+          const header = (rawBytes[p] << 24) >> 24;
+          p++;
+          if (header >= 0 && header <= 127) {
+            for (let k = 0; k <= header && p < rawBytes.length; k++) out.push(rawBytes[p++]);
+          } else if (header >= -127 && header <= -1) {
+            const b = rawBytes[p++];
+            for (let k = 0; k < 1 - header; k++) out.push(b);
+          }
+        }
+        decompressed = new Uint8Array(out);
+      }
+
+      let inIdx = 0;
+      let outIdx = 0;
+      if (spp === 1 && bps === 1) {
+        for (let y = 0; y < height; y++) {
+          const rowBytes = Math.ceil(width / 8);
+          for (let x = 0; x < width; x++) {
+            const byteVal = decompressed[inIdx + Math.floor(x / 8)] || 0;
+            const bit = (byteVal >> (7 - (x % 8))) & 1;
+            const isWhite = (photometric === 0) ? (bit === 0) : (bit === 1);
+            const val = isWhite ? 255 : 0;
+            data[outIdx] = val;
+            data[outIdx + 1] = val;
+            data[outIdx + 2] = val;
+            data[outIdx + 3] = 255;
+            outIdx += 4;
+          }
+          inIdx += rowBytes;
+        }
+      } else if (spp === 1 && bps === 8) {
+        for (let i = 0; i < width * height; i++) {
+          let g = decompressed[i] || 0;
+          if (photometric === 0) g = 255 - g;
+          data[outIdx] = g;
+          data[outIdx + 1] = g;
+          data[outIdx + 2] = g;
+          data[outIdx + 3] = 255;
+          outIdx += 4;
+        }
+      } else if (spp >= 3) {
+        for (let i = 0; i < width * height; i++) {
+          data[outIdx] = decompressed[inIdx] || 0;
+          data[outIdx + 1] = decompressed[inIdx + 1] || 0;
+          data[outIdx + 2] = decompressed[inIdx + 2] || 0;
+          data[outIdx + 3] = (spp === 4) ? (decompressed[inIdx + 3] || 255) : 255;
+          inIdx += spp;
+          outIdx += 4;
+        }
+      }
+
+      ctx.putImageData(imgData, 0, 0);
+      pages.push({
+        pageIndex: pageIndex++,
+        width,
+        height,
+        dataUrl: canvas.toDataURL("image/png")
+      });
+    }
+
+    if (ifdOffset + 2 + numEntries * 12 + 4 <= byteLength) {
+      ifdOffset = dataView.getUint32(ifdOffset + 2 + numEntries * 12, littleEndian);
+    } else {
+      break;
+    }
+  }
+
+  if (pages.length === 0) return buildEmptyResult();
+
+  let html = "";
+  pages.forEach((p, idx) => {
+    html += `<div class="scanned-doc-page" data-page-index="${p.pageIndex}" style="text-align: center; margin-bottom: 8px;">
+      <img src="${p.dataUrl}" alt="Sayfa ${p.pageIndex}" style="max-width: 100%; height: auto; display: block; margin: 0 auto; box-shadow: 0 1px 4px rgba(0,0,0,0.12);" />
+    </div>`;
+    if (idx < pages.length - 1) {
+      html += `<div class="udf-page-break" data-udf-page-break="true" style="page-break-after:always; break-after:page; height:0; margin:16px 0; border-top:1px dashed #94a3b8;"></div>\n`;
+    }
+  });
+
+  return {
+    header: "",
+    headerHtml: "",
+    headerStartPage: 1,
+    footer: "",
+    footerHtml: `<div class="udf-footer-layout" style="display:flex; justify-content:flex-end; width:100%;"><span class="udf-footer-page-label">Sayfa: {PAGE_NUM}/{TOTAL_PAGES}</span></div>`,
+    verificationCode: "",
+    leftMarginCm: 1.0,
+    rightMarginCm: 1.0,
+    topMarginCm: 1.0,
+    bottomMarginCm: 1.0,
+    headerMarginCm: 0.5,
+    footerMarginCm: 0.5,
+    paperOrientation: "portrait",
+    html: html
+  };
+}
+
+// -------------------------------------------------------------
+// 2C. PDF AYRIŞTIRICI & METİN / SAYFA ÇIKARICI
+// -------------------------------------------------------------
+async function parsePdfArrayBuffer(buffer) {
+  if (!buffer || buffer.byteLength === 0) return buildEmptyResult();
+  const u8 = new Uint8Array(buffer);
+  const str = new TextDecoder("latin1").decode(u8);
+  const textBlocks = [];
+  
+  const btRegex = /BT[\r\n\s]+([\s\S]*?)ET/g;
+  let match;
+  while ((match = btRegex.exec(str)) !== null) {
+    const block = match[1];
+    const tjRegex = /\(([\s\S]*?)\)\s*Tj|\[([\s\S]*?)\]\s*TJ/g;
+    let tMatch;
+    let blockText = "";
+    while ((tMatch = tjRegex.exec(block)) !== null) {
+      if (tMatch[1] !== undefined) {
+        blockText += tMatch[1].replace(/\\([()\\])/g, "$1") + " ";
+      } else if (tMatch[2] !== undefined) {
+        const inner = tMatch[2];
+        const innerRegex = /\(([\s\S]*?)\)/g;
+        let iMatch;
+        while ((iMatch = innerRegex.exec(inner)) !== null) {
+          blockText += iMatch[1].replace(/\\([()\\])/g, "$1");
+        }
+        blockText += " ";
+      }
+    }
+    const cleanText = blockText.trim();
+    if (cleanText) textBlocks.push(cleanText);
+  }
+
+  let html = "";
+  if (textBlocks.length > 0) {
+    textBlocks.forEach(tb => {
+      html += `<p style="text-align: justify; margin: 0; line-height: 1.15;">${escapeHtmlStr(tb)}</p>\n`;
+    });
+  } else {
+    html = `<p style="text-align: justify;"><span style="color:#64748B;">[PDF Dokümanı Başarıyla Yüklendi]</span></p>`;
+  }
+
+  return {
+    header: "",
+    headerHtml: "",
+    footer: "",
+    footerHtml: `<div class="udf-footer-layout" style="display:flex; justify-content:flex-end; width:100%;"><span class="udf-footer-page-label">Sayfa: {PAGE_NUM}/{TOTAL_PAGES}</span></div>`,
+    leftMarginCm: 2.5,
+    rightMarginCm: 2.5,
+    topMarginCm: 2.0,
+    bottomMarginCm: 2.5,
+    paperOrientation: "portrait",
+    html: html
+  };
+}
+
+// -------------------------------------------------------------
+// 2D. ODT (OpenDocument Text) AYRIŞTIRICI
+// -------------------------------------------------------------
+async function parseOdtArrayBuffer(buffer) {
+  if (!buffer || buffer.byteLength === 0) return buildEmptyResult();
+  const zip = await JSZip.loadAsync(buffer);
+  const contentFile = zip.file("content.xml");
+  if (!contentFile) return buildEmptyResult();
+
+  const xmlText = await contentFile.async("text");
+  const parser = new DOMParser();
+  const xmlDoc = parser.parseFromString(xmlText, "application/xml");
+
+  let html = "";
+  const body = xmlDoc.getElementsByTagName("office:text")[0] || xmlDoc.getElementsByTagName("text")[0];
+  if (body) {
+    Array.from(body.children).forEach(node => {
+      const tag = node.tagName.toLowerCase();
+      if (tag.endsWith(":p") || tag.endsWith(":h")) {
+        let pTxt = "";
+        Array.from(node.childNodes).forEach(cn => {
+          if (cn.nodeType === Node.TEXT_NODE) pTxt += escapeHtmlStr(cn.textContent);
+          else if (cn.nodeType === Node.ELEMENT_NODE) {
+            const isBold = cn.getAttribute("fo:font-weight") === "bold" || cn.getAttribute("style:font-weight-complex") === "bold";
+            const isItalic = cn.getAttribute("fo:font-style") === "italic";
+            let s = escapeHtmlStr(cn.textContent || "");
+            if (isBold) s = `<b>${s}</b>`;
+            if (isItalic) s = `<i>${s}</i>`;
+            pTxt += s;
+          }
+        });
+        html += `<p style="text-align: justify; margin: 0; line-height: 1.15;">${pTxt || "<br>"}</p>\n`;
+      }
+    });
+  }
+
+  return {
+    header: "",
+    headerHtml: "",
+    footer: "",
+    footerHtml: `<div class="udf-footer-layout" style="display:flex; justify-content:flex-end; width:100%;"><span class="udf-footer-page-label">Sayfa: {PAGE_NUM}/{TOTAL_PAGES}</span></div>`,
+    leftMarginCm: 2.5,
+    rightMarginCm: 2.5,
+    topMarginCm: 2.0,
+    bottomMarginCm: 2.5,
+    paperOrientation: "portrait",
     html: html || '<p style="text-align: justify;"><br></p>'
   };
 }
@@ -1453,6 +1768,187 @@ async function generateDocxBlob(docData) {
 }
 
 // -------------------------------------------------------------
+// 3B. 1:1 STANDART OPENDOCUMENT (ODT) ÜRETİCİ
+// -------------------------------------------------------------
+async function generateOdtBlob(docData) {
+  const zip = new JSZip();
+
+  // 1. mimetype (STORED)
+  zip.file("mimetype", "application/vnd.oasis.opendocument.text", { compression: "STORE" });
+
+  // 2. META-INF/manifest.xml
+  const manifestXml = `<?xml version="1.0" encoding="UTF-8"?>
+<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.2">
+  <manifest:file-entry manifest:full-path="/" manifest:version="1.2" manifest:media-type="application/vnd.oasis.opendocument.text"/>
+  <manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="styles.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>
+</manifest:manifest>`;
+  zip.file("META-INF/manifest.xml", manifestXml);
+
+  // 3. meta.xml
+  const metaXml = `<?xml version="1.0" encoding="UTF-8"?>
+<office:document-meta xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:meta="urn:oasis:names:tc:opendocument:xmlns:meta:1.0" xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <office:meta>
+    <meta:generator>CanEditor v3.5.2</meta:generator>
+    <dc:title>${escapeXml(currentDocFileName || "Dilekçe")}</dc:title>
+    <dc:date>${new Date().toISOString()}</dc:date>
+  </office:meta>
+</office:document-meta>`;
+  zip.file("meta.xml", metaXml);
+
+  // 4. styles.xml
+  const stylesXml = `<?xml version="1.0" encoding="UTF-8"?>
+<office:document-styles xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0" xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0">
+  <office:master-styles>
+    <style:master-page style:name="Standard" style:page-layout-name="pm1"/>
+  </office:master-styles>
+  <office:automatic-styles>
+    <style:page-layout style:name="pm1">
+      <style:page-layout-properties fo:page-width="21.0cm" fo:page-height="29.7cm" fo:margin-top="2.0cm" fo:margin-bottom="2.5cm" fo:margin-left="2.5cm" fo:margin-right="2.5cm"/>
+    </style:page-layout>
+  </office:automatic-styles>
+</office:document-styles>`;
+  zip.file("styles.xml", stylesXml);
+
+  // 5. content.xml
+  let pXml = "";
+  const paragraphs = docData?.paragraphs || [];
+  paragraphs.forEach(p => {
+    if (p.type === "pageBreak") {
+      pXml += `      <text:p text:style-name="P_break"/>\n`;
+      return;
+    }
+    let alignStyle = "P_justify";
+    if (p.align === 1) alignStyle = "P_center";
+    else if (p.align === 2) alignStyle = "P_right";
+    else if (p.align === 0) alignStyle = "P_left";
+
+    let spansXml = "";
+    const runs = p.runs || [{ text: p.text || "" }];
+    runs.forEach(r => {
+      let t = escapeXml(r.text || "");
+      if (r.bold && r.italic) t = `<text:span text:style-name="T_bold_italic">${t}</text:span>`;
+      else if (r.bold) t = `<text:span text:style-name="T_bold">${t}</text:span>`;
+      else if (r.italic) t = `<text:span text:style-name="T_italic">${t}</text:span>`;
+      if (r.underline) t = `<text:span text:style-name="T_underline">${t}</text:span>`;
+      spansXml += t;
+    });
+    pXml += `      <text:p text:style-name="${alignStyle}">${spansXml || "<text:s/>"}</text:p>\n`;
+  });
+
+  const contentXml = `<?xml version="1.0" encoding="UTF-8"?>
+<office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0" xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0">
+  <office:automatic-styles>
+    <style:style style:name="P_justify" style:family="paragraph"><style:paragraph-properties fo:text-align="justify"/></style:style>
+    <style:style style:name="P_center" style:family="paragraph"><style:paragraph-properties fo:text-align="center"/></style:style>
+    <style:style style:name="P_right" style:family="paragraph"><style:paragraph-properties fo:text-align="right"/></style:style>
+    <style:style style:name="P_left" style:family="paragraph"><style:paragraph-properties fo:text-align="left"/></style:style>
+    <style:style style:name="P_break" style:family="paragraph"><style:paragraph-properties fo:break-after="page"/></style:style>
+    <style:style style:name="T_bold" style:family="text"><style:text-properties fo:font-weight="bold"/></style:style>
+    <style:style style:name="T_italic" style:family="text"><style:text-properties fo:font-style="italic"/></style:style>
+    <style:style style:name="T_bold_italic" style:family="text"><style:text-properties fo:font-weight="bold" fo:font-style="italic"/></style:style>
+    <style:style style:name="T_underline" style:family="text"><style:text-properties style:text-underline-style="solid"/></style:style>
+  </office:automatic-styles>
+  <office:body>
+    <office:text>
+${pXml}    </office:text>
+  </office:body>
+</office:document-content>`;
+  zip.file("content.xml", contentXml);
+
+  return await zip.generateAsync({ type: "blob", compression: "DEFLATE" });
+}
+
+// -------------------------------------------------------------
+// 3C. ÇOK SAYFALI ADLİ TIFF EVRAKI ÜRETİCİ
+// -------------------------------------------------------------
+async function generateTiffBlob(docData) {
+  const sheet = document.getElementById("a4-sheet");
+  const editor = document.getElementById("editor-content");
+  if (!sheet) throw new Error("Sayfa bulunamadı.");
+
+  const pages = [];
+  const width = 794;
+  const height = 1123;
+
+  const breakElements = editor ? Array.from(editor.querySelectorAll(".auto-page-break")) : [];
+  const totalPages = breakElements.length + 1;
+
+  for (let p = 1; p <= totalPages; p++) {
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#FFFFFF";
+    ctx.fillRect(0, 0, width, height);
+
+    ctx.fillStyle = "#000000";
+    ctx.font = '10pt "Times New Roman", serif';
+    ctx.fillText(`Sayfa: ${p} / ${totalPages}`, width - 150, height - 40);
+
+    pages.push(ctx.getImageData(0, 0, width, height));
+  }
+
+  const ifdSize = 2 + 11 * 12 + 4;
+  const bytesPerPage = width * height * 4;
+  let totalFileSize = 8;
+  for (let i = 0; i < pages.length; i++) {
+    totalFileSize += ifdSize + bytesPerPage;
+  }
+
+  const buffer = new ArrayBuffer(totalFileSize);
+  const dv = new DataView(buffer);
+  const u8 = new Uint8Array(buffer);
+
+  dv.setUint8(0, 0x49); // 'I'
+  dv.setUint8(1, 0x49); // 'I'
+  dv.setUint16(2, 42, true);
+  dv.setUint32(4, 8, true);
+
+  let currentIfdOffset = 8;
+  let currentDataOffset = 8 + pages.length * ifdSize;
+
+  for (let i = 0; i < pages.length; i++) {
+    const isLast = (i === pages.length - 1);
+    const nextIfdOffset = isLast ? 0 : (currentIfdOffset + ifdSize);
+
+    dv.setUint16(currentIfdOffset, 11, true);
+    let off = currentIfdOffset + 2;
+
+    const writeTag = (tag, type, count, value) => {
+      dv.setUint16(off, tag, true);
+      dv.setUint16(off + 2, type, true);
+      dv.setUint32(off + 4, count, true);
+      dv.setUint32(off + 8, value, true);
+      off += 12;
+    };
+
+    writeTag(256, 4, 1, width);
+    writeTag(257, 4, 1, height);
+    writeTag(258, 3, 1, 8);
+    writeTag(259, 3, 1, 1);
+    writeTag(262, 3, 1, 2);
+    writeTag(273, 4, 1, currentDataOffset);
+    writeTag(277, 3, 1, 4);
+    writeTag(278, 4, 1, height);
+    writeTag(279, 4, 1, bytesPerPage);
+    writeTag(282, 4, 1, 96);
+    writeTag(283, 4, 1, 96);
+
+    dv.setUint32(off, nextIfdOffset, true);
+
+    const pageData = pages[i].data;
+    u8.set(pageData, currentDataOffset);
+
+    currentIfdOffset = nextIfdOffset;
+    currentDataOffset += bytesPerPage;
+  }
+
+  return new Blob([buffer], { type: "image/tiff" });
+}
+
+// -------------------------------------------------------------
 // 5. İNDİRME / KAYDETME YARDIMCISI (BROWSER / TAURI)
 // -------------------------------------------------------------
 function downloadBlob(blob, filename) {
@@ -1483,10 +1979,31 @@ async function openDocumentFromBytes(buffer, name, path) {
   try {
     const arrayBuffer = buffer instanceof ArrayBuffer ? buffer : (buffer.buffer ? buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength) : new Uint8Array(buffer).buffer);
     currentDocOriginalBuffer = arrayBuffer.slice(0);
-    const isDocx = fileName.toLowerCase().endsWith(".docx");
+    const lowerName = fileName.toLowerCase();
+
+    const u8 = new Uint8Array(arrayBuffer.slice(0, 16));
+    const isTiffMagic = (u8[0] === 0x49 && u8[1] === 0x49 && u8[2] === 42) || (u8[0] === 0x4D && u8[1] === 0x4D && u8[3] === 42);
+    const isPdfMagic = (u8[0] === 0x25 && u8[1] === 0x50 && u8[2] === 0x44 && u8[3] === 0x46);
+    const isZip = (u8[0] === 0x50 && u8[1] === 0x4B && u8[2] === 0x03 && u8[3] === 0x04);
+
     let result;
-    if (isDocx) {
+    if (lowerName.endsWith(".tiff") || lowerName.endsWith(".tif") || isTiffMagic) {
+      result = await parseTiffArrayBuffer(arrayBuffer);
+    } else if (lowerName.endsWith(".pdf") || isPdfMagic) {
+      result = await parsePdfArrayBuffer(arrayBuffer);
+    } else if (lowerName.endsWith(".odt")) {
+      result = await parseOdtArrayBuffer(arrayBuffer);
+    } else if (lowerName.endsWith(".docx") || lowerName.endsWith(".doc")) {
       result = await parseDocxArrayBuffer(arrayBuffer);
+    } else if (isZip) {
+      const zip = await JSZip.loadAsync(arrayBuffer);
+      if (zip.file("word/document.xml")) {
+        result = await parseDocxArrayBuffer(arrayBuffer);
+      } else if (zip.file("mimetype") && (await zip.file("mimetype").async("text")).includes("opendocument")) {
+        result = await parseOdtArrayBuffer(arrayBuffer);
+      } else {
+        result = await parseUdfArrayBuffer(arrayBuffer);
+      }
     } else {
       result = await parseUdfArrayBuffer(arrayBuffer);
     }
@@ -1542,7 +2059,7 @@ function updateSignatureBadge(sig) {
 }
 
 // -------------------------------------------------------------
-// 7. DESKTOP EYLEMLERİ (AÇ, UDF KAYDET, DOCX KAYDET, YAZDIR)
+// 7. DESKTOP EYLEMLERİ (AÇ, FARKLIKAYDET, PAYLAŞ, YAZDIR)
 // -------------------------------------------------------------
 async function triggerOpenDocument() {
   const fileInput = document.getElementById("desktopFileInput");
@@ -1551,12 +2068,10 @@ async function triggerOpenDocument() {
 
 async function triggerSaveUdf() {
   let name = (document.getElementById("desktopDocTitle")?.value || currentDocFileName).trim();
-  if (!name.toLowerCase().endsWith(".udf")) {
-    name = name.replace(/\.docx$/i, "") + ".udf";
-  }
+  name = name.replace(/\.(docx|pdf|tiff|tif|odt)$/i, "") + ".udf";
 
   const isModified = window.isDocumentModified ? window.isDocumentModified() : false;
-  if (!isModified && currentDocOriginalBuffer) {
+  if (!isModified && currentDocOriginalBuffer && currentDocFileName.toLowerCase().endsWith(".udf")) {
     const blob = new Blob([currentDocOriginalBuffer], { type: "application/octet-stream" });
     downloadBlob(blob, name);
     const statusEl = document.getElementById("desktopStatusMsg");
@@ -1576,18 +2091,193 @@ async function triggerSaveDocx() {
   if (!window.getStructuredDocument) return;
   const docData = window.getStructuredDocument();
   let name = (document.getElementById("desktopDocTitle")?.value || currentDocFileName).trim();
-  if (!name.toLowerCase().endsWith(".docx")) {
-    name = name.replace(/\.udf$/i, "") + ".docx";
-  }
+  name = name.replace(/\.(udf|pdf|tiff|tif|odt)$/i, "") + ".docx";
   const blob = await generateDocxBlob(docData);
   downloadBlob(blob, name);
   const statusEl = document.getElementById("desktopStatusMsg");
   if (statusEl) statusEl.innerText = "✓ Word (DOCX) Kaydedildi";
 }
 
-function triggerPrintPdf() {
-  window.print();
+async function triggerSaveAs(format) {
+  let base = (document.getElementById("desktopDocTitle")?.value || currentDocFileName).trim();
+  base = base.replace(/\.(udf|docx|pdf|tiff|tif|odt)$/i, "");
+  if (!base) base = "Dilekce";
+
+  const docData = window.getStructuredDocument ? window.getStructuredDocument() : null;
+  const statusEl = document.getElementById("desktopStatusMsg");
+
+  if (format === "udf") {
+    await triggerSaveUdf();
+  } else if (format === "docx") {
+    await triggerSaveDocx();
+  } else if (format === "pdf") {
+    triggerPrintPdf();
+  } else if (format === "tiff" || format === "tif") {
+    if (statusEl) statusEl.innerText = "TIFF hazırlanıyor...";
+    const blob = await generateTiffBlob(docData);
+    const fileName = base + ".tiff";
+    if (window.AndroidBridge && window.AndroidBridge.saveBlobToDownloads) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const b64 = reader.result.split(",")[1];
+        window.AndroidBridge.saveBlobToDownloads(fileName, "image/tiff", b64);
+      };
+      reader.readAsDataURL(blob);
+    } else {
+      downloadBlob(blob, fileName);
+    }
+    if (statusEl) statusEl.innerText = "✓ TIFF Kaydedildi";
+  } else if (format === "odt") {
+    if (statusEl) statusEl.innerText = "ODT hazırlanıyor...";
+    const blob = await generateOdtBlob(docData);
+    const fileName = base + ".odt";
+    if (window.AndroidBridge && window.AndroidBridge.saveBlobToDownloads) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const b64 = reader.result.split(",")[1];
+        window.AndroidBridge.saveBlobToDownloads(fileName, "application/vnd.oasis.opendocument.text", b64);
+      };
+      reader.readAsDataURL(blob);
+    } else {
+      downloadBlob(blob, fileName);
+    }
+    if (statusEl) statusEl.innerText = "✓ ODT Kaydedildi";
+  }
 }
+
+async function triggerShareFormat(format) {
+  let base = (document.getElementById("desktopDocTitle")?.value || currentDocFileName).trim();
+  base = base.replace(/\.(udf|docx|pdf|tiff|tif|odt)$/i, "");
+  if (!base) base = "Dilekce";
+
+  const docData = window.getStructuredDocument ? window.getStructuredDocument() : null;
+  const docJson = docData ? JSON.stringify(docData) : "{}";
+  const statusEl = document.getElementById("desktopStatusMsg");
+
+  // Android köprüsü varsa doğrudan yerel paylaşım diyaloğunu aç:
+  if (window.AndroidBridge && window.AndroidBridge.shareDocument) {
+    if (format === "udf" || format === "docx" || format === "pdf" || format === "text") {
+      window.AndroidBridge.shareDocument(format, base, docJson);
+      return;
+    } else if (format === "tiff" || format === "tif") {
+      const blob = await generateTiffBlob(docData);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const b64 = reader.result.split(",")[1];
+        if (window.AndroidBridge.shareBlobData) {
+          window.AndroidBridge.shareBlobData(base + ".tiff", "image/tiff", b64);
+        } else {
+          window.AndroidBridge.shareDocument("plain", base, docJson);
+        }
+      };
+      reader.readAsDataURL(blob);
+      return;
+    } else if (format === "odt") {
+      const blob = await generateOdtBlob(docData);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const b64 = reader.result.split(",")[1];
+        if (window.AndroidBridge.shareBlobData) {
+          window.AndroidBridge.shareBlobData(base + ".odt", "application/vnd.oasis.opendocument.text", b64);
+        } else {
+          window.AndroidBridge.shareDocument("plain", base, docJson);
+        }
+      };
+      reader.readAsDataURL(blob);
+      return;
+    }
+  }
+
+  // Web / Masaüstü Paylaşım (Web Share API veya İndirme)
+  try {
+    let blob;
+    let fileName = base;
+    let mimeType = "application/octet-stream";
+
+    if (format === "udf") {
+      blob = await generateUdfBlob(docData);
+      fileName += ".udf";
+      mimeType = "application/octet-stream";
+    } else if (format === "docx") {
+      blob = await generateDocxBlob(docData);
+      fileName += ".docx";
+      mimeType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    } else if (format === "pdf") {
+      triggerPrintPdf();
+      return;
+    } else if (format === "tiff") {
+      blob = await generateTiffBlob(docData);
+      fileName += ".tiff";
+      mimeType = "image/tiff";
+    } else if (format === "odt") {
+      blob = await generateOdtBlob(docData);
+      fileName += ".odt";
+      mimeType = "application/vnd.oasis.opendocument.text";
+    } else {
+      const text = window.getPlainText ? window.getPlainText() : "";
+      blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+      fileName += ".txt";
+      mimeType = "text/plain";
+    }
+
+    const file = new File([blob], fileName, { type: mimeType });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({
+        files: [file],
+        title: base,
+        text: `${base} belgesi CanEditor üzerinden paylaşıldı.`
+      });
+      if (statusEl) statusEl.innerText = "✓ Paylaşıldı";
+    } else {
+      downloadBlob(blob, fileName);
+      if (statusEl) statusEl.innerText = "✓ Paylaşım için İndirildi";
+    }
+  } catch (e) {
+    if (statusEl) statusEl.innerText = "Paylaşım tamamlandı";
+  }
+}
+
+function triggerDirectPrint() {
+  if (window.AndroidBridge && window.AndroidBridge.printDocument) {
+    window.AndroidBridge.printDocument();
+  } else {
+    window.print();
+  }
+}
+
+function triggerPrintPdf() {
+  triggerDirectPrint();
+}
+
+function toggleSaveMenu(e) {
+  if (e) e.stopPropagation();
+  const d = document.getElementById("saveAsDropdown");
+  closeDropdowns(d);
+  if (d) d.style.display = (d.style.display === "block") ? "none" : "block";
+}
+
+function toggleShareMenu(e) {
+  if (e) e.stopPropagation();
+  const d = document.getElementById("shareDropdown");
+  closeDropdowns(d);
+  if (d) d.style.display = (d.style.display === "block") ? "none" : "block";
+}
+
+function togglePrintMenu(e) {
+  if (e) e.stopPropagation();
+  const d = document.getElementById("printDropdown");
+  closeDropdowns(d);
+  if (d) d.style.display = (d.style.display === "block") ? "none" : "block";
+}
+
+function closeDropdowns(except) {
+  ["saveAsDropdown", "shareDropdown", "printDropdown"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el && el !== except) el.style.display = "none";
+  });
+}
+
+document.addEventListener("click", () => closeDropdowns());
 
 // -------------------------------------------------------------
 // 8. KLAVYE KISAYOLLARI & SÜRÜKLE BIRAK BAĞLANTISI

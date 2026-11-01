@@ -48,6 +48,13 @@ def sync_frontend_to_android_assets():
         if os.path.exists(src):
             shutil.copy2(src, os.path.join(assets_dir, fname))
             print(f"  Synced {fname} -> android/assets/editor/{fname}")
+    fonts_src = os.path.join(PROJECT_ROOT, "frontend", "public", "fonts")
+    if os.path.exists(fonts_src):
+        fonts_dest = os.path.join(assets_dir, "fonts")
+        os.makedirs(fonts_dest, exist_ok=True)
+        for f in os.listdir(fonts_src):
+            shutil.copy2(os.path.join(fonts_src, f), os.path.join(fonts_dest, f))
+        print("  Synced fonts -> android/assets/editor/fonts/")
 
 
 def main():
@@ -70,6 +77,12 @@ def main():
             if os.path.exists(p):
                 z.write(p, arcname=fname)
                 print(f"  Added {fname}")
+        fonts_p = os.path.join("frontend", "public", "fonts")
+        if os.path.exists(fonts_p):
+            for ff in os.listdir(fonts_p):
+                fp = os.path.join(fonts_p, ff)
+                z.write(fp, arcname=f"fonts/{ff}")
+            print("  Added fonts/ to zip")
         index_p = os.path.join("frontend", "index.html")
         z.write(index_p, arcname="index.html")
         print("  Added index.html")

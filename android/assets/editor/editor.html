@@ -49,12 +49,23 @@
 
       <!-- Yazı Tipi Ailesi -->
       <div class="tool-group">
-        <select id="select-font-family" onchange="changeFontFamily(this.value)" title="Yazı Tipi">
-          <option value="'Times New Roman', Times, serif" selected>Times New Roman</option>
-          <option value="Arial, Helvetica, sans-serif">Arial</option>
-          <option value="Calibri, sans-serif">Calibri</option>
+        <select id="select-font-family" onchange="changeFontFamily(this.value)" title="Yazı Tipi (Havelsan UYAP Uyumlu)">
+          <option value="'Times New Roman', 'Liberation Serif', Times, serif" selected>Times New Roman</option>
+          <option value="Arial, 'Liberation Sans', Helvetica, sans-serif">Arial</option>
+          <option value="Calibri, 'Carlito', sans-serif">Calibri</option>
           <option value="Georgia, serif">Georgia</option>
-          <option value="'Courier New', Courier, monospace">Daktilo</option>
+          <option value="'Courier New', 'Liberation Mono', Courier, monospace">Courier New (Daktilo)</option>
+          <option value="'Segoe UI', Roboto, sans-serif">Segoe UI</option>
+          <option value="Tahoma, sans-serif">Tahoma</option>
+          <option value="Verdana, sans-serif">Verdana</option>
+          <option value="Garamond, serif">Garamond</option>
+          <option value="'Trebuchet MS', sans-serif">Trebuchet MS</option>
+          <option value="'Palatino Linotype', Palatino, serif">Palatino Linotype</option>
+          <option value="'Comic Sans MS', cursive">Comic Sans MS</option>
+          <option value="'Liberation Sans', Arial, sans-serif">Liberation Sans (Linux)</option>
+          <option value="'Liberation Serif', Times, serif">Liberation Serif (Linux)</option>
+          <option value="'DejaVu Sans', sans-serif">DejaVu Sans (Linux)</option>
+          <option value="'DejaVu Serif', serif">DejaVu Serif (Linux)</option>
         </select>
       </div>
 
@@ -837,6 +848,29 @@
       </div>
       <div class="modal-footer">
         <button class="modal-btn secondary" onclick="closeAiFormatModal()">Kapat</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- YAZDIRMA ÖNİZLEME MODALI -->
+  <div id="modal-print-preview" class="modal-backdrop" style="display: none;">
+    <div class="modal-card print-preview-card" style="width: 95vw; max-width: 1100px; height: 92vh; max-height: 960px; display: flex; flex-direction: column; padding: 0; overflow: hidden; background: #334155;">
+      <div class="modal-header" style="padding: 10px 16px; background: #1E293B; color: #FFFFFF; border-bottom: 1px solid #475569; display: flex; align-items: center; justify-content: space-between;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <h3 style="font-size: 15px; font-weight: 600; margin: 0; color: #F8FAFC; display: flex; align-items: center; gap: 6px;">🖨️ Yazdırma Önizleme</h3>
+          <span id="preview-page-indicator" style="font-size: 12px; color: #94A3B8; background: #0F172A; padding: 2px 8px; border-radius: 4px;">1 Sayfa</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <button type="button" class="preview-tool-btn" onclick="printPreviewZoom(-0.1)" title="Küçült" style="background: #334155; color: #FFF; border: 1px solid #475569; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;">🔍 -</button>
+          <span id="preview-zoom-label" style="font-size: 12px; color: #E2E8F0; min-width: 40px; text-align: center;">80%</span>
+          <button type="button" class="preview-tool-btn" onclick="printPreviewZoom(0.1)" title="Büyüt" style="background: #334155; color: #FFF; border: 1px solid #475569; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;">🔍 +</button>
+          <button type="button" class="preview-tool-btn" onclick="printPreviewFit()" title="Sayfayı Sığdır" style="background: #334155; color: #FFF; border: 1px solid #475569; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;">↔️ Sığdır</button>
+          <button type="button" class="modal-btn primary" onclick="triggerDirectPrint()" style="background: #0284C7; color: #FFF; border: none; padding: 5px 12px; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 12px; display: flex; align-items: center; gap: 4px;">🖨️ Yazdır</button>
+          <button class="modal-close" onclick="closePrintPreview()" style="color: #94A3B8; background: none; border: none; font-size: 18px; cursor: pointer; margin-left: 4px;">✕</button>
+        </div>
+      </div>
+      <div id="print-preview-body" style="flex: 1; overflow-y: auto; overflow-x: auto; background: #525659; padding: 20px; display: flex; flex-direction: column; align-items: center; gap: 16px;">
+        <!-- Sayfa önizleme kopyaları dinamik olarak buraya yüklenir -->
       </div>
     </div>
   </div>

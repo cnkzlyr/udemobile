@@ -297,10 +297,23 @@ public class MainActivity extends Activity {
                 }
 
                 // Bilinen uzantı yoksa MIME türüne göre belirle
-                if (!lowerName.endsWith(".udf") && !lowerName.endsWith(".docx")) {
+                boolean hasKnownExt = lowerName.endsWith(".udf") || lowerName.endsWith(".docx") ||
+                                      lowerName.endsWith(".pdf") || lowerName.endsWith(".tiff") ||
+                                      lowerName.endsWith(".tif") || lowerName.endsWith(".odt");
+                if (!hasKnownExt) {
                     String mime = getContentResolver().getType(uri);
-                    if (mime != null && (mime.contains("word") || mime.contains("officedocument") || mime.contains("docx"))) {
-                        displayName += ".docx";
+                    if (mime != null) {
+                        if (mime.contains("word") || mime.contains("officedocument") || mime.contains("docx")) {
+                            displayName += ".docx";
+                        } else if (mime.contains("pdf")) {
+                            displayName += ".pdf";
+                        } else if (mime.contains("tiff") || mime.contains("tif")) {
+                            displayName += ".tiff";
+                        } else if (mime.contains("opendocument") || mime.contains("odt")) {
+                            displayName += ".odt";
+                        } else {
+                            displayName += ".udf";
+                        }
                     } else {
                         displayName += ".udf";
                     }
@@ -551,14 +564,31 @@ public class MainActivity extends Activity {
             sub.setTextSize(11.5f);
             sub.setTextColor(0xFF555555);
 
-            boolean isDocx = DocxEngine.isDocxFile(f);
+            String n = f.getName().toLowerCase(Locale.ROOT);
+            boolean isDocx = DocxEngine.isDocxFile(f) || n.endsWith(".docx");
+            boolean isPdf = n.endsWith(".pdf");
+            boolean isTiff = n.endsWith(".tiff") || n.endsWith(".tif");
+            boolean isOdt = n.endsWith(".odt");
+
             TextView tvSig = new TextView(this);
             tvSig.setTextSize(12);
             tvSig.setPadding(0, 4, 0, 0);
 
             if (isDocx) {
-                tvSig.setText("📄 Word Belgesi (.docx)");
+                tvSig.setText("📘 Word Belgesi (.docx)");
                 tvSig.setTextColor(0xFF1976D2); // Mavi
+                tvSig.setTypeface(null, android.graphics.Typeface.BOLD);
+            } else if (isPdf) {
+                tvSig.setText("📕 Adobe PDF Belgesi (.pdf)");
+                tvSig.setTextColor(0xFFD32F2F); // Kırmızı
+                tvSig.setTypeface(null, android.graphics.Typeface.BOLD);
+            } else if (isTiff) {
+                tvSig.setText("🖼️ Çok Sayfalı TIFF Görüntüsü");
+                tvSig.setTextColor(0xFF7B1FA2); // Mor
+                tvSig.setTypeface(null, android.graphics.Typeface.BOLD);
+            } else if (isOdt) {
+                tvSig.setText("📗 OpenDocument Metin Belgesi (.odt)");
+                tvSig.setTextColor(0xFF388E3C); // Yeşil
                 tvSig.setTypeface(null, android.graphics.Typeface.BOLD);
             } else {
                 // Havelsan UYAP elektronik imza kontrolü
@@ -604,7 +634,8 @@ public class MainActivity extends Activity {
                 for (File f : files) {
                     if (f.isFile()) {
                         String n = f.getName().toLowerCase(Locale.ROOT);
-                        if (n.endsWith(".udf") || n.endsWith(".docx")) {
+                        if (n.endsWith(".udf") || n.endsWith(".docx") || n.endsWith(".pdf") ||
+                            n.endsWith(".tiff") || n.endsWith(".tif") || n.endsWith(".odt")) {
                             list.add(f);
                         }
                     }

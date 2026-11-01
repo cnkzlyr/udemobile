@@ -5,11 +5,15 @@ import android.app.AlertDialog;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.pdf.PdfRenderer;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Environment;
+import android.os.ParcelFileDescriptor;
+import android.provider.OpenableColumns;
 import android.print.PrintAttributes;
 import android.print.PrintDocumentAdapter;
 import android.print.PrintManager;
@@ -151,14 +155,14 @@ public class EditorActivity extends Activity {
     private void setupListeners() {
         btnBack.setOnClickListener(v -> finish());
 
-        // UDF Olarak Kaydet
-        btnSave.setOnClickListener(v -> saveDocument(false, false));
+        // Farklı Kaydet Menüsü
+        btnSave.setOnClickListener(v -> showSaveMenu(v));
 
-        // DOCX (Word) Olarak Kaydet
+        // DOCX (Word) Olarak Kaydet (Hızlı Kısayol)
         btnSaveDocx.setOnClickListener(v -> saveDocument(true, false));
 
-        // PDF Dışa Aktar
-        btnExportPdf.setOnClickListener(v -> exportToPdf());
+        // Yazdır / Önizleme Menüsü
+        btnExportPdf.setOnClickListener(v -> showPrintMenu(v));
 
         // Paylaşım Menüsü (Dropdown)
         btnShare.setOnClickListener(v -> showShareMenu(v));
@@ -174,7 +178,19 @@ public class EditorActivity extends Activity {
         if ((path == null || path.trim().isEmpty()) && getIntent().getData() != null) {
             try {
                 Uri dataUri = getIntent().getData();
-                String displayName = "belge_" + System.currentTimeMillis() + ".udf";
+                String displayName = null;
+                if ("content".equalsIgnoreCase(dataUri.getScheme())) {
+                    try (Cursor cursor = getContentResolver().query(dataUri, null, null, null, null)) {
+                        if (cursor != null && cursor.moveToFirst()) {
+                            int idx = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME);
+                            if (idx >= 0) displayName = cursor.getString(idx);
+                        }
+                    } catch (Exception ignored) {}
+                }
+                if (displayName == null) displayName = dataUri.getLastPathSegment();
+                if (displayName == null || displayName.trim().isEmpty()) {
+                    displayName = "belge_" + System.currentTimeMillis() + ".udf";
+                }
                 File cacheFile = new File(getCacheDir(), displayName);
                 try (InputStream in = getContentResolver().openInputStream(dataUri);
                      FileOutputStream out = new FileOutputStream(cacheFile)) {
@@ -198,12 +214,29 @@ public class EditorActivity extends Activity {
 
                 new Thread(() -> {
                     try {
-                        String payload;
+                        String payload = null;
                         String sigJsonStr = null;
+                        String lower = currentFile.getName().toLowerCase(Locale.ROOT);
 
-                        boolean isDocx = DocxEngine.isDocxFile(currentFile);
+                        boolean isDocx = DocxEngine.isDocxFile(currentFile) || lower.endsWith(".docx");
+                        boolean isPdf = lower.endsWith(".pdf");
+                        boolean isTiff = lower.endsWith(".tiff") || lower.endsWith(".tif");
+                        boolean isOdt = lower.endsWith(".odt");
+
                         if (isDocx) {
                             payload = DocxEngine.readDocxToHtml(currentFile);
+                        } else if (isPdf) {
+                            payload = readPdfToPayload(currentFile);
+                        } else if (isTiff || isOdt) {
+                            byte[] bytes = java.nio.file.Files.readAllBytes(currentFile.toPath());
+                            String base64 = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP);
+                            final String fBase64 = base64;
+                            final String fName = currentFile.getName();
+                            runOnUiThread(() -> {
+                                editorWebView.evaluateJavascript("openDocumentFromBytes('" + fBase64 + "', '" + fName + "');", null);
+                                tvSaveStatus.setText("✓ Yüklendi");
+                            });
+                            return;
                         } else {
                             payload = UdfEngine.readUdfToHtml(currentFile);
                             // Belge imzasını doğrudan Havelsan UYAP standardına göre incele
@@ -212,7 +245,7 @@ public class EditorActivity extends Activity {
                         }
 
                         // Eğer UdfEngine içeriği boş döndüyse ama dosya bir docx olabilirse fallback yap:
-                        if (!isDocx && (payload == null || payload.contains("Belge içeriği boş."))) {
+                        if (!isDocx && !isPdf && (payload == null || payload.contains("Belge içeriği boş."))) {
                             try {
                                 String docxAttempt = DocxEngine.readDocxToHtml(currentFile);
                                 if (docxAttempt != null && !docxAttempt.contains("Belge içeriği boş.")) {
@@ -411,6 +444,44 @@ public class EditorActivity extends Activity {
         }).start();
     }
 
+    private String readPdfToPayload(File file) {
+        StringBuilder html = new StringBuilder();
+        try (ParcelFileDescriptor pfd = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)) {
+            if (pfd != null) {
+                PdfRenderer renderer = new PdfRenderer(pfd);
+                int count = renderer.getPageCount();
+                for (int i = 0; i < count; i++) {
+                    PdfRenderer.Page page = renderer.openPage(i);
+                    int width = Math.min(2400, page.getWidth() * 2);
+                    int height = Math.min(3200, page.getHeight() * 2);
+                    Bitmap bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+                    bitmap.eraseColor(0xFFFFFFFF);
+                    page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY);
+                    page.close();
+
+                    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                    bitmap.compress(Bitmap.CompressFormat.JPEG, 90, baos);
+                    bitmap.recycle();
+                    String b64 = Base64.encodeToString(baos.toByteArray(), Base64.NO_WRAP);
+
+                    html.append("<div class=\"pdf-page-view\" style=\"text-align:center; margin-bottom:16px;\">")
+                        .append("<img src=\"data:image/jpeg;base64,").append(b64)
+                        .append("\" style=\"max-width:100%; height:auto; box-shadow:0 3px 10px rgba(0,0,0,0.2); border-radius:4px;\" />")
+                        .append("</div>");
+                }
+                renderer.close();
+            }
+        } catch (Exception e) {
+            html.append("<p style=\"color:red; font-weight:bold;\">PDF okuma hatası: ").append(e.getMessage()).append("</p>");
+        }
+        JSONObject root = new JSONObject();
+        try {
+            root.put("html", html.toString());
+            root.put("title", file.getName());
+        } catch (Exception ignored) {}
+        return root.toString();
+    }
+
     private void exportToPdf() {
         try {
             PrintManager printManager = (PrintManager) getSystemService(Context.PRINT_SERVICE);
@@ -425,12 +496,64 @@ public class EditorActivity extends Activity {
         }
     }
 
+    private void showSaveMenu(View anchor) {
+        PopupMenu popup = new PopupMenu(this, anchor);
+        popup.getMenu().add(0, 1, 0, "📄 Havelsan UDF Olarak Kaydet (.udf)");
+        popup.getMenu().add(0, 2, 1, "📕 Adobe PDF Olarak Kaydet (A4 Baskı)");
+        popup.getMenu().add(0, 3, 2, "📘 Microsoft Word Olarak Kaydet (.docx)");
+        popup.getMenu().add(0, 4, 3, "🖼️ Çok Sayfalı TIFF Olarak Kaydet (.tiff)");
+        popup.getMenu().add(0, 5, 4, "📗 OpenDocument Olarak Kaydet (.odt)");
+
+        popup.setOnMenuItemClickListener(item -> {
+            switch (item.getItemId()) {
+                case 1:
+                    saveDocument(false, false);
+                    return true;
+                case 2:
+                    exportToPdf();
+                    return true;
+                case 3:
+                    saveDocument(true, false);
+                    return true;
+                case 4:
+                    editorWebView.evaluateJavascript("triggerSaveAs('tiff');", null);
+                    return true;
+                case 5:
+                    editorWebView.evaluateJavascript("triggerSaveAs('odt');", null);
+                    return true;
+            }
+            return false;
+        });
+        popup.show();
+    }
+
+    private void showPrintMenu(View anchor) {
+        PopupMenu popup = new PopupMenu(this, anchor);
+        popup.getMenu().add(0, 1, 0, "🖨️ Yazıcıya Yazdır / PDF Oluştur");
+        popup.getMenu().add(0, 2, 1, "👁️ Yazdırma Önizleme (Print Preview)");
+
+        popup.setOnMenuItemClickListener(item -> {
+            switch (item.getItemId()) {
+                case 1:
+                    exportToPdf();
+                    return true;
+                case 2:
+                    editorWebView.evaluateJavascript("openPrintPreview();", null);
+                    return true;
+            }
+            return false;
+        });
+        popup.show();
+    }
+
     private void showShareMenu(View anchor) {
         PopupMenu popup = new PopupMenu(this, anchor);
         popup.getMenu().add(0, 1, 0, "📕 PDF Olarak Paylaş (A4 Baskı)");
         popup.getMenu().add(0, 2, 1, "📄 UDF Olarak Paylaş (UYAP Formatı)");
         popup.getMenu().add(0, 3, 2, "📘 Word (DOCX) Olarak Paylaş");
-        popup.getMenu().add(0, 4, 3, "📋 Metin Olarak Paylaş (WhatsApp / E-posta)");
+        popup.getMenu().add(0, 4, 3, "🖼️ Çok Sayfalı TIFF Olarak Paylaş");
+        popup.getMenu().add(0, 5, 4, "📗 OpenDocument (ODT) Olarak Paylaş");
+        popup.getMenu().add(0, 6, 5, "📋 Metin Olarak Paylaş (WhatsApp / E-posta)");
 
         popup.setOnMenuItemClickListener(item -> {
             switch (item.getItemId()) {
@@ -444,6 +567,12 @@ public class EditorActivity extends Activity {
                     shareAsDocx();
                     return true;
                 case 4:
+                    editorWebView.evaluateJavascript("triggerShareFormat('tiff');", null);
+                    return true;
+                case 5:
+                    editorWebView.evaluateJavascript("triggerShareFormat('odt');", null);
+                    return true;
+                case 6:
                     shareAsPlainText();
                     return true;
             }
@@ -1332,6 +1461,75 @@ public class EditorActivity extends Activity {
         public void openDesktopUyap() {
             runOnUiThread(() -> {
                 saveDocument(false, true);
+            });
+        }
+
+        @JavascriptInterface
+        public void printDocument() {
+            runOnUiThread(EditorActivity.this::exportToPdf);
+        }
+
+        @JavascriptInterface
+        public void openPrintPreview() {
+            runOnUiThread(() -> editorWebView.evaluateJavascript("openPrintPreview();", null));
+        }
+
+        @JavascriptInterface
+        public void shareDocument(String format, String title, String docJson) {
+            runOnUiThread(() -> {
+                if ("udf".equalsIgnoreCase(format)) {
+                    shareAsUdf();
+                } else if ("docx".equalsIgnoreCase(format)) {
+                    shareAsDocx();
+                } else if ("pdf".equalsIgnoreCase(format)) {
+                    exportToPdf();
+                } else {
+                    shareAsPlainText();
+                }
+            });
+        }
+
+        @JavascriptInterface
+        public void shareBlobData(String fileName, String mimeType, String base64Data) {
+            runOnUiThread(() -> {
+                try {
+                    byte[] bytes = Base64.decode(base64Data, Base64.DEFAULT);
+                    File shareDir = getExternalCacheDir();
+                    if (shareDir == null) {
+                        shareDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "CanEditor");
+                    }
+                    shareDir.mkdirs();
+                    File shareFile = new File(shareDir, fileName);
+                    try (FileOutputStream fos = new FileOutputStream(shareFile)) {
+                        fos.write(bytes);
+                        fos.flush();
+                    }
+                    shareFile.setReadable(true, false);
+                    launchShareIntent(shareFile, mimeType, fileName + " Paylaş");
+                } catch (Exception e) {
+                    Toast.makeText(EditorActivity.this, "Paylaşım hatası: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                }
+            });
+        }
+
+        @JavascriptInterface
+        public void saveBlobToDownloads(String fileName, String mimeType, String base64Data) {
+            runOnUiThread(() -> {
+                try {
+                    byte[] bytes = Base64.decode(base64Data, Base64.DEFAULT);
+                    File targetDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "UYAP_Belgelerim");
+                    if (!targetDir.exists()) targetDir.mkdirs();
+                    File targetFile = new File(targetDir, fileName);
+                    try (FileOutputStream fos = new FileOutputStream(targetFile)) {
+                        fos.write(bytes);
+                        fos.flush();
+                    }
+                    targetFile.setReadable(true, false);
+                    tvSaveStatus.setText("✓ " + fileName + " Kaydedildi");
+                    Toast.makeText(EditorActivity.this, "✓ " + fileName + " Downloads/UYAP_Belgelerim klasörüne kaydedildi!", Toast.LENGTH_LONG).show();
+                } catch (Exception e) {
+                    Toast.makeText(EditorActivity.this, "Kayıt hatası: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                }
             });
         }
     }
