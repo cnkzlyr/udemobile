@@ -1,6 +1,6 @@
 # ⚖️ CanEditor (UdeMobile) — Çapraz Platform UYAP & Word Editörü
 
-[![Sürüm](https://img.shields.io/badge/Sürüm-v3.6.1-blue.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v3.6.1)
+[![Sürüm](https://img.shields.io/badge/Sürüm-v3.6.2-blue.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v3.6.2)
 [![Platformlar](https://img.shields.io/badge/Platformlar-Android%20%7C%20Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Web-success.svg)](https://github.com/cnkzlyr/udemobile/releases)
 [![UYAP](https://img.shields.io/badge/Format-UYAP_UDF_v1.8-0D47A1.svg)](https://uyap.gov.tr)
 [![Word](https://img.shields.io/badge/Format-MS_DOCX_OpenXML-2B579A.svg?logo=microsoft-word&logoColor=white)](https://microsoft.com)
@@ -11,14 +11,29 @@
 
 ---
 
-## 🚀 Hızlı İndirme (v3.6.1)
+## 🚀 Hızlı İndirme (v3.6.2)
 
 | Platform | Paket Dosyası | Açıklama |
 | :--- | :--- | :--- |
-| **Android (Telefon & Tablet)** | [**CanEditor-v3.6.1.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.6.1/CanEditor-v3.6.1.apk) | Güncel Android APK paketi |
-| **Android (Her Zaman En Son)** | [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.6.1/CanEditor-latest.apk) | Kalıcı son sürüm bağlantısı |
-| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v3.6.1.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v3.6.1/CanEditor-Portable-Web-GUI-v3.6.1.zip) | **Kurulumsuz;** zipten çıkarıp `index.html` açarak tüm işletim sistemlerinde doğrudan çalışır |
-| **Windows / macOS / Linux** | [**GitHub Releases Sayfası**](https://github.com/cnkzlyr/udemobile/releases/tag/v3.6.1) | GitHub Actions CI ile derlenen yerel ikili (.msi, .exe, .dmg, .AppImage, .deb, .rpm) paketleri |
+| **Android (Telefon & Tablet)** | [**CanEditor-v3.6.2.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.6.2/CanEditor-v3.6.2.apk) | Güncel Android APK paketi |
+| **Android (Her Zaman En Son)** | [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.6.2/CanEditor-latest.apk) | Kalıcı son sürüm bağlantısı |
+| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v3.6.2.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v3.6.2/CanEditor-Portable-Web-GUI-v3.6.2.zip) | **Kurulumsuz;** zipten çıkarıp `index.html` açarak tüm işletim sistemlerinde doğrudan çalışır |
+| **Windows / macOS / Linux** | [**GitHub Releases Sayfası**](https://github.com/cnkzlyr/udemobile/releases/tag/v3.6.2) | GitHub Actions CI ile derlenen yerel ikili (.msi, .exe, .dmg, .AppImage, .deb, .rpm) paketleri |
+
+---
+
+## 🌟 v3.6.2 ile Gelen Önemli Geliştirmeler (Gelişmiş İmleç Korumalı Geri Al/Yinele ve Odak Yönetimi)
+
+### ↶ 1. Karakter ve Pozisyon Duyarlı Gelişmiş Geri Al / Yinele Motoru
+- **İmlecin Başa Atlaması Engellendi:** Önceden geri al tuşuna basıldığında tüm DOM yenilendiği için imleç başlığın veya sayfanın en başına (offset 0) sıçramaktaydı. Yeni `saveCaretPosition` ve `restoreCaretPosition` motoru sayesinde imleç tam olarak yazılan boşluk veya harfin bulunduğu karakter ofsetine geri oturur.
+- **Tek Tuş ve Boşluk Duyarlılığı:** Kelime arasına boşluk yazılıp hemen ardından Geri Al tuşuna basıldığında (`beforeinput` ön-kayıt mekanizması ile) yazılan boşluk anında geri alınır ve imleç kelimenin tam ortasında kalır.
+- **Biçimlendirmelerin Anında Geri Alınabilmesi:** "B Kalın", "İtalik", "Altı Çizili" veya hizalama yapıldığında durum anında geçmiş yığıtına (`CanHistory`) işlenir. Geri Al ile kalınlaştırılan kelime hemen eski haline döner, Yinele ile tekrar kalınlaşır.
+
+### 🎯 2. Araç Çubuğu Odak ve Seçim Koruması
+- **Mousedown PreventDefault Güvencesi:** Araç çubuğundaki herhangi bir butona tıklandığında tarayıcının seçili metni kaybetmesi veya odağı düzenleyiciden çalması engellendi. Metin seçilip "B Kalın" butonuna tıklandığında seçim kaybolmaz, biçimlendirme kesintisiz uygulanır.
+
+### 📊 3. Gerçek Zamanlı Kelime & Karakter Sayacı Güvencesi
+- Sayfa ilk açıldığında alt durum çubuğundaki (status bar) kelime sayacının `0 kelime, 0 karakter` kalması hatası giderilerek ilk yükleme anında varsayılan metnin (137 kelime, 907 karakter) doğru yansıtılması sağlandı.
 
 ---
 
@@ -73,7 +88,7 @@ Uygulamayı daha önce hiç kullanmamış veya bilgisayar/telefon ayarları konu
 
 ### 📱 1. Android Telefon ve Tablet İçin Adım Adım Kurulum
 
-1. **İndirme:** Telefonunuzun tarayıcısından (Chrome, Samsung Internet vb.) yukarıdaki [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.6.1/CanEditor-latest.apk) bağlantısına dokunun.
+1. **İndirme:** Telefonunuzun tarayıcısından (Chrome, Samsung Internet vb.) yukarıdaki [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.6.2/CanEditor-latest.apk) bağlantısına dokunun.
 2. **Güvenlik Uyarısına Onay Verme:**
    - Chrome veya Samsung Internet, Google Play dışından indirilen her dosya için *"Bu türden bir dosya cihazınıza zarar verebilir"* veya *"Dosya zararlı olabilir"* uyarısı gösterebilir.
    - Bu standart bir Android güvenlik uyarısıdır. **"Yine de İndir"** (Download anyway) butonuna dokunun.
@@ -95,13 +110,13 @@ Uygulamayı daha önce hiç kullanmamış veya bilgisayar/telefon ayarları konu
 ### 💻 2. Windows (10 / 11) İçin Kurulum Rehberi
 
 #### Yöntem A: Taşınabilir (Portable) Sürüm — En Kolay, Kurulumsuz!
-1. [**CanEditor-Portable-Web-GUI-v3.6.1.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v3.6.1/CanEditor-Portable-Web-GUI-v3.6.1.zip) dosyasını indirin.
+1. [**CanEditor-Portable-Web-GUI-v3.6.2.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v3.6.2/CanEditor-Portable-Web-GUI-v3.6.2.zip) dosyasını indirin.
 2. İndirilen `.zip` dosyasına sağ tıklayıp **"Tümünü Ayıkla..."** (Extract All) seçeneğine basın.
 3. Klasörün içindeki `index.html` dosyasına çift tıklayın.
 4. Google Chrome, Microsoft Edge veya varsayılan tarayıcınızda CanEditor anında açılır. İnternet bağlantısı olmasa bile tamamen çevrimdışı ve güvenli çalışır.
 
 #### Yöntem B: Kurulabilir Masaüstü Uygulaması (.msi veya .exe)
-1. [Releases sayfasından](https://github.com/cnkzlyr/udemobile/releases/tag/v3.6.1) `CanEditor_3.6.1_x64-setup.exe` veya `CanEditor_3.6.1_x64_en-US.msi` dosyasını indirin.
+1. [Releases sayfasından](https://github.com/cnkzlyr/udemobile/releases/tag/v3.6.2) `CanEditor_3.6.2_x64-setup.exe` veya `CanEditor_3.6.2_x64_en-US.msi` dosyasını indirin.
 2. İndirilen dosyaya çift tıklayın.
 3. **Windows Defender SmartScreen Uyarısı Çıkarsa:**
    - Açık kaynak kodlu ve yeni yayınlanan bağımsız uygulamalarda Windows *"Kişisel bilgisayarınız korundu"* uyarısı gösterebilir.
@@ -114,7 +129,7 @@ Uygulamayı daha önce hiç kullanmamış veya bilgisayar/telefon ayarları konu
 
 ### 🍎 3. macOS (Apple Silicon M1/M2/M3/M4 & Intel) Kurulum Rehberi
 
-1. [Releases sayfasından](https://github.com/cnkzlyr/udemobile/releases/tag/v3.6.1) `CanEditor_3.6.1_universal.dmg` dosyasını indirin (veya kurulumsuz Portable ZIP'i kullanın).
+1. [Releases sayfasından](https://github.com/cnkzlyr/udemobile/releases/tag/v3.6.2) `CanEditor_3.6.2_universal.dmg` dosyasını indirin (veya kurulumsuz Portable ZIP'i kullanın).
 2. İndirilen `.dmg` dosyasına çift tıklayın ve açılan penceredeki **CanEditor** simgesini **Applications (Uygulamalar)** klasörüne sürükleyip bırakın.
 3. **macOS Gatekeeper Uyarısı Çıkarsa:**
    - Apple, App Store dışı uygulamalarda *"Geliştirici doğrulanamadığı için açılamıyor"* uyarısı verebilir.
@@ -126,20 +141,20 @@ Uygulamayı daha önce hiç kullanmamış veya bilgisayar/telefon ayarları konu
 ### 🐧 4. Linux (Ubuntu, Debian, Fedora, Arch, Pardus) Kurulum Rehberi
 
 1. **AppImage ile Kurulumsuz Çalıştırma (Tüm Dağıtımlar):**
-   - Releases sayfasından `CanEditor_3.6.1_amd64.AppImage` dosyasını indirin.
+   - Releases sayfasından `CanEditor_3.6.2_amd64.AppImage` dosyasını indirin.
    - Dosyaya sağ tıklayıp **Özellikler -> İzinler -> "Dosyayı bir program gibi çalıştırmaya izin ver"** kutusunu işaretleyin (veya terminalde: `chmod +x CanEditor*.AppImage`).
    - Çift tıklayarak doğrudan çalıştırın.
 2. **Debian / Ubuntu / Pardus (.deb):**
-   - Terminalde: `sudo dpkg -i CanEditor_3.6.1_amd64.deb`
+   - Terminalde: `sudo dpkg -i CanEditor_3.6.2_amd64.deb`
 3. **Fedora / RedHat / openSUSE (.rpm):**
-   - Terminalde: `sudo rpm -ivh CanEditor-3.6.1-1.x86_64.rpm`
+   - Terminalde: `sudo rpm -ivh CanEditor-3.6.2-1.x86_64.rpm`
 
 ---
 
 ### 🌐 5. Web Tarayıcısında Sıfır Kurulumla Doğrudan Kullanım
 
 CanEditor, modern web teknolojileri (HTML5, WebAssembly, Canvas, SVG) üzerinde çalıştığı için herhangi bir yazılım kurmadan doğrudan kullanılabilir:
-1. İndirdiğiniz `CanEditor-Portable-Web-GUI-v3.6.1.zip` içindeki `index.html` dosyasına çift tıklayın.
+1. İndirdiğiniz `CanEditor-Portable-Web-GUI-v3.6.2.zip` içindeki `index.html` dosyasına çift tıklayın.
 2. Açılan sayfaya bilgisayarınızdaki herhangi bir `.udf` veya `.docx` dosyasını **sürükleyip bırakın** ya da **"Belge Aç"** butonuna basın.
 3. Dokümanınız anında UYAP standartlarında ekrana gelecektir.
 4. Düzenlemenizi yaptıktan sonra tek tıkla **"UDF Kaydet"**, **"DOCX Kaydet"** veya **"📕 PDF İndir"** butonlarına basarak dosyanızı anında indirebilirsiniz.

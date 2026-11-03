@@ -125,6 +125,18 @@ function showEditorToast(msg) {
 window.showToast = showEditorToast;
 
 document.addEventListener('DOMContentLoaded', () => {
+  // Araç çubuğu butonlarının editördeki metin seçimini ve imleç odağını çalmasını engelle
+  ['toolbar-container', 'floating-zoom-bar'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.addEventListener('mousedown', (e) => {
+        if (!e.target.closest('select, input, textarea')) {
+          e.preventDefault();
+        }
+      });
+    }
+  });
+
   const editor = document.getElementById('editor-content');
   
   editor.addEventListener('input', () => {
@@ -876,6 +888,11 @@ function format(cmd, val = null) {
     return;
   }
 
+  // Biçimlendirme öncesi mevcut durumu geçmişe işle
+  if (window.CanHistory && typeof window.CanHistory.commit === 'function') {
+    window.CanHistory.commit();
+  }
+
   document.execCommand(cmd, false, val);
 
   // Paragraf hizalaması: Hem CSS style hem align niteliğini eşzamanlı güncelle
@@ -886,6 +903,11 @@ function format(cmd, val = null) {
       ap.style.textAlign = alignVal;
       ap.setAttribute('align', alignVal);
     }
+  }
+
+  // Yeni biçimlendirilmiş durumu anında geçmişe kaydet
+  if (window.CanHistory && typeof window.CanHistory.commit === 'function') {
+    window.CanHistory.commit();
   }
 
   // Düzenlenebilir alan odaklı değilse son aktif sayfaya odak ver
@@ -1017,6 +1039,7 @@ function changeParagraphSpacing(val) {
   updateCounts();
   debouncedPagination();
   setTimeout(restoreCurrentSelection, 50);
+  if (window.CanHistory) CanHistory.commit();
 }
 
 // Satır Aralığı (Yalnızca Seçili Paragraflara Uygulanır)
@@ -1028,6 +1051,7 @@ function changeLineSpacing(val) {
   updateCounts();
   debouncedPagination();
   setTimeout(restoreCurrentSelection, 50);
+  if (window.CanHistory) CanHistory.commit();
 }
 
 // --- SAYFA YAPISI VE KENAR BOŞLUKLARI MOTORU ---
@@ -3710,7 +3734,6 @@ function setHtmlContent(content) {
     updatePagination();
   }, 100);
   setTimeout(markDocumentPristine, 350);
-  setTimeout(() => { if (window.CanHistory && !window.CanHistory.isApplying) CanHistory.reset(); }, 400);
 }
 
 function getHtmlContent() {

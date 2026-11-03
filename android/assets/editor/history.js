@@ -1,13 +1,15 @@
-/* CanEditor — Geri Al / Yinele (Anlık Görüntü Tabanlı Geçmiş Motoru)
+/* CanEditor — Geri Al / Yinele (Anlık Görüntü Tabanlı Gelişmiş Geçmiş Motoru)
  *
  * Çok sayfalı A4 mimarisi (.a4-sheet-page / .page-body-box) ile %100 uyumlu.
- * Tüm sayfaların gövde içeriğini kayıpsız olarak saklar ve geri yükler.
+ * Her anlık görüntüde sayfa içerikleriyle birlikte tam imleç ve seçim (caret)
+ * konumunu pikseli ve karakterine kadar saklar ve geri yükler.
+ * İmlecin başa atlamasını engeller.
  */
 (function () {
   'use strict';
 
   const MAX_STEPS = 100;
-  const QUIET_MS = 350; // Yazım duraklaması eşiği (ms)
+  const QUIET_MS = 300; // Yazım duraklaması eşiği (ms)
 
   const H = {
     stack: [],
@@ -18,6 +20,93 @@
   };
 
   let isUserAction = false;
+
+  // Aktif imleç veya metin seçimi (caret/selection) konumunu karakter ofseti olarak kaydeder
+  function saveCaretPosition() {
+    try {
+      const sel = window.getSelection();
+      if (!sel || sel.rangeCount === 0) return null;
+      const range = sel.getRangeAt(0);
+      const startContainer = range.startContainer;
+      const el = startContainer.nodeType === 1 ? startContainer : startContainer.parentElement;
+      const bodyBox = el ? el.closest('.page-body-box') : null;
+      if (!bodyBox) return null;
+
+      let startOffset = 0;
+      try {
+        const preRange = range.cloneRange();
+        preRange.selectNodeContents(bodyBox);
+        preRange.setEnd(range.startContainer, range.startOffset);
+        startOffset = preRange.toString().length;
+      } catch (e) {
+        startOffset = 0;
+      }
+      const page = bodyBox.closest('.a4-sheet-page');
+      const pageNum = page ? parseInt(page.getAttribute('data-page-number') || '1', 10) : 1;
+      return {
+        pageNum,
+        startOffset,
+        length: range.toString().length
+      };
+    } catch (err) {
+      return null;
+    }
+  }
+
+  // Saklanan imleç ve seçim konumunu tam olarak ilgili metin düğümüne geri yükler
+  function restoreCaretPosition(saved) {
+    if (!saved) return;
+    try {
+      const page = document.querySelector(`.a4-sheet-page[data-page-number="${saved.pageNum}"]`) ||
+                   document.getElementById(`page-${saved.pageNum}`) ||
+                   document.querySelector('.a4-sheet-page');
+      if (!page) return;
+      const bodyBox = page.querySelector('.page-body-box') || document.getElementById('editor-content');
+      if (!bodyBox) return;
+
+      bodyBox.focus();
+      const sel = window.getSelection();
+      if (!sel) return;
+
+      let currentOffset = 0;
+      let startNode = null;
+      let startNodeOffset = 0;
+      let endNode = null;
+      let endNodeOffset = 0;
+      const targetStart = saved.startOffset;
+      const targetEnd = saved.startOffset + (saved.length || 0);
+
+      const walker = document.createTreeWalker(bodyBox, NodeFilter.SHOW_TEXT, null, false);
+      let textNode;
+      while ((textNode = walker.nextNode())) {
+        const nodeLen = textNode.nodeValue.length;
+        if (!startNode && currentOffset + nodeLen >= targetStart) {
+          startNode = textNode;
+          startNodeOffset = Math.max(0, targetStart - currentOffset);
+        }
+        if (!endNode && currentOffset + nodeLen >= targetEnd) {
+          endNode = textNode;
+          endNodeOffset = Math.max(0, targetEnd - currentOffset);
+          break;
+        }
+        currentOffset += nodeLen;
+      }
+
+      if (startNode) {
+        const range = document.createRange();
+        range.setStart(startNode, Math.min(startNodeOffset, startNode.nodeValue.length));
+        if (endNode) {
+          range.setEnd(endNode, Math.min(endNodeOffset, endNode.nodeValue.length));
+        } else {
+          range.setEnd(startNode, Math.min(startNodeOffset, startNode.nodeValue.length));
+        }
+        sel.removeAllRanges();
+        sel.addRange(range);
+      }
+    } catch (e) {
+      // Sessizce yut
+    }
+  }
 
   // Tüm sayfalardaki temiz gövde HTML'ini birleştirerek anlık görüntü alır
   function getDocHtml() {
@@ -48,23 +137,26 @@
     if (H.suppress) return false;
 
     const html = getDocHtml();
-    // Tamamen boş başlangıç içeriğini ezme
     if (!html && H.stack.length > 0) return false;
 
     const cur = H.stack[H.idx];
     if (cur && cur.html === html) {
+      // İçerik aynıysa güncel imleç pozisyonunu kaydet
+      const c = saveCaretPosition();
+      if (c) cur.caret = c;
       return false;
     }
 
-    // Kullanıcı geri almışken otomatik commit gelirse yinele dalını kesme
+    // Kullanıcı geri almışken otomatik arka plan tetiklemesi gelirse yinele dalını ezme
     if (!isManual && !isUserAction && H.idx < H.stack.length - 1) {
       return false;
     }
     isUserAction = false;
 
+    const caret = saveCaretPosition();
     // Yeni dal başlat: ileri adımları sil
     H.stack.length = H.idx + 1;
-    H.stack.push({ html });
+    H.stack.push({ html, caret });
     if (H.stack.length > MAX_STEPS) H.stack.shift();
     H.idx = H.stack.length - 1;
     return true;
@@ -85,12 +177,21 @@
     isUserAction = false;
 
     try {
-      if (typeof setHtmlContent === 'function') {
-        setHtmlContent(entry.html);
-      } else {
-        const p1 = document.getElementById('editor-content') || document.querySelector('.page-body-box');
-        if (p1) p1.innerHTML = entry.html;
-        if (typeof updatePagination === 'function') updatePagination();
+      const p1 = document.getElementById('editor-content') || document.querySelector('.page-body-box');
+      if (p1) {
+        p1.innerHTML = entry.html;
+      }
+      // Sayfalamayı ve fazlalık sayfaları düzenle
+      const extraPages = Array.from(document.querySelectorAll('.a4-sheet-page')).slice(1);
+      extraPages.forEach(p => p.remove());
+
+      if (typeof updatePagination === 'function') {
+        updatePagination();
+      }
+
+      // İmleci tam olarak işlem anındaki yerine oturt
+      if (entry.caret) {
+        restoreCaretPosition(entry.caret);
       }
 
       if (typeof updateCounts === 'function') updateCounts();
@@ -103,7 +204,7 @@
       setTimeout(() => {
         if (H.observer) H.observer.takeRecords();
         H.suppress = false;
-      }, 300);
+      }, 150);
     }
 
     try {
@@ -120,7 +221,9 @@
     if (H.timer) {
       clearTimeout(H.timer);
       H.timer = null;
-      if (isUserAction) commit(true);
+      if (isUserAction) {
+        commit(true);
+      }
     }
     if (H.idx <= 0) return false;
     H.idx--;
@@ -169,6 +272,10 @@
         ev.preventDefault();
         redo();
       } else if (!H.suppress) {
+        // Yeni bir yazım serisi başlıyorsa, yazım öncesi tertemiz durumu hemen kaydet
+        if (!isUserAction && !H.timer) {
+          commit(true);
+        }
         isUserAction = true;
       }
     }, true);
