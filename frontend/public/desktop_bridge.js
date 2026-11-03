@@ -1821,6 +1821,41 @@ async function generateOdtBlob(docData) {
       pXml += `      <text:p text:style-name="P_break"/>\n`;
       return;
     }
+    if (p.type === "table") {
+      const rows = p.rows || [];
+      pXml += `      <table:table table:name="Table_${Math.random().toString(36).substr(2, 6)}">\n`;
+      let maxCols = 1;
+      rows.forEach(r => { if (r.cells && r.cells.length > maxCols) maxCols = r.cells.length; });
+      pXml += `        <table:table-column table:number-columns-repeated="${maxCols}"/>\n`;
+      rows.forEach(r => {
+        pXml += `        <table:table-row>\n`;
+        (r.cells || []).forEach(c => {
+          pXml += `          <table:table-cell office:value-type="string">\n`;
+          const cellParas = c.paragraphs || [];
+          if (cellParas.length > 0) {
+            cellParas.forEach(cp => {
+              const runs = cp.runs || [{ text: cp.text || "" }];
+              let cSpans = "";
+              runs.forEach(r => {
+                let t = escapeXml(r.text || "");
+                if (r.bold && r.italic) t = `<text:span text:style-name="T_bold_italic">${t}</text:span>`;
+                else if (r.bold) t = `<text:span text:style-name="T_bold">${t}</text:span>`;
+                else if (r.italic) t = `<text:span text:style-name="T_italic">${t}</text:span>`;
+                if (r.underline) t = `<text:span text:style-name="T_underline">${t}</text:span>`;
+                cSpans += t;
+              });
+              pXml += `            <text:p text:style-name="P_left">${cSpans || "<text:s/>"}</text:p>\n`;
+            });
+          } else {
+            pXml += `            <text:p text:style-name="P_left"><text:s/></text:p>\n`;
+          }
+          pXml += `          </table:table-cell>\n`;
+        });
+        pXml += `        </table:table-row>\n`;
+      });
+      pXml += `      </table:table>\n`;
+      return;
+    }
     let alignStyle = "P_justify";
     if (p.align === 1) alignStyle = "P_center";
     else if (p.align === 2) alignStyle = "P_right";

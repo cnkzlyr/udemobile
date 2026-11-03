@@ -17,9 +17,9 @@ let savedSelectionRange = null;
 
 // Paragraf Ayarları Değişkenleri
 let paragraphScope = 'selected';
-let currentPAlign = 'justify';
+var currentPAlign = 'justify';
 
-let currentMargins = {
+var currentMargins = {
   top: 2.5,
   right: 2.5,
   bottom: 2.5,
@@ -28,12 +28,14 @@ let currentMargins = {
   footer: 1.25,
   orientation: 'portrait' // 'portrait' or 'landscape'
 };
+window.currentMargins = currentMargins;
 
 // --- Sayfa Numarası ve Biçim Boyacısı Durum Değişkenleri ---
-let currentDocPageNumberPos = 'bottom-right';
-let isFormatPainterActive = false;
-let isFormatPainterPersistent = false;
-let copiedFormat = null;
+var currentDocPageNumberPos = 'bottom-right';
+var isFormatPainterActive = false;
+var isFormatPainterPersistent = false;
+var copiedFormat = null;
+window.isFormatPainterActive = isFormatPainterActive;
 
 // --- Google Dokümanlar Yazdırma Düzeni & Zoom Motoru ---
 let currentDocFooterTemplate = '';
@@ -897,17 +899,24 @@ function format(cmd, val = null) {
   updateCounts();
 }
 
-// Yazı Tipi Ailesi
+// Yazı Tipi Ailesi (Tüm Sayfalar ve Seçim Uyumlu)
 function changeFontFamily(font) {
   const selection = window.getSelection();
   if (selection.rangeCount > 0 && !selection.isCollapsed) {
     document.execCommand('fontName', false, font);
   } else {
-    document.getElementById('editor-content').style.fontFamily = font;
+    document.querySelectorAll('.page-body-box').forEach(box => {
+      box.style.fontFamily = font;
+    });
+    const ed = document.getElementById('editor-content');
+    if (ed) ed.style.fontFamily = font;
   }
+  updateCounts();
+  debouncedPagination();
+  if (window.CanHistory) CanHistory.commit();
 }
 
-// Yazı Boyutu
+// Yazı Boyutu (Tüm Sayfalar ve Seçim Uyumlu)
 function adjustFontSize(delta) {
   currentFontSize = Math.max(9, Math.min(26, currentFontSize + delta));
   window.currentFontSize = currentFontSize;
@@ -925,8 +934,15 @@ function adjustFontSize(delta) {
       }
     }
   } else {
-    document.getElementById('editor-content').style.fontSize = currentFontSize + 'pt';
+    document.querySelectorAll('.page-body-box').forEach(box => {
+      box.style.fontSize = currentFontSize + 'pt';
+    });
+    const ed = document.getElementById('editor-content');
+    if (ed) ed.style.fontSize = currentFontSize + 'pt';
   }
+  updateCounts();
+  debouncedPagination();
+  if (window.CanHistory) CanHistory.commit();
 }
 
 // --- PARAGRAF BULMA VE HEDEFLİ SEÇİM (Tüm Sayfalar Uyumlu) ---
@@ -1943,7 +1959,10 @@ function applyParagraphSettings() {
 
   let targets = [];
   if (paragraphScope === 'all') {
-    targets = Array.from(document.getElementById('editor-content').querySelectorAll('p, li, blockquote'));
+    targets = Array.from(document.querySelectorAll('.page-body-box p, .page-body-box li, .page-body-box blockquote'));
+    if (targets.length === 0 && document.getElementById('editor-content')) {
+      targets = Array.from(document.getElementById('editor-content').querySelectorAll('p, li, blockquote'));
+    }
   } else {
     targets = getSelectedParagraphs();
   }
@@ -1961,6 +1980,7 @@ function applyParagraphSettings() {
   updateRulerFromActiveParagraph();
   updateCounts();
   debouncedPagination();
+  if (window.CanHistory) CanHistory.commit();
   setTimeout(() => {
     restoreCurrentSelection();
     const editor = document.getElementById('editor-content');
@@ -2022,7 +2042,7 @@ function insertCustomList(type) {
   }
 }
 
-// Tablo Ekleme
+// Tablo Ekleme (Seçim Olmasa da Güvenle Ekler)
 function insertTable() {
   const tableHtml = `
     <table border="1">
@@ -2048,22 +2068,74 @@ function insertTable() {
     </table>
     <p style="text-align: justify;"><br></p>
   `;
-  document.execCommand('insertHTML', false, tableHtml);
+  const sel = window.getSelection();
+  const cp = getActiveParagraph();
+  let inserted = false;
+  if (sel && sel.rangeCount > 0 && cp && cp.closest && cp.closest('.page-body-box')) {
+    inserted = document.execCommand('insertHTML', false, tableHtml);
+  }
+  if (!inserted) {
+    if (cp && cp.parentNode) {
+      cp.insertAdjacentHTML('afterend', tableHtml);
+    } else {
+      const box = document.querySelector('.page-body-box') || document.getElementById('editor-content');
+      if (box) box.insertAdjacentHTML('beforeend', tableHtml);
+    }
+  }
+  updateCounts();
+  debouncedPagination();
+  if (window.CanHistory) CanHistory.commit();
 }
 
-// Resim Seçiciyi Tetikleme
+// Resim Seçiciyi Tetikleme (Android + Masaüstü + Web Uyumlu)
 function triggerImagePicker() {
   if (window.AndroidBridge && window.AndroidBridge.pickImage) {
     window.AndroidBridge.pickImage();
   } else {
-    alert("Resim seçici Android ortamında çalışır.");
+    // Masaüstü ve Web: standart dosya seçici ile doğrudan resim yükleme
+    let picker = document.getElementById('desktopImagePickerInput');
+    if (!picker) {
+      picker = document.createElement('input');
+      picker.id = 'desktopImagePickerInput';
+      picker.type = 'file';
+      picker.accept = 'image/png,image/jpeg,image/jpg,image/webp,image/bmp';
+      picker.style.display = 'none';
+      document.body.appendChild(picker);
+      picker.addEventListener('change', function(e) {
+        const file = e.target.files && e.target.files[0];
+        if (file) {
+          const reader = new FileReader();
+          reader.onload = function(evt) {
+            insertImageBase64(evt.target.result);
+          };
+          reader.readAsDataURL(file);
+        }
+        picker.value = '';
+      });
+    }
+    picker.click();
   }
 }
 
 function insertImageBase64(base64Data) {
   const imgHtml = `<p style="text-align: center;"><img src="${base64Data}" alt="Dilekçe Eki / Belge Delili" style="max-width: 95%; max-height: 400px; border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"><br><em style="font-size: 10pt; color: #666;">(Ek / Delil Görseli)</em></p><p style="text-align: justify;"><br></p>`;
-  document.execCommand('insertHTML', false, imgHtml);
+  const sel = window.getSelection();
+  const cp = getActiveParagraph();
+  let inserted = false;
+  if (sel && sel.rangeCount > 0 && cp && cp.closest && cp.closest('.page-body-box')) {
+    inserted = document.execCommand('insertHTML', false, imgHtml);
+  }
+  if (!inserted) {
+    if (cp && cp.parentNode) {
+      cp.insertAdjacentHTML('afterend', imgHtml);
+    } else {
+      const box = document.querySelector('.page-body-box') || document.getElementById('editor-content');
+      if (box) box.insertAdjacentHTML('beforeend', imgHtml);
+    }
+  }
   updateCounts();
+  debouncedPagination();
+  if (window.CanHistory) CanHistory.commit();
 }
 
 // --- MODAL YÖNETİMİ & SEÇİM KORUMA ---
@@ -2806,9 +2878,30 @@ function insertTemplate(type) {
   }
 
   if (tpl) {
-    document.getElementById('editor-content').innerHTML = tpl;
+    if (window.CanHistory) CanHistory.commit();
+    const container = document.getElementById('pages-container') || document.getElementById('sheet-container');
+    if (container) {
+      container.innerHTML = `
+        <div class="a4-sheet-page" data-page-number="1" id="page-1">
+          <div id="official-doc-seal" class="official-doc-seal" onclick="openSignatureModal()" title="Elektronik İmza Doğrulama ve Detayları" style="display: none;">
+            <div class="seal-medal">⚖️</div>
+            <div class="seal-ribbon"></div>
+          </div>
+          <div id="doc-header" class="page-header-box" contenteditable="true" spellcheck="false" data-placeholder="Üstbilgi...">T.C. İSTANBUL ANADOLU 1. ASLİYE HUKUK MAHKEMESİ — Dosya No: 2026/.... Esas</div>
+          <div id="editor-content" class="page-body-box" contenteditable="true" spellcheck="true" autocomplete="off" autocapitalize="sentences">${tpl}</div>
+          <div id="doc-footer" class="page-footer-box" contenteditable="false">${getDocFooterHtml(1, 1)}</div>
+        </div>
+      `;
+    } else {
+      const ed = document.getElementById('editor-content');
+      if (ed) ed.innerHTML = tpl;
+    }
     updateCounts();
     updateRulerFromActiveParagraph();
+    updatePagination();
+    if (window.CanHistory) CanHistory.commit();
+    if (typeof markDirty === 'function') markDirty();
+    showEditorToast('⚖️ Dilekçe şablonu yüklendi');
   }
 }
 
@@ -2865,15 +2958,14 @@ function insertPageBreak() {
   updateCounts();
 }
 
-// Belge Bilgileri ve İstatistikleri Modal
+// Belge Bilgileri ve İstatistikleri Modal (Tüm Sayfalar Uyumlu)
 function openDocStatsModal() {
-  const editor = document.getElementById('editor-content');
-  const text = editor ? (editor.innerText || '') : '';
+  const text = (typeof getPlainText === 'function') ? getPlainText() : ((document.querySelector('.page-body-box') || {}).innerText || '');
   const words = text.trim() ? text.trim().split(/\s+/).length : 0;
   const charsWithSpaces = text.length;
   const charsNoSpaces = text.replace(/\s/g, '').length;
-  const paragraphs = editor ? editor.querySelectorAll('p, table, div.official-signature-seal').length : 0;
-  const estimatedPages = Math.max(1, Math.ceil(words / 450));
+  const paragraphs = document.querySelectorAll('.page-body-box p, .page-body-box table, .page-body-box li').length || 1;
+  const pagesCount = document.querySelectorAll('.a4-sheet-page').length || 1;
 
   const statWords = document.getElementById('stat-words');
   const statCharsSpaces = document.getElementById('stat-chars-spaces');
@@ -2887,7 +2979,7 @@ function openDocStatsModal() {
   if (statCharsSpaces) statCharsSpaces.textContent = charsWithSpaces.toLocaleString('tr-TR');
   if (statCharsNoSpaces) statCharsNoSpaces.textContent = charsNoSpaces.toLocaleString('tr-TR');
   if (statParagraphs) statParagraphs.textContent = paragraphs.toLocaleString('tr-TR');
-  if (statPages) statPages.textContent = estimatedPages + ' Sayfa';
+  if (statPages) statPages.textContent = pagesCount + ' Sayfa';
   if (statPageSize) statPageSize.textContent = (currentMargins.orientation === 'landscape' ? 'A4 Yatay (297 × 210 mm)' : 'A4 Dikey (210 × 297 mm)');
   if (statMargins) statMargins.textContent = `Sol: ${currentMargins.left}cm, Sağ: ${currentMargins.right}cm, Üst: ${currentMargins.top}cm, Alt: ${currentMargins.bottom}cm`;
 
@@ -2895,8 +2987,9 @@ function openDocStatsModal() {
 }
 
 // --- BUL VE DEĞİŞTİR (FIND & REPLACE) MOTORU ---
-let findMatches = [];
-let activeFindIndex = -1;
+var findMatches = [];
+var activeFindIndex = -1;
+window.findMatches = findMatches;
 
 function openFindReplaceModal() {
   saveCurrentSelection();
@@ -2917,15 +3010,20 @@ function closeFindReplaceModal() {
 }
 
 function clearFindHighlights() {
-  const editor = document.getElementById('editor-content');
-  if (!editor) return;
-  const highlights = editor.querySelectorAll('.find-highlight');
-  highlights.forEach(h => {
-    const parent = h.parentNode;
-    if (parent) {
-      parent.replaceChild(document.createTextNode(h.textContent), h);
-      parent.normalize();
-    }
+  const bodyBoxes = Array.from(document.querySelectorAll('.page-body-box'));
+  if (bodyBoxes.length === 0) {
+    const editor = document.getElementById('editor-content');
+    if (editor) bodyBoxes.push(editor);
+  }
+  bodyBoxes.forEach(box => {
+    const highlights = box.querySelectorAll('.find-highlight');
+    highlights.forEach(h => {
+      const parent = h.parentNode;
+      if (parent) {
+        parent.replaceChild(document.createTextNode(h.textContent), h);
+        parent.normalize();
+      }
+    });
   });
   findMatches = [];
   activeFindIndex = -1;
@@ -2940,10 +3038,16 @@ function onFindQueryChanged() {
   const matchCase = matchCaseEl ? matchCaseEl.checked : false;
   if (!query) return;
 
-  const editor = document.getElementById('editor-content');
-  highlightTextNodes(editor, query, matchCase);
+  const bodyBoxes = Array.from(document.querySelectorAll('.page-body-box'));
+  if (bodyBoxes.length === 0) {
+    const editor = document.getElementById('editor-content');
+    if (editor) bodyBoxes.push(editor);
+  }
+  bodyBoxes.forEach(box => {
+    highlightTextNodes(box, query, matchCase);
+  });
 
-  findMatches = Array.from(editor.querySelectorAll('.find-highlight'));
+  findMatches = Array.from(document.querySelectorAll('.page-body-box .find-highlight, #editor-content .find-highlight'));
   const badge = document.getElementById('find-status-badge');
   if (badge) {
     badge.textContent = findMatches.length > 0 ? `1 / ${findMatches.length} eşleşme` : 'Eşleşme bulunamadı';
@@ -3021,6 +3125,9 @@ function doReplaceCurrent() {
   if (current && current.parentNode) {
     const textNode = document.createTextNode(replaceWith);
     current.parentNode.replaceChild(textNode, current);
+    updateCounts();
+    debouncedPagination();
+    if (window.CanHistory) CanHistory.commit();
     onFindQueryChanged();
   }
 }
@@ -3036,7 +3143,10 @@ function doReplaceAll() {
     }
   });
   clearFindHighlights();
-  alert(`Toplam ${count} adet eşleşme başarıyla değiştirildi.`);
+  updateCounts();
+  debouncedPagination();
+  if (window.CanHistory) CanHistory.commit();
+  showEditorToast(`✓ Toplam ${count} adet eşleşme başarıyla değiştirildi.`);
 }
 
 // Buton Durumları
@@ -3115,10 +3225,15 @@ function saveGeminiApiKey() {
 }
 
 function executeDeterministicFormat() {
-  const editor = document.getElementById('editor-content');
-  if (!editor) return;
-
-  const paragraphs = Array.from(editor.querySelectorAll('p, blockquote, div'));
+  const bodyBoxes = Array.from(document.querySelectorAll('.page-body-box'));
+  if (bodyBoxes.length === 0) {
+    const editor = document.getElementById('editor-content');
+    if (editor) bodyBoxes.push(editor);
+  }
+  const paragraphs = [];
+  bodyBoxes.forEach(box => {
+    paragraphs.push(...Array.from(box.querySelectorAll('p, blockquote, div:not(.page-break):not(.auto-page-break):not(.udf-footer-layout)')));
+  });
   if (paragraphs.length === 0) {
     showEditorToast('Biçimlendirilecek metin bulunamadı.');
     return;
@@ -3234,6 +3349,7 @@ function executeDeterministicFormat() {
 
   closeAiFormatModal();
   updatePagination();
+  if (window.CanHistory) CanHistory.commit();
   if (typeof markDirty === 'function') markDirty();
   showEditorToast('⚡ Dilekçe Türk yargı standartlarına göre formatlandı!');
 }
@@ -3616,11 +3732,18 @@ function getPlainText() {
     if (hText) parts.push(hText + '\n');
   }
 
-  // 2. Ana İçerik
-  const editor = document.getElementById('editor-content');
-  if (editor) {
-    const blocks = Array.from(editor.children);
-    for (let b of blocks) {
+  // 2. Ana İçerik (Tüm Sayfalar)
+  const bodyBoxes = Array.from(document.querySelectorAll('.page-body-box'));
+  const blocks = [];
+  if (bodyBoxes.length > 0) {
+    bodyBoxes.forEach(box => {
+      blocks.push(...Array.from(box.children));
+    });
+  } else {
+    const editor = document.getElementById('editor-content');
+    if (editor) blocks.push(...Array.from(editor.children));
+  }
+  for (let b of blocks) {
       if (b.classList && (b.classList.contains('auto-page-break') || b.classList.contains('page-break') || b.classList.contains('page-break-desk-gap') || b.classList.contains('page-break-header-area') || b.classList.contains('page-break-footer-area'))) {
         continue;
       }
@@ -3639,7 +3762,6 @@ function getPlainText() {
         parts.push(txt);
       }
     }
-  }
 
   // 3. Altbilgi
   const footerEl = document.getElementById('doc-footer');
@@ -4322,8 +4444,8 @@ function toggleFormatPainter() {
 
 function activateFormatPainter(persistent = false) {
   const sel = window.getSelection();
-  const editor = document.getElementById('editor-content');
-  if (!editor) return;
+  const container = document.getElementById('pages-container') || document.getElementById('sheet-container') || document.body;
+  if (!container) return;
 
   // Biçim alınacak kaynak öğeyi belirle
   let sourceEl = null;
@@ -4337,8 +4459,8 @@ function activateFormatPainter(persistent = false) {
       if (sourceEl && sourceEl.nodeType === Node.TEXT_NODE) sourceEl = sourceEl.parentElement;
     }
   }
-  if (!sourceEl || !editor.contains(sourceEl)) {
-    sourceEl = lastActiveParagraph || editor.firstElementChild;
+  if (!sourceEl || !container.contains(sourceEl)) {
+    sourceEl = lastActiveParagraph || document.querySelector('.page-body-box p') || document.querySelector('.page-body-box');
   }
   if (!sourceEl) {
     showEditorToast('Önce biçimi kopyalanacak metne dokunun');
@@ -4348,11 +4470,11 @@ function activateFormatPainter(persistent = false) {
   // Hesaplanan stilleri al
   const cs = window.getComputedStyle(sourceEl);
   let pEl = sourceEl;
-  while (pEl && pEl !== editor && pEl !== document.body) {
+  while (pEl && pEl !== container && pEl !== document.body) {
     if (pEl.tagName && (pEl.tagName === 'P' || pEl.tagName === 'LI' || pEl.tagName === 'DIV' || pEl.tagName === 'BLOCKQUOTE')) break;
     pEl = pEl.parentElement;
   }
-  const pCs = (pEl && pEl !== editor) ? window.getComputedStyle(pEl) : cs;
+  const pCs = (pEl && pEl !== container && pEl !== document.body) ? window.getComputedStyle(pEl) : cs;
 
   copiedFormat = {
     fontFamily: cs.fontFamily,
@@ -4369,7 +4491,7 @@ function activateFormatPainter(persistent = false) {
     textIndent: pCs.textIndent
   };
 
-  isFormatPainterActive = true;
+  window.isFormatPainterActive = isFormatPainterActive = true;
   isFormatPainterPersistent = persistent;
   document.body.classList.add('format-painter-active');
   const btn = document.getElementById('btn-format-painter');
@@ -4379,7 +4501,7 @@ function activateFormatPainter(persistent = false) {
 }
 
 function deactivateFormatPainter() {
-  isFormatPainterActive = false;
+  window.isFormatPainterActive = isFormatPainterActive = false;
   isFormatPainterPersistent = false;
   document.body.classList.remove('format-painter-active');
   const btn = document.getElementById('btn-format-painter');
@@ -4390,11 +4512,11 @@ function applyCopiedFormatToTarget() {
   if (!isFormatPainterActive || !copiedFormat) return;
 
   const sel = window.getSelection();
-  const editor = document.getElementById('editor-content');
-  if (!sel || sel.rangeCount === 0 || !editor) return;
+  const container = document.getElementById('pages-container') || document.getElementById('sheet-container') || document.body;
+  if (!sel || sel.rangeCount === 0 || !container) return;
 
   const range = sel.getRangeAt(0);
-  if (!editor.contains(range.commonAncestorContainer)) return;
+  if (!container.contains(range.commonAncestorContainer)) return;
 
   if (!sel.isCollapsed) {
     // 1. Seçili metin aralığına uygula
@@ -4439,6 +4561,7 @@ function applyCopiedFormatToTarget() {
   updateActiveButtons();
   updateRulerFromActiveParagraph();
   debouncedPagination();
+  if (window.CanHistory) CanHistory.commit();
 
   if (!isFormatPainterPersistent) {
     deactivateFormatPainter();

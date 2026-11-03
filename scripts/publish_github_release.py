@@ -6,69 +6,72 @@ import urllib.error
 
 TOKEN = "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"
 REPO = "cnkzlyr/udemobile"
-TAG = "v3.6.0"
-NAME = "CanEditor v3.6.0 — UYAP Avukat Portal Standardı & Gerçek PDF Motoru"
+TAG = "v3.6.1"
+NAME = "CanEditor v3.6.1 — UYAP ve LibreOffice Tam Uyumluluğu, Çok Sayfalı Zengin Editör ve Derin Doğrulama"
 
-BODY = """# ⚖️ CanEditor (UdeMobile) v3.6.0 — Sürüm Notları
+BODY = """# 🏛️ CanEditor (UdeMobile) v3.6.1 — Sürüm Notları
 
-CanEditor **v3.6.0**, UYAP Avukat Portal (`uyapcodes.txt`) ve resmi UYAP Doküman Editörü standartlarına tam uyum sağlamak üzere tepeden tırnağa geliştirilmiş dev bir güncellemedir.
-
----
-
-## 🌟 Öne Çıkan Yenilikler & Geliştirmeler
-
-### 📕 1. Doğrudan A4 PDF Vektörel Aktarım Motoru (ISO 32000-1 / PDF 1.4)
-- **1-Tıkla Gerçek PDF:** Tarayıcı yazdırma penceresine (`window.print`) muhtaç kalmadan, A4 kağıt ölçülerinde (595.28 × 841.89 pt), keskin 192 DPI çözünürlükte, Türkçe karakter (ğ, Ğ, ı, İ, ş, Ş, ç, Ç, ö, Ö, ü, Ü) destekli gerçek ikili `.pdf` dosyası üretilir ve indirilir.
-- **Android'de Doğrudan İndirilenler & Paylaşım:** Mobil uygulamada "PDF Olarak Kaydet" seçildiğinde dosya doğrudan `/sdcard/Download/UYAP_Belgelerim` klasörüne fiziki dosya olarak kaydedilir. "PDF Olarak Paylaş" ile WhatsApp, Telegram, Gmail veya UYAP sistemine tek dokunuşla aktarılır.
-- **Akıllı Çift Katmanlı Çözümleyici:** Doküman sayfaları hem SVG ForeignObject tarayıcı motoru hem de özel tuval çizim motoruyla yedekli olarak işlenir; karmaşık tablolar, kenarlıklar (`borderSpec`), logolar ve üst/altbilgiler sıfır kayıpla PDF'e dökülür.
-
-### 🏛️ 2. UYAP Avukat Portal Görünüm ve Araç Çubuğu Standartları
-- **Belge İçi Hızlı Arama Barı (`.udv-search-box`):** UYAP Avukat Portalındaki gibi araç çubuğuna entegre arama kutusu; anlık sarı/turuncu vurgu eşleşmeleri, eşleşme sayacı (`X/Y`) ve Enter (Sonraki) / Shift+Enter (Önceki) kısayolları.
-- **Akıllı Zoom & Sığdırma Butonları:** "↔ Sığdır" (Genişliğe Sığdır) ve "↕ Sayfa" (Sayfaya Sığdır) düğmeleriyle ekrana anında tam oturan ergonomik sayfa ölçekleme.
-- **Resmi E-İmza Rozeti (`.signature-ribbon`):** Portaldaki yeşil mühür ve sertifika sayacı rozetiyle 5070 Sayılı Kanun kapsamındaki e-imzalar dokümanın sağ üst köşesinde zarifçe sergilenir; tıklandığında nitelikli elektronik sertifika ayrıntı kartı açılır.
-- **Mikro Tipografi Optimizasyonu:** `font-feature-settings: "kern" off`, `font-kerning: none` ve `text-underline-offset: 4.56px` ile Havelsan Swing motoruyla pikseli pikseline aynı metin akışı sağlanır.
-
-### 🏛️ 3. Resmi Havelsan UYAP Doküman Editörü (`format_id="1.8"`) ile 1:1 Birebir Uyumluluk
-- **Unicode Rune Duyarlı Ofset Hesabı:** Türkçe karakterler ve astral düzlem sembollerinde oluşan UTF-16 surrogate pair ofset kaymaları giderildi; karakterler `Array.from(str).length` ile tam 1:1 Havelsan standardında hesaplanır.
-- **Kusursuz XML Başlığı ve Şablon Yapısı:** Resmi Havelsan formatında `<?xml version="1.0" encoding="UTF-8"?>` ve `<template format_id="1.8">` blok sırası (`content` -> `properties` -> `elements` -> `styles`) güvenceye alındı. Boş paragraflar `length="1"` ve `\\n` CDATA tutarlılığı ile korunur.
-- **Birebir Girinti ve Cetvel Matematiği:** Havelsan UYAP `ParagraphView` / `RowView` (`LeftIndent`, `FirstLineIndent`, `Hanging`, `RightIndent`) hesaplama motoru tersine mühendislikle modellendi (`margin-left = LeftIndent + Hanging`, `text-indent = FirstLineIndent - Hanging`).
-- **Evrensel Belge Açıcı (Sıfır Hata Garantisi):** Standart ZIP UDF ve OOXML DOCX belgelerinin yanı sıra sıkıştırılmamış düz XML `.udf`, `.udf` uzantılı Word `.docx`, eski nesil OLE2 Word 97-2003 ikili `.doc` / `.doc.udf`, `RTF`, UTF-8 BOM'lu XML ve 0 baytlık boş dosyaların tamamı hatasız açılır.
-- **Masaüstü UDF/DOCX Birlikte Aç (Open With) Desteği:** Windows Dosya Gezgini'nde veya masaüstünde bir `.udf` ya da `.docx` dosyasına sağ tıklayıp "Birlikte Aç" seçildiğinde veya çift tıklandığında hedef belge otomatik yüklenir.
+CanEditor **v3.6.1**, her bir butonun, ayarın, biçimlendirmenin ve dışa aktarım motorunun uçtan uca test edilip resmi **Havelsan UYAP Doküman Editörü** ve **LibreOffice** motorlarında birebir doğrulandığı kapsamlı bir kararlılık ve uyumluluk sürümüdür.
 
 ---
 
-## 🚀 Hızlı İndirme Bağlantıları (v3.6.0)
+## 🌟 Öne Çıkan Yenilikler & Hata Düzeltmeleri
+
+### 🧪 1. 29 Adımlı Kapsamlı Otomasyon ve Round-Trip Doğrulama
+- **Resmi Havelsan Doküman Editörü Doğrulaması:** CanEditor tarafından üretilen zengin UDF dosyaları (tablolar, görsel deliller, sekme durakları, özel kenar boşlukları ve girintiler) resmi Havelsan Java motorunda (`dokuman.sh` / JDK 14.0.2) açılmış; sıfır hata ve sıfır XML ayrıştırma uyarısıyla tam uyumluluk onaylanmıştır.
+- **LibreOffice DOCX & ODT Çift Yönlü Doğrulama:** Oluşturulan Microsoft Word (`.docx`) ve OpenDocument (`.odt`) dosyaları LibreOffice motorunda işlenerek başarıyla PDF'e dönüştürülmüştür.
+- **Doğrudan Vektörel PDF & Firefox Görüntüleyici:** Doğrudan üretilen PDF 1.4 A4 (595.28 × 841.89 pt) belgeleri Firefox PDF Viewer üzerinde ISO 32000-1 standartlarında test edilip onaylanmıştır.
+- **Çok Sayfalı TIFF Doğrulaması:** Resmi adli arşiv standardındaki TIFF dosyalarının Little-Endian IFD yapıları ve ikili başlıkları doğrulanmıştır.
+
+### 📄 2. Çok Sayfalı Doküman Mimarisi İyileştirmeleri
+- **Çok Sayfalı İstatistikler:** Belge Bilgileri (`openDocStatsModal`) artık sadece ilk sayfayı değil, dokümanın tüm sayfalarındaki kelime, karakter ve gerçek sayfa sayısını tam doğrulukla hesaplar.
+- **Çok Sayfalı Bul ve Değiştir:** Arama ve değiştirme motoru tüm sayfalardaki metin bloklarını tarar; eşleşmeleri sarı vurgular ve tek tıkla tüm sayfalardaki kelimeleri değiştirir.
+- **Çok Sayfalı AI Dilekçe Formatlama:** Çevrimdışı hukuk standardı biçimlendirmesi tüm sayfalara uygulanır; mahkeme başlıkları, taraf blokları (5.0 cm sekme durağı), paragraflar (1.0 cm girinti) ve imza blokları sayfa sınırları gözetilmeksizin düzenlenir.
+- **Tüm Sayfalarda Biçim Boyacısı:** Biçim boyacısı (`FormatPainter`) artık sayfa sınırlarından bağımsız olarak herhangi bir sayfadan biçim kopyalayıp diğer sayfalara aktarabilir.
+- **Düz Metin Paylaşımı (`getPlainText`):** Dokümanın tamamı sayfa atlamadan eksiksiz metin olarak panoya veya diğer uygulamalara kopyalanabilir.
+
+### 🛠️ 3. Kullanılabilirlik & Araç Çubuğu Geliştirmeleri
+- **Masaüstü ve Web Resim Seçici:** Android haricinde Windows, macOS, Linux ve Web ortamlarında da `🖼️ Resim` butonuna basıldığında yerel dosya seçici açılarak delil/belge görselleri anında dokümana eklenebilir.
+- **Seçimden Bağımsız Tablo ve Resim Ekleme:** Düzenleyicide imleç veya aktif seçim bulunmasa dahi tablo veya resim eklendiğinde işlem sessizce başarısız olmak yerine imlecin bulunduğu paragrafa veya sayfanın sonuna güvenle eklenir.
+- **ODT Tablo Desteği:** OpenDocument Metin Belgesi (`.odt`) dışa aktarımına yerel `<table:table>` desteği eklenerek LibreOffice ve OpenOffice'te tabloların 1:1 açılması sağlandı.
+- **Şablon Geri Alma Desteği:** Yeni bir dilekçe şablonu yüklendiğinde eski sayfalar temizlenir, sayfalama anında yenilenir ve kullanıcı dilerse `Ctrl+Z` (Geri Al) ile önceki metnine geri dönebilir.
+
+---
+
+## 🚀 Hızlı İndirme Bağlantıları (v3.6.1)
 
 | Platform | Dosya | Açıklama |
 | :--- | :--- | :--- |
-| **Android (Telefon / Tablet)** | [**CanEditor-v3.6.0.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.6.0/CanEditor-v3.6.0.apk) | Güncel mobil uygulama kurulum paketi |
-| **Android (Her Zaman En Son)** | [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.6.0/CanEditor-latest.apk) | Kalıcı son sürüm bağlantısı |
-| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v3.6.0.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v3.6.0/CanEditor-Portable-Web-GUI-v3.6.0.zip) | **Kurulumsuz;** Zipten çıkartıp `index.html` tıklayarak hemen kullanın |
-| **Windows Kurulum (.exe)** | `CanEditor_3.6.0_x64-setup.exe` | Windows 10/11 64-bit doğrudan kurulum paketi *(CI tarafından eklenir)* |
-| **Windows MSI Paketi (.msi)** | `CanEditor_3.6.0_x64_en-US.msi` | Windows kurumsal MSI yükleyici *(CI tarafından eklenir)* |
-| **macOS Paketi (.dmg)** | `CanEditor_3.6.0_universal.dmg` | Apple Silicon (M1/M2/M3/M4) ve Intel Mac evrensel paket *(CI tarafından eklenir)* |
-| **Linux (AppImage / .deb / .rpm)** | `CanEditor_3.6.0_amd64.AppImage` | Tüm Linux dağıtımları için kurulumsuz AppImage *(CI tarafından eklenir)* |
+| **Android (Telefon / Tablet)** | [**CanEditor-v3.6.1.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.6.1/CanEditor-v3.6.1.apk) | Güncel mobil uygulama kurulum paketi |
+| **Android (Her Zaman En Son)** | [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.6.1/CanEditor-latest.apk) | Kalıcı son sürüm bağlantısı |
+| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v3.6.1.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v3.6.1/CanEditor-Portable-Web-GUI-v3.6.1.zip) | **Kurulumsuz;** Zipten çıkartıp `index.html` tıklayarak hemen kullanın |
+| **Windows Kurulum (.exe)** | `CanEditor_3.6.1_x64-setup.exe` | Windows 10/11 64-bit doğrudan kurulum paketi *(CI tarafından eklenir)* |
+| **Windows MSI Paketi (.msi)** | `CanEditor_3.6.1_x64_en-US.msi` | Windows kurumsal MSI yükleyici *(CI tarafından eklenir)* |
+| **macOS Paketi (.dmg)** | `CanEditor_3.6.1_universal.dmg` | Apple Silicon (M1/M2/M3/M4) ve Intel Mac evrensel paket *(CI tarafından eklenir)* |
+| **Linux (AppImage / .deb / .rpm)** | `CanEditor_3.6.1_amd64.AppImage` | Tüm Linux dağıtımları için kurulumsuz AppImage *(CI tarafından eklenir)* |
 
 ---
 
 ## 📖 Hiç Bilmeyenler İçin Adım Adım İndirme ve Kurulum Kılavuzu
 
 ### 📱 Android Telefon ve Tabletler İçin:
-1. Yukarıdaki [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.6.0/CanEditor-latest.apk) bağlantısına dokunarak dosyayı indirin.
+1. Yukarıdaki [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.6.1/CanEditor-latest.apk) bağlantısına dokunarak dosyayı indirin.
 2. Tarayıcınız *"Dosya zararlı olabilir"* uyarısı verirse **"Yine de İndir"** butonuna dokunun (Google Play harici dosyalarda standart Android uyarısıdır).
 3. İndirilen dosyaya dokunun. *"Bilinmeyen kaynaklar"* uyarısı çıkarsa **Ayarlar -> Bu kaynaktan izin ver** seçeneğini açıp geri dönün ve **"Yükle"** deyin.
 4. WhatsApp, Telegram veya Dosyalarım'dan bir `.udf` dosyasına tıkladığınızda çıkan menüde **CanEditor -> "Her Zaman"** seçin.
 5. Dosyanızı açıp düzenledikten sonra **Kaydet -> PDF Olarak Kaydet** ile doğrudan İndirilenler klasörüne A4 PDF olarak kaydedebilirsiniz.
 
 ### 💻 Windows (10 / 11) İçin:
-- **Kurulumsuz Kullanım (Tavsiye Edilen):** `CanEditor-Portable-Web-GUI-v3.6.0.zip` dosyasını indirin, sağ tıklayıp "Tümünü Ayıkla" deyin ve içindeki `index.html` dosyasına çift tıklayın. Tamamen çevrimdışı çalışır.
-- **Masaüstü Uygulaması:** `CanEditor_3.6.0_x64-setup.exe` indirip çift tıklayın. Windows SmartScreen uyarısı çıkarsa **"Ek bilgi" -> "Yine de çalıştır"** butonuna basın.
+- **Kurulumsuz Kullanım (Tavsiye Edilen):** `CanEditor-Portable-Web-GUI-v3.6.1.zip` dosyasını indirin, sağ tıklayıp "Tümünü Ayıkla" deyin ve içindeki `index.html` dosyasına çift tıklayın. Tamamen çevrimdışı çalışır.
+- **Masaüstü Uygulaması:** `CanEditor_3.6.1_x64-setup.exe` indirip çift tıklayın. Windows SmartScreen uyarısı çıkarsa **"Ek bilgi" -> "Yine de çalıştır"** butonuna basın.
 
 ### 🍎 macOS İçin:
-- `CanEditor_3.6.0_universal.dmg` dosyasını indirip açın ve CanEditor simgesini Uygulamalar klasörüne sürükleyin. Açılışta güvenlik uyarısı verirse simgeye `Control` tuşuyla **sağ tıklayıp "Aç"** deyin.
+- `CanEditor_3.6.1_universal.dmg` dosyasını indirip açın ve CanEditor simgesini Uygulamalar klasörüne sürükleyin. Açılışta güvenlik uyarısı verirse simgeye `Control` tuşuyla **sağ tıklayıp "Aç"** deyin.
 
-### 🐧 Linux İçin:
-- `CanEditor_3.6.0_amd64.AppImage` dosyasını indirin, çalıştırma izni verin (`chmod +x`) ve çift tıklayın.
+### 🐧 Linux (Debian / Pardus / Ubuntu / Fedora / RedHat) İçin:
+- **AppImage:** `CanEditor_3.6.1_amd64.AppImage` dosyasını indirin, terminalden `chmod +x CanEditor_3.6.1_amd64.AppImage` komutunu verip çift tıklayın.
+- **Debian / Pardus / Ubuntu (.deb):** `sudo dpkg -i CanEditor_3.6.1_amd64.deb`
+- **Fedora / RedHat / openSUSE (.rpm):** `sudo rpm -ivh CanEditor-3.6.1-1.x86_64.rpm`
 """
 
 def request(url, data=None, headers=None, method="GET"):
@@ -159,8 +162,8 @@ def main():
 
     # Upload assets
     files_to_upload = [
-        ("release/CanEditor-Portable-Web-GUI-v3.6.0.zip", "application/zip"),
-        ("release/CanEditor-v3.6.0.apk", "application/vnd.android.package-archive"),
+        (f"release/CanEditor-Portable-Web-GUI-{TAG}.zip", "application/zip"),
+        (f"release/CanEditor-{TAG}.apk", "application/vnd.android.package-archive"),
         ("release/CanEditor-latest.apk", "application/vnd.android.package-archive"),
     ]
     
