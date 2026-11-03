@@ -196,7 +196,7 @@ document.addEventListener('DOMContentLoaded', () => {
     toolbar.addEventListener('mousedown', (e) => {
       recordCurrentSelection();
       // <select> ve <input> dışındaki tüm buton/ikon tıklamalarında seçimi koru
-      if (e.target.tagName !== 'SELECT' && e.target.tagName !== 'INPUT' && e.target.tagName !== 'OPTION') {
+      if (!e.target.closest('select, input, textarea')) {
         e.preventDefault();
       }
     });
@@ -844,18 +844,55 @@ function insertPageNumber() {
 
 // Temel Biçimlendirme
 function format(cmd, val = null) {
-  // Geri al / yinele: tüm değişiklikleri (sekme, cetvel, biçim boyacısı...) kapsayan kendi geçmişimiz
-  if ((cmd === 'undo' || cmd === 'redo') && window.CanHistory) {
-    const a = document.activeElement;
-    const inHeaderFooter = a && (a.id === 'doc-header' || a.id === 'doc-footer');
-    if (!inHeaderFooter) {
-      cmd === 'undo' ? CanHistory.undo() : CanHistory.redo();
-      document.getElementById('editor-content').focus();
-      return;
+  // Geri al / yinele: tüm değişiklikleri kapsayan gelişmiş geçmiş motoru
+  if (cmd === 'undo') {
+    if (window.CanHistory && typeof window.CanHistory.undo === 'function') {
+      const ok = window.CanHistory.undo();
+      if (ok) {
+        updateActiveButtons();
+        updateCounts();
+        return;
+      }
+    }
+    document.execCommand('undo', false, null);
+    updateActiveButtons();
+    updateCounts();
+    return;
+  }
+  if (cmd === 'redo') {
+    if (window.CanHistory && typeof window.CanHistory.redo === 'function') {
+      const ok = window.CanHistory.redo();
+      if (ok) {
+        updateActiveButtons();
+        updateCounts();
+        return;
+      }
+    }
+    document.execCommand('redo', false, null);
+    updateActiveButtons();
+    updateCounts();
+    return;
+  }
+
+  document.execCommand(cmd, false, val);
+
+  // Paragraf hizalaması: Hem CSS style hem align niteliğini eşzamanlı güncelle
+  if (cmd === 'justifyLeft' || cmd === 'justifyCenter' || cmd === 'justifyRight' || cmd === 'justifyFull') {
+    const alignVal = cmd === 'justifyLeft' ? 'left' : (cmd === 'justifyCenter' ? 'center' : (cmd === 'justifyRight' ? 'right' : 'justify'));
+    const ap = getActiveParagraph();
+    if (ap) {
+      ap.style.textAlign = alignVal;
+      ap.setAttribute('align', alignVal);
     }
   }
-  document.execCommand(cmd, false, val);
-  document.getElementById('editor-content').focus();
+
+  // Düzenlenebilir alan odaklı değilse son aktif sayfaya odak ver
+  const isEditable = document.activeElement && (document.activeElement.isContentEditable || (document.activeElement.closest && document.activeElement.closest('.page-body-box')));
+  if (!isEditable) {
+    const curBox = document.querySelector('.page-body-box') || document.getElementById('editor-content');
+    if (curBox) curBox.focus();
+  }
+
   updateActiveButtons();
   updateCounts();
 }
@@ -873,7 +910,9 @@ function changeFontFamily(font) {
 // Yazı Boyutu
 function adjustFontSize(delta) {
   currentFontSize = Math.max(9, Math.min(26, currentFontSize + delta));
-  document.getElementById('font-size-label').textContent = currentFontSize + 'pt';
+  window.currentFontSize = currentFontSize;
+  const label = document.getElementById('font-size-label');
+  if (label) label.textContent = currentFontSize + 'pt';
   
   const selection = window.getSelection();
   if (selection.rangeCount > 0 && !selection.isCollapsed) {
@@ -3029,6 +3068,11 @@ function updateCounts() {
   const wordCount = trimmed ? trimmed.split(/\s+/).length : 0;
   const charCount = text.length;
 
+  const wEl = document.getElementById("desktopWordCount");
+  if (wEl) {
+    wEl.innerText = `${wordCount} kelime, ${charCount} karakter`;
+  }
+
   if (window.AndroidBridge && window.AndroidBridge.onContentChanged) {
     window.AndroidBridge.onContentChanged(wordCount, charCount);
   }
@@ -3550,7 +3594,7 @@ function setHtmlContent(content) {
     updatePagination();
   }, 100);
   setTimeout(markDocumentPristine, 350);
-  setTimeout(() => { if (window.CanHistory) CanHistory.reset(); }, 400);
+  setTimeout(() => { if (window.CanHistory && !window.CanHistory.isApplying) CanHistory.reset(); }, 400);
 }
 
 function getHtmlContent() {
@@ -3782,6 +3826,7 @@ function extractHeaderFooterBlocks(htmlStr) {
 }
 
 function getStructuredDocument() {
+  const container = document.getElementById('pages-container') || document.getElementById('sheet-container') || document.getElementById('editor-content') || document.body;
   const paragraphs = [];
   const bodyBoxes = Array.from(document.querySelectorAll('.page-body-box'));
   let nodes = [];
@@ -3790,7 +3835,6 @@ function getStructuredDocument() {
       Array.from(bb.children).forEach(c => nodes.push(c));
     });
   } else {
-    const container = document.getElementById('editor-content');
     if (container) nodes = Array.from(container.children);
   }
 

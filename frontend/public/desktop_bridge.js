@@ -2720,13 +2720,17 @@ let inDocSearchState = {
 };
 
 function executeInDocSearch(query) {
+  if (query === undefined || query === null) {
+    const input = document.getElementById("inDocSearchInput");
+    query = input ? input.value : "";
+  }
   clearInDocSearchHighlights();
   if (!query || !query.trim()) {
     inDocSearchState = { query: "", matches: [], currentIndex: -1 };
     updateSearchBadge();
     return;
   }
-  const q = query.trim().toLowerCase();
+  const q = query.trim().toLocaleLowerCase('tr-TR');
   inDocSearchState.query = q;
   inDocSearchState.matches = [];
   inDocSearchState.currentIndex = -1;
@@ -2745,7 +2749,7 @@ function executeInDocSearch(query) {
 
   textNodes.forEach(tNode => {
     const val = tNode.nodeValue || "";
-    const lower = val.toLowerCase();
+    const lower = val.toLocaleLowerCase('tr-TR');
     let idx = lower.indexOf(q);
     if (idx !== -1) {
       const span = document.createElement("mark");

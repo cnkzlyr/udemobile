@@ -82,7 +82,8 @@ def request(url, data=None, headers=None, method="GET"):
     req = urllib.request.Request(url, data=data, headers=h, method=method)
     try:
         with urllib.request.urlopen(req) as resp:
-            return resp.status, json.loads(resp.read().decode())
+            content = resp.read().decode()
+            return resp.status, json.loads(content) if content.strip() else None
     except urllib.error.HTTPError as e:
         body = e.read().decode()
         try:
@@ -149,6 +150,13 @@ def main():
         upload_url = r.get("upload_url")
         print(f"Created release with ID {release_id}!")
     
+    # Check existing assets to delete duplicates before re-upload
+    status, assets = request(f"https://api.github.com/repos/{REPO}/releases/{release_id}/assets")
+    existing_assets = {}
+    if status == 200 and isinstance(assets, list):
+        for a in assets:
+            existing_assets[a.get("name")] = a.get("id")
+
     # Upload assets
     files_to_upload = [
         ("release/CanEditor-Portable-Web-GUI-v3.6.0.zip", "application/zip"),
@@ -158,6 +166,11 @@ def main():
     
     for rel_path, ctype in files_to_upload:
         full_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", rel_path))
+        filename = os.path.basename(full_path)
+        if filename in existing_assets:
+            old_id = existing_assets[filename]
+            print(f"Deleting existing asset {filename} (ID: {old_id}) before re-upload...")
+            request(f"https://api.github.com/repos/{REPO}/releases/assets/{old_id}", method="DELETE")
         if os.path.exists(full_path):
             upload_asset(upload_url, full_path, ctype)
         else:
