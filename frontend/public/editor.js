@@ -138,14 +138,15 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   const editor = document.getElementById('editor-content');
-  
-  editor.addEventListener('input', () => {
-    markDocumentUserEdited();
-    const ap = getActiveParagraph();
-    if (ap && ap.querySelector('.udf-tab-space')) realignTabsInParagraph(ap);
-    updateCounts();
-    debouncedPagination();
-  });
+  if (editor) {
+    editor.addEventListener('input', () => {
+      markDocumentUserEdited();
+      const ap = getActiveParagraph();
+      if (ap && ap.querySelector('.udf-tab-space')) realignTabsInParagraph(ap);
+      updateCounts();
+      debouncedPagination();
+    });
+  }
 
   document.addEventListener('selectionchange', () => {
     recordCurrentSelection();
@@ -530,6 +531,73 @@ function restoreSelectionState(saved) {
   } catch (e) {}
 }
 
+function findParagraphSplitIndex(pNode, maxH) {
+  const measurer = document.getElementById('pagination-measurer');
+  if (!measurer) return null;
+  const mTop = measurer.getBoundingClientRect().top;
+  const cutoffY = mTop + maxH;
+
+  const walker = document.createTreeWalker(pNode, NodeFilter.SHOW_TEXT, null, false);
+  const textNodes = [];
+  let tn;
+  while ((tn = walker.nextNode())) {
+    textNodes.push(tn);
+  }
+
+  if (textNodes.length === 0) return null;
+
+  const range = document.createRange();
+
+  for (let i = 0; i < textNodes.length; i++) {
+    const tNode = textNodes[i];
+    const text = tNode.nodeValue;
+    if (!text) continue;
+
+    range.setStart(tNode, 0);
+    range.setEnd(tNode, text.length);
+    const rect = range.getBoundingClientRect();
+
+    if (rect.bottom <= cutoffY) {
+      continue;
+    }
+
+    if (rect.top > cutoffY) {
+      if (i === 0) return null;
+      return { splitTextNode: tNode, splitOffset: 0 };
+    }
+
+    let low = 0, high = text.length;
+    let best = 0;
+    while (low <= high) {
+      const mid = Math.floor((low + high) / 2);
+      range.setStart(tNode, 0);
+      range.setEnd(tNode, mid);
+      const midRect = range.getBoundingClientRect();
+      if (midRect.bottom <= cutoffY) {
+        best = mid;
+        low = mid + 1;
+      } else {
+        high = mid - 1;
+      }
+    }
+
+    let splitPos = best;
+    while (splitPos > 0 && !/\s/.test(text[splitPos])) {
+      splitPos--;
+    }
+    if (splitPos === 0) {
+      splitPos = best > 0 ? best : 0;
+    } else {
+      splitPos++;
+    }
+
+    if (i === 0 && splitPos === 0) return null;
+    return { splitTextNode: tNode, splitOffset: splitPos };
+  }
+
+  return null;
+}
+
 function updatePagination() {
   if (isMobileView || isPaginating) return;
   isPaginating = true;
@@ -572,6 +640,21 @@ function updatePagination() {
       allNodes.push(p);
     }
 
+    // Daha önce bölünmüş paragrafları birleştirerek temiz durumdan başla
+    const cleanNodes = [];
+    for (let i = 0; i < allNodes.length; i++) {
+      const n = allNodes[i];
+      if (n.getAttribute && n.getAttribute('data-split-continuation') === 'true' && cleanNodes.length > 0) {
+        const prev = cleanNodes[cleanNodes.length - 1];
+        while (n.firstChild) {
+          prev.appendChild(n.firstChild);
+        }
+      } else {
+        cleanNodes.push(n);
+      }
+    }
+    allNodes = cleanNodes;
+
     // 2. Havelsan UYAP (tr.com.havelsan.uyap.system.swing.wp.b.ar) birebir A4 geometri hesapları:
     const PPC = 37.795275; // 1 cm = 37.795275 px (96 DPI)
     const isLandscape = currentMargins.orientation === 'landscape';
@@ -593,24 +676,25 @@ function updatePagination() {
       if (currentDocHeaderTemplate.includes('udf-header-img') || currentDocHeaderTemplate.includes('<img')) {
         headerHeightPx = 76; // Havelsan logo 50pt-54pt + padding
       } else {
-        headerHeightPx = 32;
+        headerHeightPx = 28;
       }
     }
 
-    let footerHeightPx = 30;
+    let footerHeightPx = 28;
     if (currentDocFooterTemplate) {
       if (currentDocFooterTemplate.includes('udf-footer-img') || currentDocFooterTemplate.includes('<img')) {
         footerHeightPx = 76; // Havelsan altbilgi görseli (54pt = 72px) + padding
       } else if (currentDocFooterTemplate.includes('udf-official-footer') || currentDocVerificationCode) {
-        footerHeightPx = 42; // UYAP doğrulama kodlu resmi altbilgi
+        footerHeightPx = 32; // UYAP doğrulama kodlu resmi altbilgi
       } else {
-        footerHeightPx = 32;
+        footerHeightPx = 28;
       }
     }
 
     // Havelsan UYAP ar.s() ve ar.u() formülü:
     const topInsetPx = Math.round(hasHeaderTemplate ? Math.max(topMarginPx, headerOffsetPx + headerHeightPx) : topMarginPx);
-    const bottomInsetPx = Math.round(Math.max(bottomMarginPx, footerOffsetPx + footerHeightPx));
+    // UYAP standardı: Gövde metni alt marj sınırına (bottomMargin) kadar iner. Altbilgi bu marj alanı içine çizilir.
+    const bottomInsetPx = Math.round(Math.max(bottomMarginPx, footerHeightPx > Math.round(bottomMarginPx) ? (footerHeightPx + 4) : bottomMarginPx));
     const printableH = Math.max(350, pageH - topInsetPx - bottomInsetPx);
 
     // Konteyner CSS değişkenlerini ayarla
@@ -651,8 +735,9 @@ function updatePagination() {
 
     let targetCap = getCapacityForPage(1);
 
-    for (let i = 0; i < allNodes.length; i++) {
-      const node = allNodes[i];
+    const nodeQueue = [...allNodes];
+    while (nodeQueue.length > 0) {
+      const node = nodeQueue.shift();
       if (!node) continue;
 
       // Kullanıcının veya UDF'in eklediği sayfa sonu
@@ -676,6 +761,41 @@ function updatePagination() {
       const h = rawH + gap;
 
       if ((currentAccumHeight + h > targetCap) && currentPageNodes.length > 0) {
+        // Sığmıyor! Havelsan UYAP standardı: Paragrafı satır satır bölmeyi dene
+        const availH = targetCap - currentAccumHeight - gap;
+        const isSplittable = (node.tagName && node.tagName.toLowerCase() === 'p') &&
+                             !node.classList.contains('page-break') &&
+                             !node.classList.contains('udf-page-break') &&
+                             availH >= 24;
+
+        if (isSplittable) {
+          const splitRes = findParagraphSplitIndex(node, availH);
+          if (splitRes && splitRes.splitTextNode) {
+            const range = document.createRange();
+            range.setStart(splitRes.splitTextNode, splitRes.splitOffset);
+            range.setEndAfter(node.lastChild);
+            const fragment = range.extractContents();
+
+            const contP = node.cloneNode(false);
+            contP.appendChild(fragment);
+            contP.setAttribute('data-split-continuation', 'true');
+            contP.style.textIndent = '0cm';
+            contP.style.marginTop = '0px';
+            contP.style.paddingTop = '0px';
+            node.style.marginBottom = '0px';
+
+            currentPageNodes.push(node);
+            pagesData.push(currentPageNodes);
+
+            currentPageNodes = [];
+            currentAccumHeight = 0;
+            prevMb = 0;
+            targetCap = getCapacityForPage(pagesData.length + 1);
+            nodeQueue.unshift(contP);
+            continue;
+          }
+        }
+
         pagesData.push(currentPageNodes);
         currentPageNodes = [node];
         currentAccumHeight = rawH + mt;
@@ -735,7 +855,7 @@ function updatePagination() {
 
     const sicilVal = (window.currentDocSicil || '').trim();
     const watermarkHtml = sicilVal
-      ? `<div class="sheet-watermark-overlay" aria-hidden="true">${Array(15).fill(`<span>${escapeHtml(sicilVal)}</span>`).join('')}</div>`
+      ? `<div class="sheet-watermark-overlay" aria-hidden="true">${Array(36).fill(`<span>${escapeHtml(sicilVal)}</span>`).join('')}</div>`
       : '';
 
     for (let pIdx = 0; pIdx < totalPages; pIdx++) {
@@ -1280,7 +1400,12 @@ function applyPageSetupFromModal() {
 function calculateFitScale() {
   const availableWidth = window.innerWidth - 16;
   const sheetWidth = currentMargins.orientation === 'landscape' ? 1123 : 794;
-  const fit = Math.min(1.0, Math.max(0.3, availableWidth / sheetWidth));
+  if (!isMobileView) {
+    const scale = availableWidth / sheetWidth;
+    // Masaüstünde pencere daralsa dahi UYAP standardında net okunabilirlik için min %75
+    return Math.round(Math.max(0.75, Math.min(1.2, scale)) * 100) / 100;
+  }
+  const fit = Math.min(1.0, Math.max(0.35, availableWidth / sheetWidth));
   return Math.round(fit * 100) / 100;
 }
 
@@ -1504,14 +1629,19 @@ function getTabMetrics() {
 
 function getParagraphTabStops(p) {
   if (!p || !p.dataset || !p.dataset.tabStops) return [];
-  return p.dataset.tabStops.split(',').map(s => parseFloat(s)).filter(s => !isNaN(s)).sort((a, b) => a - b);
+  return p.dataset.tabStops.split(',').map(s => {
+    const parts = s.trim().split(':');
+    const pos = parseFloat(parts[0]);
+    const align = parts[1] || 'left';
+    return isNaN(pos) ? null : { pos, align };
+  }).filter(Boolean).sort((a, b) => a.pos - b.pos);
 }
 
 // Word mantığı: özel durak varsa önce ona gider; özel duraklardan sonra varsayılan 1.25 cm ızgarası
 function computeNextTabStop(stops, curCm) {
   const EPS = 0.05;
-  const custom = stops.find(s => s > curCm + EPS);
-  if (custom !== undefined) return custom;
+  const custom = stops.find(s => (typeof s === 'object' ? s.pos : s) > curCm + EPS);
+  if (custom !== undefined) return (typeof custom === 'object' ? custom.pos : custom);
   return (Math.floor(curCm / DEFAULT_TAB_INTERVAL_CM + 1e-6) + 1) * DEFAULT_TAB_INTERVAL_CM;
 }
 
@@ -1524,7 +1654,7 @@ function realignTabsInParagraph(p) {
   // "ETİKET : değer" tipi (asılı girintili) paragraflarda ilk durak etiketin genişliğini belirler
   if (tabLabel) {
     if (stops.length > 0) {
-      const first = Math.max(1, stops[0]);
+      const first = Math.max(1, typeof stops[0] === 'object' ? stops[0].pos : stops[0]);
       p.style.setProperty('padding-left', first + 'cm', 'important');
       p.style.setProperty('text-indent', (-first) + 'cm', 'important');
       const lw = Math.max(0.5, first - 0.5) + 'cm';
@@ -1557,11 +1687,51 @@ function realignTabsInParagraph(p) {
     const tsRect = ts.getBoundingClientRect();
     const curCm = Math.max(0, (tsRect.left - m.left) / m.ppc);
 
-    // Belirtilen durak varsa doğrudan sıradaki durağı kullan, yoksa Word tarzı ızgarayı hesapla:
-    let target = (tabIdx < stops.length) ? stops[tabIdx] : computeNextTabStop(stops, curCm);
+    const stopObj = (tabIdx < stops.length) ? stops[tabIdx] : null;
+    const target = stopObj ? (typeof stopObj === 'object' ? stopObj.pos : stopObj) : computeNextTabStop(stops, curCm);
+    const align = stopObj && typeof stopObj === 'object' ? stopObj.align : 'left';
     let gap = target - curCm;
 
-    // Satır sonuna taşmasın
+    // UYAP / Havelsan standardı: Son sekmeden sonra metin geliyorsa ve tanımlı durak kalmadıysa
+    // (örneğin T.C. ... BERAAT başlığı), kalan metni sağ marja yasla
+    const hasTrailingContent = ts.nextSibling && (ts.nextSibling.textContent || '').trim().length > 0;
+    if (tabIdx >= stops.length && hasTrailingContent) {
+      let trailingW = 0;
+      let nextNode = ts.nextSibling;
+      while (nextNode) {
+        if (nextNode.nodeType === Node.TEXT_NODE) {
+          const r = document.createRange();
+          r.selectNodeContents(nextNode);
+          trailingW += r.getBoundingClientRect().width;
+        } else if (nextNode.getBoundingClientRect) {
+          trailingW += nextNode.getBoundingClientRect().width;
+        }
+        nextNode = nextNode.nextSibling;
+      }
+      const trailingCm = trailingW / m.ppc;
+      const targetGap = m.widthCm - curCm - trailingCm - 0.08;
+      if (targetGap > 0.3) {
+        gap = targetGap;
+      }
+    } else if (align === 'center' && ts.nextSibling) {
+      // Merkezli sekme durağı: sekmeden sonra gelen kelimenin / parçanın merkezini durağa ortala
+      let chunkW = 0;
+      let nextNode = ts.nextSibling;
+      while (nextNode && !(nextNode.classList && nextNode.classList.contains('udf-tab-space'))) {
+        if (nextNode.nodeType === Node.TEXT_NODE) {
+          const r = document.createRange();
+          r.selectNodeContents(nextNode);
+          chunkW += r.getBoundingClientRect().width;
+        } else if (nextNode.getBoundingClientRect) {
+          chunkW += nextNode.getBoundingClientRect().width;
+        }
+        nextNode = nextNode.nextSibling;
+      }
+      const halfW = (chunkW / 2) / m.ppc;
+      gap = Math.max(0.1, target - curCm - halfW);
+    }
+
+    // Satır sonuna taşmasın (asla alt satıra düşürme)
     const room = m.widthCm - curCm;
     if (room > 0.1 && gap > room) gap = room;
     gap = Math.max(0.05, gap);
@@ -3796,7 +3966,12 @@ function setHtmlContent(content) {
 
   updateCounts();
   setTimeout(() => {
-    applyAutoFitZoom();
+    if (isMobileView) {
+      applyAutoFitZoom();
+    } else {
+      const fit = calculateFitScale();
+      setZoom(fit >= 0.9 ? 1.0 : fit, true);
+    }
     if (typeof realignAllTabs === 'function') realignAllTabs();
     updateRulerFromActiveParagraph();
     updatePagination();

@@ -6,12 +6,12 @@ import urllib.error
 
 TOKEN = "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"
 REPO = "cnkzlyr/udemobile"
-TAG = "v3.6.3"
-NAME = "CanEditor v3.6.3 — Kesintisiz Adım Adım Geri Al/Yinele Motoru, Akıllı Biçim Boyacısı ve Sıfır DOM Kaybı"
+TAG = "v3.6.4"
+NAME = "CanEditor v3.6.4 — Kesintisiz Adım Adım Geri Al/Yinele Motoru, Akıllı Biçim Boyacısı ve Sıfır DOM Kaybı"
 
-BODY = """# 🏛️ CanEditor (UdeMobile) v3.6.3 — Sürüm Notları
+BODY = """# 🏛️ CanEditor (UdeMobile) v3.6.4 — Sürüm Notları
 
-CanEditor **v3.6.3**, geri alma/yinele (Undo/Redo) motorunu tarayıcının yerel C++ UndoManager katmanına bağlayarak yüzlerce adım derinlikte gerçek harf-harf, kelime-kelime ve biçim-biçim geri alabilme/yineleyebilme yeteneği kazandıran, biçim boyacısını (Format Painter) akıllı diff mimarisiyle yeniden inşa eden ve yazım anında DOM yıkımlarını tamamen durduran büyük bir kullanıcı deneyimi sürümüdür.
+CanEditor **v3.6.4**, geri alma/yinele (Undo/Redo) motorunu tarayıcının yerel C++ UndoManager katmanına bağlayarak yüzlerce adım derinlikte gerçek harf-harf, kelime-kelime ve biçim-biçim geri alabilme/yineleyebilme yeteneği kazandıran, biçim boyacısını (Format Painter) akıllı diff mimarisiyle yeniden inşa eden ve yazım anında DOM yıkımlarını tamamen durduran büyük bir kullanıcı deneyimi sürümüdür.
 
 ---
 
@@ -32,13 +32,13 @@ CanEditor **v3.6.3**, geri alma/yinele (Undo/Redo) motorunu tarayıcının yerel
 
 ---
 
-## 🚀 Hızlı İndirme Bağlantıları (v3.6.3)
+## 🚀 Hızlı İndirme Bağlantıları (v3.6.4)
 
 | Platform | Dosya | Açıklama |
 | :--- | :--- | :--- |
-| **Android (Telefon / Tablet)** | [**CanEditor-v3.6.3.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.6.3/CanEditor-v3.6.3.apk) | Güncel mobil uygulama kurulum paketi |
-| **Android (Her Zaman En Son)** | [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.6.3/CanEditor-latest.apk) | Kalıcı son sürüm bağlantısı |
-| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v3.6.3.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v3.6.3/CanEditor-Portable-Web-GUI-v3.6.3.zip) | **Kurulumsuz;** Zipten çıkartıp `index.html` tıklayarak hemen kullanın |
+| **Android (Telefon / Tablet)** | [**CanEditor-v3.6.4.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.6.4/CanEditor-v3.6.4.apk) | Güncel mobil uygulama kurulum paketi |
+| **Android (Her Zaman En Son)** | [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.6.4/CanEditor-latest.apk) | Kalıcı son sürüm bağlantısı |
+| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v3.6.4.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v3.6.4/CanEditor-Portable-Web-GUI-v3.6.4.zip) | **Kurulumsuz;** Zipten çıkartıp `index.html` tıklayarak hemen kullanın |
 | **Windows Kurulum (.exe)** | `CanEditor_3.6.3_x64-setup.exe` | Windows 10/11 64-bit doğrudan kurulum paketi *(CI tarafından eklenir)* |
 | **Windows MSI Paketi (.msi)** | `CanEditor_3.6.3_x64_en-US.msi` | Windows kurumsal MSI yükleyici *(CI tarafından eklenir)* |
 | **macOS Paketi (.dmg)** | `CanEditor_3.6.3_universal.dmg` | Apple Silicon (M1/M2/M3/M4) ve Intel Mac evrensel paket *(CI tarafından eklenir)* |
@@ -49,14 +49,14 @@ CanEditor **v3.6.3**, geri alma/yinele (Undo/Redo) motorunu tarayıcının yerel
 ## 📖 Hiç Bilmeyenler İçin Adım Adım İndirme ve Kurulum Kılavuzu
 
 ### 📱 Android Telefon ve Tabletler İçin:
-1. Yukarıdaki [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.6.3/CanEditor-latest.apk) bağlantısına dokunarak dosyayı indirin.
+1. Yukarıdaki [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.6.4/CanEditor-latest.apk) bağlantısına dokunarak dosyayı indirin.
 2. Tarayıcınız *"Dosya zararlı olabilir"* uyarısı verirse **"Yine de İndir"** butonuna dokunun (Google Play harici dosyalarda standart Android uyarısıdır).
 3. İndirilen dosyaya dokunun. *"Bilinmeyen kaynaklar"* uyarısı çıkarsa **Ayarlar -> Bu kaynaktan izin ver** seçeneğini açıp geri dönün ve **"Yükle"** deyin.
 4. WhatsApp, Telegram veya Dosyalarım'dan bir `.udf` dosyasına tıkladığınızda çıkan menüde **CanEditor -> "Her Zaman"** seçin.
 5. Dosyanızı açıp düzenledikten sonra **Kaydet -> PDF Olarak Kaydet** ile doğrudan İndirilenler klasörüne A4 PDF olarak kaydedebilirsiniz.
 
 ### 💻 Windows (10 / 11) İçin:
-- **Kurulumsuz Kullanım (Tavsiye Edilen):** `CanEditor-Portable-Web-GUI-v3.6.3.zip` dosyasını indirin, sağ tıklayıp "Tümünü Ayıkla" deyin ve içindeki `index.html` dosyasına çift tıklayın. Tamamen çevrimdışı çalışır.
+- **Kurulumsuz Kullanım (Tavsiye Edilen):** `CanEditor-Portable-Web-GUI-v3.6.4.zip` dosyasını indirin, sağ tıklayıp "Tümünü Ayıkla" deyin ve içindeki `index.html` dosyasına çift tıklayın. Tamamen çevrimdışı çalışır.
 - **Masaüstü Uygulaması:** `CanEditor_3.6.3_x64-setup.exe` indirip çift tıklayın. Windows SmartScreen uyarısı çıkarsa **"Ek bilgi" -> "Yine de çalıştır"** butonuna basın.
 
 ### 🍎 macOS İçin:

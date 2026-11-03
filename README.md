@@ -1,6 +1,6 @@
 # ⚖️ CanEditor (UdeMobile) — Çapraz Platform UYAP & Word Editörü
 
-[![Sürüm](https://img.shields.io/badge/Sürüm-v3.6.3-blue.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v3.6.3)
+[![Sürüm](https://img.shields.io/badge/Sürüm-v3.6.4-blue.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v3.6.4)
 [![Platformlar](https://img.shields.io/badge/Platformlar-Android%20%7C%20Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Web-success.svg)](https://github.com/cnkzlyr/udemobile/releases)
 [![UYAP](https://img.shields.io/badge/Format-UYAP_UDF_v1.8-0D47A1.svg)](https://uyap.gov.tr)
 [![Word](https://img.shields.io/badge/Format-MS_DOCX_OpenXML-2B579A.svg?logo=microsoft-word&logoColor=white)](https://microsoft.com)
@@ -11,14 +11,35 @@
 
 ---
 
-## 🚀 Hızlı İndirme (v3.6.3)
+## 🚀 Hızlı İndirme (v3.6.4)
 
 | Platform | Paket Dosyası | Açıklama |
 | :--- | :--- | :--- |
-| **Android (Telefon & Tablet)** | [**CanEditor-v3.6.3.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.6.3/CanEditor-v3.6.3.apk) | Güncel Android APK paketi |
-| **Android (Her Zaman En Son)** | [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.6.3/CanEditor-latest.apk) | Kalıcı son sürüm bağlantısı |
-| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v3.6.3.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v3.6.3/CanEditor-Portable-Web-GUI-v3.6.3.zip) | **Kurulumsuz;** zipten çıkarıp `index.html` açarak tüm işletim sistemlerinde doğrudan çalışır |
-| **Windows / macOS / Linux** | [**GitHub Releases Sayfası**](https://github.com/cnkzlyr/udemobile/releases/tag/v3.6.3) | GitHub Actions CI ile derlenen yerel ikili (.msi, .exe, .dmg, .AppImage, .deb, .rpm) paketleri |
+| **Android (Telefon & Tablet)** | [**CanEditor-v3.6.4.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.6.4/CanEditor-v3.6.4.apk) | Güncel Android APK paketi |
+| **Android (Her Zaman En Son)** | [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.6.4/CanEditor-latest.apk) | Kalıcı son sürüm bağlantısı |
+| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v3.6.4.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v3.6.4/CanEditor-Portable-Web-GUI-v3.6.4.zip) | **Kurulumsuz;** zipten çıkarıp `index.html` açarak tüm işletim sistemlerinde doğrudan çalışır |
+| **Windows / macOS / Linux** | [**GitHub Releases Sayfası**](https://github.com/cnkzlyr/udemobile/releases/tag/v3.6.4) | GitHub Actions CI ile derlenen yerel ikili (.msi, .exe, .dmg, .AppImage, .deb, .rpm) paketleri |
+
+---
+
+## 🌟 v3.6.4 ile Gelen Önemli Geliştirmeler (1:1 Resmi Havelsan UYAP Birebir Sayfalama ve Tipografi Motoru)
+
+### 📄 1. 1:1 Resmi Havelsan UYAP Birebir Sayfalama ve Satır Satır Paragraf Bölme (Cross-Page Line-Splitting)
+- **Sayfa Sonu Boşluğu Sorununa Kesin Çözüm:** Önceki sürümlerde uzun paragrafların (örneğin gerekçeli kararlardaki *"İDDİA: Ankara Cumhuriyet Başsavcılığı'nın..."* gibi çok satırlı bloklar) DOM seviyesinde bölünemeyip blok halinde bir sonraki sayfaya aktarılması ve ilk sayfada yarım sayfa boşluk kalması sorunu tamamen çözüldü.
+- **DOM Range Tabanlı İkili Arama (Binary Search):** Sayfa sınırına taşan paragraflar, kelime sınırları gözetilerek piksel hassasiyetinde satır satır ikiye ayrılır. İlk parça mevcut sayfanın kalan alt boşluğuna yerleşir, devamı ise kesintisiz olarak bir sonraki sayfanın tepesine akar.
+- **Dinamik Birleştirme & Düzenleme Koruması:** Sayfalama her güncellendiğinde (`updatePagination`), daha önce bölünmüş paragraflar (`data-split-continuation`) ilk haline birleştirilir ve yeniden hesaplanır; düzenleme esnasında metin kaybı veya çift paragraf oluşumu %100 engellenir.
+
+### 📐 2. Akıllı Sekme (Tab) Daraltma ve Sağ Kenar Yaslama Kalibrasyonu
+- **UYAP CDATA Sekme Desteği:** Resmi UYAP dosyalarında başlıklar arasındaki onlarca ardışık `\t` karakteri (`\t+`) tek bir akıllı sekme aralığına (`udf-tab-space`) daraltılarak satır taşmaları önlendi.
+- **T.C. - BERAAT Birebir Uyum:** UYAP `TabSet="71.0:2:0"` gibi merkezli ve sağa dayalı sekme durakları tam desteklendi. Belgenin ilk satırındaki **T.C.** ve **BERAAT (Bozma Üzerine)** ibareleri resmi Havelsan UYAP editöründeki gibi tam aynı satırda, sağ kenara milimetrik olarak yaslanır.
+- **Asılı Girinti (Hanging Indent) Desteği:** 2. satırdan itibaren başlayan mahkeme başlıkları ve sanık bilgileri resmi UYAP hizalamasıyla tam uyumlu hale getirildi.
+
+### 🔍 3. Masaüstü Ekran Ölçekleme (Min-Zoom %75) ve A4 Marj Kalibrasyonu
+- **Masaüstü Küçülme (%43 Zoom) Hatası Düzeltildi:** Windows'ta bölünmüş ekran (split screen) veya dar pencerelerde sayfanın aşırı küçülerek okunamaz hale gelmesi engellendi; masaüstü görünümü için asgari %75 fit ölçekleme tabanı tanımlandı.
+- **Altbilgi (Footer) Alanı Kurtarıldı:** Sayfa altında gereksiz ayrılan ~80 piksellik aşırı dikey marj boşluğu, resmi UYAP 2.0 cm alt kenar boşluğu ile dengelenerek her sayfada tam metin kapasitesi elde edildi.
+
+### 🛡️ 4. 4 Sütunlu Gerçekçi Havelsan UYAP Sicil Filigranı
+- Resmi Havelsan Doküman Editörü ile birebir örtüşen 4 sütunlu, `#334155` renk tonunda ve `%12` opaklıkta kesintisiz çapraz sicil filigran matrisi (`uyapsicil`) entegre edildi.
 
 ---
 

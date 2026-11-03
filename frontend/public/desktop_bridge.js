@@ -300,7 +300,7 @@ function parseOle2WordDocBuffer(buffer) {
       if (!clean) {
         html += '<p style="text-align: justify;"><br></p>\n';
       } else {
-        const escaped = escapeHtmlStr(clean).replace(/\t/g, '<span class="udf-tab-space" contenteditable="false">&#8203;</span>');
+        const escaped = escapeHtmlStr(clean).replace(/\t+/g, '<span class="udf-tab-space" contenteditable="false">&#8203;</span>');
         html += `<p style="text-align: justify; margin-top: 2pt; margin-bottom: 2pt;">${escaped}</p>\n`;
       }
     }
@@ -504,19 +504,27 @@ async function parseUdfArrayBuffer(buffer) {
     const stops = [];
     if (tabSet && tabSet.trim()) {
       tabSet.split(",").forEach(s => {
-        const pt = parseFloat(s.trim().split(":")[0]);
+        const parts = s.trim().split(":");
+        const pt = parseFloat(parts[0]);
+        const alignCode = parts.length > 1 ? parts[1] : "0";
+        let alignStr = "left";
+        if (alignCode === "1") alignStr = "right";
+        else if (alignCode === "2") alignStr = "center";
+        else if (alignCode === "3") alignStr = "decimal";
+
         if (!isNaN(pt) && pt > 0.5) {
-          stops.push((Math.round((pt / 28.3465) * 100) / 100).toFixed(2));
+          const cmVal = (Math.round((pt / 28.3465) * 100) / 100).toFixed(2);
+          stops.push(`${cmVal}:${alignStr}`);
         }
       });
       dataAttrs += ` data-udf-tabset="${escapeHtmlStr(tabSet)}"`;
     }
     if (hangPt > 0.5 && Math.abs(totalLeftPt) > 0.1) {
       const hangCm = Math.round((totalLeftPt / 28.3465) * 100) / 100;
-      const hasHang = stops.some(s => Math.abs(parseFloat(s) - hangCm) < 0.06);
+      const hasHang = stops.some(s => Math.abs(parseFloat(s.split(":")[0]) - hangCm) < 0.06);
       if (!hasHang) {
-        stops.push(hangCm.toFixed(2));
-        stops.sort((a, b) => parseFloat(a) - parseFloat(b));
+        stops.push(`${hangCm.toFixed(2)}:left`);
+        stops.sort((a, b) => parseFloat(a.split(":")[0]) - parseFloat(b.split(":")[0]));
       }
     }
     if (stops.length > 0) dataAttrs += ` data-tab-stops="${stops.join(",")}"`;
@@ -606,7 +614,7 @@ async function parseUdfArrayBuffer(buffer) {
           const rBg = c.getAttribute("background") || "";
 
           let seg = escapeHtmlStr(chunk)
-            .replace(/\t/g, '<span class="udf-tab-space" contenteditable="false">&#8203;</span>')
+            .replace(/\t+/g, '<span class="udf-tab-space" contenteditable="false">&#8203;</span>')
             .replace(/\n/g, "<br>");
           if (bold) seg = `<strong>${seg}</strong>`;
           if (italic) seg = `<em>${seg}</em>`;
