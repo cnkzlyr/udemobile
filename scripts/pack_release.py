@@ -5,7 +5,7 @@ import shutil
 import zipfile
 import subprocess
 
-VERSION = "3.5.2"
+VERSION = "3.6.0"
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 IS_WINDOWS = os.name == "nt"
 
@@ -89,6 +89,14 @@ def main():
     print(f"Created {zip_path} ({os.path.getsize(zip_path)} bytes)")
 
     # 2. Package resources & generate R.java
+    if not (AAPT or AAPT2) or not os.path.exists(PLATFORM_JAR) or not shutil.which("javac"):
+        print("=" * 60)
+        print("Android SDK derleme araçları (aapt/javac/android.jar) yerel ortamda bulunamadı.")
+        print(f"CanEditor-Portable-Web-GUI-v{VERSION}.zip başarıyla üretildi ve varlıklar senkronize edildi.")
+        print("APK derlemesi GitHub Actions CI tarafından otomatik olarak tamamlanacaktır.")
+        print("=" * 60)
+        return
+
     unaligned_apk = os.path.join(temp_dir, "unaligned.apk")
     gen_dir = os.path.join(temp_dir, "gen")
     os.makedirs(gen_dir, exist_ok=True)

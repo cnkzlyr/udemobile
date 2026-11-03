@@ -1907,5 +1907,193 @@ body.format-painter-active, body.format-painter-active #editor-content, body.for
   background: #475569 !important;
 }
 
+/* -------------------------------------------------------------
+ * UYAP AVUKAT PORTAL STANDARTLARI (uyapcodes.txt Uyumlu)
+ * ------------------------------------------------------------- */
+
+/* 1. Resmi Havelsan & UYAP Tipografi ve Mikro Hizalama Kuralları */
+.a4-sheet-page, .page-body-box, .page-body-box p, .ude-text-element {
+  font-feature-settings: "kern" off !important;
+  font-kerning: none !important;
+  text-underline-offset: 4.56px !important;
+  text-decoration-thickness: 1.3px !important;
+}
+
+/* 2. UYAP Avukat Portal Belge İçi Hızlı Arama Araç Çubuğu */
+.udv-search-group {
+  display: flex;
+  align-items: center;
+  background: #0F172A;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  padding: 2px 6px;
+  gap: 4px;
+}
+.udv-search-box {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.udv-search-input {
+  background: transparent;
+  border: none;
+  color: #F8FAFC;
+  font-size: 12px;
+  width: 130px;
+  outline: none;
+  padding: 3px 4px;
+}
+.udv-search-input::placeholder {
+  color: #64748B;
+}
+.udv-search-btn {
+  background: #1E293B;
+  border: 1px solid #475569;
+  color: #CBD5E1;
+  border-radius: 4px;
+  padding: 2px 7px;
+  font-size: 11px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+.udv-search-btn:hover {
+  background: #0284C7;
+  color: #FFFFFF;
+  border-color: #0284C7;
+}
+.udv-search-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 5px;
+  border-radius: 3px;
+  background: #1E293B;
+}
+mark.udv-search-highlight {
+  background-color: #FEF08A;
+  color: #000000;
+  border-radius: 2px;
+  padding: 1px 2px;
+  transition: background-color 0.2s ease;
+}
+
+/* 3. UYAP Avukat Portal Resmi E-İmza Kurdele Rozeti (.signature-ribbon) */
+.signature-ribbon {
+  position: absolute;
+  right: 28px;
+  top: 24px;
+  z-index: 20;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s ease;
+}
+.signature-ribbon:hover {
+  transform: scale(1.08);
+}
+.signature-ribbon__icon {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  background: linear-gradient(135deg, #15803D 0%, #166534 100%);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(21, 128, 61, 0.4);
+  border: 2px solid #86EFAC;
+}
+.signature-ribbon__img {
+  width: 24px;
+  height: 24px;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.3));
+}
+.signature-ribbon__badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  background: #DC2626;
+  color: #FFFFFF;
+  font-size: 11px;
+  font-weight: 800;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #FFFFFF;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+
+/* 4. UYAP Portal Resmi Sertifika Kartı Modalı (.signature-detail-card) */
+.signature-detail-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background-color: #F0FDF4;
+  border: 1px solid #BBF7D0;
+  border-radius: 8px;
+  padding: 14px 16px;
+  margin-bottom: 12px;
+}
+.signature-detail-card--invalid {
+  background-color: #FEF2F2;
+  border-color: #FECACA;
+}
+.signature-detail-card__icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #15803D;
+  color: #FFFFFF;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 20px;
+}
+.signature-detail-card--invalid .signature-detail-card__icon {
+  background: #DC2626;
+}
+.signature-detail-card__body {
+  flex: 1;
+  min-width: 0;
+}
+.signature-detail-card__name {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #14532D;
+  margin-bottom: 2px;
+}
+.signature-detail-card--invalid .signature-detail-card__name {
+  color: #991B1B;
+}
+.signature-detail-card__meta {
+  font-size: 12px;
+  color: #475569;
+  line-height: 1.4;
+}
+
+/* 5. Doğrudan PDF İndirme Butonu */
+.desktop-action-btn.pdf-btn {
+  background: linear-gradient(135deg, #DC2626 0%, #B91C1C 100%) !important;
+  color: #FFFFFF !important;
+  border: none !important;
+  box-shadow: 0 2px 6px rgba(220, 38, 38, 0.35);
+  transition: all 0.15s ease;
+}
+.desktop-action-btn.pdf-btn:hover {
+  background: linear-gradient(135deg, #EF4444 0%, #DC2626 100%) !important;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(220, 38, 38, 0.45);
+}
+.desktop-action-btn.pdf-btn:active {
+  transform: translateY(0);
+}
+
 
 

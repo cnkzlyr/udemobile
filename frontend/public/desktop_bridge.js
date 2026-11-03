@@ -1476,17 +1476,19 @@ async function generateUdfBlob(docData) {
         if (tabPos === -1) {
           const sub = text.substring(idx);
           if (sub.length > 0) {
+            const rCount = Array.from(sub).length;
             rawContent += sub;
-            elementsXml += `${indent}    <content startOffset="${currentOffset}" length="${sub.length}"${styleAttrs} />\n`;
-            currentOffset += sub.length;
+            elementsXml += `${indent}    <content startOffset="${currentOffset}" length="${rCount}"${styleAttrs} />\n`;
+            currentOffset += rCount;
           }
           break;
         } else {
           if (tabPos > idx) {
             const sub = text.substring(idx, tabPos);
+            const rCount = Array.from(sub).length;
             rawContent += sub;
-            elementsXml += `${indent}    <content startOffset="${currentOffset}" length="${sub.length}"${styleAttrs} />\n`;
-            currentOffset += sub.length;
+            elementsXml += `${indent}    <content startOffset="${currentOffset}" length="${rCount}"${styleAttrs} />\n`;
+            currentOffset += rCount;
           }
           let tabEnd = tabPos + 1;
           while (tabEnd < tLen && text.charAt(tabEnd) === "\t") tabEnd++;
@@ -1605,7 +1607,7 @@ async function generateUdfBlob(docData) {
   const bottomPt = ((m.bottom || docData.bottomMarginCm || 1.5) * 28.3465).toFixed(4);
   const orient = (m.orientation === "landscape" || docData.paperOrientation === "2") ? "2" : "1";
 
-  const finalXml = `<?xml version="1.0" encoding="UTF-8" ?>\n` +
+  const finalXml = `<?xml version="1.0" encoding="UTF-8"?>\n` +
     `<template format_id="1.8">\n` +
     `<content><![CDATA[${rawContent}]]></content>\n` +
     `<properties><pageFormat mediaSizeName="1" leftMargin="${leftPt}" rightMargin="${rightPt}" topMargin="${topPt}" bottomMargin="${bottomPt}" paperOrientation="${orient}" headerFOffset="20.0" footerFOffset="20.0" /></properties>\n` +
@@ -1964,6 +1966,418 @@ async function generateTiffBlob(docData) {
 }
 
 // -------------------------------------------------------------
+// 3D. STANDART A4 ADLİ PDF EVRAKI ÜRETİCİ (ISO 32000-1 / PDF 1.4)
+// UYAP Avukat Portal ve Havelsan Standartlarında Birebir Vektörel Baskı Motoru
+// -------------------------------------------------------------
+function dataUrlToUint8Array(dataUrl) {
+  const commaIdx = dataUrl.indexOf(",");
+  const b64 = commaIdx >= 0 ? dataUrl.substring(commaIdx + 1) : dataUrl;
+  const bin = atob(b64);
+  const len = bin.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) {
+    bytes[i] = bin.charCodeAt(i) & 0xFF;
+  }
+  return bytes;
+}
+
+function assemblePdfFromJpegs(pagesData, pw, ph) {
+  const totalPages = pagesData.length;
+  const offsets = [];
+  const parts = [];
+  let currentByteLength = 0;
+
+  function pushString(str) {
+    const bytes = new Uint8Array(str.length);
+    for (let i = 0; i < str.length; i++) {
+      bytes[i] = str.charCodeAt(i) & 0xFF;
+    }
+    parts.push(bytes);
+    currentByteLength += bytes.length;
+  }
+
+  function pushBytes(bytes) {
+    parts.push(bytes);
+    currentByteLength += bytes.length;
+  }
+
+  // 1. PDF-1.4 Standart Başlığı (Binary koruma yorum satırıyla)
+  pushString("%PDF-1.4\n%\xE2\xE3\xCF\xD3\n");
+
+  // 1 0: Catalog
+  offsets.push(currentByteLength);
+  pushString("1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n");
+
+  // 2 0: Pages (Kids dizisi)
+  const kids = [];
+  for (let i = 0; i < totalPages; i++) {
+    kids.push(`${3 + i * 3} 0 R`);
+  }
+  offsets.push(currentByteLength);
+  pushString(`2 0 obj\n<< /Type /Pages /Kids [${kids.join(" ")}] /Count ${totalPages} >>\nendobj\n`);
+
+  // Sayfalar: Her sayfa için Page Obj, Content Obj, Image Obj
+  for (let i = 0; i < totalPages; i++) {
+    const pageNum = 3 + i * 3;
+    const contNum = 3 + i * 3 + 1;
+    const imgNum = 3 + i * 3 + 2;
+    const pageItem = pagesData[i];
+
+    // Page Obj
+    offsets.push(currentByteLength);
+    pushString(`${pageNum} 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pw.toFixed(2)} ${ph.toFixed(2)}] /Resources << /XObject << /Im1 ${imgNum} 0 R >> /ProcSet [/PDF /ImageC] >> /Contents ${contNum} 0 R >>\nendobj\n`);
+
+    // Content Obj
+    const contStr = `q\n${pw.toFixed(2)} 0 0 ${ph.toFixed(2)} 0 0 cm\n/Im1 Do\nQ\n`;
+    offsets.push(currentByteLength);
+    pushString(`${contNum} 0 obj\n<< /Length ${contStr.length} >>\nstream\n${contStr}\nendstream\nendobj\n`);
+
+    // Image XObject (JPEG DCTDecode)
+    offsets.push(currentByteLength);
+    pushString(`${imgNum} 0 obj\n<< /Type /XObject /Subtype /Image /Width ${pageItem.width} /Height ${pageItem.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${pageItem.bytes.length} >>\nstream\n`);
+    pushBytes(pageItem.bytes);
+    pushString("\nendstream\nendobj\n");
+  }
+
+  // XRef Tablosu (Tam 10 basamaklı ofsetlerle ISO 32000 uyumu)
+  const xrefOffset = currentByteLength;
+  const totalObjs = 2 + totalPages * 3;
+  pushString(`xref\n0 ${totalObjs + 1}\n0000000000 65535 f \n`);
+  for (let i = 0; i < offsets.length; i++) {
+    const offStr = String(offsets[i]).padStart(10, "0");
+    pushString(`${offStr} 00000 n \n`);
+  }
+
+  // Trailer & EOF
+  pushString(`trailer\n<< /Size ${totalObjs + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`);
+
+  return new Blob(parts, { type: "application/pdf" });
+}
+
+function drawTextLineCanvas(ctx, lineText, startX, y, lineMaxW, align) {
+  if (align === "center") {
+    ctx.textAlign = "center";
+    ctx.fillText(lineText, startX + lineMaxW / 2, y);
+  } else if (align === "right") {
+    ctx.textAlign = "right";
+    ctx.fillText(lineText, startX + lineMaxW, y);
+  } else if (align === "justify") {
+    const words = lineText.split(" ");
+    if (words.length <= 1) {
+      ctx.textAlign = "left";
+      ctx.fillText(lineText, startX, y);
+      return;
+    }
+    const totalWordsW = words.reduce((acc, w) => acc + ctx.measureText(w).width, 0);
+    const spaceToDistribute = lineMaxW - totalWordsW;
+    if (spaceToDistribute <= 0 || spaceToDistribute > lineMaxW * 0.4) {
+      ctx.textAlign = "left";
+      ctx.fillText(lineText, startX, y);
+      return;
+    }
+    const spaceW = spaceToDistribute / (words.length - 1);
+    let curX = startX;
+    ctx.textAlign = "left";
+    for (let i = 0; i < words.length; i++) {
+      ctx.fillText(words[i], curX, y);
+      curX += ctx.measureText(words[i]).width + spaceW;
+    }
+  } else {
+    ctx.textAlign = "left";
+    ctx.fillText(lineText, startX, y);
+  }
+}
+
+function renderTableDirectToCanvas(tableEl, ctx, leftPx, curY, maxW, scale, maxY) {
+  const rows = Array.from(tableEl.querySelectorAll("tr"));
+  if (rows.length === 0) return curY;
+
+  ctx.strokeStyle = "#475569";
+  ctx.lineWidth = 1 * scale;
+  let rowY = curY;
+
+  for (const row of rows) {
+    if (rowY > maxY) break;
+    const cells = Array.from(row.querySelectorAll("td, th"));
+    if (cells.length === 0) continue;
+
+    const colW = maxW / cells.length;
+    let maxCellH = Math.round(24 * scale);
+
+    cells.forEach(c => {
+      const cLines = (c.innerText || "").split("\n");
+      const estH = Math.max(maxCellH, Math.round((cLines.length * 16 + 10) * scale));
+      if (estH > maxCellH) maxCellH = estH;
+    });
+
+    let cellX = leftPx;
+    for (const cell of cells) {
+      ctx.strokeRect(cellX, rowY, colW, maxCellH);
+      ctx.fillStyle = "#000000";
+      ctx.font = `${Math.round(10.5 * scale)}pt "Times New Roman", serif`;
+      ctx.textAlign = "left";
+      const cText = (cell.innerText || "").trim();
+      ctx.fillText(cText.substring(0, 45), cellX + Math.round(6 * scale), rowY + Math.round(16 * scale));
+      cellX += colW;
+    }
+
+    rowY += maxCellH;
+  }
+
+  return rowY;
+}
+
+function renderSheetDirectToCanvas(sheet, ctx, targetW, targetH, scale, pageNum, totalPages, docData) {
+  ctx.fillStyle = "#FFFFFF";
+  ctx.fillRect(0, 0, targetW, targetH);
+
+  const m = (typeof currentMargins !== "undefined" && currentMargins) ? currentMargins : (docData?.margins || {});
+  const leftCm = !isNaN(parseFloat(m.left)) ? parseFloat(m.left) : 2.5;
+  const rightCm = !isNaN(parseFloat(m.right)) ? parseFloat(m.right) : 2.5;
+  const topCm = !isNaN(parseFloat(m.top)) ? parseFloat(m.top) : 2.5;
+  const bottomCm = !isNaN(parseFloat(m.bottom)) ? parseFloat(m.bottom) : 2.5;
+
+  const ppc = 37.795275 * scale;
+  const leftPx = Math.round(leftCm * ppc);
+  const rightPx = Math.round(rightCm * ppc);
+  const topPx = Math.round(topCm * ppc);
+  const bottomPx = Math.round(bottomCm * ppc);
+  const contentW = Math.max(200, targetW - leftPx - rightPx);
+
+  let curY = topPx;
+
+  // 1. Üstbilgi (Header)
+  const headerEl = sheet.querySelector(".page-header-box");
+  if (headerEl) {
+    const hText = (headerEl.innerText || "").trim();
+    if (hText) {
+      ctx.fillStyle = "#1E293B";
+      ctx.font = `bold ${Math.round(10.5 * scale)}pt "Times New Roman", serif`;
+      ctx.textAlign = "center";
+      ctx.fillText(hText, targetW / 2, curY - Math.round(10 * scale));
+      ctx.strokeStyle = "#CBD5E1";
+      ctx.lineWidth = 1 * scale;
+      ctx.beginPath();
+      ctx.moveTo(leftPx, curY - Math.round(4 * scale));
+      ctx.lineTo(targetW - rightPx, curY - Math.round(4 * scale));
+      ctx.stroke();
+    }
+  }
+
+  // 2. Gövde Paragrafları ve Tabloları
+  const bodyEl = sheet.querySelector(".page-body-box") || sheet;
+  const children = Array.from(bodyEl.children).filter(ch =>
+    !ch.classList.contains("auto-page-break") &&
+    !ch.classList.contains("page-break-desk-gap") &&
+    !ch.classList.contains("page-desk-gap")
+  );
+
+  for (const child of children) {
+    if (curY > targetH - bottomPx - 20) break;
+
+    const tagName = child.tagName.toLowerCase();
+    if (tagName === "table") {
+      curY = renderTableDirectToCanvas(child, ctx, leftPx, curY, contentW, scale, targetH - bottomPx);
+      curY += Math.round(8 * scale);
+      continue;
+    }
+
+    if (tagName === "p" || tagName === "div" || tagName.startsWith("h")) {
+      const textAlign = child.style.textAlign || "justify";
+      const isBold = child.querySelector("strong, b") !== null || child.style.fontWeight === "bold";
+      const isItalic = child.querySelector("em, i") !== null || child.style.fontStyle === "italic";
+      const fontPt = parseFloat(child.style.fontSize) || 12;
+
+      let fontStyleStr = "";
+      if (isItalic) fontStyleStr += "italic ";
+      if (isBold) fontStyleStr += "bold ";
+      ctx.font = `${fontStyleStr}${Math.round(fontPt * scale)}pt "Times New Roman", serif`;
+      ctx.fillStyle = child.style.color || "#000000";
+
+      let indentPx = 0;
+      if (child.style.textIndent) {
+        indentPx = Math.round((parseFloat(child.style.textIndent) || 0) * scale);
+      }
+
+      const pText = (child.innerText || "").replace(/\r\n/g, "\n");
+      const lines = pText.split("\n");
+
+      for (let lIdx = 0; lIdx < lines.length; lIdx++) {
+        const rawLine = lines[lIdx];
+        if (!rawLine.trim()) {
+          curY += Math.round(fontPt * 1.35 * scale);
+          continue;
+        }
+
+        const words = rawLine.split(" ");
+        let currentLine = "";
+        let isFirstLineOfPara = (lIdx === 0);
+
+        for (let w = 0; w < words.length; w++) {
+          const testLine = currentLine ? (currentLine + " " + words[w]) : words[w];
+          const curIndent = isFirstLineOfPara ? indentPx : 0;
+          const metrics = ctx.measureText(testLine);
+
+          if (metrics.width + curIndent > contentW && currentLine) {
+            drawTextLineCanvas(ctx, currentLine, leftPx + curIndent, curY, contentW - curIndent, textAlign);
+            curY += Math.round(fontPt * 1.35 * scale);
+            currentLine = words[w];
+            isFirstLineOfPara = false;
+            if (curY > targetH - bottomPx) break;
+          } else {
+            currentLine = testLine;
+          }
+        }
+
+        if (currentLine && curY <= targetH - bottomPx) {
+          const curIndent = isFirstLineOfPara ? indentPx : 0;
+          drawTextLineCanvas(ctx, currentLine, leftPx + curIndent, curY, contentW - curIndent, textAlign === "justify" ? "left" : textAlign);
+          curY += Math.round(fontPt * 1.35 * scale);
+        }
+      }
+
+      curY += Math.round(4 * scale);
+    }
+  }
+
+  // 3. Altbilgi (Footer)
+  const footerEl = sheet.querySelector(".page-footer-box");
+  const footerY = targetH - Math.round(bottomPx / 2);
+  ctx.strokeStyle = "#CBD5E1";
+  ctx.lineWidth = 1 * scale;
+  ctx.beginPath();
+  ctx.moveTo(leftPx, footerY - Math.round(18 * scale));
+  ctx.lineTo(targetW - rightPx, footerY - Math.round(18 * scale));
+  ctx.stroke();
+
+  ctx.fillStyle = "#475569";
+  ctx.font = `${Math.round(9.5 * scale)}pt "Times New Roman", serif`;
+
+  let footerText = "";
+  if (footerEl) {
+    const fTextEl = footerEl.querySelector(".udf-footer-text");
+    if (fTextEl) footerText = fTextEl.innerText.trim();
+  }
+  if (!footerText && docData?.footer) footerText = docData.footer;
+
+  if (footerText) {
+    ctx.textAlign = "left";
+    ctx.fillText(footerText.substring(0, 60), leftPx, footerY);
+  }
+
+  ctx.textAlign = "right";
+  ctx.fillText(`Sayfa: ${pageNum} / ${totalPages}`, targetW - rightPx, footerY);
+}
+
+async function generatePdfBlob(docData) {
+  if (typeof updatePagination === "function") {
+    try { updatePagination(); } catch (e) {}
+  }
+
+  let pageSheets = Array.from(document.querySelectorAll(".a4-sheet-page"));
+  if (pageSheets.length === 0) {
+    const single = document.getElementById("sheet-container") || document.getElementById("page-wrapper") || document.getElementById("editor-content");
+    if (single) pageSheets = [single];
+  }
+
+  const isLandscape = (typeof currentMargins !== "undefined" && currentMargins.orientation === "landscape") ||
+    (pageSheets[0] && pageSheets[0].classList.contains("landscape"));
+
+  // A4 Standardı: 595.28 x 841.89 pt (Dikey) veya 841.89 x 595.28 pt (Yatay)
+  const pw = isLandscape ? 841.89 : 595.28;
+  const ph = isLandscape ? 595.28 : 841.89;
+
+  const baseW = isLandscape ? 1123 : 794;
+  const baseH = isLandscape ? 794 : 1123;
+  const renderScale = 2; // Keskin 192 DPI adli baskı çözünürlüğü
+  const targetW = Math.round(baseW * renderScale);
+  const targetH = Math.round(baseH * renderScale);
+
+  const totalPages = Math.max(1, pageSheets.length);
+  const pagesData = [];
+  const statusEl = document.getElementById("desktopStatusMsg");
+
+  for (let p = 0; p < totalPages; p++) {
+    if (statusEl) statusEl.innerText = `PDF Sayfa ${p + 1}/${totalPages} hazırlanıyor...`;
+    const sheet = pageSheets[p];
+    const canvas = document.createElement("canvas");
+    canvas.width = targetW;
+    canvas.height = targetH;
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#FFFFFF";
+    ctx.fillRect(0, 0, targetW, targetH);
+
+    let renderedOk = false;
+
+    if (sheet) {
+      try {
+        const clone = sheet.cloneNode(true);
+        clone.querySelectorAll(".ruler-guide-line, .ruler-tooltip, .marker-first-line, .marker-hanging-indent, .marker-left-indent, .marker-right-indent").forEach(el => el.remove());
+        clone.style.margin = "0";
+        clone.style.boxShadow = "none";
+        clone.style.border = "none";
+        clone.style.transform = "none";
+        clone.style.position = "static";
+        clone.style.width = baseW + "px";
+        clone.style.height = baseH + "px";
+
+        const svgData = `
+          <svg xmlns="http://www.w3.org/2000/svg" width="${baseW}" height="${baseH}">
+            <foreignObject width="100%" height="100%">
+              <div xmlns="http://www.w3.org/1999/xhtml" style="width:${baseW}px;height:${baseH}px;background:#ffffff;font-family:'Times New Roman',serif;box-sizing:border-box;margin:0;padding:0;">
+                <style>
+                  * { box-sizing: border-box; }
+                  p { margin: 0; padding: 0; }
+                  table { border-collapse: collapse; }
+                  td, th { box-sizing: border-box; }
+                  img { max-width: 100%; height: auto; }
+                  .page-header-box { display: block !important; }
+                  .page-body-box { display: block !important; }
+                  .page-footer-box { display: flex !important; }
+                  .auto-page-break { display: none !important; }
+                </style>
+                ${clone.outerHTML}
+              </div>
+            </foreignObject>
+          </svg>
+        `;
+        const blob = new Blob([svgData], { type: "image/svg+xml;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const img = new Image();
+
+        await new Promise((resolve, reject) => {
+          img.onload = () => {
+            try {
+              ctx.drawImage(img, 0, 0, targetW, targetH);
+              URL.revokeObjectURL(url);
+              renderedOk = true;
+              resolve();
+            } catch (err) {
+              reject(err);
+            }
+          };
+          img.onerror = reject;
+          img.src = url;
+          setTimeout(() => reject(new Error("SVG timeout")), 700);
+        });
+      } catch (e) {
+        renderedOk = false;
+      }
+    }
+
+    if (!renderedOk && sheet) {
+      renderSheetDirectToCanvas(sheet, ctx, targetW, targetH, renderScale, p + 1, totalPages, docData);
+    }
+
+    const jpegUrl = canvas.toDataURL("image/jpeg", 0.92);
+    const jpegBytes = dataUrlToUint8Array(jpegUrl);
+    pagesData.push({ bytes: jpegBytes, width: targetW, height: targetH });
+  }
+
+  return assemblePdfFromJpegs(pagesData, pw, ph);
+}
+
+// -------------------------------------------------------------
 // 5. İNDİRME / KAYDETME YARDIMCISI (BROWSER / TAURI)
 // -------------------------------------------------------------
 function downloadBlob(blob, filename) {
@@ -2126,7 +2540,26 @@ async function triggerSaveAs(format) {
   } else if (format === "docx") {
     await triggerSaveDocx();
   } else if (format === "pdf") {
-    triggerPrintPdf();
+    if (statusEl) statusEl.innerText = "PDF hazırlanıyor...";
+    try {
+      const blob = await generatePdfBlob(docData);
+      const fileName = base + ".pdf";
+      if (window.AndroidBridge && window.AndroidBridge.saveBlobToDownloads) {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const b64 = reader.result.split(",")[1];
+          window.AndroidBridge.saveBlobToDownloads(fileName, "application/pdf", b64);
+        };
+        reader.readAsDataURL(blob);
+      } else {
+        downloadBlob(blob, fileName);
+      }
+      if (statusEl) statusEl.innerText = "✓ Adobe PDF (.pdf) Kaydedildi";
+    } catch (err) {
+      console.error("PDF kaydetme hatası:", err);
+      if (statusEl) statusEl.innerText = "PDF oluşturulamadı, yazdırma menüsü açılıyor...";
+      triggerDirectPrint();
+    }
   } else if (format === "tiff" || format === "tif") {
     if (statusEl) statusEl.innerText = "TIFF hazırlanıyor...";
     const blob = await generateTiffBlob(docData);
@@ -2160,6 +2593,11 @@ async function triggerSaveAs(format) {
   }
 }
 
+async function triggerSavePdf() {
+  await triggerSaveAs("pdf");
+}
+window.triggerSavePdf = triggerSavePdf;
+
 async function triggerShareFormat(format) {
   let base = (document.getElementById("desktopDocTitle")?.value || window.currentDocFileName || (typeof currentDocFileName !== 'undefined' ? currentDocFileName : '') || "Dilekce").trim();
   base = base.replace(/\.(udf|docx|pdf|tiff|tif|odt)$/i, "");
@@ -2170,8 +2608,27 @@ async function triggerShareFormat(format) {
   const statusEl = document.getElementById("desktopStatusMsg");
 
   // Android köprüsü varsa doğrudan yerel paylaşım diyaloğunu aç:
-  if (window.AndroidBridge && window.AndroidBridge.shareDocument) {
-    if (format === "udf" || format === "docx" || format === "pdf" || format === "text") {
+  if (window.AndroidBridge) {
+    if (format === "pdf") {
+      if (statusEl) statusEl.innerText = "PDF hazırlanıyor...";
+      try {
+        const blob = await generatePdfBlob(docData);
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const b64 = reader.result.split(",")[1];
+          if (window.AndroidBridge.shareBlobData) {
+            window.AndroidBridge.shareBlobData(base + ".pdf", "application/pdf", b64);
+          } else if (window.AndroidBridge.saveBlobToDownloads) {
+            window.AndroidBridge.saveBlobToDownloads(base + ".pdf", "application/pdf", b64);
+          }
+        };
+        reader.readAsDataURL(blob);
+        if (statusEl) statusEl.innerText = "✓ PDF Paylaşıldı";
+        return;
+      } catch (err) {
+        console.error("PDF paylaşım hatası:", err);
+      }
+    } else if (window.AndroidBridge.shareDocument && (format === "udf" || format === "docx" || format === "text")) {
       window.AndroidBridge.shareDocument(format, base, docJson);
       return;
     } else if (format === "tiff" || format === "tif") {
@@ -2218,8 +2675,9 @@ async function triggerShareFormat(format) {
       fileName += ".docx";
       mimeType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
     } else if (format === "pdf") {
-      triggerPrintPdf();
-      return;
+      blob = await generatePdfBlob(docData);
+      fileName += ".pdf";
+      mimeType = "application/pdf";
     } else if (format === "tiff") {
       blob = await generateTiffBlob(docData);
       fileName += ".tiff";
@@ -2251,6 +2709,154 @@ async function triggerShareFormat(format) {
     if (statusEl) statusEl.innerText = "Paylaşım tamamlandı";
   }
 }
+
+// -------------------------------------------------------------
+// BELGE İÇİ HIZLI ARAMA MOTORU (UYAP Avukat Portal Standartları)
+// -------------------------------------------------------------
+let inDocSearchState = {
+  query: "",
+  matches: [],
+  currentIndex: -1
+};
+
+function executeInDocSearch(query) {
+  clearInDocSearchHighlights();
+  if (!query || !query.trim()) {
+    inDocSearchState = { query: "", matches: [], currentIndex: -1 };
+    updateSearchBadge();
+    return;
+  }
+  const q = query.trim().toLowerCase();
+  inDocSearchState.query = q;
+  inDocSearchState.matches = [];
+  inDocSearchState.currentIndex = -1;
+
+  const container = document.getElementById("pages-container") || document.getElementById("editor-content");
+  if (!container) return;
+
+  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null, false);
+  const textNodes = [];
+  let node;
+  while ((node = walker.nextNode())) {
+    if (node.parentElement && !node.parentElement.closest(".ruler-container") && !node.parentElement.closest("#desktop-app-header")) {
+      textNodes.push(node);
+    }
+  }
+
+  textNodes.forEach(tNode => {
+    const val = tNode.nodeValue || "";
+    const lower = val.toLowerCase();
+    let idx = lower.indexOf(q);
+    if (idx !== -1) {
+      const span = document.createElement("mark");
+      span.className = "udv-search-highlight";
+      span.style.backgroundColor = "#FEF08A";
+      span.style.color = "#000000";
+      span.style.borderRadius = "2px";
+      span.style.padding = "1px 2px";
+
+      const before = val.substring(0, idx);
+      const match = val.substring(idx, idx + q.length);
+      const after = val.substring(idx + q.length);
+
+      span.textContent = match;
+      const parent = tNode.parentNode;
+      if (parent) {
+        if (before) parent.insertBefore(document.createTextNode(before), tNode);
+        parent.insertBefore(span, tNode);
+        if (after) parent.insertBefore(document.createTextNode(after), tNode);
+        parent.removeChild(tNode);
+        inDocSearchState.matches.push(span);
+      }
+    }
+  });
+
+  if (inDocSearchState.matches.length > 0) {
+    inDocSearchState.currentIndex = 0;
+    highlightCurrentMatch();
+  }
+  updateSearchBadge();
+}
+
+function navigateInDocSearch(direction) {
+  if (inDocSearchState.matches.length === 0) return;
+  if (direction === "next") {
+    inDocSearchState.currentIndex = (inDocSearchState.currentIndex + 1) % inDocSearchState.matches.length;
+  } else {
+    inDocSearchState.currentIndex = (inDocSearchState.currentIndex - 1 + inDocSearchState.matches.length) % inDocSearchState.matches.length;
+  }
+  highlightCurrentMatch();
+  updateSearchBadge();
+}
+
+function highlightCurrentMatch() {
+  inDocSearchState.matches.forEach((m, idx) => {
+    if (idx === inDocSearchState.currentIndex) {
+      m.style.backgroundColor = "#F97316";
+      m.style.color = "#FFFFFF";
+      m.scrollIntoView({ behavior: "smooth", block: "center" });
+    } else {
+      m.style.backgroundColor = "#FEF08A";
+      m.style.color = "#000000";
+    }
+  });
+}
+
+function clearInDocSearchHighlights() {
+  document.querySelectorAll(".udv-search-highlight").forEach(m => {
+    const parent = m.parentNode;
+    if (parent) {
+      parent.replaceChild(document.createTextNode(m.textContent || ""), m);
+      parent.normalize();
+    }
+  });
+}
+
+function updateSearchBadge() {
+  const badge = document.getElementById("inDocSearchCount");
+  if (!badge) return;
+  if (!inDocSearchState.query) {
+    badge.innerText = "";
+    badge.style.display = "none";
+  } else if (inDocSearchState.matches.length === 0) {
+    badge.innerText = "Yok";
+    badge.style.display = "inline-block";
+    badge.style.color = "#EF4444";
+  } else {
+    badge.innerText = `${inDocSearchState.currentIndex + 1}/${inDocSearchState.matches.length}`;
+    badge.style.display = "inline-block";
+    badge.style.color = "#0284C7";
+  }
+}
+
+window.executeInDocSearch = executeInDocSearch;
+window.navigateInDocSearch = navigateInDocSearch;
+window.clearInDocSearchHighlights = clearInDocSearchHighlights;
+
+function fitToWidth() {
+  const container = document.getElementById("pages-container") || document.getElementById("sheet-container");
+  if (!container) return;
+  const isLandscape = typeof currentMargins !== "undefined" && currentMargins.orientation === "landscape";
+  const sheetW = isLandscape ? 1123 : 794;
+  const availableW = (window.innerWidth || document.documentElement.clientWidth) - 40;
+  const newZoom = Math.min(1.8, Math.max(0.3, availableW / sheetW));
+  if (typeof setCustomZoom === "function") {
+    setCustomZoom(newZoom);
+  }
+}
+
+function fitToPage() {
+  const isLandscape = typeof currentMargins !== "undefined" && currentMargins.orientation === "landscape";
+  const sheetH = isLandscape ? 794 : 1123;
+  const availableH = (window.innerHeight || document.documentElement.clientHeight) - 160;
+  const newZoom = Math.min(1.5, Math.max(0.25, availableH / sheetH));
+  if (typeof setCustomZoom === "function") {
+    setCustomZoom(newZoom);
+  }
+}
+
+window.fitToWidth = fitToWidth;
+window.fitToPage = fitToPage;
 
 function triggerDirectPrint() {
   if (window.AndroidBridge && window.AndroidBridge.printDocument) {

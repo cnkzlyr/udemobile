@@ -511,7 +511,7 @@ public class EditorActivity extends Activity {
                     saveDocument(false, false);
                     return true;
                 case 2:
-                    exportToPdf();
+                    editorWebView.evaluateJavascript("triggerSaveAs('pdf');", null);
                     return true;
                 case 3:
                     saveDocument(true, false);
@@ -530,8 +530,9 @@ public class EditorActivity extends Activity {
 
     private void showPrintMenu(View anchor) {
         PopupMenu popup = new PopupMenu(this, anchor);
-        popup.getMenu().add(0, 1, 0, "🖨️ Yazıcıya Yazdır / PDF Oluştur");
+        popup.getMenu().add(0, 1, 0, "🖨️ Yazıcıya Yazdır (Sistem Menüsü)");
         popup.getMenu().add(0, 2, 1, "👁️ Yazdırma Önizleme (Print Preview)");
+        popup.getMenu().add(0, 3, 2, "📕 A4 PDF Dosyası Olarak Kaydet (.pdf)");
 
         popup.setOnMenuItemClickListener(item -> {
             switch (item.getItemId()) {
@@ -540,6 +541,9 @@ public class EditorActivity extends Activity {
                     return true;
                 case 2:
                     editorWebView.evaluateJavascript("openPrintPreview();", null);
+                    return true;
+                case 3:
+                    editorWebView.evaluateJavascript("triggerSaveAs('pdf');", null);
                     return true;
             }
             return false;
@@ -559,7 +563,7 @@ public class EditorActivity extends Activity {
         popup.setOnMenuItemClickListener(item -> {
             switch (item.getItemId()) {
                 case 1:
-                    exportToPdf();
+                    editorWebView.evaluateJavascript("triggerShareFormat('pdf');", null);
                     return true;
                 case 2:
                     shareAsUdf();
@@ -1483,7 +1487,7 @@ public class EditorActivity extends Activity {
                 } else if ("docx".equalsIgnoreCase(format)) {
                     shareAsDocx();
                 } else if ("pdf".equalsIgnoreCase(format)) {
-                    exportToPdf();
+                    editorWebView.evaluateJavascript("triggerShareFormat('pdf');", null);
                 } else {
                     shareAsPlainText();
                 }

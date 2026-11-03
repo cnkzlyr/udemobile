@@ -24,6 +24,11 @@
         📂 Aç <span style="opacity: 0.6; font-size: 11px;">(Ctrl+O)</span>
       </button>
 
+      <!-- Doğrudan 1-Tık A4 PDF İndirme Butonu (UYAP Portal Standardı) -->
+      <button type="button" class="desktop-action-btn pdf-btn" onclick="triggerSavePdf()" title="Doğrudan A4 PDF Belgesi İndir (Ctrl+Shift+P)" style="background: #DC2626; color: #FFFFFF; border: none; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 12.5px; font-weight: 600; display: flex; align-items: center; gap: 5px;">
+        📕 PDF İndir
+      </button>
+
       <!-- Farklı Kaydet Açılır Menüsü -->
       <div style="position: relative; display: inline-block;">
         <button type="button" class="desktop-action-btn primary" onclick="toggleSaveMenu(event)" title="Belgeyi Farklı Formatlarda Kaydet" style="background: #0284C7; color: #FFFFFF; border: none; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 12.5px; font-weight: 600; display: flex; align-items: center; gap: 5px;">
@@ -61,6 +66,19 @@
         <div id="printDropdown" class="action-dropdown-menu">
           <button type="button" class="action-dropdown-item" onclick="triggerDirectPrint()">🖨️ Yazıcıya Yazdır <span style="opacity: 0.6; font-size: 11px; margin-left: auto;">(Ctrl+P)</span></button>
           <button type="button" class="action-dropdown-item" onclick="openPrintPreview()">👁️ Yazdırma Önizleme</button>
+        </div>
+      </div>
+
+      <!-- UYAP Portal Belge İçi Arama Grubu -->
+      <div class="udv-search-group" title="Belge İçinde Hızlı Ara (Enter: Sonraki, Shift+Enter: Önceki, Esc: Temizle)">
+        <div class="udv-search-box">
+          <span style="font-size: 12px; opacity: 0.7;">🔍</span>
+          <input type="text" id="inDocSearchInput" class="udv-search-input" placeholder="Belgede Ara..."
+                 oninput="executeInDocSearch(this.value)"
+                 onkeydown="if(event.key==='Enter'){event.preventDefault();navigateInDocSearch(event.shiftKey?'prev':'next');}else if(event.key==='Escape'){clearInDocSearchHighlights();this.value='';updateSearchBadge();}">
+          <button type="button" class="udv-search-btn" onclick="navigateInDocSearch('prev')" title="Önceki (Shift+Enter)">▲</button>
+          <button type="button" class="udv-search-btn" onclick="navigateInDocSearch('next')" title="Sonraki (Enter)">▼</button>
+          <span id="inDocSearchCount" class="udv-search-badge" style="display: none;">0/0</span>
         </div>
       </div>
     </div>
@@ -410,11 +428,13 @@
     <svg id="fab-icon-pencil" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
   </button>
 
-  <!-- Yüzen Hızlı Yakınlaştırma (Zoom) Çubuğu -->
+  <!-- Yüzen Hızlı Yakınlaştırma (Zoom) Çubuğu (UYAP Portal Standardı: Genişliğe & Sayfaya Sığdır) -->
   <div id="floating-zoom-bar">
     <button type="button" class="zoom-btn" onclick="stepZoom(-0.08)" title="Uzaklaştır">−</button>
     <span id="zoom-indicator" onclick="cycleZoomMode()" title="Görünüm Modunu Değiştir (Sığdır / %100)">%48 Sığdır</span>
     <button type="button" class="zoom-btn" onclick="stepZoom(0.08)" title="Yakınlaştır">+</button>
+    <button type="button" class="zoom-btn" onclick="fitToWidth()" title="Genişliğe Sığdır (Fit to Width)" style="font-size: 11px; padding: 0 8px; font-weight: 600;">↔ Sığdır</button>
+    <button type="button" class="zoom-btn" onclick="fitToPage()" title="Sayfaya Sığdır (Fit to Page)" style="font-size: 11px; padding: 0 8px; font-weight: 600;">↕ Sayfa</button>
   </div>
 
   <!-- MOBİL İMZA MODAL PENCERESİ -->

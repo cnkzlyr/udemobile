@@ -1,6 +1,6 @@
 # ⚖️ CanEditor (UdeMobile) — Çapraz Platform UYAP & Word Editörü
 
-[![Sürüm](https://img.shields.io/badge/Sürüm-v3.5.0-blue.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v3.5.0)
+[![Sürüm](https://img.shields.io/badge/Sürüm-v3.6.0-blue.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v3.6.0)
 [![Platformlar](https://img.shields.io/badge/Platformlar-Android%20%7C%20Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Web-success.svg)](https://github.com/cnkzlyr/udemobile/releases)
 [![UYAP](https://img.shields.io/badge/Format-UYAP_UDF_v1.8-0D47A1.svg)](https://uyap.gov.tr)
 [![Word](https://img.shields.io/badge/Format-MS_DOCX_OpenXML-2B579A.svg?logo=microsoft-word&logoColor=white)](https://microsoft.com)
@@ -11,54 +11,115 @@
 
 ---
 
-## 🚀 Hızlı İndirme (v3.5.0)
+## 🚀 Hızlı İndirme (v3.6.0)
 
 | Platform | Paket Dosyası | Açıklama |
 | :--- | :--- | :--- |
-| **Android (Telefon & Tablet)** | [**CanEditor-v3.5.0.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.5.0/CanEditor-v3.5.0.apk) | Güncel mobil uygulama paketi |
-| **Android (Her Zaman En Son)** | [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.5.0/CanEditor-latest.apk) | Kalıcı son sürüm bağlantısı |
-| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v3.5.0.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v3.5.0/CanEditor-Portable-Web-GUI-v3.5.0.zip) | Kurulumsuz; zipten çıkarıp `index.html` açarak tüm işletim sistemlerinde doğrudan çalışır |
-| **Windows / macOS / Linux** | [**GitHub Releases Sayfası**](https://github.com/cnkzlyr/udemobile/releases/tag/v3.5.0) | GitHub Actions CI ile derlenen yerel ikili (.msi, .exe, .dmg, .AppImage, .deb, .rpm) paketleri |
+| **Android (Telefon & Tablet)** | [**CanEditor-v3.6.0.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.6.0/CanEditor-v3.6.0.apk) | Güncel Android APK paketi |
+| **Android (Her Zaman En Son)** | [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.6.0/CanEditor-latest.apk) | Kalıcı son sürüm bağlantısı |
+| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v3.6.0.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v3.6.0/CanEditor-Portable-Web-GUI-v3.6.0.zip) | **Kurulumsuz;** zipten çıkarıp `index.html` açarak tüm işletim sistemlerinde doğrudan çalışır |
+| **Windows / macOS / Linux** | [**GitHub Releases Sayfası**](https://github.com/cnkzlyr/udemobile/releases/tag/v3.6.0) | GitHub Actions CI ile derlenen yerel ikili (.msi, .exe, .dmg, .AppImage, .deb, .rpm) paketleri |
 
 ---
 
-## 🌟 v3.5.0 ile Gelen Önemli Geliştirmeler
+## 🌟 v3.6.0 ile Gelen Önemli Geliştirmeler (UYAP Avukat Portal Standardı)
 
-### 🏛️ 1. Resmi Havelsan UYAP Doküman Editörü (`format_id="1.8"`) ile 1:1 Birebir Uyumluluk
-- **Birebir Girinti ve Cetvel Matematiği:** Havelsan UYAP `ParagraphView` / `RowView` (`LeftIndent`, `FirstLineIndent`, `Hanging`, `RightIndent`) hesaplama motoru tersine mühendislikle birebir modellendi (`margin-left = LeftIndent + Hanging`, `text-indent = FirstLineIndent - Hanging`). Kaydetme sırasında asılı girintilerin (`Hanging`) sekme durağıyla ezilmesi hatası tamamen giderildi.
-- **Tablo, Görsel, Üstbilgi ve Altbilgi Kayıt Desteği:** Tabloların (`<table>`, `<row>`, `<cell>`, `columnSpans`, `border`), satır içi ve üstbilgi/altbilgi görsellerinin (`<image imageData="..." startOffset="..." length="1"/>` ve `\u00b8` karakter yer tutucusu) ve çoklu sekme duraklarının (`<tab>` + `TabSet`) hem UDF hem DOCX formatında kayıpsız okunması ve üretilmesi sağlandı.
+### 📕 1. Doğrudan A4 PDF Vektörel Aktarım Motoru (ISO 32000-1 / PDF 1.4)
+- **1-Tıkla Gerçek PDF İndirme:** Web tarayıcısı yazdırma penceresine (`window.print`) muhtaç kalmadan, A4 kağıt ölçülerinde (595.28 × 841.89 pt), keskin 192 DPI çözünürlükte, Türkçe karakter (ğ, Ğ, ı, İ, ş, Ş, ç, Ç, ö, Ö, ü, Ü) destekli gerçek ikili `.pdf` dosyası üretilir ve indirilir.
+- **Android'de Doğrudan İndirilenler & Paylaşım:** Mobil uygulamada "PDF Olarak Kaydet" seçildiğinde dosya doğrudan `Downloads/UYAP_Belgelerim` klasörüne fiziki dosya olarak kaydedilir. "PDF Olarak Paylaş" ile WhatsApp, Telegram, Gmail veya UYAP sistemine tek dokunuşla aktarılır.
+- **Akıllı Çift Katmanlı Tuval/SVG Çözümleyici:** Doküman sayfaları hem SVG ForeignObject tarayıcı motoru hem de özel tuval çizim motoruyla yedekli olarak işlenir; karmaşık tablolar, kenarlıklar (`borderSpec`), logolar ve üst/altbilgiler sıfır kayıpla PDF'e dökülür.
+
+### 🏛️ 2. UYAP Avukat Portal Görünüm ve Araç Çubuğu Standartları
+- **Belge İçi Hızlı Arama Barı (`.udv-search-box`):** UYAP Avukat Portalındaki gibi araç çubuğuna entegre arama kutusu; anlık sarı/turuncu vurgu eşleşmeleri, eşleşme sayacı (`X/Y`) ve Enter (Sonraki) / Shift+Enter (Önceki) kısayolları.
+- **Akıllı Zoom & Sığdırma Butonları:** "↔ Sığdır" (Genişliğe Sığdır) ve "↕ Sayfa" (Sayfaya Sığdır) düğmeleriyle ekrana anında tam oturan ergonomik sayfa ölçekleme.
+- **Resmi E-İmza Rozeti (`.signature-ribbon`):** Portaldaki yeşil mühür ve sertifika sayacı rozetiyle 5070 Sayılı Kanun kapsamındaki e-imzalar dokümanın sağ üst köşesinde zarifçe sergilenir; tıklandığında nitelikli elektronik sertifika ayrıntı kartı açılır.
+- **Mikro Tipografi Optimizasyonu:** `font-feature-settings: "kern" off`, `font-kerning: none` ve `text-underline-offset: 4.56px` ile Havelsan Swing motoruyla pikseli pikseline aynı metin akışı sağlanır.
+
+### 🏛️ 3. Resmi Havelsan UYAP Doküman Editörü (`format_id="1.8"`) ile 1:1 Birebir Uyumluluk
+- **Unicode Rune (Karakter) Duyarlı Ofset Hesabı:** Türkçe karakterler ve astral düzlem sembollerinde oluşan UTF-16 surrogate pair ofset kaymaları giderildi; karakterler `Array.from(str).length` ile tam 1:1 Havelsan standardında hesaplanır.
+- **Kusursuz XML Başlığı ve Şablon Yapısı:** Resmi Havelsan formatında `<?xml version="1.0" encoding="UTF-8"?>` ve `<template format_id="1.8">` blok sırası (`content` -> `properties` -> `elements` -> `styles`) güvenceye alındı. Boş paragraflar `length="1"` ve `\n` CDATA tutarlılığı ile korunur.
+- **Birebir Girinti ve Cetvel Matematiği:** Havelsan UYAP `ParagraphView` / `RowView` (`LeftIndent`, `FirstLineIndent`, `Hanging`, `RightIndent`) hesaplama motoru tersine mühendislikle modellendi (`margin-left = LeftIndent + Hanging`, `text-indent = FirstLineIndent - Hanging`). Kaydetme sırasında asılı girintilerin (`Hanging`) ezilmesi önlendi.
 - **Evrensel Belge Açıcı (Sıfır Hata Garantisi):** Standart ZIP UDF ve OOXML DOCX belgelerinin yanı sıra sıkıştırılmamış düz XML `.udf`, `.udf` uzantılı Word `.docx`, eski nesil OLE2 Word 97-2003 ikili `.doc` / `.doc.udf` (`FIB` + `Clx Piece Table` CP1254/UTF-16LE çözümleyici), `RTF`, UTF-8 BOM'lu XML ve 0 baytlık boş dosyaların tamamı hatasız açılır.
-- **Gelişmiş OOXML (`.docx`) Motoru:** `<w:b w:val="0"/>`, `<w:i w:val="0"/>`, `<w:u w:val="none"/>` niteliklerinin yanlışlıkla aktif sayılması ve paragraf sonu `<w:br/>` etiketlerinin fazladan boş satır üretmesi hataları düzeltildi; `word/media/*` gömülü görselleri, `word/styles.xml` ve `word/numbering.xml` desteği eklendi.
+- **Masaüstü UDF/DOCX Birlikte Aç (Open With) Desteği:** Windows Dosya Gezgini'nde veya masaüstünde bir `.udf` ya da `.docx` dosyasına sağ tıklayıp "Birlikte Aç" seçildiğinde veya çift tıklandığında hedef belge otomatik yüklenir.
 
-### 📱 1. Mobil Yakınlaştırma & Yatay Kaydırma (Pinch-to-Zoom & Horizontal Pan) Düzeltmesi
-- Sayfa görünümünde (paper-view) yakınlaştırma yapıldığında sayfanın sol kenarının kırpılması ve dokunarak sağa-sola kaydırılamaması (stuck scroll) sorunu giderildi. Kapsayıcı hiza kilitlenmesi çözülerek dokunmatik çift yönlü kaydırma (`touch-action: pan-x pan-y pinch-zoom`) ve sayfa merkezlemesi optimize edildi.
+---
 
-### 🖥️ 2. Masaüstü UDF/DOCX Birlikte Aç (Open With) Desteği
-- Windows Dosya Gezgini'nde veya masaüstünde bir `.udf` ya da `.docx` dosyasına sağ tıklayıp "Birlikte Aç" (Open With) seçildiğinde veya dosya ilişkilendirmesiyle çift tıklandığında boş belge açılması sorunu çözüldü. Başlangıç komut satırı argümanları yakalanarak hedeflenen belge otomatik yüklenir.
+## 📖 Hiç Bilmeyenler İçin Adım Adım İndirme ve Kurulum Kılavuzu
 
-### 📑 3. UYAP Portal İcra & Dava Talep Şablonları Desteği (`<data>` & `<field fieldName>`)
-- UYAP Avukat / Vatandaş Portalından indirilen icra genel talepleri ve form tabanlı UDF'lerdeki şablon yer tutucularının (`il_ilce`, `ilgiliIcraMudurlugu`, `dosyaNo`, `borcluBilgisi`, `talepAciklama`, `tarih`, `alacakliAvukatAdiSoyadi`) ham değişken adı olarak kalması sorunu giderildi. `<data>` etiketlerindeki gerçek form alanları hem masaüstü Web/Tauri hem de Android motorunda (Java & JS) çözümlenerek dokümana yerleştirildi.
+Uygulamayı daha önce hiç kullanmamış veya bilgisayar/telefon ayarları konusunda deneyimli olmayan kullanıcılarımız için platform bazında adım adım rehber aşağıdadır:
 
-### 📏 1. Word Standardında Akıllı Cetvel & Bağımsız Asılı Girinti (Hanging Indent)
-- **Asılı Girinti (Alttaki Yukarı Bakan Ok):** Satır sonuna gelindiğinde aşağı taşan 2. ve sonraki satırların başlangıç hizasını bağımsız olarak belirler. Sürüklendiğinde ilk satırın konumunu bozmaz.
-- **İlk Satır Girintisi (Üstteki Aşağı Bakan Ok):** Yalnızca ilk satırın başlangıç girintisini ayarlar; asılı satırların hizasını sabit tutar.
-- **Tüm Paragrafı Taşıma (En Alttaki Dikdörtgen):** İlk satır ve asılı satırlar arasındaki mesafeyi koruyarak tüm paragrafı blok halinde sağa ve sola taşır.
-- **Mobil ve Masaüstü Ergonomisi:** Dokunmatik ekranlarda ve fareyle rahat kavrama için genişletilmiş hassas dokunma alanları ve anlık görsel vurgu eklendi.
+### 📱 1. Android Telefon ve Tablet İçin Adım Adım Kurulum
 
-### ⚡ 2. Editör Çalışma Motoru & Ekran Boyutlandırma / Kaydırma Düzeltmesi
-- Editör JavaScript derleme zincirindeki sözdizimi ayrıştırma hatası tamamen giderildi; `applyAutoFitZoom()`, A4 sayfa ölçekleme, akıcı dokunmatik kaydırma, çift parmak yakınlaştırma (pinch-to-zoom) ve belge yükleme motoru eksiksiz çalışır duruma getirildi.
+1. **İndirme:** Telefonunuzun tarayıcısından (Chrome, Samsung Internet vb.) yukarıdaki [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.6.0/CanEditor-latest.apk) bağlantısına dokunun.
+2. **Güvenlik Uyarısına Onay Verme:**
+   - Chrome veya Samsung Internet, Google Play dışından indirilen her dosya için *"Bu türden bir dosya cihazınıza zarar verebilir"* veya *"Dosya zararlı olabilir"* uyarısı gösterebilir.
+   - Bu standart bir Android güvenlik uyarısıdır. **"Yine de İndir"** (Download anyway) butonuna dokunun.
+3. **Yükleme İzni:**
+   - İndirme tamamlandığında bildirim çubuğundaki **CanEditor-latest.apk** dosyasına veya Dosyalarım/İndirilenler klasörüne dokunun.
+   - Ekrana *"Güvenlik nedeniyle telefonunuzun bu kaynaktan bilinmeyen uygulamalar yüklemesine izin verilmez"* uyarısı gelirse:
+     - **Ayarlar**'a dokunun.
+     - **"Bu kaynaktan izin verin"** seçeneğini açık (mavi) duruma getirin ve geri gelin.
+   - **"Yükle"** (Install) butonuna dokunun.
+4. **UYAP Dosyalarını (.udf) Açma ve Varsayılan Yapma:**
+   - WhatsApp, Telegram, E-posta veya İndirilenler klasöründeki herhangi bir `.udf` dosyasına dokunun.
+   - Açılan *"Birlikte Aç"* menüsünde **CanEditor**'ü seçin ve **"Her Zaman"** (Always) seçeneğine tıklayın.
+   - Artık tarafınıza iletilen tüm UYAP dilekçeleri ve kararları doğrudan CanEditor ile açılacaktır!
+5. **PDF Olarak Kaydetme:**
+   - Açtığınız belgede üst menüdeki **"Kaydet"** butonuna dokunun ve **"PDF Olarak Kaydet"** seçeneğini seçin. Belgeniz anında `İndirilenler/UYAP_Belgelerim` klasörüne A4 formatında kaydedilir.
 
-### 🎯 2. Milimetrik Sekme & Durak Hizalaması (Multi-Stop TabSet)
-- **Kusursuz İki Nokta (Colon) ve Sicil Hizası:** Çoklu durak yerleri (`TabSet="146.0:0:0,241.0:0:0"`) artık virgülle ayrılarak eksiksiz ayrıştırılır. `DOSYA NO`, `DURUŞMA TARİHİ`, `CELSE NO`, `HAKİM`, `CUMHURİYET SAVCISI`, `KATİP` satırlarındaki tüm iki noktalar (`:`) masaüstü UYAP editörüyle birebir aynı şekilde `5.15 cm` (`146.0 pt`) hizasında kilitlenir. Sicil numaraları ise `8.50 cm` (`241.0 pt`) sütununda tam dikey hizada yer alır; zig-zag oluşması tamamen engellenmiştir.
+---
 
-### 🏷️ 2. Akıllı Üstbilgi Motoru (`<header startPage="2">`)
-- Resmi UYAP belgelerinde 1. sayfada üstbilgi gösterilmez. 2. sayfadan itibaren her sayfanın başında mahkeme adı ve dosya/duruşma bilgisi (`T.C. ... MAHKEMESİ / Dosya No: ...`) iki yana yaslı zarif bir üstbilgi bandı olarak otomatik eklenir.
+### 💻 2. Windows (10 / 11) İçin Kurulum Rehberi
 
-### 🛡️ 3. Resmi UYAP Doğrulama Metni & Dinamik QR / Barkod
-- `content.xml` içindeki `<webID>` ve `documentproperties.xml` içindeki `uyapdogrulamakodu` otomatik okunarak her sayfanın altbilgisine resmi doğrulama metni (`UYAP Bilişim Sistemindeki bu dokümana http://vatandas.uyap.gov.tr adresinden [kod] ile erişebilirsiniz.`) ve sağ köşede `{PAGE_NUM}/{TOTAL_PAGES}` ile dinamik SVG QR kod yerleştirilir.
+#### Yöntem A: Taşınabilir (Portable) Sürüm — En Kolay, Kurulumsuz!
+1. [**CanEditor-Portable-Web-GUI-v3.6.0.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v3.6.0/CanEditor-Portable-Web-GUI-v3.6.0.zip) dosyasını indirin.
+2. İndirilen `.zip` dosyasına sağ tıklayıp **"Tümünü Ayıkla..."** (Extract All) seçeneğine basın.
+3. Klasörün içindeki `index.html` dosyasına çift tıklayın.
+4. Google Chrome, Microsoft Edge veya varsayılan tarayıcınızda CanEditor anında açılır. İnternet bağlantısı olmasa bile tamamen çevrimdışı ve güvenli çalışır.
 
-### 📄 4. Hassas Sayfalama & Satır Kayması Koruması
-- Resmi UYAP `pageFormat` kenar boşlukları (`1.5 cm` kenarlar, `0.5 cm` alt) ve `1.2` satır aralığı standardı uygulanarak sayfa sonu satır kayması giderilmiş, resmi 18 sayfa düzeni birebir yakalanmıştır.
+#### Yöntem B: Kurulabilir Masaüstü Uygulaması (.msi veya .exe)
+1. [Releases sayfasından](https://github.com/cnkzlyr/udemobile/releases/tag/v3.6.0) `CanEditor_3.6.0_x64-setup.exe` veya `CanEditor_3.6.0_x64_en-US.msi` dosyasını indirin.
+2. İndirilen dosyaya çift tıklayın.
+3. **Windows Defender SmartScreen Uyarısı Çıkarsa:**
+   - Açık kaynak kodlu ve yeni yayınlanan bağımsız uygulamalarda Windows *"Kişisel bilgisayarınız korundu"* uyarısı gösterebilir.
+   - Penceredeki **"Ek bilgi"** (More info) bağlantısına tıklayın.
+   - Ardından açılan **"Yine de çalıştır"** (Run anyway) butonuna tıklayın.
+4. Kurulum saniyeler içinde tamamlanır ve masaüstünüze CanEditor kısayolu eklenir.
+5. Herhangi bir `.udf` dosyasına sağ tıklayıp **Birlikte Aç -> Başka bir uygulama seç -> CanEditor** seçerek *"Her zaman bu uygulamayı kullan"* kutucuğunu işaretleyebilirsiniz.
+
+---
+
+### 🍎 3. macOS (Apple Silicon M1/M2/M3/M4 & Intel) Kurulum Rehberi
+
+1. [Releases sayfasından](https://github.com/cnkzlyr/udemobile/releases/tag/v3.6.0) `CanEditor_3.6.0_universal.dmg` dosyasını indirin (veya kurulumsuz Portable ZIP'i kullanın).
+2. İndirilen `.dmg` dosyasına çift tıklayın ve açılan penceredeki **CanEditor** simgesini **Applications (Uygulamalar)** klasörüne sürükleyip bırakın.
+3. **macOS Gatekeeper Uyarısı Çıkarsa:**
+   - Apple, App Store dışı uygulamalarda *"Geliştirici doğrulanamadığı için açılamıyor"* uyarısı verebilir.
+   - **Çözüm 1:** Uygulama simgesine klavyeden `Control` tuşuna basılı tutarak **sağ tıklayın** ve **"Aç"** (Open) seçeneğini seçin. Çıkan pencerede tekrar **"Aç"** butonuna basın.
+   - **Çözüm 2:** **Sistem Ayarları -> Gizlilik ve Güvenlik** bölümüne gidin. En altta *"CanEditor uygulamasının açılması engellendi"* uyarısının yanındaki **"Yine de Aç"** (Open Anyway) butonuna tıklayın.
+
+---
+
+### 🐧 4. Linux (Ubuntu, Debian, Fedora, Arch, Pardus) Kurulum Rehberi
+
+1. **AppImage ile Kurulumsuz Çalıştırma (Tüm Dağıtımlar):**
+   - Releases sayfasından `CanEditor_3.6.0_amd64.AppImage` dosyasını indirin.
+   - Dosyaya sağ tıklayıp **Özellikler -> İzinler -> "Dosyayı bir program gibi çalıştırmaya izin ver"** kutusunu işaretleyin (veya terminalde: `chmod +x CanEditor*.AppImage`).
+   - Çift tıklayarak doğrudan çalıştırın.
+2. **Debian / Ubuntu / Pardus (.deb):**
+   - Terminalde: `sudo dpkg -i CanEditor_3.6.0_amd64.deb`
+3. **Fedora / RedHat / openSUSE (.rpm):**
+   - Terminalde: `sudo rpm -ivh CanEditor-3.6.0-1.x86_64.rpm`
+
+---
+
+### 🌐 5. Web Tarayıcısında Sıfır Kurulumla Doğrudan Kullanım
+
+CanEditor, modern web teknolojileri (HTML5, WebAssembly, Canvas, SVG) üzerinde çalıştığı için herhangi bir yazılım kurmadan doğrudan kullanılabilir:
+1. İndirdiğiniz `CanEditor-Portable-Web-GUI-v3.6.0.zip` içindeki `index.html` dosyasına çift tıklayın.
+2. Açılan sayfaya bilgisayarınızdaki herhangi bir `.udf` veya `.docx` dosyasını **sürükleyip bırakın** ya da **"Belge Aç"** butonuna basın.
+3. Dokümanınız anında UYAP standartlarında ekrana gelecektir.
+4. Düzenlemenizi yaptıktan sonra tek tıkla **"UDF Kaydet"**, **"DOCX Kaydet"** veya **"📕 PDF İndir"** butonlarına basarak dosyanızı anında indirebilirsiniz.
 
 ---
 
@@ -67,31 +128,28 @@
 ### 1. 📄 Çift Yönlü Belge Dönüştürme (UDF ⟷ DOCX)
 - **Word Dilekçesini UDF Yapma:** Bilgisayardan veya mesajlaşma uygulamalarından gelen `.docx` dosyalarını açıp düzenleyebilir ve tek tıkla resmi **.udf** formatında kaydedebilirsiniz.
 - **UDF'yi Word Olarak Dışa Aktarma:** Açtığınız bir UDF belgesini tek tıkla standart **.docx** formatına dönüştürebilirsiniz.
-- **Resmi UYAP Tipografisi:** Times New Roman 12 pt, iki yana yaslı (justify) ve 1.35 satır aralığı standardı varsayılan olarak uygulanır.
+- **Resmi UYAP Tipografisi:** Times New Roman 12 pt, iki yana yaslı (justify) ve 1.16 - 1.35 satır aralığı standardı varsayılan olarak uygulanır.
 
 ### 2. 📏 Etkileşimli A4 Cetveli (Ruler) & Sayfa Boşlukları
 - **0 - 16 cm Milimetre Ölçeği:** A4 kağıt genişliğiyle birebir uyumlu cetvel.
 - **İlk Satır Girintisi İmi (▼):** Paragrafın ilk satır girintisini (0.5 cm, 1.0 cm, 1.25 cm UYAP standardı) sürükleyerek ayarlama.
-- **Sol ve Asılı Girinti İmi (▲ + ▀):** Paragrafın sol kenarını ve asılı bendini kontrol etme.
+- **Sol ve Asılı Girinti İmi (▲ + ▀):** Paragrafın sol kenarını ve asılı bendini bağımsız kontrol etme.
 - **Sağ Kenar İmi (▲):** Paragrafın sağ marjinini ayarlama.
 
 ### 3. 📑 Kalıcı Üstbilgi ve Altbilgi (Header & Footer)
 - Mahkeme adı, dosya no ve iletişim bilgileri sayfa başında ve sonunda kalıcı olarak görüntülenir.
 - Otomatik tarih ve `Sayfa 1 / 1` biçiminde resmi sayfa numaralandırması ekleme.
+- `content.xml` içindeki webID ile her sayfanın altbilgisine resmi UYAP doğrulama metni ve dinamik QR kod yerleştirme.
 
-### 4. ✍️ Donanımsal E-İmza (USB OTG CCID) & Çoklu İmza
+### 4. ✍️ Donanımsal E-İmza (USB OTG CCID) & Mobil İmza
 - **Fiziksel Kart Desteği:** Type-C OTG adaptörüyle takılan TÜRKTRUST, Kamu SM, AKİS, E-Tuğra akıllı kartları ve ACR39U vb. CCID kart okuyucuları.
-- **Çoklu İmza (Multi-Sign) Koruması:** Belgede önceden atılmış imzalar varsa, yeni bir e-imza veya mobil imza atıldığında eski imzalar silinmez; CAdES-BES standardına uygun olarak yeni imzacının sertifikası mevcut `sign.sgn` arşivine eklenir.
-- **Canlı İmza Doğrulama Motoru:** Açılan dokümanın imzaları (imzacı adı, NES sertifika sağlayıcı, seri no, son geçerlilik tarihi) ve `content.xml` içerik bütünlüğü anlık doğrulanır.
+- **Çoklu İmza (Multi-Sign) Koruması:** Belgede önceden atılmış imzalar varsa yeni imza atıldığında eski imzalar korunur; CAdES-BES standardına uygun olarak yeni sertifika mevcut arşive eklenir.
+- **Canlı İmza Doğrulama Motoru:** Açılan dokümanın imzaları (imzacı adı, NES sertifika sağlayıcı, seri no, son geçerlilik tarihi) ve içerik bütünlüğü anlık doğrulanır, UYAP Avukat Portal yeşil imza rozetiyle sergilenir.
 
 ### 5. ⚖️ Hukuki Araç Çubuğu & Şablonlar
 - **Tek Tıkla Dilekçe Şablonları:** Dava Dilekçesi, Cevap Dilekçesi, Süre Uzatım Talebi (HMK m. 127), Bilirkişi Raporuna İtiraz, İstinaf Başvuru Dilekçesi, İhtarname.
 - **Hukuki Madde Numaralandırma:** Hukuk Dava Maddeleri (1.1, 1.2, 1.3), Roma Rakamları (I., II., III.), Harfli Bentler (a, b, c) ve Madde İmleri.
 - **Fosforlu Vurgulama & Renkler:** Sarı ve yeşil metin vurgulama, koyu mavi / kırmızı başlık ve ihtar notları.
-
-### 6. 📄 A4 PDF Çıktısı & Sistem Entegrasyonu
-- Android yazdırma servisi ile tek tıkla resmi A4 PDF çıktısı alma.
-- Samsung Dosyalarım, WhatsApp, Telegram ve E-Posta uygulamalarında `.udf` ve `.docx` dosyaları için varsayılan görüntüleyici olarak çalışabilme.
 
 ---
 
@@ -103,20 +161,6 @@
 1. **Yerel İşleme (Local-First):** Tüm UDF ve DOCX ayrıştırma, biçimlendirme ve dönüştürme işlemleri doğrudan cihazınızın belleğinde (RAM) yerel olarak gerçekleştirilir.
 2. **Kriptografik Bütünlük:** Mobil İmza ve Elektronik İmza süreçlerinde kimlik doğrulama yalnızca kullanıcının talebiyle, doğrudan resmi Adalet Bakanlığı UYAP ağ geçitleri ve yetkili Elektronik Sertifika Hizmet Sağlayıcıları (ESHS / TÜBİTAK UEKAE) üzerinden yürütülür.
 3. **Sıfır Telemetri:** Uygulama içinde reklam, kullanıcı takip kodu veya harici analiz kütüphanesi bulunmaz.
-
----
-
-## 🛠️ Kurulum & Kullanım Rehberi
-
-### Android Kurulumu
-1. [Releases sayfasından](https://github.com/cnkzlyr/udemobile/releases/tag/v3.5.0) `CanEditor-v3.5.0.apk` dosyasını indirin.
-2. İndirilen APK dosyasına dokunup **"Yükle"** onayını verin.
-3. Dosyalarım uygulamasından herhangi bir `.udf` veya `.docx` dosyasına tıklayıp **"CanEditor"** uygulamasını seçerek **"Her Zaman"** butonuna basın.
-
-### Masaüstü & Web Kurulumu
-1. [CanEditor-Portable-Web-GUI-v3.5.0.zip](https://github.com/cnkzlyr/udemobile/releases/download/v3.5.0/CanEditor-Portable-Web-GUI-v3.5.0.zip) dosyasını indirin.
-2. Arşivi bir klasöre çıkartın ve `index.html` dosyasına çift tıklayarak Chrome, Edge, Safari veya Firefox tarayıcınızda kurulum gerektirmeden hemen kullanın.
-3. Yerel masaüstü uygulaması olarak çalıştırmak için işletim sisteminize uygun (.msi, .dmg, .AppImage) paketi [Releases sayfasından](https://github.com/cnkzlyr/udemobile/releases/tag/v3.5.0) indirebilirsiniz.
 
 ---
 
@@ -136,7 +180,7 @@ udemobile/
 │   └── assets/editor/               # Mobil editör web varlıkları (HTML/CSS/JS)
 ├── frontend/                        # Çapraz Platform Web & Masaüstü Arayüzü
 │   ├── public/                      # Taşınabilir JS, CSS ve köprü kütüphaneleri
-│   │   ├── desktop_bridge.js        # Masaüstü ve tarayıcı dosya/imza köprüsü
+│   │   ├── desktop_bridge.js        # Vektörel PDF motoru, arama, sığdırma ve köprü
 │   │   ├── editor.js                # Zengin editör, cetvel, sekme ve m-imza mantığı
 │   │   └── updater.js               # Dahili GitHub güncelleme denetleyicisi
 │   └── index.html                   # Ana düzenleyici arayüzü
@@ -144,11 +188,11 @@ udemobile/
 │   ├── Cargo.toml                   # Rust bağımlılıkları ve sürüm yapılandırması
 │   ├── tauri.conf.json              # Windows, macOS, Linux pencere ve paket ayarları
 │   └── src/                         # Rust Tauri komutları ve dosya motoru
-├── scripts/                         # Headless Havelsan UYAP ve Termux Betikleri
-│   ├── UdeMobileServer.java         # 0.0.0.0:5976 Havelsan UYAP mikroservisi
-│   └── udemobile_baslat.sh          # Setsid ve wake-lock destekli arka plan başlatıcı
+├── scripts/                         # Paketleme, Headless UYAP ve Derleme Betikleri
+│   ├── pack_release.py              # Otomatik release paketleyici ve varlık senkronizasyonu
+│   └── UdeMobileServer.java         # Havelsan UYAP mikroservisi
 ├── release/                         # Derlenmiş hazır APK ve taşınabilir paketler
-└── README.md                        # Güncel proje dokümantasyonu
+└── README.md                        # Güncel proje dokümantasyonu ve kullanım kılavuzu
 ```
 
 ---
