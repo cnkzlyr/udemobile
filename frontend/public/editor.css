@@ -1657,7 +1657,13 @@ li {
 }
 
 /* Biçim Boyacısı Aktif Durumu */
-body.format-painter-active, body.format-painter-active #editor-content, body.format-painter-active #editor-content * {
+body.format-painter-active,
+body.format-painter-active #editor-content,
+body.format-painter-active #editor-content *,
+body.format-painter-active .page-body-box,
+body.format-painter-active .page-body-box *,
+body.format-painter-active .a4-sheet-page,
+body.format-painter-active .a4-sheet-page * {
   cursor: copy !important;
 }
 

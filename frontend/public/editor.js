@@ -156,19 +156,25 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  editor.addEventListener('mouseup', () => {
+  document.addEventListener('mouseup', (e) => {
     recordCurrentSelection();
     if (isFormatPainterActive) {
-      applyCopiedFormatToTarget();
+      const t = e.target;
+      if (t && t.closest && (t.closest('.page-body-box') || t.closest('#editor-content'))) {
+        setTimeout(applyCopiedFormatToTarget, 20);
+      }
     } else {
       setTimeout(updateFloatingContextMenu, 60);
     }
   });
 
-  editor.addEventListener('touchend', () => {
+  document.addEventListener('touchend', (e) => {
     recordCurrentSelection();
     if (isFormatPainterActive) {
-      applyCopiedFormatToTarget();
+      const t = e.target;
+      if (t && t.closest && (t.closest('.page-body-box') || t.closest('#editor-content'))) {
+        setTimeout(applyCopiedFormatToTarget, 20);
+      }
     } else {
       setTimeout(updateFloatingContextMenu, 100);
     }
@@ -688,6 +694,41 @@ function updatePagination() {
 
     const totalPages = pagesData.length;
 
+    // Sayfalama optimizasyonu: Eğer sayfa sayısı ve sayfaların içerdiği paragraflar
+    // değişmediyse DOM'u asla yıkıp yeniden inşa etme (container.innerHTML = '').
+    // Bu sayede tarayıcının yerel Undo/Redo (Geri Al / Yinele) geçmişi, imleç konumu
+    // ve seçimi %100 kesintisiz korunur, yazım anında sıfır gecikme sağlanır.
+    let isDomIdentical = (pagesData.length === existingBodyBoxes.length);
+    if (isDomIdentical && existingBodyBoxes.length > 0) {
+      for (let p = 0; p < totalPages; p++) {
+        const curChildren = Array.from(existingBodyBoxes[p].children).filter(c =>
+          !c.classList.contains('auto-page-break') &&
+          !c.classList.contains('page-break-desk-gap') &&
+          !c.classList.contains('page-desk-gap')
+        );
+        const nextNodes = pagesData[p];
+        if (curChildren.length !== nextNodes.length) {
+          isDomIdentical = false;
+          break;
+        }
+        for (let j = 0; j < curChildren.length; j++) {
+          if (curChildren[j] !== nextNodes[j]) {
+            isDomIdentical = false;
+            break;
+          }
+        }
+        if (!isDomIdentical) break;
+      }
+    }
+
+    if (isDomIdentical && existingBodyBoxes.length > 0) {
+      const statusEl = document.getElementById('stat-page-count');
+      if (statusEl) {
+        statusEl.textContent = `Sayfa 1 / ${totalPages}`;
+      }
+      return;
+    }
+
     // 4. Fiziksel A4 Kart Sayfalarını İnşa Et
     const savedSel = saveSelectionState();
     container.innerHTML = '';
@@ -858,39 +899,71 @@ function insertPageNumber() {
 
 // Temel Biçimlendirme
 function format(cmd, val = null) {
-  // Geri al / yinele: tüm değişiklikleri kapsayan gelişmiş geçmiş motoru
+  // Geri al: Tarayıcının yerel UndoManager motorunu doğrudan çalıştırır.
+  // Bu sayede her harf, kelime, boşluk, silme ve biçimlendirme adım adım, tam imleç konumunda geri alınır.
   if (cmd === 'undo') {
-    if (window.CanHistory && typeof window.CanHistory.undo === 'function') {
-      const ok = window.CanHistory.undo();
-      if (ok) {
-        updateActiveButtons();
-        updateCounts();
-        return;
+    let targetBox = document.activeElement && document.activeElement.classList && document.activeElement.classList.contains('page-body-box')
+      ? document.activeElement
+      : (document.getElementById('editor-content') || document.querySelector('.page-body-box'));
+    if (targetBox && document.activeElement !== targetBox && !targetBox.contains(document.activeElement)) {
+      const sel = window.getSelection();
+      const curRange = (sel && sel.rangeCount > 0) ? sel.getRangeAt(0) : null;
+      targetBox.focus();
+      if (curRange && sel) {
+        try {
+          sel.removeAllRanges();
+          sel.addRange(curRange);
+        } catch (x) {}
       }
     }
-    document.execCommand('undo', false, null);
-    updateActiveButtons();
-    updateCounts();
-    return;
-  }
-  if (cmd === 'redo') {
-    if (window.CanHistory && typeof window.CanHistory.redo === 'function') {
-      const ok = window.CanHistory.redo();
-      if (ok) {
-        updateActiveButtons();
-        updateCounts();
-        return;
-      }
+
+    let ok = false;
+    try {
+      ok = document.execCommand('undo', false, null);
+    } catch (e) {
+      ok = false;
     }
-    document.execCommand('redo', false, null);
+
+    if (!ok && window.CanHistory && typeof window.CanHistory.undo === 'function' && window.CanHistory.canUndo()) {
+      ok = window.CanHistory.undo();
+    }
+
     updateActiveButtons();
     updateCounts();
     return;
   }
 
-  // Biçimlendirme öncesi mevcut durumu geçmişe işle
-  if (window.CanHistory && typeof window.CanHistory.commit === 'function') {
-    window.CanHistory.commit();
+  // Yinele: Tarayıcının yerel RedoManager motorunu adım adım çalıştırır.
+  if (cmd === 'redo') {
+    let targetBox = document.activeElement && document.activeElement.classList && document.activeElement.classList.contains('page-body-box')
+      ? document.activeElement
+      : (document.getElementById('editor-content') || document.querySelector('.page-body-box'));
+    if (targetBox && document.activeElement !== targetBox && !targetBox.contains(document.activeElement)) {
+      const sel = window.getSelection();
+      const curRange = (sel && sel.rangeCount > 0) ? sel.getRangeAt(0) : null;
+      targetBox.focus();
+      if (curRange && sel) {
+        try {
+          sel.removeAllRanges();
+          sel.addRange(curRange);
+        } catch (x) {}
+      }
+    }
+
+    let ok = false;
+    try {
+      ok = document.execCommand('redo', false, null);
+    } catch (e) {
+      ok = false;
+    }
+
+    if (!ok && window.CanHistory && typeof window.CanHistory.redo === 'function' && window.CanHistory.canRedo()) {
+      ok = window.CanHistory.redo();
+    }
+
+    updateActiveButtons();
+    updateCounts();
+    return;
   }
 
   document.execCommand(cmd, false, val);
@@ -903,11 +976,6 @@ function format(cmd, val = null) {
       ap.style.textAlign = alignVal;
       ap.setAttribute('align', alignVal);
     }
-  }
-
-  // Yeni biçimlendirilmiş durumu anında geçmişe kaydet
-  if (window.CanHistory && typeof window.CanHistory.commit === 'function') {
-    window.CanHistory.commit();
   }
 
   // Düzenlenebilir alan odaklı değilse son aktif sayfaya odak ver
@@ -4470,17 +4538,17 @@ function activateFormatPainter(persistent = false) {
   const container = document.getElementById('pages-container') || document.getElementById('sheet-container') || document.body;
   if (!container) return;
 
-  // Biçim alınacak kaynak öğeyi belirle
+  // Biçim alınacak kaynak öğeyi ve metin düğümünü belirle
   let sourceEl = null;
+  let isBold = false;
+  let isItalic = false;
+  let isUnderline = false;
+  let isStrike = false;
+
   if (sel && sel.rangeCount > 0) {
     const range = sel.getRangeAt(0);
-    if (!sel.isCollapsed) {
-      sourceEl = range.commonAncestorContainer;
-      if (sourceEl.nodeType === Node.TEXT_NODE) sourceEl = sourceEl.parentElement;
-    } else {
-      sourceEl = sel.anchorNode;
-      if (sourceEl && sourceEl.nodeType === Node.TEXT_NODE) sourceEl = sourceEl.parentElement;
-    }
+    let n = range.startContainer;
+    sourceEl = (n.nodeType === Node.TEXT_NODE) ? n.parentElement : n;
   }
   if (!sourceEl || !container.contains(sourceEl)) {
     sourceEl = lastActiveParagraph || document.querySelector('.page-body-box p') || document.querySelector('.page-body-box');
@@ -4490,8 +4558,36 @@ function activateFormatPainter(persistent = false) {
     return;
   }
 
-  // Hesaplanan stilleri al
+  // Tarayıcının queryCommandState API'si ile inline biçimleri sorgula
+  try {
+    isBold = document.queryCommandState('bold');
+    isItalic = document.queryCommandState('italic');
+    isUnderline = document.queryCommandState('underline');
+    isStrike = document.queryCommandState('strikeThrough');
+  } catch (e) {}
+
   const cs = window.getComputedStyle(sourceEl);
+  if (!isBold && (cs.fontWeight === 'bold' || parseInt(cs.fontWeight, 10) >= 600 || sourceEl.closest('strong, b'))) {
+    isBold = true;
+  }
+  if (!isItalic && (cs.fontStyle === 'italic' || sourceEl.closest('em, i'))) {
+    isItalic = true;
+  }
+  if (!isUnderline && ((cs.textDecorationLine || cs.textDecoration || '').includes('underline') || sourceEl.closest('u'))) {
+    isUnderline = true;
+  }
+  if (!isStrike && ((cs.textDecorationLine || cs.textDecoration || '').includes('line-through') || sourceEl.closest('s, strike'))) {
+    isStrike = true;
+  }
+
+  let ptSize = 12;
+  const fsRaw = cs.fontSize || '16px';
+  if (fsRaw.endsWith('pt')) {
+    ptSize = parseFloat(fsRaw) || 12;
+  } else if (fsRaw.endsWith('px')) {
+    ptSize = Math.round(parseFloat(fsRaw) * 0.75) || 12;
+  }
+
   let pEl = sourceEl;
   while (pEl && pEl !== container && pEl !== document.body) {
     if (pEl.tagName && (pEl.tagName === 'P' || pEl.tagName === 'LI' || pEl.tagName === 'DIV' || pEl.tagName === 'BLOCKQUOTE')) break;
@@ -4501,12 +4597,14 @@ function activateFormatPainter(persistent = false) {
 
   copiedFormat = {
     fontFamily: cs.fontFamily,
-    fontSize: cs.fontSize,
-    fontWeight: cs.fontWeight,
-    fontStyle: cs.fontStyle,
-    textDecoration: cs.textDecorationLine || cs.textDecoration,
+    fontSizePt: ptSize,
+    fontSize: ptSize + 'pt',
+    isBold: isBold,
+    isItalic: isItalic,
+    isUnderline: isUnderline,
+    isStrike: isStrike,
     color: cs.color,
-    backgroundColor: cs.backgroundColor !== 'rgba(0, 0, 0, 0)' && cs.backgroundColor !== 'transparent' ? cs.backgroundColor : '',
+    backgroundColor: (cs.backgroundColor !== 'rgba(0, 0, 0, 0)' && cs.backgroundColor !== 'transparent') ? cs.backgroundColor : '',
     textAlign: pCs.textAlign,
     lineHeight: pCs.lineHeight,
     marginTop: pCs.marginTop,
@@ -4541,50 +4639,99 @@ function applyCopiedFormatToTarget() {
   const range = sel.getRangeAt(0);
   if (!container.contains(range.commonAncestorContainer)) return;
 
-  if (!sel.isCollapsed) {
-    // 1. Seçili metin aralığına uygula
-    if (copiedFormat.fontFamily) document.execCommand('fontName', false, copiedFormat.fontFamily);
-    if (copiedFormat.color) document.execCommand('foreColor', false, copiedFormat.color);
-    if (copiedFormat.backgroundColor) document.execCommand('hiliteColor', false, copiedFormat.backgroundColor);
-    if (copiedFormat.fontWeight === 'bold' || parseInt(copiedFormat.fontWeight) >= 700) {
-      if (!document.queryCommandState('bold')) document.execCommand('bold');
-    }
-    if (copiedFormat.fontStyle === 'italic') {
-      if (!document.queryCommandState('italic')) document.execCommand('italic');
-    }
-    if (copiedFormat.textDecoration && copiedFormat.textDecoration.includes('underline')) {
-      if (!document.queryCommandState('underline')) document.execCommand('underline');
-    }
+  const targetNode = (range.startContainer.nodeType === Node.TEXT_NODE) ? range.startContainer.parentElement : range.startContainer;
+  const bodyBox = (targetNode && targetNode.closest) ? (targetNode.closest('.page-body-box') || document.getElementById('editor-content')) : document.getElementById('editor-content');
+  if (bodyBox && document.activeElement !== bodyBox) {
+    bodyBox.focus();
+    try {
+      sel.removeAllRanges();
+      sel.addRange(range);
+    } catch (e) {}
+  }
 
-    // Paragraf hizalama & boşluk uygula
-    const targetP = getActiveParagraph();
-    if (targetP) {
-      if (copiedFormat.textAlign) targetP.style.textAlign = copiedFormat.textAlign;
-      if (copiedFormat.lineHeight) targetP.style.lineHeight = copiedFormat.lineHeight;
-      if (copiedFormat.marginTop) targetP.style.marginTop = copiedFormat.marginTop;
-      if (copiedFormat.marginBottom) targetP.style.marginBottom = copiedFormat.marginBottom;
-      if (copiedFormat.textIndent) targetP.style.textIndent = copiedFormat.textIndent;
+  if (sel.isCollapsed && sel.modify) {
+    sel.modify('move', 'backward', 'word');
+    sel.modify('extend', 'forward', 'word');
+  }
+
+  const targetCs = window.getComputedStyle(targetNode);
+
+  let targetPt = 12;
+  const targetFsRaw = targetCs.fontSize || '16px';
+  if (targetFsRaw.endsWith('pt')) targetPt = parseFloat(targetFsRaw) || 12;
+  else if (targetFsRaw.endsWith('px')) targetPt = Math.round(parseFloat(targetFsRaw) * 0.75) || 12;
+
+  // 1. Yazı Tipi (Font Family) - Sadece farklıysa uygula
+  if (copiedFormat.fontFamily && targetCs.fontFamily !== copiedFormat.fontFamily) {
+    document.execCommand('fontName', false, copiedFormat.fontFamily);
+  }
+
+  // 2. Yazı Boyutu (Font Size pt) - Sadece farklıysa uygula
+  if (copiedFormat.fontSizePt && Math.abs(targetPt - copiedFormat.fontSizePt) >= 0.5) {
+    document.execCommand('fontSize', false, '7');
+    const fontElements = document.getElementsByTagName('font');
+    for (let el of fontElements) {
+      if (el.size === '7') {
+        el.removeAttribute('size');
+        el.style.fontSize = copiedFormat.fontSizePt + 'pt';
+      }
     }
-  } else {
-    // 2. Tıklanan paragrafa/kelimeye uygula
-    const targetP = getActiveParagraph();
-    if (targetP) {
-      if (copiedFormat.textAlign) targetP.style.textAlign = copiedFormat.textAlign;
-      if (copiedFormat.lineHeight) targetP.style.lineHeight = copiedFormat.lineHeight;
-      if (copiedFormat.marginTop) targetP.style.marginTop = copiedFormat.marginTop;
-      if (copiedFormat.marginBottom) targetP.style.marginBottom = copiedFormat.marginBottom;
-      if (copiedFormat.textIndent) targetP.style.textIndent = copiedFormat.textIndent;
-      if (copiedFormat.fontFamily) targetP.style.fontFamily = copiedFormat.fontFamily;
-      if (copiedFormat.fontSize) targetP.style.fontSize = copiedFormat.fontSize;
-      if (copiedFormat.color) targetP.style.color = copiedFormat.color;
-    }
+  }
+
+  // 3. Yazı Rengi ve Vurgu - Sadece farklıysa uygula
+  if (copiedFormat.color && targetCs.color !== copiedFormat.color) {
+    document.execCommand('foreColor', false, copiedFormat.color);
+  }
+  if (copiedFormat.backgroundColor && targetCs.backgroundColor !== copiedFormat.backgroundColor) {
+    document.execCommand('hiliteColor', false, copiedFormat.backgroundColor);
+  }
+
+  // 4. Kalınlık (Bold): Hedef ile kopyalanan durumu birebir eşitle
+  const targetIsBold = document.queryCommandState('bold') || (targetCs.fontWeight === 'bold' || parseInt(targetCs.fontWeight, 10) >= 600 || (targetNode.closest && targetNode.closest('strong, b') !== null));
+  if (copiedFormat.isBold && !targetIsBold) {
+    document.execCommand('bold', false, null);
+  } else if (!copiedFormat.isBold && targetIsBold) {
+    document.execCommand('bold', false, null);
+  }
+
+  // 5. İtalik: Hedef ile kopyalanan durumu birebir eşitle
+  const targetIsItalic = document.queryCommandState('italic') || (targetCs.fontStyle === 'italic' || (targetNode.closest && targetNode.closest('em, i') !== null));
+  if (copiedFormat.isItalic && !targetIsItalic) {
+    document.execCommand('italic', false, null);
+  } else if (!copiedFormat.isItalic && targetIsItalic) {
+    document.execCommand('italic', false, null);
+  }
+
+  // 6. Altı Çizili: Hedef ile kopyalanan durumu birebir eşitle
+  const targetIsUnderline = document.queryCommandState('underline') || ((targetCs.textDecorationLine || targetCs.textDecoration || '').includes('underline') || (targetNode.closest && targetNode.closest('u') !== null));
+  if (copiedFormat.isUnderline && !targetIsUnderline) {
+    document.execCommand('underline', false, null);
+  } else if (!copiedFormat.isUnderline && targetIsUnderline) {
+    document.execCommand('underline', false, null);
+  }
+
+  // 7. Üstü Çizili: Hedef ile kopyalanan durumu birebir eşitle
+  const targetIsStrike = document.queryCommandState('strikeThrough') || ((targetCs.textDecorationLine || targetCs.textDecoration || '').includes('line-through') || (targetNode.closest && targetNode.closest('s, strike') !== null));
+  if (copiedFormat.isStrike && !targetIsStrike) {
+    document.execCommand('strikeThrough', false, null);
+  } else if (!copiedFormat.isStrike && targetIsStrike) {
+    document.execCommand('strikeThrough', false, null);
+  }
+
+  // 8. Paragraf Biçimlendirmesi (Sadece tüm paragraf seçiliyse veya boşluğa tıklandıysa uygula)
+  const targetP = getActiveParagraph();
+  if (targetP && (sel.isCollapsed || range.toString().trim().length >= targetP.innerText.trim().length)) {
+    const pCs = window.getComputedStyle(targetP);
+    if (copiedFormat.textAlign && pCs.textAlign !== copiedFormat.textAlign) targetP.style.textAlign = copiedFormat.textAlign;
+    if (copiedFormat.lineHeight && pCs.lineHeight !== copiedFormat.lineHeight) targetP.style.lineHeight = copiedFormat.lineHeight;
+    if (copiedFormat.marginTop && pCs.marginTop !== copiedFormat.marginTop) targetP.style.marginTop = copiedFormat.marginTop;
+    if (copiedFormat.marginBottom && pCs.marginBottom !== copiedFormat.marginBottom) targetP.style.marginBottom = copiedFormat.marginBottom;
+    if (copiedFormat.textIndent && pCs.textIndent !== copiedFormat.textIndent) targetP.style.textIndent = copiedFormat.textIndent;
   }
 
   showEditorToast('✓ Biçim uygulandı');
   updateActiveButtons();
   updateRulerFromActiveParagraph();
-  debouncedPagination();
-  if (window.CanHistory) CanHistory.commit();
 
   if (!isFormatPainterPersistent) {
     deactivateFormatPainter();

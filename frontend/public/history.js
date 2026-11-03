@@ -254,69 +254,19 @@
   }
 
   function init() {
-    // Event delegation: Kullanıcının herhangi bir sayfada yazması
-    document.body.addEventListener('input', (ev) => {
-      if (H.suppress) return;
-      const target = ev.target;
-      if (target && target.closest && (target.closest('.page-body-box') || target.closest('#editor-content') || target.closest('.page-header-box'))) {
-        isUserAction = true;
-        schedule(true);
-      }
-    }, true);
-
-    document.body.addEventListener('beforeinput', (ev) => {
-      if (ev.inputType === 'historyUndo') {
-        ev.preventDefault();
-        undo();
-      } else if (ev.inputType === 'historyRedo') {
-        ev.preventDefault();
-        redo();
-      } else if (!H.suppress) {
-        // Yeni bir yazım serisi başlıyorsa, yazım öncesi tertemiz durumu hemen kaydet
-        if (!isUserAction && !H.timer) {
-          commit(true);
-        }
-        isUserAction = true;
-      }
-    }, true);
-
-    // Klavye Kısayolları (Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z)
-    document.addEventListener('keydown', (ev) => {
-      if (!(ev.ctrlKey || ev.metaKey) || ev.altKey) return;
-      const k = (ev.key || '').toLowerCase();
-      const isUndo = k === 'z' && !ev.shiftKey;
-      const isRedo = k === 'y' || (k === 'z' && ev.shiftKey);
-      if (!isUndo && !isRedo) return;
-
-      const active = document.activeElement;
-      // Sadece düzenlenebilir alanlardayken kısayolu yakala
-      if (active && (active.isContentEditable || (active.closest && active.closest('[contenteditable="true"]')))) {
-        ev.preventDefault();
-        ev.stopPropagation();
-        isUndo ? undo() : redo();
-      }
-    }, true);
-
-    // DOM Mutation Observer: Sekme hizalama, boyacı, vb. kodsal değişiklikleri yakalar
+    // DOM Mutation Observer: Sadece makro düzeyde yapısal değişiklikleri kaydetmek için hazır tutulur
     const container = document.getElementById('pages-container') || document.getElementById('sheet-container') || document.body;
     if (container) {
       H.observer = new MutationObserver((records) => {
         if (H.suppress) return;
-        const real = records.some(r => {
-          const t = r.target && (r.target.nodeType === 1 ? r.target : r.target.parentElement);
-          if (t && t.closest && (t.closest('.auto-page-break') || t.closest('.page-break-desk-gap') || t.closest('.official-doc-seal'))) return false;
-          if (r.type === 'attributes' && t && t.classList && t.classList.contains('udf-tab-space')) return false;
-          return true;
-        });
-        if (real) schedule(false);
       });
-      H.observer.observe(container, { subtree: true, childList: true, characterData: true });
+      H.observer.observe(container, { subtree: true, childList: true });
     }
 
     // Başlangıç anlık görüntüsünü al
     setTimeout(() => {
       commit(true);
-    }, 250);
+    }, 300);
   }
 
   window.CanHistory = {
