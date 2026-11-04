@@ -49,6 +49,21 @@ if (typeof window !== 'undefined') {
   });
 }
 
+// Aktif yazım ve klavye odak koruma durumu
+let lastUserTypingTimestamp = 0;
+function isUserTypingActive() {
+  return (Date.now() - lastUserTypingTimestamp) < 3500;
+}
+window.isUserTypingActive = isUserTypingActive;
+
+let countDebounceTimer = null;
+function debouncedUpdateCounts(delay = 800) {
+  clearTimeout(countDebounceTimer);
+  countDebounceTimer = setTimeout(() => {
+    updateCounts();
+  }, delay);
+}
+
 // --- Google Dokümanlar Yazdırma Düzeni & Zoom Motoru ---
 let currentDocFooterTemplate = '';
 let currentDocHeaderTemplate = '';
@@ -153,14 +168,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (editor) {
     editor.addEventListener('input', () => {
       markDocumentUserEdited();
-      const ap = getActiveParagraph();
-      if (ap && ap.querySelector('.udf-tab-space')) realignTabsInParagraph(ap);
-      updateCounts();
-      // Klavyenin kapanmasını engellemek için aktif yazım sırasında DOM'u yıkma (2500ms bekle)
-      debouncedPagination(2500);
-    });
-    editor.addEventListener('blur', () => {
-      debouncedPagination(120);
+      debouncedUpdateCounts(800);
     });
   }
 
@@ -283,6 +291,7 @@ function toggleViewMode() {
   const wrapper = document.getElementById('page-wrapper');
   const btn = document.getElementById('btn-toggle-view');
   const headerBtn = document.querySelector('.mobile-header-btn');
+  const pillBtn = document.getElementById('pill-toggle-view');
   const sheetContainer = document.getElementById('sheet-container');
   const container = document.getElementById('pages-container') || sheetContainer;
   
@@ -292,6 +301,7 @@ function toggleViewMode() {
     wrapper.classList.add('mobile-view');
     if (btn) btn.innerHTML = '🖥️ <span>Kağıt</span>';
     if (headerBtn) headerBtn.innerHTML = '🖥️ <span class="hide-on-mobile">Kağıt</span>';
+    if (pillBtn) pillBtn.textContent = '🖥️';
 
     // Android yerel başlığındaki butonu güncelle (🖥️)
     if (window.AndroidBridge && window.AndroidBridge.onViewModeChanged) {
@@ -321,12 +331,14 @@ function toggleViewMode() {
     const oldBreaks = document.querySelectorAll('.auto-page-break');
     oldBreaks.forEach(b => b.remove());
     if (sheetContainer) sheetContainer.style.zoom = '1';
+    updateRulerBodyWidth();
     showEditorToast('📱 Mobil Görünüme Geçildi (Kesintisiz Akış)');
   } else {
     wrapper.classList.remove('mobile-view');
     wrapper.classList.add('paper-view');
     if (btn) btn.innerHTML = '📱 <span>Görünüm</span>';
     if (headerBtn) headerBtn.innerHTML = '📱 <span class="hide-on-mobile">Görünüm</span>';
+    if (pillBtn) pillBtn.textContent = '📱';
 
     // Android yerel başlığındaki butonu güncelle (📱)
     if (window.AndroidBridge && window.AndroidBridge.onViewModeChanged) {
@@ -341,6 +353,7 @@ function toggleViewMode() {
     }
 
     applyAutoFitZoom();
+    updateRulerBodyWidth();
     setTimeout(updatePagination, 80);
     showEditorToast('📄 Kağıt Görünümüne Geçildi (1:1 A4 Baskı Düzeni)');
   }
@@ -691,7 +704,7 @@ function updatePagination() {
   // Sanal klavyenin açık olduğu veya kullanıcının aktif yazı yazdığı / imlecin içeride olduğu
   // anlarda DOM ağacı (container.innerHTML = '') ASLA yıkılmaz.
   // Bu sayede Android IME odak kaybı ve klavye kapanması %100 engellenir.
-  if (isEditorFocused()) {
+  if (isEditorFocused() || isUserTypingActive()) {
     const container = document.getElementById('pages-container') || document.getElementById('sheet-container');
     if (container) {
       const currentBoxes = Array.from(container.querySelectorAll('.page-body-box'));
@@ -857,11 +870,13 @@ function updatePagination() {
         continue;
       }
 
-      measurer.appendChild(node);
-      const cs = window.getComputedStyle(node);
+      const clone = node.cloneNode(true);
+      measurer.appendChild(clone);
+      const cs = window.getComputedStyle(clone);
       const mt = parseFloat(cs.marginTop) || 0;
       const mb = parseFloat(cs.marginBottom) || 0;
-      const rawH = node.offsetHeight || 18.4;
+      const rawH = clone.offsetHeight || 18.4;
+      measurer.removeChild(clone);
       const gap = (currentAccumHeight === 0) ? mt : Math.max(prevMb, mt);
       const h = rawH + gap;
 
@@ -1046,16 +1061,7 @@ function updatePagination() {
 
       bodyBox.addEventListener('input', function() {
         markDocumentUserEdited();
-        const ap = getActiveParagraph();
-        if (ap && ap.querySelector('.udf-tab-space')) realignTabsInParagraph(ap);
-        updateCounts();
-        // Yazı yazarken sanal klavyenin odak kaybıyla kapanmasını engellemek için
-        // sayfalamayı yalnızca yazım durakladığında (2500ms) veya alandan çıkıldığında yap
-        debouncedPagination(2500);
-      });
-
-      bodyBox.addEventListener('blur', function() {
-        debouncedPagination(120);
+        debouncedUpdateCounts(800);
       });
 
       pageSheet.appendChild(bodyBox);
@@ -1233,19 +1239,23 @@ function changeFontFamily(font) {
   if (window.CanHistory) CanHistory.commit();
 }
 
-// Yazı Boyutu (Tüm Sayfalar ve Seçim Uyumlu)
-function adjustFontSize(delta) {
-  currentFontSize = Math.max(9, Math.min(26, currentFontSize + delta));
+// Yazı Boyutu (Punto Seçici Dropdown & A- / A+)
+function changeFontSize(val) {
+  const size = parseInt(val, 10);
+  if (isNaN(size) || size < 6 || size > 72) return;
+  currentFontSize = size;
   window.currentFontSize = currentFontSize;
   const label = document.getElementById('font-size-label');
   if (label) label.textContent = currentFontSize + 'pt';
-  
+  const selEl = document.getElementById('select-font-size');
+  if (selEl) selEl.value = currentFontSize;
+
   const selection = window.getSelection();
-  if (selection.rangeCount > 0 && !selection.isCollapsed) {
+  if (selection && selection.rangeCount > 0 && !selection.isCollapsed) {
     document.execCommand('fontSize', false, '7');
     const fontElements = document.getElementsByTagName('font');
     for (let el of fontElements) {
-      if (el.size === '7') {
+      if (el.size === '7' || el.getAttribute('size') === '7') {
         el.removeAttribute('size');
         el.style.fontSize = currentFontSize + 'pt';
       }
@@ -1258,8 +1268,12 @@ function adjustFontSize(delta) {
     if (ed) ed.style.fontSize = currentFontSize + 'pt';
   }
   updateCounts();
-  debouncedPagination();
   if (window.CanHistory) CanHistory.commit();
+}
+window.changeFontSize = changeFontSize;
+
+function adjustFontSize(delta) {
+  changeFontSize(currentFontSize + delta);
 }
 
 // --- PARAGRAF BULMA VE HEDEFLİ SEÇİM (Tüm Sayfalar Uyumlu) ---
@@ -1539,6 +1553,7 @@ function setZoom(scale, isFit = false) {
   if (ind) {
     ind.textContent = (isFit ? '%' + Math.round(currentZoom * 100) + ' Sığdır' : '%' + Math.round(currentZoom * 100));
   }
+  updateRulerBodyWidth();
 
   const fab = document.getElementById('fab-view-toggle');
   if (fab) {
@@ -1623,20 +1638,39 @@ function initPinchToZoom() {
 
   let lastRecordedWidth = window.innerWidth;
   window.addEventListener('resize', () => {
-    // Sanal klavye açıldığında/kapandığında yalnızca innerHeight değişir, innerWidth DEĞİŞMEZ!
-    // Bu durumda zoom veya sayfalama tetiklemek klavyenin anında kapanmasına yol açar.
-    if (Math.abs(window.innerWidth - lastRecordedWidth) < 15) {
+    // Sanal klavye açıldığında/kapandığında odak kaybını ve klavye kapanmasını %100 engelle
+    if (isEditorFocused() || isUserTypingActive()) {
+      return;
+    }
+    if (Math.abs(window.innerWidth - lastRecordedWidth) < 20) {
       return;
     }
     lastRecordedWidth = window.innerWidth;
-    if (isEditorFocused()) {
-      return;
-    }
     if (isFitMode && !isMobileView) {
       applyAutoFitZoom();
     }
+    updateRulerBodyWidth();
   });
 }
+
+// Cetvel genişliğini kağıt ölçeğine veya mobil ekrana eşitle
+function updateRulerBodyWidth() {
+  const rulerBody = document.getElementById('ruler-body');
+  if (!rulerBody) return;
+  if (isMobileView) {
+    rulerBody.style.width = '100%';
+    rulerBody.style.maxWidth = '100%';
+    rulerBody.style.margin = '0';
+  } else {
+    const isLandscape = currentMargins.orientation === 'landscape';
+    const pageW = isLandscape ? 1123 : 794;
+    const w = Math.round(pageW * currentZoom);
+    rulerBody.style.width = Math.min(window.innerWidth, w) + 'px';
+    rulerBody.style.maxWidth = '100%';
+    rulerBody.style.margin = '0 auto';
+  }
+}
+window.updateRulerBodyWidth = updateRulerBodyWidth;
 
 // --- DİNAMİK CETVEL MOTORU ---
 function initRuler() {
@@ -1648,6 +1682,33 @@ function initRuler() {
   const totalPageCm = isLandscape ? 29.7 : 21.0;
   const activeCm = Math.max(5, totalPageCm - (currentMargins.left || 2.5) - (currentMargins.right || 2.5));
   const totalMm = Math.round(activeCm * 10);
+
+  // Kenar boşluklarındaki negatif ve uzantı ölçeklerini yaz
+  const leftMarginBox = document.querySelector('.ruler-margin-left');
+  if (leftMarginBox) {
+    leftMarginBox.innerHTML = '';
+    const span2 = document.createElement('span');
+    span2.className = 'ruler-margin-num';
+    span2.textContent = '-2';
+    const span1 = document.createElement('span');
+    span1.className = 'ruler-margin-num';
+    span1.textContent = '-1';
+    leftMarginBox.appendChild(span2);
+    leftMarginBox.appendChild(span1);
+  }
+
+  const rightMarginBox = document.querySelector('.ruler-margin-right');
+  if (rightMarginBox) {
+    rightMarginBox.innerHTML = '';
+    const spanR1 = document.createElement('span');
+    spanR1.className = 'ruler-margin-num';
+    spanR1.textContent = Math.round(activeCm + 1);
+    const spanR2 = document.createElement('span');
+    spanR2.className = 'ruler-margin-num';
+    spanR2.textContent = Math.round(activeCm + 2);
+    rightMarginBox.appendChild(spanR1);
+    rightMarginBox.appendChild(spanR2);
+  }
 
   for (let mm = 0; mm <= totalMm; mm++) {
     const pct = (mm / totalMm) * 100;
@@ -1676,6 +1737,7 @@ function initRuler() {
   setupMarkerDragging('marker-hanging-indent', 'hangingIndent', activeCm);
   setupMarkerDragging('marker-left-indent', 'leftIndent', activeCm);
   setupMarkerDragging('marker-right-indent', 'rightIndent', activeCm);
+  updateRulerBodyWidth();
 
   const rulerScale = document.getElementById('ruler-scale');
   rulerScale.addEventListener('mousedown', (e) => {
@@ -3921,6 +3983,7 @@ window.__origDocSnapshot = null;
 
 function markDocumentUserEdited() {
   window.__userHasEditedDocument = true;
+  lastUserTypingTimestamp = Date.now();
   if (window.AndroidBridge && window.AndroidBridge.setDocModified) {
     try { window.AndroidBridge.setDocModified(true); } catch (e) {}
   }

@@ -1,6 +1,6 @@
 # ⚖️ CanEditor (UdeMobile) — Çapraz Platform UYAP & Word Editörü
 
-[![Sürüm](https://img.shields.io/badge/Sürüm-v3.7.1-blue.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v3.7.1)
+[![Sürüm](https://img.shields.io/badge/Sürüm-v3.7.2-blue.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v3.7.2)
 [![Platformlar](https://img.shields.io/badge/Platformlar-Android%20%7C%20Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Web-success.svg)](https://github.com/cnkzlyr/udemobile/releases)
 [![UYAP](https://img.shields.io/badge/Format-UYAP_UDF_v1.8-0D47A1.svg)](https://uyap.gov.tr)
 [![Word](https://img.shields.io/badge/Format-MS_DOCX_OpenXML-2B579A.svg?logo=microsoft-word&logoColor=white)](https://microsoft.com)
@@ -11,18 +11,41 @@
 
 ---
 
-## 🚀 Hızlı İndirme (v3.7.1)
+## 🚀 Hızlı İndirme (v3.7.2)
 
 | Platform | Paket Dosyası | Açıklama |
 | :--- | :--- | :--- |
-| **Android (Telefon & Tablet)** | [**CanEditor-v3.7.1.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.7.1/CanEditor-v3.7.1.apk) | Güncel Android APK paketi |
-| **Android (Her Zaman En Son)** | [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.7.1/CanEditor-latest.apk) | Kalıcı son sürüm bağlantısı |
-| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v3.7.1.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v3.7.1/CanEditor-Portable-Web-GUI-v3.7.1.zip) | **Kurulumsuz;** zipten çıkarıp `index.html` açarak tüm işletim sistemlerinde doğrudan çalışır |
-| **Windows / macOS / Linux** | [**GitHub Releases Sayfası**](https://github.com/cnkzlyr/udemobile/releases/tag/v3.7.1) | GitHub Actions CI ile derlenen yerel ikili (.msi, .exe, .dmg, .AppImage, .deb, .rpm) paketleri |
+| **Android (Telefon & Tablet)** | [**CanEditor-v3.7.2.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.7.2/CanEditor-v3.7.2.apk) | Güncel Android APK paketi |
+| **Android (Her Zaman En Son)** | [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.7.2/CanEditor-latest.apk) | Kalıcı son sürüm bağlantısı |
+| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v3.7.2.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v3.7.2/CanEditor-Portable-Web-GUI-v3.7.2.zip) | **Kurulumsuz;** zipten çıkarıp `index.html` açarak tüm işletim sistemlerinde doğrudan çalışır |
+| **Windows / macOS / Linux** | [**GitHub Releases Sayfası**](https://github.com/cnkzlyr/udemobile/releases/tag/v3.7.2) | GitHub Actions CI ile derlenen yerel ikili (.msi, .exe, .dmg, .AppImage, .deb, .rpm) paketleri |
 
 ---
 
-## 🌟 v3.7.1 ile Gelen Önemli Geliştirmeler (Resmi Havelsan Headless Çeviri Motoru, Dahili PDF & Çok Sayfalı TIFF Görüntüleyici, Kesintisiz Mobil Akış, Klavye Odak Koruması ve Sabit Dokunmatik Cetvel)
+## 🌟 v3.7.2 ile Gelen Önemli Geliştirmeler (e-UDF Standardı Modern Arayüz, Sayfa Boyunca Çakılı Sabit Cetvel, Sanal Klavye Odak Koruması ve Kusursuz Dışa Aktarım)
+
+### 🎨 1. e-UDF Standardı Ultra Kompakt Üst Panel & Kısayol Hapı
+- **e-UDF Stili Kısayol Hapı (`[ 💾 | 📱 | ☰ ]`):** Ekranın üstünde yer alan zarif hap grubu sayesinde; tek dokunuşla **💾 Hızlı Kaydet**, tek tıkla **📱/🖥️ Görünüm Değiştir** (Mobil Akış ve A4 Kağıt Düzeni) ve tek tıkla tüm hukuki fonksiyonlara ulaştıran **☰ Çekmece Menü**.
+- **Açılır Menülerin Kırpılma Sorunu Giderildi:** Mobilde yatay taşma engellenerek tüm kaydet, paylaş ve yazdır seçeneklerine her cihazda kesintisiz erişim sağlandı.
+
+### 📐 2. Sayfa Kaydırılsa Dahi Asla Kaybolmayan Sabit (Sticky) 40px Dokunmatik Cetvel
+- **Sayfa Üstünde Çakılı Kalan Mimari:** Cetvel belge kaydırma konteynerinin dışına (`#toolbar-container` altına) taşınarak sayfalar 10 sayfa aşağı kaysa dahi ekranın üstünde kalıcı olarak sabitlendi.
+- **-2 cm'den +18 cm'ye Tam Ölçekli Görsel Cetvel:** Sol kenar marjı (-2 .. 0), beyaz aktif yazı alanı (0 .. 16 cm) ve sağ marj (16 .. 18 cm) net biçimde renklendirildi.
+- **44px Ergonomik Parmak Hedef Alanı:** İlk satır, asılı girinti ve sağ marj imleri dokunmatik ekranlarda parmakla kolayca tutulup sürüklenebilecek genişlikte (`touch-action: none`) yapılandırıldı.
+
+### ⌨️ 3. Sanal Klavyenin Kapanmasına Karşı Kesin Odak Koruma Motoru
+- **Canlı DOM Düğümlerini Koruma:** Sayfalama ölçüm motorunda canlı düğümlerin yerinden sökülmesi (`measurer.appendChild(node)`) yerine klonlama (`node.cloneNode(true)`) mimarisine geçildi; live DOM asla bozulmaz.
+- **Yazım Sırasında Sıfır DOM Yıkımı:** Kullanıcı klavyeyle yazı yazarken veya alana odaklıyken sayfalama sıfırlaması (`container.innerHTML = ''`) ve sekme sıfırlaması tamamen durdurularak Gboard / Samsung klavye kapanması %100 çözüldü.
+- **Pencere Boyutlanması Koruması:** Klavyenin açılmasıyla ekran yüksekliğinin küçüldüğü anlarda zoom veya sayfalama tetiklenmesi engellendi.
+
+### 💾 4. 1-Tık Doğrudan Kaydet, Eksiksiz Farklı Kaydet ve Paylaşım Motoru
+- **Doğrudan Kaydet:** Açık olan belge tek tıkla (`💾`) üzerine doğrudan yazılır; Android'de `Downloads/UYAP_Belgelerim` klasörüne, webde anında `.udf` indirmesine aktarılır.
+- **Tüm Formatlarda Farklı Kaydet:** UDF (Havelsan UYAP 1.8), PDF (1:1 Vektörel A4 Baskı), DOCX (Word), TIFF (Çok Sayfalı İcra/Dava Evrakı) ve ODT (OpenDocument) formatları hem mobilde hem masaüstünde eksiksiz çalışır.
+- **Gelişmiş Yerel Paylaşım:** `CanFileProvider` üzerinden WhatsApp, Gmail, Telegram, Word ve Google Drive'a doğrudan tek tıkla dosya gönderme desteği.
+
+---
+
+## 🌟 v3.7.1 ile Gelen Önemli Geliştirmeler (Resmi Havelsan Headless Çeviri Motoru, Dahili PDF & Çok Sayfalı TIFF Görüntüleyici)
 
 ### 🏛️ 1. Resmi Havelsan UYAP Headless Dönüştürücü Motoru (`UyapHeadlessConverter`)
 - **1:1 Vektörel A4 PDF:** Resmi Havelsan `tr.com.havelsan.uyap.system.editor.b.b` motoru tersine mühendislikle çözülerek başsız (headless) Java CLI motoruna bağlandı. Raster tuval ekran görüntüleri yerine; seçilebilir, kopyalanabilir gerçek vektörel metin, Havelsan yazı tipleri ve birebir 10 sayfalık resmi UYAP düzeni oluşturulur (~196 KB dosya boyutu, karanlık mod uyumlu).

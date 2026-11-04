@@ -161,6 +161,19 @@ public class EditorActivity extends Activity {
     private void setupListeners() {
         btnBack.setOnClickListener(v -> finish());
 
+        // Belge başlığı düzenleme odağı
+        if (etDocTitle != null) {
+            etDocTitle.setOnClickListener(v -> {
+                etDocTitle.setFocusableInTouchMode(true);
+                etDocTitle.requestFocus();
+            });
+            etDocTitle.setOnFocusChangeListener((v, hasFocus) -> {
+                if (!hasFocus) {
+                    etDocTitle.setFocusableInTouchMode(false);
+                }
+            });
+        }
+
         // Doğrudan Hızlı Kaydet Butonu (1-Tık Kaydet)
         if (btnQuickSave != null) {
             btnQuickSave.setOnClickListener(v -> saveDocument(false, false));
@@ -338,15 +351,24 @@ public class EditorActivity extends Activity {
     private File resolveTargetFile(String ext) {
         String baseTitle = etDocTitle.getText().toString().trim();
         if (baseTitle.isEmpty()) baseTitle = "Yeni_Dilekce";
-        while (baseTitle.toLowerCase(Locale.ROOT).endsWith(".udf") || baseTitle.toLowerCase(Locale.ROOT).endsWith(".docx") || baseTitle.toLowerCase(Locale.ROOT).endsWith(".pdf")) {
+        while (baseTitle.toLowerCase(Locale.ROOT).endsWith(".udf") || baseTitle.toLowerCase(Locale.ROOT).endsWith(".docx") ||
+               baseTitle.toLowerCase(Locale.ROOT).endsWith(".pdf") || baseTitle.toLowerCase(Locale.ROOT).endsWith(".odt") ||
+               baseTitle.toLowerCase(Locale.ROOT).endsWith(".tiff") || baseTitle.toLowerCase(Locale.ROOT).endsWith(".tif")) {
             baseTitle = baseTitle.substring(0, baseTitle.lastIndexOf('.'));
         }
-        File targetDir;
-        if (currentFile != null && currentFile.getParentFile() != null) {
+        File targetDir = null;
+        if (currentFile != null && currentFile.getParentFile() != null && currentFile.getParentFile().canWrite()) {
             targetDir = currentFile.getParentFile();
         } else {
-            targetDir = new File(Environment.getExternalStorageDirectory(), "Documents/UYAP_Belgelerim");
-            targetDir.mkdirs();
+            File pubUyap = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "UYAP_Belgelerim");
+            if (!pubUyap.exists()) pubUyap.mkdirs();
+            if (pubUyap.exists() && pubUyap.canWrite()) {
+                targetDir = pubUyap;
+            } else {
+                File extDir = getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
+                if (extDir != null) targetDir = extDir;
+                else targetDir = getFilesDir();
+            }
         }
         return new File(targetDir, baseTitle + ext);
     }
@@ -560,7 +582,7 @@ public class EditorActivity extends Activity {
                     saveDocument(false, false);
                     return true;
                 case 2:
-                    saveAsPdfFile(false);
+                    editorWebView.evaluateJavascript("triggerSaveAs('pdf');", null);
                     return true;
                 case 3:
                     saveDocument(true, false);

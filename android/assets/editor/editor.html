@@ -12,43 +12,53 @@
 </head>
 <body>
 
-  <!-- MASAÜSTÜ ANA PANELİ (Windows / macOS / Linux GUI) -->
-  <header id="desktop-app-header" style="background: #1E293B; color: #FFFFFF; padding: 8px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid #334155; user-select: none;">
-    <div style="display: flex; align-items: center; gap: 10px;">
-      <span style="font-size: 18px; font-weight: 700; display: flex; align-items: center; gap: 6px; color: #38BDF8;">
-        ⚖️ CanEditor
+  <!-- ANA UYGULAMA ÜST PANELİ (e-UDF & Masaüstü Ergonomik Standardı) -->
+  <header id="desktop-app-header" class="app-header-main">
+    <div class="header-left-cluster">
+      <span class="app-logo-badge" title="CanEditor - UYAP &amp; Word Düzenleyici">
+        ⚖️ <span class="logo-text">CanEditor</span>
       </span>
-      <input type="text" id="desktopDocTitle" value="Dilekce_20261015.udf" style="background: #0F172A; color: #F1F5F9; border: 1px solid #475569; border-radius: 6px; padding: 4px 10px; font-size: 13px; font-weight: 500; width: 260px; outline: none;" title="Belge Adını Değiştir">
+
+      <!-- e-UDF Stili Yuvarlak Mobil Kısayol Hapı (Pill Group: 💾 Kaydet | 📱 Görünüm | ☰ Menü) -->
+      <div class="header-pill-group">
+        <button type="button" id="pill-quick-save" class="header-pill-btn pill-save" onclick="triggerQuickSave()" title="Açık Belgeyi Doğrudan Kaydet (1-Tık / Ctrl+S)">
+          💾
+        </button>
+        <button type="button" id="pill-toggle-view" class="header-pill-btn pill-view" onclick="toggleViewMode()" title="Görünüm Değiştir (Kağıt Baskı / Mobil Akış)">
+          📱
+        </button>
+        <button type="button" id="pill-mobile-menu" class="header-pill-btn pill-menu" onclick="openMobileMenuModal()" title="Tüm İşlemler Menüsü">
+          ☰
+        </button>
+      </div>
+
+      <input type="text" id="desktopDocTitle" value="Dilekce_20261015.udf" class="header-doc-title-input" title="Belge Adını Değiştir">
     </div>
 
-    <div style="display: flex; align-items: center; gap: 8px;">
-      <button type="button" class="desktop-action-btn" onclick="triggerOpenDocument()" title="UDF, PDF, DOCX, TIFF veya ODT Belgesi Aç (Ctrl+O)" style="background: #334155; color: #FFFFFF; border: 1px solid #475569; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12.5px; font-weight: 600; display: flex; align-items: center; gap: 5px;">
+    <!-- Masaüstü Geniş Ekran Eylem Butonları -->
+    <div class="header-desktop-actions">
+      <button type="button" class="desktop-action-btn" onclick="triggerOpenDocument()" title="UDF, PDF, DOCX, TIFF veya ODT Belgesi Aç (Ctrl+O)">
         📂 Aç <span style="opacity: 0.6; font-size: 11px;">(Ctrl+O)</span>
       </button>
 
       <!-- Doğrudan 1-Tık Hızlı Kaydet Butonu (Ctrl+S) -->
-      <button type="button" id="btn-quick-save" class="desktop-action-btn quick-save-btn" onclick="triggerQuickSave()" title="Açık Belgeyi Doğrudan Kaydet (Ctrl+S)" style="background: #16A34A; color: #FFFFFF; border: none; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 12.5px; font-weight: 700; display: flex; align-items: center; gap: 5px; box-shadow: 0 1px 4px rgba(0,0,0,0.3);">
+      <button type="button" id="btn-quick-save" class="desktop-action-btn quick-save-btn" onclick="triggerQuickSave()" title="Açık Belgeyi Doğrudan Kaydet (Ctrl+S)">
         💾 Kaydet <span style="opacity: 0.75; font-size: 11px;">(Ctrl+S)</span>
       </button>
 
       <!-- Doğrudan 1-Tık A4 PDF İndirme Butonu (UYAP Portal Standardı) -->
-      <button type="button" class="desktop-action-btn pdf-btn" onclick="triggerSavePdf()" title="Doğrudan A4 PDF Belgesi İndir (Ctrl+Shift+P)" style="background: #DC2626; color: #FFFFFF; border: none; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 12.5px; font-weight: 600; display: flex; align-items: center; gap: 5px;">
+      <button type="button" class="desktop-action-btn pdf-btn" onclick="triggerSavePdf()" title="Doğrudan A4 PDF Belgesi İndir (Ctrl+Shift+P)">
         📕 PDF İndir
       </button>
 
       <!-- Görünüm Değiştirici (Mobil / Kağıt A4) -->
-      <button type="button" class="desktop-action-btn mobile-header-btn" onclick="toggleViewMode()" title="Görünüm Değiştir (Kağıt / Mobil)" style="background: #475569; color: #FFFFFF; border: none; padding: 6px 10px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 4px;">
+      <button type="button" class="desktop-action-btn mobile-header-btn" onclick="toggleViewMode()" title="Görünüm Değiştir (Kağıt / Mobil)">
         📱 <span class="hide-on-mobile">Görünüm</span>
-      </button>
-
-      <!-- Mobil Hamburger Menü Butonu (Tek Tıkla Tüm Menülere Ulaşım) -->
-      <button type="button" id="btn-mobile-menu" class="desktop-action-btn mobile-menu-btn" onclick="openMobileMenuModal()" title="Tüm İşlemler Menüsü" style="background: #0284C7; color: #FFFFFF; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 700; display: flex; align-items: center; gap: 4px;">
-        ☰ <span class="hide-on-mobile">Menü</span>
       </button>
 
       <!-- Farklı Kaydet Açılır Menüsü -->
       <div style="position: relative; display: inline-block;">
-        <button type="button" class="desktop-action-btn primary" onclick="toggleSaveMenu(event)" title="Belgeyi Farklı Formatlarda Kaydet" style="background: #0284C7; color: #FFFFFF; border: none; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 12.5px; font-weight: 600; display: flex; align-items: center; gap: 5px;">
+        <button type="button" class="desktop-action-btn primary" onclick="toggleSaveMenu(event)" title="Belgeyi Farklı Formatlarda Kaydet">
           💾 Farklı Kaydet ▾
         </button>
         <div id="saveAsDropdown" class="action-dropdown-menu">
@@ -62,7 +72,7 @@
 
       <!-- Paylaş Açılır Menüsü -->
       <div style="position: relative; display: inline-block;">
-        <button type="button" class="desktop-action-btn" onclick="toggleShareMenu(event)" title="Belgeyi Farklı Formatlarda Paylaş" style="background: #2563EB; color: #FFFFFF; border: none; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 12.5px; font-weight: 600; display: flex; align-items: center; gap: 5px;">
+        <button type="button" class="desktop-action-btn" onclick="toggleShareMenu(event)" title="Belgeyi Farklı Formatlarda Paylaş">
           📤 Paylaş ▾
         </button>
         <div id="shareDropdown" class="action-dropdown-menu">
@@ -77,7 +87,7 @@
 
       <!-- Yazdırma ve Yazdırma Önizleme Açılır Menüsü -->
       <div style="position: relative; display: inline-block;">
-        <button type="button" class="desktop-action-btn secondary" onclick="togglePrintMenu(event)" title="Yazdır veya Önizleme" style="background: #475569; color: #FFFFFF; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12.5px; font-weight: 600; display: flex; align-items: center; gap: 5px;">
+        <button type="button" class="desktop-action-btn secondary" onclick="togglePrintMenu(event)" title="Yazdır veya Önizleme">
           🖨️ Yazdır ▾
         </button>
         <div id="printDropdown" class="action-dropdown-menu">
@@ -100,9 +110,13 @@
       </div>
     </div>
 
-    <div style="display: flex; align-items: center; gap: 10px;">
-      <span id="desktopSigBadge" style="display: none; padding: 3px 8px; border-radius: 4px; font-size: 11.5px; font-weight: bold; background: #334155;">⚪ İmzasız</span>
-      <span id="desktopStatusMsg" style="font-size: 12px; color: #94A3B8;">Hazır</span>
+    <!-- Sağ Durum ve Profil / İmza Rozeti -->
+    <div class="header-right-cluster">
+      <span id="desktopSigBadge" class="header-sig-badge" onclick="checkDocumentSignature()" title="Belge Elektronik İmza Durumu">⚪ İmzasız</span>
+      <span id="desktopStatusMsg" class="header-status-text">Hazır</span>
+      <button type="button" class="header-avatar-btn" onclick="openMobileMenuModal()" title="Profil ve Tüm İşlemler">
+        <span class="avatar-icon">👤</span>
+      </button>
     </div>
   </header>
 
@@ -173,11 +187,29 @@
 
       <div class="divider"></div>
 
-      <!-- Yazı Boyutu -->
+      <!-- Yazı Boyutu (Punto Seçici Dropdown & A- / A+) -->
       <div class="tool-group font-size-group">
-        <button type="button" class="tool-btn" onclick="adjustFontSize(-1)" title="Yazıyı Küçült">A- <span class="hide-on-mobile">Küçült</span></button>
-        <span id="font-size-label">12pt</span>
-        <button type="button" class="tool-btn" onclick="adjustFontSize(1)" title="Yazıyı Büyüt">A+ <span class="hide-on-mobile">Büyüt</span></button>
+        <select id="select-font-size" onchange="changeFontSize(this.value);" title="Yazı Boyutu (Punto)">
+          <option value="8">8 pt</option>
+          <option value="9">9 pt</option>
+          <option value="10">10 pt</option>
+          <option value="11">11 pt</option>
+          <option value="12" selected>12 pt</option>
+          <option value="13">13 pt</option>
+          <option value="14">14 pt</option>
+          <option value="15">15 pt</option>
+          <option value="16">16 pt</option>
+          <option value="18">18 pt</option>
+          <option value="20">20 pt</option>
+          <option value="22">22 pt</option>
+          <option value="24">24 pt</option>
+          <option value="28">28 pt</option>
+          <option value="32">32 pt</option>
+          <option value="36">36 pt</option>
+        </select>
+        <button type="button" class="tool-btn hide-on-mobile" onclick="adjustFontSize(-1)" title="Yazıyı Küçült">A-</button>
+        <span id="font-size-label" class="hide-on-mobile">12pt</span>
+        <button type="button" class="tool-btn hide-on-mobile" onclick="adjustFontSize(1)" title="Yazıyı Büyüt">A+</button>
       </div>
 
       <!-- Mobil Hızlı Biçim Grubu (B, I, U, Renk) & Araç Çubuğu Genişletme Chevron'u -->
@@ -345,53 +377,53 @@
     </div>
   </div>
 
+  <!-- SABİT ETKİLEŞİMLİ CETVEL (Toolbar Altında Asla Kaybolmayan Sticky Bar) -->
+  <div id="ruler-container" class="ruler-container">
+    <div id="ruler-body" class="ruler-body">
+      <!-- Sol Kenar Boşluğu Arka Planı (-2cm .. 0cm) -->
+      <div class="ruler-margin-left"></div>
+
+      <!-- Aktif Cetvel Ölçeği (0 - 16 cm) -->
+      <div id="ruler-scale" class="ruler-scale">
+        <!-- İlk Satır Girintisi İmi (Üst Üçgen) -->
+        <div id="marker-first-line" class="ruler-marker marker-first-line" title="İlk Satır Girintisi (Sürükleyin veya Dokunun)">
+          <div class="marker-triangle-down"></div>
+        </div>
+
+        <!-- Asılı Girinti İmi (Alt Yukarı Bakan Üçgen - Taşan/Alt Satırların Hizası) -->
+        <div id="marker-hanging-indent" class="ruler-marker marker-hanging-indent" title="Asılı Girinti (Alt satırların hizasını belirler)">
+          <div class="marker-triangle-up"></div>
+        </div>
+
+        <!-- Sol Girinti İmi (Alt Dikdörtgen - Tüm Paragrafı Taşır) -->
+        <div id="marker-left-indent" class="ruler-marker marker-left-indent" title="Sol Girinti (Tüm paragrafı blok halinde taşır)">
+          <div class="marker-box"></div>
+        </div>
+
+        <!-- Cetvel cm ve mm Çizgileri Dinamik Üretilir -->
+        <div id="ruler-ticks" class="ruler-ticks"></div>
+
+        <!-- Sağ Kenar Girinti İmi (Alt Üçgen) -->
+        <div id="marker-right-indent" class="ruler-marker marker-right-indent" title="Sağ Girinti (Sürükleyin)">
+          <div class="marker-triangle-up"></div>
+        </div>
+
+        <!-- Canlı Ölçüm İpucu Rozeti -->
+        <div id="ruler-tooltip" class="ruler-tooltip" style="display: none;"></div>
+      </div>
+
+      <!-- Sağ Kenar Boşluğu Arka Planı (16cm .. 18cm) -->
+      <div class="ruler-margin-right"></div>
+    </div>
+  </div>
+
+  <!-- Düşey Kılavuz Hizalama Çizgisi -->
+  <div id="ruler-guide-line" class="ruler-guide-line" style="display: none;"></div>
+
   <!-- A4 Kağıt / Mobil Görünüm Konteyneri -->
   <div id="page-wrapper" class="paper-view">
     <div id="sheet-wrapper">
       <div id="sheet-container">
-
-        <!-- SABİT ETKİLEŞİMLİ CETVEL (Sayfa Genişliği ve Zoom ile Birebir Eşitlenmiş & Dokunmatik Uyumlu) -->
-        <div id="ruler-container" class="ruler-container">
-          <div id="ruler-body" class="ruler-body">
-            <!-- Sol Kenar Boşluğu Arka Planı -->
-            <div class="ruler-margin-left"></div>
-
-            <!-- Aktif Cetvel Ölçeği (0 - 16 cm) -->
-            <div id="ruler-scale" class="ruler-scale">
-              <!-- İlk Satır Girintisi İmi (Üst Üçgen) -->
-              <div id="marker-first-line" class="ruler-marker marker-first-line" title="İlk Satır Girintisi (Sürükleyin veya Dokunun)">
-                <div class="marker-triangle-down"></div>
-              </div>
-
-              <!-- Asılı Girinti İmi (Alt Yukarı Bakan Üçgen - Taşan/Alt Satırların Hizası) -->
-              <div id="marker-hanging-indent" class="ruler-marker marker-hanging-indent" title="Asılı Girinti (Alt satırların hizasını belirler)">
-                <div class="marker-triangle-up"></div>
-              </div>
-
-              <!-- Sol Girinti İmi (Alt Dikdörtgen - Tüm Paragrafı Taşır) -->
-              <div id="marker-left-indent" class="ruler-marker marker-left-indent" title="Sol Girinti (Tüm paragrafı blok halinde taşır)">
-                <div class="marker-box"></div>
-              </div>
-
-              <!-- Cetvel cm ve mm Çizgileri Dinamik Üretilir -->
-              <div id="ruler-ticks" class="ruler-ticks"></div>
-
-              <!-- Sağ Kenar Girinti İmi (Alt Üçgen) -->
-              <div id="marker-right-indent" class="ruler-marker marker-right-indent" title="Sağ Girinti (Sürükleyin)">
-                <div class="marker-triangle-up"></div>
-              </div>
-
-              <!-- Canlı Ölçüm İpucu Rozeti -->
-              <div id="ruler-tooltip" class="ruler-tooltip" style="display: none;"></div>
-            </div>
-
-            <!-- Sağ Kenar Boşluğu Arka Planı -->
-            <div class="ruler-margin-right"></div>
-          </div>
-        </div>
-
-        <!-- Düşey Kılavuz Hizalama Çizgisi -->
-        <div id="ruler-guide-line" class="ruler-guide-line" style="display: none;"></div>
 
         <!-- BELGE E-İMZA DOĞRULAMA DURUM ÇUBUĞU (Havelsan UYAP Uyumlu) -->
         <div id="doc-signature-banner" class="signature-status-banner valid" style="display: none;" onclick="openSignatureDetailsModal()">
@@ -1084,9 +1116,10 @@
         <div class="drawer-divider"></div>
         <div class="drawer-section-label">PAYLAŞ &amp; YAZDIR</div>
         <button type="button" class="drawer-item" onclick="closeModal('modal-mobile-menu'); triggerShareFormat('pdf');">📕 PDF Olarak Paylaş</button>
-        <button type="button" class="drawer-item" onclick="closeModal('modal-mobile-menu'); triggerShareFormat('udf');">📄 UDF Olarak Paylaş</button>
-        <button type="button" class="drawer-item" onclick="closeModal('modal-mobile-menu'); triggerShareFormat('docx');">📘 Word Olarak Paylaş</button>
-        <button type="button" class="drawer-item" onclick="closeModal('modal-mobile-menu'); triggerShareFormat('tiff');">🖼️ TIFF Olarak Paylaş</button>
+        <button type="button" class="drawer-item" onclick="closeModal('modal-mobile-menu'); triggerShareFormat('udf');">📄 UDF (UYAP) Olarak Paylaş</button>
+        <button type="button" class="drawer-item" onclick="closeModal('modal-mobile-menu'); triggerShareFormat('docx');">📘 Word (DOCX) Olarak Paylaş</button>
+        <button type="button" class="drawer-item" onclick="closeModal('modal-mobile-menu'); triggerShareFormat('tiff');">🖼️ Çok Sayfalı TIFF Olarak Paylaş</button>
+        <button type="button" class="drawer-item" onclick="closeModal('modal-mobile-menu'); triggerShareFormat('odt');">📗 OpenDocument (ODT) Olarak Paylaş</button>
         <button type="button" class="drawer-item" onclick="closeModal('modal-mobile-menu'); triggerShareFormat('text');">📋 Düz Metin Paylaş</button>
         <button type="button" class="drawer-item" onclick="closeModal('modal-mobile-menu'); triggerDirectPrint();">🖨️ Yazıcıya Yazdır</button>
         <button type="button" class="drawer-item" onclick="closeModal('modal-mobile-menu'); openPrintPreview();">👁️ Yazdırma Önizleme</button>

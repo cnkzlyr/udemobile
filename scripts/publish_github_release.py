@@ -6,46 +6,46 @@ import urllib.error
 
 TOKEN = "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"
 REPO = "cnkzlyr/udemobile"
-TAG = "v3.7.1"
-NAME = "CanEditor v3.7.1 — Dahili PDF & Çok Sayfalı TIFF Görüntüleyici, Resmi Havelsan Headless Çeviri ve Kesintisiz Mobil Akış"
+TAG = "v3.7.2"
+NAME = "CanEditor v3.7.2 — e-UDF Standardı Modern Arayüz, Sabit Dokunmatik Cetvel, Klavye Odak Koruması ve Kusursuz Dışa Aktarım"
 
-BODY = """# 🏛️ CanEditor (UdeMobile) v3.7.1 — Sürüm Notları
+BODY = """# 🏛️ CanEditor (UdeMobile) v3.7.2 — Sürüm Notları
 
-CanEditor **v3.7.1**; harici uygulama gereksinimini ortadan kaldıran **Dahili PDF.js Görüntüleyici ve UTIF.js Çok Sayfalı TIFF Görüntüleyici** motorlarını entegre eden, resmi Havelsan UYAP kütüphaneleriyle **1:1 gerçek vektörel A4 PDF ve ODT** evrakları üreten, mobil cihazlarda yazı yazarken sanal klavyenin odak kaybıyla kapanması sorununu sıfır DOM yıkımıyla kesin olarak çözen, ekranın üstüne sabitlenen (sticky) 44px dokunmatik cetveli devreye alan ve Termux bağımsız her telefonda çalışan devrimsel bir sürümdür.
+CanEditor **v3.7.2**; `editor.e-udf.com` tasarım standardını temel alan **modern beyaz başlık paneli ve 1-tık hızlı kısayol hapını (`[ 💾 Kaydet | 📱 Görünüm | ☰ Menü ]`)** getiren, sayfa aşağı kaysa bile araç çubuğunun altında çakılı kalan **sabit (sticky) 40px dokunmatik cetveli** devreye sokan, mobil cihazlarda yazı yazarken sanal klavyenin odak kaybıyla kapanması sorununu sıfır DOM yıkımı ve ölçüm klonlama mimarisiyle kesin olarak çözen, doğrudan punto seçici açılır menüsünü entegre eden ve Termux bağımsız tüm telefon ve masaüstü sistemlerde kusursuz çalışan devrimsel bir sürümdür.
 
 ---
 
 ## 🌟 Öne Çıkan Yenilikler & Geliştirmeler
 
-### 📕 1. Dahili PDF ve Çok Sayfalı TIFF Görüntüleyici Motoru
+### 🎨 1. e-UDF Standardı Ultra Kompakt Üst Panel & Kısayol Hapı
+- **e-UDF Stili Kısayol Hapı (`[ 💾 | 📱 | ☰ ]`):** Ekranın üstünde yer alan zarif hap grubu sayesinde; tek dokunuşla **💾 Hızlı Kaydet**, tek tıkla **📱/🖥️ Görünüm Değiştir** (Mobil Akış ve A4 Kağıt Düzeni) ve tek tıkla tüm hukuki fonksiyonlara ulaştıran **☰ Çekmece Menü**.
+- **Açılır Menülerin Kırpılma Sorunu Giderildi:** Mobilde yatay taşma engellenerek tüm kaydet, paylaş ve yazdır seçeneklerine her cihazda kesintisiz erişim sağlandı.
+
+### 📐 2. Sayfa Kaydırılsa Dahi Asla Kaybolmayan Sabit (Sticky) 40px Dokunmatik Cetvel
+- **Sayfa Üstünde Çakılı Kalan Mimari:** Cetvel belge kaydırma konteynerinin dışına (`#toolbar-container` altına) taşınarak sayfalar 10 sayfa aşağı kaysa dahi ekranın üstünde kalıcı olarak sabitlendi.
+- **-2 cm'den +18 cm'ye Tam Ölçekli Görsel Cetvel:** Sol kenar marjı (-2 .. 0), beyaz aktif yazı alanı (0 .. 16 cm) ve sağ marj (16 .. 18 cm) net biçimde renklendirildi.
+- **44px Ergonomik Parmak Hedef Alanı:** İlk satır, asılı girinti ve sağ marj imleri dokunmatik ekranlarda parmakla kolayca tutulup sürüklenebilecek genişlikte (`touch-action: none`) yapılandırıldı.
+
+### ⌨️ 3. Sanal Klavyenin Kapanmasına Karşı Kesin Odak Koruma Motoru
+- **Canlı DOM Düğümlerini Koruma:** Sayfalama ölçüm motorunda canlı düğümlerin yerinden sökülmesi (`measurer.appendChild(node)`) yerine klonlama (`node.cloneNode(true)`) mimarisine geçildi; live DOM asla bozulmaz.
+- **Yazım Sırasında Sıfır DOM Yıkımı:** Kullanıcı klavyeyle yazı yazarken veya alana odaklıyken sayfalama sıfırlaması (`container.innerHTML = ''`) ve sekme sıfırlaması tamamen durdurularak Gboard / Samsung klavye kapanması %100 çözüldü.
+- **Pencere Boyutlanması Koruması:** Klavyenin açılmasıyla ekran yüksekliğinin küçüldüğü anlarda zoom veya sayfalama tetiklenmesi engellendi.
+
+### 💾 4. 1-Tık Doğrudan Kaydet, Eksiksiz Farklı Kaydet ve Paylaşım Motoru
+- **Doğrudan Kaydet:** Açık olan belge tek tıkla (`💾`) üzerine doğrudan yazılır; Android'de `Downloads/UYAP_Belgelerim` klasörüne, webde anında `.udf` indirmesine aktarılır.
+- **Tüm Formatlarda Farklı Kaydet:** UDF (Havelsan UYAP 1.8), PDF (1:1 Vektörel A4 Baskı), DOCX (Word), TIFF (Çok Sayfalı İcra/Dava Evrakı) ve ODT (OpenDocument) formatları hem mobilde hem masaüstünde eksiksiz çalışır.
+- **Gelişmiş Yerel Paylaşım:** `CanFileProvider` üzerinden WhatsApp, Gmail, Telegram, Word ve Google Drive'a doğrudan tek tıkla dosya gönderme desteği.
+
+### 📕 5. Dahili PDF ve Çok Sayfalı TIFF Görüntüleyici Motoru
 - **PDF.js Tabanlı Dahili PDF Görüntüleyici:** Harici bir uygulama açmaya gerek kalmadan; uygulama içinde sayfa gezintisi, dinamik yakınlaştırma/uzaklaştırma (%40 - %300), 1-tık indirme ve yerel paylaşım desteği.
 - **UTIF.js Tabanlı Çok Sayfalı Adli TIFF Görüntüleyici:** İcra, tebligat ve mahkeme evraklarındaki tek veya çok sayfalı `.tiff` / `.tif` dosyalarını doğrudan açıp kaydırmalı, yüksek netlikte görüntüleme ve dışa aktarma kabiliyeti.
 - **Termux Bağımsız Standart Çalışma:** Termux kurulu olmayan herhangi bir Android telefonda veya masaüstü bilgisayarda yerel dosya sistemine doğrudan erişim, dahili e-imza ve dosya işleme köprüleri.
 
-### 🏛️ 2. Resmi Havelsan UYAP Headless Dönüştürücü Motoru (`UyapHeadlessConverter`)
+### 🏛️ 6. Resmi Havelsan UYAP Headless Dönüştürücü Motoru (`UyapHeadlessConverter`)
 - **1:1 Vektörel A4 PDF:** Resmi Havelsan `tr.com.havelsan.uyap.system.editor.b.b` motoru tersine mühendislikle çözülerek başsız (headless) Java CLI motoruna bağlandı. Raster tuval ekran görüntüleri yerine; seçilebilir, kopyalanabilir gerçek vektörel metin, Havelsan yazı tipleri ve birebir 10 sayfalık resmi UYAP düzeni oluşturulur (~196 KB dosya boyutu, karanlık mod uyumlu).
 - **Resmi OpenDocument (ODT):** Resmi Havelsan `tr.com.havelsan.uyap.system.editor.b.a.f` motoru kullanılarak; tüm tabloları, hizalamaları ve stilleri içeren %100 uyumlu `.odt` evrakları üretilir (~29 KB).
 - **Zengin Microsoft Word (DOCX):** Resmi ODT yapısı üzerinden tabloları, paragraf hizalamalarını, sekme duraklarını ve yazı tipi ağırlıklarını koruyan yüksek kaliteli DOCX belgeleri üretilir (~41 KB).
 - **Termux & CLI Komut Desteği:** `uyap-convert <dosya.udf> <pdf|odt|docx>` komutu ile tüm dönüştürmeler sistem seviyesinde 2 saniye içinde gerçekleştirilebilir.
-
-### ⌨️ 3. Yazı Yazarken Sanal Klavyenin Kapanmasını %100 Önleyen Odak Koruması
-- **Sıfır DOM Yıkımı:** Aktif yazım esnasında veya imleç editör alanındayken DOM ağacının `container.innerHTML = ''` ile silinip yeniden inşa edilmesi kesin olarak engellendi.
-- **Kesintisiz Yazım Deneyimi:** Android sanal klavyesinin (Gboard, Samsung Keyboard) odak kaybı nedeniyle kapanması, harf yutulması ve imleç sıçraması tamamen ortadan kaldırıldı.
-- **Yalnızca Odaktan Çıkıldığında Sayfalama:** Sayfa düzenleme ve bölünme işlemleri yalnızca kullanıcı yazımı bitirip alandan çıktığında (`blur`) çalıştırılır.
-
-### 📱 4. Yeniden Yapılandırılmış Kesintisiz Mobil Görünüm
-- **Akıcı Tek Akış Düzeni:** Mobil görünüme geçildiğinde tüm sayfaların gövde paragrafları tek bir kesintisiz akış konteynerinde birleştirilir; sayfa sınırları, boşluklar ve tekrarlayan üstbilgi/altbilgiler metni bölmez (Google Docs ve Word mobil standardı).
-- **Kağıt Görünümüne Anında Dönüş:** `📄 Kağıt` butonuna tıklandığında belge anında 1:1 Havelsan A4 çok sayfalı baskı düzenine geri döner.
-
-### 📐 5. Ekranın Üstüne Sabitlenen (Sticky) 44px Dokunmatik Cetvel
-- **Sayfa Boyunca Sabit Kalan Cetvel:** Cetvel A4 kağıt kartının içinden çıkarılarak sayfa kaydırma alanının üstüne (`sticky`, `top: 0`, `z-index: 100`) sabitlendi. Sayfa 10 sayfa aşağı kaysa bile cetvel her an ekranın üstünde kalır.
-- **38px Dokunmatik Etki Alanları:** İlk satır girintisi, asılı girinti, sol girinti ve sağ marj imleri 38px ergonomik dokunmatik alanlarla büyütüldü; parmakla kaydırma anında sayfa kaymasını engelleyen `touch-action: none` koruması eklendi.
-- **Mobilde Tek Dokunuşla Sekme Durağı:** Cetvel ölçeğine mobilde dokunulduğunda doğrudan sekme durağı (tab stop) ekleme/kaldırma özelliği entegre edildi.
-
-### 💾 6. Doğrudan 1-Tık Hızlı Kaydet & Taşmayan Ergonomik Üst Çubuk
-- **Belirgin 1-Tık Kaydet Butonu:** Üst barda dosya adının hemen yanında canlı yeşil renkli **`💾 Kaydet`** butonu yer alır; açık olan belgenin üzerine doğrudan, tek tıkla ve hiçbir diyalog açmadan anında kayıt yapar.
-- **Responsive Üst Bar:** Mobilde butonların ekrandan taşmasını ve başlığın ezilmesini önlemek amacıyla kompakt simge düzeni (`←`, `💾 Kaydet`, `Başlık`, `📱`, `📤`, `⋮`) uygulandı.
-- **Eksiksiz Paylaşım ve Farklı Kaydet:** PDF, UDF, Word, TIFF, ODT ve Metin formatlarında paylaşım ve indirme köprüleri Android 10-15 Scoped Storage standartlarıyla tam uyumlu hale getirildi.
 
 ---
 

@@ -4,6 +4,7 @@
     android:layout_height="match_parent"
     android:orientation="vertical"
     android:background="#F0F2F5"
+    android:descendantFocusability="afterDescendants"
     android:fitsSystemWindows="true">
 
     <!-- Üst Eylem Çubuğu (Responsive, Ergonomik, Taşmayan Akıllı Bar) -->
@@ -60,6 +61,7 @@
             android:background="@null"
             android:singleLine="true"
             android:ellipsize="middle"
+            android:focusableInTouchMode="false"
             android:paddingStart="4dp"
             android:paddingEnd="4dp"
             android:contentDescription="Belge Başlığı" />
