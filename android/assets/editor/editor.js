@@ -651,43 +651,35 @@ function findParagraphSplitIndex(pNode, maxH) {
 function updatePagination() {
   if (isMobileView || isPaginating) return;
 
+  // KESİN KLAVYE VE ODAK KORUMASI:
   // Sanal klavyenin açık olduğu veya kullanıcının aktif yazı yazdığı anlarda
   // DOM yıkımını (container.innerHTML = '') kesinlikle engelle!
+  // container.innerHTML = '' çağrılmadığı için Android sanal klavyesinin kapanması
+  // ve imleç kayıpları %100 engellenir.
   const activeEl = document.activeElement;
   const isUserEditing = activeEl && (
     activeEl.classList?.contains('page-body-box') ||
     activeEl.id === 'editor-content' ||
     activeEl.isContentEditable ||
-    (activeEl.closest && activeEl.closest('.page-body-box'))
+    (activeEl.closest && activeEl.closest('.page-body-box')) ||
+    (activeEl.closest && activeEl.closest('#editor-content'))
   );
   if (isUserEditing) {
+    const container = document.getElementById('pages-container') || document.getElementById('sheet-container');
+    if (container) {
+      const currentBoxes = Array.from(container.querySelectorAll('.page-body-box'));
+      const statusEl = document.getElementById('stat-page-count');
+      if (statusEl && currentBoxes.length > 0) {
+        statusEl.textContent = `Sayfa 1 / ${currentBoxes.length}`;
+      }
+    }
     return;
   }
 
   const container = document.getElementById('pages-container') || document.getElementById('sheet-container');
   if (!container) return;
 
-  // KESİN KLAVYE VE ODAK KORUMASI:
-  // Kullanıcı imleç içerideyken veya klavyeyle yazı yazarken DOM ağacı ASLA yıkılmaz.
-  // container.innerHTML = '' çağrılmadığı için Android sanal klavyesinin kapanması
-  // ve imleç kayıpları %100 engellenir.
-  const activeEl = document.activeElement;
-  const isTypingNow = activeEl && (
-    activeEl.classList?.contains('page-body-box') ||
-    activeEl.id === 'editor-content' ||
-    activeEl.isContentEditable ||
-    activeEl.closest?.('.page-body-box') ||
-    activeEl.closest?.('#editor-content')
-  );
   const currentBoxes = Array.from(container.querySelectorAll('.page-body-box'));
-
-  if (isTypingNow) {
-    const statusEl = document.getElementById('stat-page-count');
-    if (statusEl && currentBoxes.length > 0) {
-      statusEl.textContent = `Sayfa 1 / ${currentBoxes.length}`;
-    }
-    return;
-  }
 
   isPaginating = true;
   try {
@@ -2601,10 +2593,6 @@ function openMobileMenuModal() {
   openModal('modal-mobile-menu');
 }
 window.openMobileMenuModal = openMobileMenuModal;
-    clearInterval(smartCardPollInterval);
-    smartCardPollInterval = null;
-  }
-}
 
 function openMobileSignModal() {
   saveCurrentSelection();

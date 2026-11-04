@@ -1800,7 +1800,7 @@ async function generateOdtBlob(docData) {
   const metaXml = `<?xml version="1.0" encoding="UTF-8"?>
 <office:document-meta xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:meta="urn:oasis:names:tc:opendocument:xmlns:meta:1.0" xmlns:dc="http://purl.org/dc/elements/1.1/">
   <office:meta>
-    <meta:generator>CanEditor v3.5.2</meta:generator>
+    <meta:generator>CanEditor v3.7.1</meta:generator>
     <dc:title>${escapeXml(currentDocFileName || "Dilekçe")}</dc:title>
     <dc:date>${new Date().toISOString()}</dc:date>
   </office:meta>
@@ -1909,14 +1909,22 @@ ${pXml}    </office:text>
 }
 
 // -------------------------------------------------------------
-// 3C. ÇOK SAYFALI ADLİ TIFF EVRAKI ÜRETİCİ
+// 3C. ÇOK SAYFALI ADLİ TIFF EVRAKI ÜRETİCİ (UTIF.js & IFD Motoru)
 // -------------------------------------------------------------
 async function generateTiffBlob(docData) {
-  const pageSheets = Array.from(document.querySelectorAll(".a4-sheet-page"));
-  const width = 794;
-  const height = 1123;
-  const pages = [];
+  let pageSheets = Array.from(document.querySelectorAll(".a4-sheet-page"));
+  if (pageSheets.length === 0) {
+    const single = document.getElementById("sheet-container") || document.getElementById("page-wrapper") || document.getElementById("editor-content");
+    if (single) pageSheets = [single];
+  }
+  const isLandscape = (typeof currentMargins !== "undefined" && currentMargins.orientation === "landscape") ||
+    (pageSheets[0] && pageSheets[0].classList.contains("landscape"));
+  const width = isLandscape ? 1123 : 794;
+  const height = isLandscape ? 794 : 1123;
   const totalPages = Math.max(1, pageSheets.length);
+
+  const ifds = [];
+  const rawPages = [];
 
   for (let p = 1; p <= totalPages; p++) {
     const canvas = document.createElement("canvas");
@@ -1928,31 +1936,37 @@ async function generateTiffBlob(docData) {
 
     const sheet = pageSheets[p - 1];
     if (sheet) {
-      ctx.fillStyle = "#000000";
-      ctx.font = '11pt "Times New Roman", serif';
-      const body = sheet.querySelector(".page-body-box") || sheet;
-      const text = body.innerText || "";
-      const lines = text.split("\n");
-      let y = 100;
-      for (const line of lines) {
-        if (y > height - 100) break;
-        const trimmed = line.trim();
-        if (trimmed) {
-          ctx.fillText(trimmed.substring(0, 85), 80, y);
-          y += 22;
-        } else {
-          y += 12;
-        }
-      }
+      renderSheetDirectToCanvas(sheet, ctx, width, height, 1, p, totalPages, docData);
     }
+    const imgData = ctx.getImageData(0, 0, width, height);
+    rawPages.push(imgData);
 
-    ctx.fillStyle = "#333333";
-    ctx.font = '10pt "Times New Roman", serif';
-    ctx.fillText(`Sayfa: ${p} / ${totalPages}`, width - 180, height - 40);
-
-    pages.push(ctx.getImageData(0, 0, width, height));
+    if (typeof UTIF !== "undefined") {
+      ifds.push({
+        data: new Uint8Array(imgData.data),
+        width: width,
+        height: height
+      });
+    }
   }
 
+  // UTIF.js mevcut ise standart sıkıştırılmış TIFF üret
+  if (typeof UTIF !== "undefined" && ifds.length > 0) {
+    try {
+      if (ifds.length === 1) {
+        const tiffBuf = UTIF.encodeImage(ifds[0].data, width, height);
+        return new Blob([tiffBuf], { type: "image/tiff" });
+      } else {
+        const tiffBuf = UTIF.encode(ifds);
+        return new Blob([tiffBuf], { type: "image/tiff" });
+      }
+    } catch (e) {
+      console.warn("UTIF encode hatası, fallback uygulanıyor:", e);
+    }
+  }
+
+  // Fallback: Standart IFD başlığı ile TIFF üretimi
+  const pages = rawPages;
   const ifdSize = 2 + 11 * 12 + 4;
   const bytesPerPage = width * height * 4;
   let totalFileSize = 8;
@@ -2316,6 +2330,31 @@ function renderSheetDirectToCanvas(sheet, ctx, targetW, targetH, scale, pageNum,
 }
 
 async function generatePdfBlob(docData) {
+  const statusEl = document.getElementById("desktopStatusMsg");
+  if (statusEl) statusEl.innerText = "PDF hazırlanıyor...";
+
+  // 1. Resmi Havelsan UYAP Headless Motoru (Port 5976) üzerinden 1:1 Vektör PDF
+  try {
+    const udfBlob = await generateUdfBlob(docData);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 1200);
+    const resp = await fetch("http://127.0.0.1:5976/api/v1/convert?format=pdf", {
+      method: "POST",
+      body: udfBlob,
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+    if (resp.ok) {
+      const serverBlob = await resp.blob();
+      if (serverBlob && serverBlob.size > 1000) {
+        if (statusEl) statusEl.innerText = "✓ Resmi UYAP PDF Hazırlandı";
+        return serverBlob;
+      }
+    }
+  } catch (netErr) {
+    // Havelsan yerel sunucusu aktif değil, doğrudan yerel yüksek çözünürlüklü A4 tuval motoru ile üret
+  }
+
   if (typeof updatePagination === "function") {
     try { updatePagination(); } catch (e) {}
   }
@@ -2341,7 +2380,6 @@ async function generatePdfBlob(docData) {
 
   const totalPages = Math.max(1, pageSheets.length);
   const pagesData = [];
-  const statusEl = document.getElementById("desktopStatusMsg");
 
   for (let p = 0; p < totalPages; p++) {
     if (statusEl) statusEl.innerText = `PDF Sayfa ${p + 1}/${totalPages} hazırlanıyor...`;
@@ -2353,65 +2391,7 @@ async function generatePdfBlob(docData) {
     ctx.fillStyle = "#FFFFFF";
     ctx.fillRect(0, 0, targetW, targetH);
 
-    let renderedOk = false;
-
     if (sheet) {
-      try {
-        const clone = sheet.cloneNode(true);
-        clone.querySelectorAll(".ruler-guide-line, .ruler-tooltip, .marker-first-line, .marker-hanging-indent, .marker-left-indent, .marker-right-indent").forEach(el => el.remove());
-        clone.style.margin = "0";
-        clone.style.boxShadow = "none";
-        clone.style.border = "none";
-        clone.style.transform = "none";
-        clone.style.position = "static";
-        clone.style.width = baseW + "px";
-        clone.style.height = baseH + "px";
-
-        const svgData = `
-          <svg xmlns="http://www.w3.org/2000/svg" width="${baseW}" height="${baseH}">
-            <foreignObject width="100%" height="100%">
-              <div xmlns="http://www.w3.org/1999/xhtml" style="width:${baseW}px;height:${baseH}px;background:#ffffff;font-family:'Times New Roman',serif;box-sizing:border-box;margin:0;padding:0;">
-                <style>
-                  * { box-sizing: border-box; }
-                  p { margin: 0; padding: 0; }
-                  table { border-collapse: collapse; }
-                  td, th { box-sizing: border-box; }
-                  img { max-width: 100%; height: auto; }
-                  .page-header-box { display: block !important; }
-                  .page-body-box { display: block !important; }
-                  .page-footer-box { display: flex !important; }
-                  .auto-page-break { display: none !important; }
-                </style>
-                ${clone.outerHTML}
-              </div>
-            </foreignObject>
-          </svg>
-        `;
-        const blob = new Blob([svgData], { type: "image/svg+xml;charset=utf-8" });
-        const url = URL.createObjectURL(blob);
-        const img = new Image();
-
-        await new Promise((resolve, reject) => {
-          img.onload = () => {
-            try {
-              ctx.drawImage(img, 0, 0, targetW, targetH);
-              URL.revokeObjectURL(url);
-              renderedOk = true;
-              resolve();
-            } catch (err) {
-              reject(err);
-            }
-          };
-          img.onerror = reject;
-          img.src = url;
-          setTimeout(() => reject(new Error("SVG timeout")), 700);
-        });
-      } catch (e) {
-        renderedOk = false;
-      }
-    }
-
-    if (!renderedOk && sheet) {
       renderSheetDirectToCanvas(sheet, ctx, targetW, targetH, renderScale, p + 1, totalPages, docData);
     }
 
@@ -2439,6 +2419,299 @@ function downloadBlob(blob, filename) {
   }, 200);
 }
 
+// =============================================================
+// DAHİLİ ADLİ PDF GÖRÜNTÜLEYİCİ MOTORU (PDF.js)
+// =============================================================
+let currentPdfDoc = null;
+let currentPdfPage = 1;
+let currentPdfTotalPages = 1;
+let currentPdfZoom = 1.0;
+let currentPdfBuffer = null;
+let currentPdfFileName = "Belge.pdf";
+
+async function openPdfViewer(arrayBuffer, fileName = "Belge.pdf") {
+  currentPdfBuffer = arrayBuffer;
+  currentPdfFileName = fileName;
+  currentPdfPage = 1;
+  currentPdfZoom = 1.0;
+
+  const titleEl = document.getElementById("pdf-viewer-title");
+  if (titleEl) titleEl.textContent = fileName;
+
+  const modal = document.getElementById("modal-pdf-viewer");
+  if (modal) {
+    modal.style.display = "flex";
+    modal.classList.add("open");
+  }
+
+  try {
+    if (typeof pdfjsLib === "undefined") {
+      throw new Error("PDF görüntüleme motoru (pdf.min.js) bulunamadı.");
+    }
+    pdfjsLib.GlobalWorkerOptions.workerSrc = "pdf.worker.min.js";
+    const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+    currentPdfDoc = await loadingTask.promise;
+    currentPdfTotalPages = currentPdfDoc.numPages || 1;
+
+    updatePdfPageIndicator();
+    await renderAllPdfPages();
+  } catch (err) {
+    console.error("PDF Açma Hatası:", err);
+    if (typeof showEditorToast === "function") showEditorToast("PDF açılırken hata: " + err.message);
+  }
+}
+window.openPdfViewer = openPdfViewer;
+
+async function renderAllPdfPages() {
+  const rail = document.getElementById("pdf-pages-render-rail");
+  if (!rail || !currentPdfDoc) return;
+  rail.innerHTML = "";
+
+  for (let num = 1; num <= currentPdfTotalPages; num++) {
+    const pageWrapper = document.createElement("div");
+    pageWrapper.className = "viewer-page-card";
+    pageWrapper.id = `pdf-page-${num}`;
+
+    const canvas = document.createElement("canvas");
+    pageWrapper.appendChild(canvas);
+    rail.appendChild(pageWrapper);
+
+    const page = await currentPdfDoc.getPage(num);
+    const viewport = page.getViewport({ scale: currentPdfZoom * 1.5 });
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    canvas.style.width = `${Math.round(viewport.width / 1.5)}px`;
+    canvas.style.height = `${Math.round(viewport.height / 1.5)}px`;
+
+    const ctx = canvas.getContext("2d");
+    await page.render({ canvasContext: ctx, viewport }).promise;
+  }
+}
+
+function updatePdfPageIndicator() {
+  const indicator = document.getElementById("pdf-page-indicator");
+  if (indicator) {
+    indicator.textContent = `${currentPdfPage} / ${currentPdfTotalPages}`;
+  }
+  const badge = document.getElementById("pdf-zoom-badge");
+  if (badge) {
+    badge.textContent = `%${Math.round(currentPdfZoom * 100)}`;
+  }
+}
+window.updatePdfPageIndicator = updatePdfPageIndicator;
+
+function stepPdfPage(delta) {
+  const target = Math.min(Math.max(1, currentPdfPage + delta), currentPdfTotalPages);
+  if (target !== currentPdfPage) {
+    currentPdfPage = target;
+    updatePdfPageIndicator();
+    const el = document.getElementById(`pdf-page-${currentPdfPage}`);
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+}
+window.stepPdfPage = stepPdfPage;
+
+function zoomPdf(delta) {
+  currentPdfZoom = Math.max(0.4, Math.min(3.0, currentPdfZoom + delta));
+  updatePdfPageIndicator();
+  renderAllPdfPages();
+}
+window.zoomPdf = zoomPdf;
+
+function resetPdfZoom() {
+  currentPdfZoom = 1.0;
+  updatePdfPageIndicator();
+  renderAllPdfPages();
+}
+window.resetPdfZoom = resetPdfZoom;
+
+function downloadCurrentPdf() {
+  if (!currentPdfBuffer) return;
+  const blob = new Blob([currentPdfBuffer], { type: "application/pdf" });
+  if (window.AndroidBridge && window.AndroidBridge.saveBlobToDownloads) {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const b64 = reader.result.split(",")[1];
+      window.AndroidBridge.saveBlobToDownloads(currentPdfFileName, "application/pdf", b64);
+    };
+    reader.readAsDataURL(blob);
+  } else {
+    downloadBlob(blob, currentPdfFileName);
+  }
+}
+window.downloadCurrentPdf = downloadCurrentPdf;
+
+function shareCurrentPdf() {
+  if (!currentPdfBuffer) return;
+  const blob = new Blob([currentPdfBuffer], { type: "application/pdf" });
+  if (window.AndroidBridge && window.AndroidBridge.shareBlobData) {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const b64 = reader.result.split(",")[1];
+      window.AndroidBridge.shareBlobData(currentPdfFileName, "application/pdf", b64);
+    };
+    reader.readAsDataURL(blob);
+  } else if (navigator.canShare) {
+    const file = new File([blob], currentPdfFileName, { type: "application/pdf" });
+    navigator.share({ files: [file], title: currentPdfFileName }).catch(() => {});
+  } else {
+    downloadCurrentPdf();
+  }
+}
+window.shareCurrentPdf = shareCurrentPdf;
+
+// =============================================================
+// DAHİLİ ÇOK SAYFALI ADLİ TIFF GÖRÜNTÜLEYİCİ (UTIF.js)
+// =============================================================
+let currentTiffIfds = [];
+let currentTiffPage = 1;
+let currentTiffTotalPages = 1;
+let currentTiffZoom = 1.0;
+let currentTiffBuffer = null;
+let currentTiffFileName = "Belge.tiff";
+
+async function openTiffViewer(arrayBuffer, fileName = "Belge.tiff") {
+  currentTiffBuffer = arrayBuffer;
+  currentTiffFileName = fileName;
+  currentTiffPage = 1;
+  currentTiffZoom = 1.0;
+
+  const titleEl = document.getElementById("tiff-viewer-title");
+  if (titleEl) titleEl.textContent = fileName;
+
+  const modal = document.getElementById("modal-tiff-viewer");
+  if (modal) {
+    modal.style.display = "flex";
+    modal.classList.add("open");
+  }
+
+  try {
+    if (typeof UTIF === "undefined") {
+      throw new Error("TIFF görüntüleme motoru (utif.js) bulunamadı.");
+    }
+    const ifds = UTIF.decode(arrayBuffer);
+    currentTiffIfds = ifds;
+    currentTiffTotalPages = Math.max(1, ifds.length);
+
+    updateTiffPageIndicator();
+    renderAllTiffPages();
+  } catch (err) {
+    console.error("TIFF Açma Hatası:", err);
+    if (typeof showEditorToast === "function") showEditorToast("TIFF açılırken hata: " + err.message);
+  }
+}
+window.openTiffViewer = openTiffViewer;
+
+function renderAllTiffPages() {
+  const rail = document.getElementById("tiff-pages-render-rail");
+  if (!rail || !currentTiffIfds) return;
+  rail.innerHTML = "";
+
+  currentTiffIfds.forEach((ifd, idx) => {
+    try {
+      UTIF.decodeImage(currentTiffBuffer, ifd);
+      const rgba = UTIF.toRGBA8(ifd);
+      const w = ifd.width;
+      const h = ifd.height;
+
+      const pageWrapper = document.createElement("div");
+      pageWrapper.className = "viewer-page-card";
+      pageWrapper.id = `tiff-page-${idx + 1}`;
+
+      const canvas = document.createElement("canvas");
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext("2d");
+      const imgData = ctx.createImageData(w, h);
+      imgData.data.set(rgba);
+      ctx.putImageData(imgData, 0, 0);
+
+      const displayW = Math.round(w * currentTiffZoom);
+      const displayH = Math.round(h * currentTiffZoom);
+      canvas.style.width = `${displayW}px`;
+      canvas.style.height = `${displayH}px`;
+      canvas.style.maxWidth = "100%";
+
+      pageWrapper.appendChild(canvas);
+      rail.appendChild(pageWrapper);
+    } catch (e) {
+      console.warn("TIFF sayfa render hatası:", idx, e);
+    }
+  });
+}
+
+function updateTiffPageIndicator() {
+  const indicator = document.getElementById("tiff-page-indicator");
+  if (indicator) {
+    indicator.textContent = `${currentTiffPage} / ${currentTiffTotalPages}`;
+  }
+  const badge = document.getElementById("tiff-zoom-badge");
+  if (badge) {
+    badge.textContent = `%${Math.round(currentTiffZoom * 100)}`;
+  }
+}
+window.updateTiffPageIndicator = updateTiffPageIndicator;
+
+function stepTiffPage(delta) {
+  const target = Math.min(Math.max(1, currentTiffPage + delta), currentTiffTotalPages);
+  if (target !== currentTiffPage) {
+    currentTiffPage = target;
+    updateTiffPageIndicator();
+    const el = document.getElementById(`tiff-page-${currentTiffPage}`);
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+}
+window.stepTiffPage = stepTiffPage;
+
+function zoomTiff(delta) {
+  currentTiffZoom = Math.max(0.4, Math.min(3.0, currentTiffZoom + delta));
+  updateTiffPageIndicator();
+  renderAllTiffPages();
+}
+window.zoomTiff = zoomTiff;
+
+function resetTiffZoom() {
+  currentTiffZoom = 1.0;
+  updateTiffPageIndicator();
+  renderAllTiffPages();
+}
+window.resetTiffZoom = resetTiffZoom;
+
+function downloadCurrentTiff() {
+  if (!currentTiffBuffer) return;
+  const blob = new Blob([currentTiffBuffer], { type: "image/tiff" });
+  if (window.AndroidBridge && window.AndroidBridge.saveBlobToDownloads) {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const b64 = reader.result.split(",")[1];
+      window.AndroidBridge.saveBlobToDownloads(currentTiffFileName, "image/tiff", b64);
+    };
+    reader.readAsDataURL(blob);
+  } else {
+    downloadBlob(blob, currentTiffFileName);
+  }
+}
+window.downloadCurrentTiff = downloadCurrentTiff;
+
+function shareCurrentTiff() {
+  if (!currentTiffBuffer) return;
+  const blob = new Blob([currentTiffBuffer], { type: "image/tiff" });
+  if (window.AndroidBridge && window.AndroidBridge.shareBlobData) {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const b64 = reader.result.split(",")[1];
+      window.AndroidBridge.shareBlobData(currentTiffFileName, "image/tiff", b64);
+    };
+    reader.readAsDataURL(blob);
+  } else if (navigator.canShare) {
+    const file = new File([blob], currentTiffFileName, { type: "image/tiff" });
+    navigator.share({ files: [file], title: currentTiffFileName }).catch(() => {});
+  } else {
+    downloadCurrentTiff();
+  }
+}
+window.shareCurrentTiff = shareCurrentTiff;
+
 // -------------------------------------------------------------
 // 6. DOSYA AÇMA & SÜRÜKLE BIRAK YÖNETİCİSİ
 // -------------------------------------------------------------
@@ -2463,8 +2736,18 @@ async function openDocumentFromBytes(buffer, name, path) {
 
     let result;
     if (lowerName.endsWith(".tiff") || lowerName.endsWith(".tif") || isTiffMagic) {
+      if (typeof openTiffViewer === "function") {
+        await openTiffViewer(arrayBuffer, fileName);
+        if (statusEl) statusEl.innerText = "✓ TIFF Görüntüleyici Açıldı";
+        return;
+      }
       result = await parseTiffArrayBuffer(arrayBuffer);
     } else if (lowerName.endsWith(".pdf") || isPdfMagic) {
+      if (typeof openPdfViewer === "function") {
+        await openPdfViewer(arrayBuffer, fileName);
+        if (statusEl) statusEl.innerText = "✓ PDF Görüntüleyici Açıldı";
+        return;
+      }
       result = await parsePdfArrayBuffer(arrayBuffer);
     } else if (lowerName.endsWith(".odt")) {
       result = await parseOdtArrayBuffer(arrayBuffer);

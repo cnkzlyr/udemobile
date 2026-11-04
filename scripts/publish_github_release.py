@@ -6,48 +6,58 @@ import urllib.error
 
 TOKEN = "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"
 REPO = "cnkzlyr/udemobile"
-TAG = "v3.7.0"
-NAME = "CanEditor v3.7.0 — Resmi Havelsan UYAP Motorlu Headless Çeviri, Kesintisiz Mobil Akış, Klavye Odak Koruması ve Sabit Dokunmatik Cetvel"
+TAG = "v3.7.1"
+NAME = "CanEditor v3.7.1 — Dahili PDF & Çok Sayfalı TIFF Görüntüleyici, Resmi Havelsan Headless Çeviri ve Kesintisiz Mobil Akış"
 
-BODY = """# 🏛️ CanEditor (UdeMobile) v3.7.0 — Sürüm Notları
+BODY = """# 🏛️ CanEditor (UdeMobile) v3.7.1 — Sürüm Notları
 
-CanEditor **v3.7.0**; resmi Havelsan UYAP doküman kütüphanelerini tersine mühendislikle çözerek başsız (headless) Java motoruna entegre eden, raster tuval görüntüleri yerine **1:1 gerçek vektörel A4 PDF, resmi OpenDocument (ODT) ve biçimlendirilmiş Word (DOCX)** evrakları üreten, mobil cihazlarda yazı yazarken sanal klavyenin odak kaybıyla kapanması sorununu kesin olarak çözen, ekranın üstüne sabitlenen (sticky) ve 38px hassas dokunma alanlarına sahip cetveli devreye alan devrimsel bir sürümdür.
+CanEditor **v3.7.1**; harici uygulama gereksinimini ortadan kaldıran **Dahili PDF.js Görüntüleyici ve UTIF.js Çok Sayfalı TIFF Görüntüleyici** motorlarını entegre eden, resmi Havelsan UYAP kütüphaneleriyle **1:1 gerçek vektörel A4 PDF ve ODT** evrakları üreten, mobil cihazlarda yazı yazarken sanal klavyenin odak kaybıyla kapanması sorununu sıfır DOM yıkımıyla kesin olarak çözen, ekranın üstüne sabitlenen (sticky) 44px dokunmatik cetveli devreye alan ve Termux bağımsız her telefonda çalışan devrimsel bir sürümdür.
 
 ---
 
 ## 🌟 Öne Çıkan Yenilikler & Geliştirmeler
 
-### 🏛️ 1. Resmi Havelsan UYAP Headless Dönüştürücü Motoru (`UyapHeadlessConverter`)
+### 📕 1. Dahili PDF ve Çok Sayfalı TIFF Görüntüleyici Motoru
+- **PDF.js Tabanlı Dahili PDF Görüntüleyici:** Harici bir uygulama açmaya gerek kalmadan; uygulama içinde sayfa gezintisi, dinamik yakınlaştırma/uzaklaştırma (%40 - %300), 1-tık indirme ve yerel paylaşım desteği.
+- **UTIF.js Tabanlı Çok Sayfalı Adli TIFF Görüntüleyici:** İcra, tebligat ve mahkeme evraklarındaki tek veya çok sayfalı `.tiff` / `.tif` dosyalarını doğrudan açıp kaydırmalı, yüksek netlikte görüntüleme ve dışa aktarma kabiliyeti.
+- **Termux Bağımsız Standart Çalışma:** Termux kurulu olmayan herhangi bir Android telefonda veya masaüstü bilgisayarda yerel dosya sistemine doğrudan erişim, dahili e-imza ve dosya işleme köprüleri.
+
+### 🏛️ 2. Resmi Havelsan UYAP Headless Dönüştürücü Motoru (`UyapHeadlessConverter`)
 - **1:1 Vektörel A4 PDF:** Resmi Havelsan `tr.com.havelsan.uyap.system.editor.b.b` motoru tersine mühendislikle çözülerek başsız (headless) Java CLI motoruna bağlandı. Raster tuval ekran görüntüleri yerine; seçilebilir, kopyalanabilir gerçek vektörel metin, Havelsan yazı tipleri ve birebir 10 sayfalık resmi UYAP düzeni oluşturulur (~196 KB dosya boyutu, karanlık mod uyumlu).
 - **Resmi OpenDocument (ODT):** Resmi Havelsan `tr.com.havelsan.uyap.system.editor.b.a.f` motoru kullanılarak; tüm tabloları, hizalamaları ve stilleri içeren %100 uyumlu `.odt` evrakları üretilir (~29 KB).
 - **Zengin Microsoft Word (DOCX):** Resmi ODT yapısı üzerinden tabloları, paragraf hizalamalarını, sekme duraklarını ve yazı tipi ağırlıklarını koruyan yüksek kaliteli DOCX belgeleri üretilir (~41 KB).
 - **Termux & CLI Komut Desteği:** `uyap-convert <dosya.udf> <pdf|odt|docx>` komutu ile tüm dönüştürmeler sistem seviyesinde 2 saniye içinde gerçekleştirilebilir.
 
-### ⌨️ 2. Yazı Yazarken Sanal Klavyenin Kapanmasını %100 Önleyen Odak Koruması
+### ⌨️ 3. Yazı Yazarken Sanal Klavyenin Kapanmasını %100 Önleyen Odak Koruması
 - **Sıfır DOM Yıkımı:** Aktif yazım esnasında veya imleç editör alanındayken DOM ağacının `container.innerHTML = ''` ile silinip yeniden inşa edilmesi kesin olarak engellendi.
 - **Kesintisiz Yazım Deneyimi:** Android sanal klavyesinin (Gboard, Samsung Keyboard) odak kaybı nedeniyle kapanması, harf yutulması ve imleç sıçraması tamamen ortadan kaldırıldı.
 - **Yalnızca Odaktan Çıkıldığında Sayfalama:** Sayfa düzenleme ve bölünme işlemleri yalnızca kullanıcı yazımı bitirip alandan çıktığında (`blur`) çalıştırılır.
 
-### 📱 3. Yeniden Yapılandırılmış Kesintisiz Mobil Görünüm
+### 📱 4. Yeniden Yapılandırılmış Kesintisiz Mobil Görünüm
 - **Akıcı Tek Akış Düzeni:** Mobil görünüme geçildiğinde tüm sayfaların gövde paragrafları tek bir kesintisiz akış konteynerinde birleştirilir; sayfa sınırları, boşluklar ve tekrarlayan üstbilgi/altbilgiler metni bölmez (Google Docs ve Word mobil standardı).
 - **Kağıt Görünümüne Anında Dönüş:** `📄 Kağıt` butonuna tıklandığında belge anında 1:1 Havelsan A4 çok sayfalı baskı düzenine geri döner.
 
-### 📐 4. Ekranın Üstüne Sabitlenen (Sticky) 44px Dokunmatik Cetvel
+### 📐 5. Ekranın Üstüne Sabitlenen (Sticky) 44px Dokunmatik Cetvel
 - **Sayfa Boyunca Sabit Kalan Cetvel:** Cetvel A4 kağıt kartının içinden çıkarılarak sayfa kaydırma alanının üstüne (`sticky`, `top: 0`, `z-index: 100`) sabitlendi. Sayfa 10 sayfa aşağı kaysa bile cetvel her an ekranın üstünde kalır.
 - **38px Dokunmatik Etki Alanları:** İlk satır girintisi, asılı girinti, sol girinti ve sağ marj imleri 38px ergonomik dokunmatik alanlarla büyütüldü; parmakla kaydırma anında sayfa kaymasını engelleyen `touch-action: none` koruması eklendi.
 - **Mobilde Tek Dokunuşla Sekme Durağı:** Cetvel ölçeğine mobilde dokunulduğunda doğrudan sekme durağı (tab stop) ekleme/kaldırma özelliği entegre edildi.
 
-### 💾 5. Doğrudan 1-Tık Hızlı Kaydet & Taşmayan Ergonomik Üst Çubuk
+### 💾 6. Doğrudan 1-Tık Hızlı Kaydet & Taşmayan Ergonomik Üst Çubuk
 - **Belirgin 1-Tık Kaydet Butonu:** Üst barda dosya adının hemen yanında canlı yeşil renkli **`💾 Kaydet`** butonu yer alır; açık olan belgenin üzerine doğrudan, tek tıkla ve hiçbir diyalog açmadan anında kayıt yapar.
 - **Responsive Üst Bar:** Mobilde butonların ekrandan taşmasını ve başlığın ezilmesini önlemek amacıyla kompakt simge düzeni (`←`, `💾 Kaydet`, `Başlık`, `📱`, `📤`, `⋮`) uygulandı.
 - **Eksiksiz Paylaşım ve Farklı Kaydet:** PDF, UDF, Word, TIFF, ODT ve Metin formatlarında paylaşım ve indirme köprüleri Android 10-15 Scoped Storage standartlarıyla tam uyumlu hale getirildi.
 
 ---
 
-## 🚀 Hızlı İndirme Bağlantıları (v3.6.5)
+## 🚀 Hızlı İndirme Bağlantıları (v3.7.1)
 
 | Platform | Dosya | Açıklama |
 | :--- | :--- | :--- |
+| **Android (Güncel)** | [CanEditor-v3.7.1.apk](https://github.com/cnkzlyr/udemobile/releases/download/v3.7.1/CanEditor-v3.7.1.apk) | v3.7.1 APK paketi |
+| **Android (En Son)** | [CanEditor-latest.apk](https://github.com/cnkzlyr/udemobile/releases/download/v3.7.1/CanEditor-latest.apk) | Her zaman en son sürüm APK |
+| **Taşınabilir Web GUI** | [CanEditor-Portable-Web-GUI-v3.7.1.zip](https://github.com/cnkzlyr/udemobile/releases/download/v3.7.1/CanEditor-Portable-Web-GUI-v3.7.1.zip) | Kurulumsuz, çevrimdışı web sürümü |
+| **Windows / macOS / Linux** | [GitHub Releases](https://github.com/cnkzlyr/udemobile/releases/tag/v3.7.1) | GitHub Actions tarafından derlenen yerel ikililer (.exe, .msi, .dmg, .AppImage, .deb, .rpm) |
+"""
 | **Android (Telefon / Tablet)** | [**CanEditor-v3.6.5.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.6.5/CanEditor-v3.6.5.apk) | Güncel mobil uygulama kurulum paketi |
 | **Android (Her Zaman En Son)** | [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.6.5/CanEditor-latest.apk) | Kalıcı son sürüm bağlantısı |
 | **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v3.6.5.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v3.6.5/CanEditor-Portable-Web-GUI-v3.6.5.zip) | **Kurulumsuz;** Zipten çıkartıp `index.html` tıklayarak hemen kullanın |
