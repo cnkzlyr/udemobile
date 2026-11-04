@@ -779,7 +779,8 @@ async function parseUdfArrayBuffer(buffer) {
     });
     if (!hasFooterImg && hasPageNum) {
       const qrPart = verificationCode ? `<div class="udf-footer-qr-container" data-verification-code="${escapeHtmlStr(verificationCode)}" style="width:34px; height:34px;"></div>` : "";
-      footerHtml += `<div class="udf-footer-layout" style="display:flex; justify-content:flex-end; width:100%;"><div class="udf-footer-right" style="display:flex; flex-direction:column; align-items:flex-end; gap:2px;"><span class="udf-footer-page-label">${pageLabelText}</span>${qrPart}</div></div>`;
+      const textPart = verificationCode ? `<div class="udf-official-footer-text" style="flex:1; max-width:82%; text-align:left; font-family:Arial, sans-serif; font-size:7pt; line-height:1.2; color:#333; word-break:break-all; padding-right:8px;">UYAP Bilişim Sistemindeki bu dokümana http://vatandas.uyap.gov.tr adresinden <strong>${escapeHtmlStr(verificationCode)}</strong> ile erişebilirsiniz.</div>` : "";
+      footerHtml += `<div class="udf-footer-layout" style="display:flex; justify-content:space-between; align-items:flex-end; width:100%; border-top:0.5px solid #CBD5E1; padding-top:4px;">${textPart}<div class="udf-footer-right" style="display:flex; flex-direction:column; align-items:flex-end; gap:2px; margin-left:auto;"><span class="udf-footer-page-label">${pageLabelText}</span>${qrPart}</div></div>`;
     }
   }
 
