@@ -345,53 +345,53 @@
     </div>
   </div>
 
-  <!-- SABİT ETKİLEŞİMLİ CETVEL (Her Zaman Ekranın Üstünde Sabit & Dokunmatik Uyumlu) -->
-  <div id="ruler-container" class="ruler-container">
-    <div id="ruler-body" class="ruler-body">
-      <!-- Sol Kenar Boşluğu Arka Planı -->
-      <div class="ruler-margin-left"></div>
-
-      <!-- Aktif Cetvel Ölçeği (0 - 16 cm) -->
-      <div id="ruler-scale" class="ruler-scale">
-        <!-- İlk Satır Girintisi İmi (Üst Üçgen) -->
-        <div id="marker-first-line" class="ruler-marker marker-first-line" title="İlk Satır Girintisi (Sürükleyin veya Dokunun)">
-          <div class="marker-triangle-down"></div>
-        </div>
-
-        <!-- Asılı Girinti İmi (Alt Yukarı Bakan Üçgen - Taşan/Alt Satırların Hizası) -->
-        <div id="marker-hanging-indent" class="ruler-marker marker-hanging-indent" title="Asılı Girinti (Alt satırların hizasını belirler)">
-          <div class="marker-triangle-up"></div>
-        </div>
-
-        <!-- Sol Girinti İmi (Alt Dikdörtgen - Tüm Paragrafı Taşır) -->
-        <div id="marker-left-indent" class="ruler-marker marker-left-indent" title="Sol Girinti (Tüm paragrafı blok halinde taşır)">
-          <div class="marker-box"></div>
-        </div>
-
-        <!-- Cetvel cm ve mm Çizgileri Dinamik Üretilir -->
-        <div id="ruler-ticks" class="ruler-ticks"></div>
-
-        <!-- Sağ Kenar Girinti İmi (Alt Üçgen) -->
-        <div id="marker-right-indent" class="ruler-marker marker-right-indent" title="Sağ Girinti (Sürükleyin)">
-          <div class="marker-triangle-up"></div>
-        </div>
-
-        <!-- Canlı Ölçüm İpucu Rozeti -->
-        <div id="ruler-tooltip" class="ruler-tooltip" style="display: none;"></div>
-      </div>
-
-      <!-- Sağ Kenar Boşluğu Arka Planı -->
-      <div class="ruler-margin-right"></div>
-    </div>
-  </div>
-
-  <!-- Düşey Kılavuz Hizalama Çizgisi -->
-  <div id="ruler-guide-line" class="ruler-guide-line" style="display: none;"></div>
-
   <!-- A4 Kağıt / Mobil Görünüm Konteyneri -->
   <div id="page-wrapper" class="paper-view">
     <div id="sheet-wrapper">
       <div id="sheet-container">
+
+        <!-- SABİT ETKİLEŞİMLİ CETVEL (Sayfa Genişliği ve Zoom ile Birebir Eşitlenmiş & Dokunmatik Uyumlu) -->
+        <div id="ruler-container" class="ruler-container">
+          <div id="ruler-body" class="ruler-body">
+            <!-- Sol Kenar Boşluğu Arka Planı -->
+            <div class="ruler-margin-left"></div>
+
+            <!-- Aktif Cetvel Ölçeği (0 - 16 cm) -->
+            <div id="ruler-scale" class="ruler-scale">
+              <!-- İlk Satır Girintisi İmi (Üst Üçgen) -->
+              <div id="marker-first-line" class="ruler-marker marker-first-line" title="İlk Satır Girintisi (Sürükleyin veya Dokunun)">
+                <div class="marker-triangle-down"></div>
+              </div>
+
+              <!-- Asılı Girinti İmi (Alt Yukarı Bakan Üçgen - Taşan/Alt Satırların Hizası) -->
+              <div id="marker-hanging-indent" class="ruler-marker marker-hanging-indent" title="Asılı Girinti (Alt satırların hizasını belirler)">
+                <div class="marker-triangle-up"></div>
+              </div>
+
+              <!-- Sol Girinti İmi (Alt Dikdörtgen - Tüm Paragrafı Taşır) -->
+              <div id="marker-left-indent" class="ruler-marker marker-left-indent" title="Sol Girinti (Tüm paragrafı blok halinde taşır)">
+                <div class="marker-box"></div>
+              </div>
+
+              <!-- Cetvel cm ve mm Çizgileri Dinamik Üretilir -->
+              <div id="ruler-ticks" class="ruler-ticks"></div>
+
+              <!-- Sağ Kenar Girinti İmi (Alt Üçgen) -->
+              <div id="marker-right-indent" class="ruler-marker marker-right-indent" title="Sağ Girinti (Sürükleyin)">
+                <div class="marker-triangle-up"></div>
+              </div>
+
+              <!-- Canlı Ölçüm İpucu Rozeti -->
+              <div id="ruler-tooltip" class="ruler-tooltip" style="display: none;"></div>
+            </div>
+
+            <!-- Sağ Kenar Boşluğu Arka Planı -->
+            <div class="ruler-margin-right"></div>
+          </div>
+        </div>
+
+        <!-- Düşey Kılavuz Hizalama Çizgisi -->
+        <div id="ruler-guide-line" class="ruler-guide-line" style="display: none;"></div>
 
         <!-- BELGE E-İMZA DOĞRULAMA DURUM ÇUBUĞU (Havelsan UYAP Uyumlu) -->
         <div id="doc-signature-banner" class="signature-status-banner valid" style="display: none;" onclick="openSignatureDetailsModal()">

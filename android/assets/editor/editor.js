@@ -255,10 +255,34 @@ document.addEventListener('DOMContentLoaded', () => {
   }, 200);
 });
 
+// Yardımcı: Kullanıcı editör alanına odaklı mı veya imleç içeride mi?
+function isEditorFocused() {
+  const active = document.activeElement;
+  if (active && (
+    active.classList?.contains('page-body-box') ||
+    active.id === 'editor-content' ||
+    active.isContentEditable ||
+    (active.closest && active.closest('.page-body-box')) ||
+    (active.closest && active.closest('#editor-content'))
+  )) {
+    return true;
+  }
+  const sel = window.getSelection();
+  if (sel && sel.rangeCount > 0 && sel.anchorNode) {
+    const el = sel.anchorNode.nodeType === 1 ? sel.anchorNode : sel.anchorNode.parentElement;
+    if (el && (el.closest?.('.page-body-box') || el.closest?.('#editor-content') || el.isContentEditable)) {
+      return true;
+    }
+  }
+  return false;
+}
+window.isEditorFocused = isEditorFocused;
+
 // Kağıt Görünümü (Yazdırma Düzeni) / Mobil Görünüm Geçişi
 function toggleViewMode() {
   const wrapper = document.getElementById('page-wrapper');
   const btn = document.getElementById('btn-toggle-view');
+  const headerBtn = document.querySelector('.mobile-header-btn');
   const sheetContainer = document.getElementById('sheet-container');
   const container = document.getElementById('pages-container') || sheetContainer;
   
@@ -266,7 +290,13 @@ function toggleViewMode() {
   if (isMobileView) {
     wrapper.classList.remove('paper-view');
     wrapper.classList.add('mobile-view');
-    if (btn) btn.innerHTML = '📄 <span>Kağıt</span>';
+    if (btn) btn.innerHTML = '🖥️ <span>Kağıt</span>';
+    if (headerBtn) headerBtn.innerHTML = '🖥️ <span class="hide-on-mobile">Kağıt</span>';
+
+    // Android yerel başlığındaki butonu güncelle (🖥️)
+    if (window.AndroidBridge && window.AndroidBridge.onViewModeChanged) {
+      try { window.AndroidBridge.onViewModeChanged(true); } catch (e) {}
+    }
 
     // Mobil Görünüm (Kesintisiz Akış):
     // Tüm paragrafları ilk sayfa gövdesinde toplayarak sayfa kırılmalarını ve tekrarlayan başlıkları gizle
@@ -296,6 +326,12 @@ function toggleViewMode() {
     wrapper.classList.remove('mobile-view');
     wrapper.classList.add('paper-view');
     if (btn) btn.innerHTML = '📱 <span>Görünüm</span>';
+    if (headerBtn) headerBtn.innerHTML = '📱 <span class="hide-on-mobile">Görünüm</span>';
+
+    // Android yerel başlığındaki butonu güncelle (📱)
+    if (window.AndroidBridge && window.AndroidBridge.onViewModeChanged) {
+      try { window.AndroidBridge.onViewModeChanged(false); } catch (e) {}
+    }
 
     if (container) {
       const allPages = Array.from(container.querySelectorAll('.a4-sheet-page'));
@@ -652,19 +688,10 @@ function updatePagination() {
   if (isMobileView || isPaginating) return;
 
   // KESİN KLAVYE VE ODAK KORUMASI:
-  // Sanal klavyenin açık olduğu veya kullanıcının aktif yazı yazdığı anlarda
-  // DOM yıkımını (container.innerHTML = '') kesinlikle engelle!
-  // container.innerHTML = '' çağrılmadığı için Android sanal klavyesinin kapanması
-  // ve imleç kayıpları %100 engellenir.
-  const activeEl = document.activeElement;
-  const isUserEditing = activeEl && (
-    activeEl.classList?.contains('page-body-box') ||
-    activeEl.id === 'editor-content' ||
-    activeEl.isContentEditable ||
-    (activeEl.closest && activeEl.closest('.page-body-box')) ||
-    (activeEl.closest && activeEl.closest('#editor-content'))
-  );
-  if (isUserEditing) {
+  // Sanal klavyenin açık olduğu veya kullanıcının aktif yazı yazdığı / imlecin içeride olduğu
+  // anlarda DOM ağacı (container.innerHTML = '') ASLA yıkılmaz.
+  // Bu sayede Android IME odak kaybı ve klavye kapanması %100 engellenir.
+  if (isEditorFocused()) {
     const container = document.getElementById('pages-container') || document.getElementById('sheet-container');
     if (container) {
       const currentBoxes = Array.from(container.querySelectorAll('.page-body-box'));
@@ -1594,10 +1621,15 @@ function initPinchToZoom() {
     }
   });
 
+  let lastRecordedWidth = window.innerWidth;
   window.addEventListener('resize', () => {
-    // Sanal klavye açıldığında veya kullanıcı düzenleme yaparken odak kaybını ve klavye kapanmasını engelle
-    const active = document.activeElement;
-    if (active && (active.classList?.contains('page-body-box') || active.id === 'editor-content' || active.isContentEditable || active.closest?.('.page-body-box'))) {
+    // Sanal klavye açıldığında/kapandığında yalnızca innerHeight değişir, innerWidth DEĞİŞMEZ!
+    // Bu durumda zoom veya sayfalama tetiklemek klavyenin anında kapanmasına yol açar.
+    if (Math.abs(window.innerWidth - lastRecordedWidth) < 15) {
+      return;
+    }
+    lastRecordedWidth = window.innerWidth;
+    if (isEditorFocused()) {
       return;
     }
     if (isFitMode && !isMobileView) {

@@ -513,7 +513,7 @@ select {
 /* ETKİLEŞİMLİ VE HER ZAMAN EKRANIN ÜSTÜNDE SABİT CETVEL */
 .ruler-container {
   width: 100%;
-  height: 44px; /* Dokunmatik ekranlarda ve mobilde rahat etkileşim için ergonomik yükseklik */
+  height: 48px; /* Dokunmatik ekranlarda ve mobilde rahat etkileşim için ergonomik yükseklik */
   background-color: #F8FAFC;
   border-top: 1px solid #E2E8F0;
   border-bottom: 2px solid #94A3B8;
@@ -522,7 +522,7 @@ select {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.10);
   position: sticky;
   top: 0;
-  z-index: 100;
+  z-index: 95;
   display: flex;
   justify-content: center;
   transition: opacity 0.2s;
@@ -530,23 +530,19 @@ select {
   touch-action: pan-y;
 }
 
-.ruler-container.hidden {
+.ruler-container.hidden,
+#page-wrapper.mobile-view .ruler-container,
+.mobile-view .ruler-container {
   display: none !important;
 }
 
 .ruler-body {
   display: flex;
-  width: var(--sheet-width, 794px);
+  width: 100%;
   max-width: 100%;
   height: 100%;
   position: relative;
   box-sizing: border-box;
-}
-
-#page-wrapper.mobile-view ~ .ruler-container .ruler-body,
-.mobile-view .ruler-body {
-  width: 100% !important;
-  max-width: 100% !important;
 }
 
 /* Cetvel Sekme Durağı (Tab Stop) */
@@ -2596,6 +2592,13 @@ body.in-android #desktop-app-footer {
     gap: 2px !important;
   }
 
+  #select-font-family {
+    max-width: 135px !important;
+    min-width: 100px !important;
+    font-size: 11.5px !important;
+    padding: 3px 6px !important;
+  }
+
   .mobile-quick-formatting {
     display: flex !important;
     align-items: center !important;
@@ -2603,9 +2606,28 @@ body.in-android #desktop-app-footer {
     margin-left: auto !important;
   }
 
-  /* Cetvel Mobilde Sticky ve 44px */
+  /* Chevron Genişletme Düğmesi (e-UDF stili öne çıkan buton) */
+  .chevron-toggle-btn {
+    background: #FEF3C7 !important;
+    color: #D97706 !important;
+    border: 1px solid #FCD34D !important;
+    font-weight: bold !important;
+    padding: 3px 10px !important;
+    border-radius: 6px !important;
+  }
+
+  /* Cetvel Mobilde Sticky ve 48px Dokunmatik Uyumlu */
   .ruler-container {
-    height: 44px !important;
+    height: 48px !important;
+  }
+  .ruler-number {
+    font-size: 10.5px !important;
+    font-weight: 700 !important;
+    color: #334155 !important;
+  }
+  .ruler-marker::before {
+    width: 48px !important;
+    height: 48px !important;
   }
 }
 

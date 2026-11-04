@@ -2987,6 +2987,8 @@ async function triggerSavePdf() {
   await triggerSaveAs("pdf");
 }
 window.triggerSavePdf = triggerSavePdf;
+window.triggerSaveAs = triggerSaveAs;
+window.triggerShareFormat = triggerShareFormat;
 
 async function triggerShareFormat(format) {
   let base = (document.getElementById("desktopDocTitle")?.value || window.currentDocFileName || (typeof currentDocFileName !== 'undefined' ? currentDocFileName : '') || "Dilekce").trim();

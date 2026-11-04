@@ -444,6 +444,20 @@ public class EditorActivity extends Activity {
                 currentFile = targetFile;
                 markPristineOnUi();
 
+                // Kullanıcının dosyayı Dosyalarım/İndirilenler klasöründe rahatça bulabilmesi için UYAP_Belgelerim klasörüne de eşzamanla
+                try {
+                    File pubDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "UYAP_Belgelerim");
+                    pubDir.mkdirs();
+                    if (pubDir.exists() && pubDir.canWrite()) {
+                        File pubFile = new File(pubDir, targetFile.getName());
+                        copyFile(targetFile, pubFile);
+                        pubFile.setReadable(true, false);
+                        try {
+                            android.media.MediaScannerConnection.scanFile(EditorActivity.this, new String[]{pubFile.getAbsolutePath()}, null, null);
+                        } catch (Exception ignored) {}
+                    }
+                } catch (Exception ignored) {}
+
                 runOnUiThread(() -> {
                     etDocTitle.setText(targetFile.getName());
                     if (!isDocx) {
@@ -451,7 +465,7 @@ public class EditorActivity extends Activity {
                     }
                     String time = new SimpleDateFormat("HH:mm", Locale.getDefault()).format(new Date());
                     tvSaveStatus.setText("✓ " + (isDocx ? "DOCX" : "UDF") + " Kaydedildi (" + time + ")");
-                    Toast.makeText(EditorActivity.this, "✓ " + targetFile.getName() + " kaydedildi!", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(EditorActivity.this, "✓ " + targetFile.getName() + " İndirilenler/UYAP_Belgelerim klasörüne kaydedildi!", Toast.LENGTH_SHORT).show();
 
                     if (andOpenInDesktop) {
                         openInDesktopUyap(targetFile.getAbsolutePath());
@@ -604,7 +618,7 @@ public class EditorActivity extends Activity {
         popup.setOnMenuItemClickListener(item -> {
             switch (item.getItemId()) {
                 case 1:
-                    saveAsPdfFile(true);
+                    editorWebView.evaluateJavascript("triggerShareFormat('pdf');", null);
                     return true;
                 case 2:
                     shareAsUdf();
@@ -1339,6 +1353,17 @@ public class EditorActivity extends Activity {
             docModified = modified;
         }
 
+        @JavascriptInterface
+        public void onViewModeChanged(boolean isMobile) {
+            runOnUiThread(() -> {
+                Button btnToggle = findViewById(R.id.btnToggleView);
+                if (btnToggle != null) {
+                    btnToggle.setText(isMobile ? "🖥️" : "📱");
+                    btnToggle.setContentDescription(isMobile ? "Kağıt Görünümüne Geç" : "Mobil Görünüme Geç");
+                }
+            });
+        }
+
         // ---- Dahili güncelleyici (updater.js) ----
         @JavascriptInterface
         public void requestSave() {
@@ -1575,15 +1600,27 @@ public class EditorActivity extends Activity {
                 try {
                     byte[] bytes = Base64.decode(base64Data, Base64.DEFAULT);
                     File targetDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "UYAP_Belgelerim");
-                    if (!targetDir.exists()) targetDir.mkdirs();
+                    if (!targetDir.exists()) {
+                        targetDir.mkdirs();
+                    }
+                    if (!targetDir.exists() || !targetDir.canWrite()) {
+                        targetDir = getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
+                    }
+                    if (targetDir == null) {
+                        targetDir = getFilesDir();
+                    }
+                    targetDir.mkdirs();
                     File targetFile = new File(targetDir, fileName);
                     try (FileOutputStream fos = new FileOutputStream(targetFile)) {
                         fos.write(bytes);
                         fos.flush();
                     }
                     targetFile.setReadable(true, false);
+                    try {
+                        android.media.MediaScannerConnection.scanFile(EditorActivity.this, new String[]{targetFile.getAbsolutePath()}, new String[]{mimeType}, null);
+                    } catch (Exception ignored) {}
                     tvSaveStatus.setText("✓ " + fileName + " Kaydedildi");
-                    Toast.makeText(EditorActivity.this, "✓ " + fileName + " Downloads/UYAP_Belgelerim klasörüne kaydedildi!", Toast.LENGTH_LONG).show();
+                    Toast.makeText(EditorActivity.this, "✓ " + fileName + " İndirilenler/UYAP_Belgelerim klasörüne kaydedildi!", Toast.LENGTH_LONG).show();
                 } catch (Exception e) {
                     Toast.makeText(EditorActivity.this, "Kayıt hatası: " + e.getMessage(), Toast.LENGTH_SHORT).show();
                 }
