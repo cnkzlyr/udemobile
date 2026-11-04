@@ -3,11 +3,11 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="#F0F2F5"
+    android:background="#FFFFFF"
     android:descendantFocusability="afterDescendants"
-    android:fitsSystemWindows="true">
+    android:fitsSystemWindows="false">
 
-    <!-- Üst Eylem Çubuğu (Responsive, Ergonomik, Taşmayan Akıllı Bar) -->
+    <!-- Üst Eylem Çubuğu (Web Başlığı e-UDF Standardında Tam Ekran Gösterilecektir) -->
     <LinearLayout
         android:id="@+id/editorTopBar"
         android:layout_width="match_parent"
@@ -17,6 +17,7 @@
         android:gravity="center_vertical"
         android:paddingStart="4dp"
         android:paddingEnd="4dp"
+        android:visibility="gone"
         android:elevation="4dp">
 
         <!-- Geri Butonu -->
@@ -128,7 +129,7 @@
 
     </LinearLayout>
 
-    <!-- A4 / Mobil Görünüm WebView -->
+    <!-- A4 / Mobil Görünüm WebView (Tam Ekran) -->
     <WebView
         android:id="@+id/editorWebView"
         android:layout_width="match_parent"
@@ -144,6 +145,7 @@
         android:gravity="center_vertical"
         android:paddingStart="14dp"
         android:paddingEnd="14dp"
+        android:visibility="gone"
         android:elevation="2dp">
 
         <TextView

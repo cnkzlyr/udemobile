@@ -3,6 +3,7 @@ package com.agy.uyapacici;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.ComponentName;
+import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
 import android.database.Cursor;
@@ -10,10 +11,12 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.pdf.PdfRenderer;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.CancellationSignal;
 import android.os.Environment;
 import android.os.ParcelFileDescriptor;
+import android.provider.MediaStore;
 import android.provider.OpenableColumns;
 import android.print.PageRange;
 import android.print.PrintAttributes;
@@ -129,6 +132,11 @@ public class EditorActivity extends Activity {
     }
 
     private void setupWebView() {
+        editorWebView.setFocusable(true);
+        editorWebView.setFocusableInTouchMode(true);
+        editorWebView.requestFocus();
+        editorWebView.requestFocusFromTouch();
+
         WebSettings settings = editorWebView.getSettings();
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
@@ -145,7 +153,14 @@ public class EditorActivity extends Activity {
                 isPageLoaded = true;
                 editorWebView.evaluateJavascript("document.body.classList.add('in-android');", null);
                 if (pendingHtmlToLoad != null) {
-                    injectHtmlContent(pendingHtmlToLoad);
+                    if (pendingHtmlToLoad.startsWith("BYTES:")) {
+                        String[] parts = pendingHtmlToLoad.substring(6).split(":", 2);
+                        if (parts.length == 2) {
+                            editorWebView.evaluateJavascript("openDocumentFromBytes('" + parts[1] + "', '" + parts[0] + "');", null);
+                        }
+                    } else {
+                        injectHtmlContent(pendingHtmlToLoad);
+                    }
                     pendingHtmlToLoad = null;
                 }
                 if (pendingSigJson != null) {
@@ -257,16 +272,18 @@ public class EditorActivity extends Activity {
 
                         if (isDocx) {
                             payload = DocxEngine.readDocxToHtml(currentFile);
-                        } else if (isPdf) {
-                            payload = readPdfToPayload(currentFile);
-                        } else if (isTiff || isOdt) {
+                        } else if (isPdf || isTiff || isOdt) {
                             byte[] bytes = java.nio.file.Files.readAllBytes(currentFile.toPath());
                             String base64 = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP);
                             final String fBase64 = base64;
                             final String fName = currentFile.getName();
                             runOnUiThread(() -> {
-                                editorWebView.evaluateJavascript("openDocumentFromBytes('" + fBase64 + "', '" + fName + "');", null);
-                                tvSaveStatus.setText("✓ Yüklendi");
+                                if (isPageLoaded) {
+                                    editorWebView.evaluateJavascript("openDocumentFromBytes('" + fBase64 + "', '" + fName + "');", null);
+                                    tvSaveStatus.setText("✓ Yüklendi");
+                                } else {
+                                    pendingHtmlToLoad = "BYTES:" + fName + ":" + fBase64;
+                                }
                             });
                             return;
                         } else {
@@ -468,15 +485,20 @@ public class EditorActivity extends Activity {
 
                 // Kullanıcının dosyayı Dosyalarım/İndirilenler klasöründe rahatça bulabilmesi için UYAP_Belgelerim klasörüne de eşzamanla
                 try {
-                    File pubDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "UYAP_Belgelerim");
-                    pubDir.mkdirs();
-                    if (pubDir.exists() && pubDir.canWrite()) {
-                        File pubFile = new File(pubDir, targetFile.getName());
-                        copyFile(targetFile, pubFile);
-                        pubFile.setReadable(true, false);
-                        try {
-                            android.media.MediaScannerConnection.scanFile(EditorActivity.this, new String[]{pubFile.getAbsolutePath()}, null, null);
-                        } catch (Exception ignored) {}
+                    byte[] targetBytes = java.nio.file.Files.readAllBytes(targetFile.toPath());
+                    String mime = isDocx ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document" : "application/octet-stream";
+                    boolean msOk = writeToDownloadsMediaStore(targetFile.getName(), mime, targetBytes);
+                    if (!msOk) {
+                        File pubDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "UYAP_Belgelerim");
+                        pubDir.mkdirs();
+                        if (pubDir.exists() && pubDir.canWrite()) {
+                            File pubFile = new File(pubDir, targetFile.getName());
+                            copyFile(targetFile, pubFile);
+                            pubFile.setReadable(true, false);
+                            try {
+                                android.media.MediaScannerConnection.scanFile(EditorActivity.this, new String[]{pubFile.getAbsolutePath()}, null, null);
+                            } catch (Exception ignored) {}
+                        }
                     }
                 } catch (Exception ignored) {}
 
@@ -1369,6 +1391,36 @@ public class EditorActivity extends Activity {
         }).start();
     }
 
+    private boolean writeToDownloadsMediaStore(String fileName, String mimeType, byte[] bytes) {
+        if (Build.VERSION.SDK_INT >= 29) {
+            try {
+                ContentValues values = new ContentValues();
+                values.put(MediaStore.MediaColumns.DISPLAY_NAME, fileName);
+                values.put(MediaStore.MediaColumns.MIME_TYPE, mimeType != null ? mimeType : "application/octet-stream");
+                values.put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/UYAP_Belgelerim");
+                values.put(MediaStore.MediaColumns.IS_PENDING, 1);
+
+                Uri collection = MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY);
+                Uri itemUri = getContentResolver().insert(collection, values);
+                if (itemUri != null) {
+                    try (OutputStream os = getContentResolver().openOutputStream(itemUri)) {
+                        if (os != null) {
+                            os.write(bytes);
+                            os.flush();
+                        }
+                    }
+                    values.clear();
+                    values.put(MediaStore.MediaColumns.IS_PENDING, 0);
+                    getContentResolver().update(itemUri, values, null, null);
+                    return true;
+                }
+            } catch (Exception e) {
+                // MediaStore hatası durumunda dosya sistemine devam et
+            }
+        }
+        return false;
+    }
+
     private class EditorBridge {
         @JavascriptInterface
         public void setDocModified(boolean modified) {
@@ -1386,9 +1438,14 @@ public class EditorActivity extends Activity {
             });
         }
 
-        // ---- Dahili güncelleyici (updater.js) ----
+        // ---- Dahili güncelleyici (updater.js) ve Hızlı Kaydet ----
         @JavascriptInterface
         public void requestSave() {
+            runOnUiThread(() -> saveDocument(false, false));
+        }
+
+        @JavascriptInterface
+        public void quickSave() {
             runOnUiThread(() -> saveDocument(false, false));
         }
 
@@ -1600,7 +1657,7 @@ public class EditorActivity extends Activity {
                     byte[] bytes = Base64.decode(base64Data, Base64.DEFAULT);
                     File shareDir = getExternalCacheDir();
                     if (shareDir == null) {
-                        shareDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "CanEditor");
+                        shareDir = getCacheDir();
                     }
                     shareDir.mkdirs();
                     File shareFile = new File(shareDir, fileName);
@@ -1621,26 +1678,33 @@ public class EditorActivity extends Activity {
             runOnUiThread(() -> {
                 try {
                     byte[] bytes = Base64.decode(base64Data, Base64.DEFAULT);
-                    File targetDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "UYAP_Belgelerim");
-                    if (!targetDir.exists()) {
-                        targetDir.mkdirs();
-                    }
-                    if (!targetDir.exists() || !targetDir.canWrite()) {
-                        targetDir = getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
-                    }
-                    if (targetDir == null) {
-                        targetDir = getFilesDir();
-                    }
-                    targetDir.mkdirs();
-                    File targetFile = new File(targetDir, fileName);
-                    try (FileOutputStream fos = new FileOutputStream(targetFile)) {
-                        fos.write(bytes);
-                        fos.flush();
-                    }
-                    targetFile.setReadable(true, false);
+                    boolean mediaStoreOk = writeToDownloadsMediaStore(fileName, mimeType, bytes);
+
+                    // Ayrıca doğrudan erişim ve uygulama içi açılışlar için uygulama klasörüne yedekle
                     try {
-                        android.media.MediaScannerConnection.scanFile(EditorActivity.this, new String[]{targetFile.getAbsolutePath()}, new String[]{mimeType}, null);
+                        File extDir = getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
+                        if (extDir != null) {
+                            File backupFile = new File(extDir, fileName);
+                            try (FileOutputStream fos = new FileOutputStream(backupFile)) {
+                                fos.write(bytes);
+                                fos.flush();
+                            }
+                        }
                     } catch (Exception ignored) {}
+
+                    if (!mediaStoreOk) {
+                        File targetDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "UYAP_Belgelerim");
+                        targetDir.mkdirs();
+                        File targetFile = new File(targetDir, fileName);
+                        try (FileOutputStream fos = new FileOutputStream(targetFile)) {
+                            fos.write(bytes);
+                            fos.flush();
+                        }
+                        targetFile.setReadable(true, false);
+                        try {
+                            android.media.MediaScannerConnection.scanFile(EditorActivity.this, new String[]{targetFile.getAbsolutePath()}, new String[]{mimeType}, null);
+                        } catch (Exception ignored) {}
+                    }
                     tvSaveStatus.setText("✓ " + fileName + " Kaydedildi");
                     Toast.makeText(EditorActivity.this, "✓ " + fileName + " İndirilenler/UYAP_Belgelerim klasörüne kaydedildi!", Toast.LENGTH_LONG).show();
                 } catch (Exception e) {

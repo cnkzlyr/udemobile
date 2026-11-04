@@ -175,9 +175,12 @@ document.addEventListener('DOMContentLoaded', () => {
   document.addEventListener('selectionchange', () => {
     recordCurrentSelection();
     updateActiveButtons();
-    updateRulerFromActiveParagraph();
-    if (!isFormatPainterActive) {
-      setTimeout(updateFloatingContextMenu, 120);
+    // Yazma esnasında (IME etkinken) cetvel DOM ağacını bozarak ve yüzen menüyü açarak klavyenin kapanmasını engelle
+    if (!isUserTypingActive()) {
+      updateRulerFromActiveParagraph();
+      if (!isFormatPainterActive) {
+        setTimeout(updateFloatingContextMenu, 120);
+      }
     }
   });
 
@@ -1653,22 +1656,13 @@ function initPinchToZoom() {
   });
 }
 
-// Cetvel genişliğini kağıt ölçeğine veya mobil ekrana eşitle
+// Cetvel genişliğini ekrana tam oturacak şekilde ayarla (e-UDF standardı)
 function updateRulerBodyWidth() {
   const rulerBody = document.getElementById('ruler-body');
   if (!rulerBody) return;
-  if (isMobileView) {
-    rulerBody.style.width = '100%';
-    rulerBody.style.maxWidth = '100%';
-    rulerBody.style.margin = '0';
-  } else {
-    const isLandscape = currentMargins.orientation === 'landscape';
-    const pageW = isLandscape ? 1123 : 794;
-    const w = Math.round(pageW * currentZoom);
-    rulerBody.style.width = Math.min(window.innerWidth, w) + 'px';
-    rulerBody.style.maxWidth = '100%';
-    rulerBody.style.margin = '0 auto';
-  }
+  rulerBody.style.width = '100%';
+  rulerBody.style.maxWidth = '100%';
+  rulerBody.style.margin = '0';
 }
 window.updateRulerBodyWidth = updateRulerBodyWidth;
 
@@ -1680,12 +1674,18 @@ function initRuler() {
 
   const isLandscape = currentMargins.orientation === 'landscape';
   const totalPageCm = isLandscape ? 29.7 : 21.0;
-  const activeCm = Math.max(5, totalPageCm - (currentMargins.left || 2.5) - (currentMargins.right || 2.5));
+  const leftCm = (currentMargins.left !== undefined) ? currentMargins.left : 2.5;
+  const rightCm = (currentMargins.right !== undefined) ? currentMargins.right : 2.5;
+  const activeCm = Math.max(5, totalPageCm - leftCm - rightCm);
   const totalMm = Math.round(activeCm * 10);
+
+  const leftPct = (leftCm / totalPageCm) * 100;
+  const rightPct = (rightCm / totalPageCm) * 100;
 
   // Kenar boşluklarındaki negatif ve uzantı ölçeklerini yaz
   const leftMarginBox = document.querySelector('.ruler-margin-left');
   if (leftMarginBox) {
+    leftMarginBox.style.width = leftPct.toFixed(2) + '%';
     leftMarginBox.innerHTML = '';
     const span2 = document.createElement('span');
     span2.className = 'ruler-margin-num';
@@ -1699,6 +1699,7 @@ function initRuler() {
 
   const rightMarginBox = document.querySelector('.ruler-margin-right');
   if (rightMarginBox) {
+    rightMarginBox.style.width = rightPct.toFixed(2) + '%';
     rightMarginBox.innerHTML = '';
     const spanR1 = document.createElement('span');
     spanR1.className = 'ruler-margin-num';
@@ -2014,6 +2015,7 @@ function setupTabStopDragging(marker, originalCm, activeCm) {
 }
 
 function renderTabStopsOnRuler() {
+  if (isUserTypingActive()) return;
   const scale = document.getElementById('ruler-scale');
   if (!scale) return;
   scale.querySelectorAll('.ruler-tab-stop').forEach(el => el.remove());

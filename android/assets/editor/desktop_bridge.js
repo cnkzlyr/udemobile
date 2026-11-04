@@ -2445,11 +2445,14 @@ async function openPdfViewer(arrayBuffer, fileName = "Belge.pdf") {
   }
 
   try {
-    if (typeof pdfjsLib === "undefined") {
+    const pdfLib = (typeof pdfjsLib !== "undefined") ? pdfjsLib : (window["pdfjs-dist/build/pdf"] || window.pdfjs);
+    if (!pdfLib) {
       throw new Error("PDF görüntüleme motoru (pdf.min.js) bulunamadı.");
     }
-    pdfjsLib.GlobalWorkerOptions.workerSrc = "pdf.worker.min.js";
-    const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+    if (pdfLib.GlobalWorkerOptions) {
+      pdfLib.GlobalWorkerOptions.workerSrc = "pdf.worker.min.js";
+    }
+    const loadingTask = pdfLib.getDocument({ data: arrayBuffer });
     currentPdfDoc = await loadingTask.promise;
     currentPdfTotalPages = currentPdfDoc.numPages || 1;
 
@@ -2725,7 +2728,23 @@ async function openDocumentFromBytes(buffer, name, path) {
   if (statusEl) statusEl.innerText = "Belge okunuyor...";
 
   try {
-    const arrayBuffer = buffer instanceof ArrayBuffer ? buffer : (buffer.buffer ? buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength) : new Uint8Array(buffer).buffer);
+    let arrayBuffer;
+    if (typeof buffer === "string") {
+      const cleanB64 = buffer.replace(/\s+/g, '');
+      const binaryStr = atob(cleanB64);
+      const len = binaryStr.length;
+      const bytes = new Uint8Array(len);
+      for (let i = 0; i < len; i++) {
+        bytes[i] = binaryStr.charCodeAt(i);
+      }
+      arrayBuffer = bytes.buffer;
+    } else if (buffer instanceof ArrayBuffer) {
+      arrayBuffer = buffer;
+    } else if (buffer && buffer.buffer) {
+      arrayBuffer = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
+    } else {
+      arrayBuffer = new Uint8Array(buffer || 0).buffer;
+    }
     currentDocOriginalBuffer = arrayBuffer.slice(0);
     const lowerName = fileName.toLowerCase();
 

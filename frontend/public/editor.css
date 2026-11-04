@@ -584,6 +584,11 @@ select {
   background-color: #ECEFF1;
   border-right: 1px solid #CFD8DC;
   flex-shrink: 0;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-around !important;
+  box-sizing: border-box !important;
+  padding: 0 2px !important;
   transition: width 0.15s ease;
 }
 
@@ -592,6 +597,11 @@ select {
   background-color: #ECEFF1;
   border-left: 1px solid #CFD8DC;
   flex-shrink: 0;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-around !important;
+  box-sizing: border-box !important;
+  padding: 0 2px !important;
   transition: width 0.15s ease;
 }
 
@@ -2206,9 +2216,12 @@ mark.udv-search-highlight {
    ANDROID & MOBİL CİHAZ UYUMLULUK VE ERGONOMİ DÜZENLEMELERİ (v3.6.6)
    ========================================================================= */
 
-/* Android WebView içinde yerel üst ve alt bar olduğu için web masaüstü başlık ve altlığını gizle */
+/* Android WebView ve Mobil Ekranlarda e-UDF Standardı Kompakt Üst Başlık */
 body.is-android #desktop-app-header,
-body.in-android #desktop-app-header,
+body.in-android #desktop-app-header {
+  display: flex !important;
+}
+
 body.is-android #desktop-app-footer,
 body.in-android #desktop-app-footer {
   display: none !important;
@@ -2254,12 +2267,12 @@ body.in-android #desktop-app-footer {
   height: 44px !important;
 }
 
-/* Dokunmatik Ekranlarda Parmakla Kolay Tutulabilir Genişletilmiş Vurma Alanı (44x44px Hitbox) */
+/* Dokunmatik Ekranlarda Parmakla Kolay Tutulabilir Genişletilmiş Vurma Alanı (48x48px Hitbox) */
 .ruler-marker {
   touch-action: none !important;
   user-select: none !important;
   cursor: col-resize !important;
-  z-index: 35 !important;
+  z-index: 55 !important;
 }
 .ruler-marker::before {
   content: "";
@@ -2267,8 +2280,8 @@ body.in-android #desktop-app-footer {
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
-  width: 44px;
-  height: 44px;
+  width: 48px !important;
+  height: 48px !important;
   background: transparent;
   pointer-events: auto;
 }
@@ -2517,9 +2530,13 @@ body.in-android #desktop-app-footer {
 }
 
 .app-logo-badge {
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 800;
-  color: #0284C7;
+  color: #FFFFFF;
+  background: linear-gradient(135deg, #DC2626 0%, #B91C1C 100%);
+  padding: 4px 10px;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(220, 38, 38, 0.25);
   display: flex;
   align-items: center;
   gap: 4px;
@@ -2533,8 +2550,9 @@ body.in-android #desktop-app-footer {
   background: #F1F5F9;
   border: 1px solid #CBD5E1;
   border-radius: 9999px;
-  padding: 2px 4px;
-  gap: 2px;
+  padding: 2px 6px;
+  gap: 3px;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 
 .header-pill-btn {
@@ -2765,8 +2783,8 @@ body.in-android #desktop-app-footer {
     color: #334155 !important;
   }
   .ruler-marker::before {
-    width: 44px !important;
-    height: 44px !important;
+    width: 48px !important;
+    height: 48px !important;
   }
 }
 

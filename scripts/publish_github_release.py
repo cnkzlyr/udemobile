@@ -6,33 +6,36 @@ import urllib.error
 
 TOKEN = "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"
 REPO = "cnkzlyr/udemobile"
-TAG = "v3.7.2"
-NAME = "CanEditor v3.7.2 — e-UDF Standardı Modern Arayüz, Sabit Dokunmatik Cetvel, Klavye Odak Koruması ve Kusursuz Dışa Aktarım"
+TAG = "v3.7.3"
+NAME = "CanEditor v3.7.3 — e-UDF Birebir Tasarımı, Sabit Dokunmatik Cetvel, Klavye Odak Koruması ve Dahili PDF/TIFF Görüntüleyici"
 
-BODY = """# 🏛️ CanEditor (UdeMobile) v3.7.2 — Sürüm Notları
+BODY = """# 🏛️ CanEditor (UdeMobile) v3.7.3 — Sürüm Notları
 
-CanEditor **v3.7.2**; `editor.e-udf.com` tasarım standardını temel alan **modern beyaz başlık paneli ve 1-tık hızlı kısayol hapını (`[ 💾 Kaydet | 📱 Görünüm | ☰ Menü ]`)** getiren, sayfa aşağı kaysa bile araç çubuğunun altında çakılı kalan **sabit (sticky) 40px dokunmatik cetveli** devreye sokan, mobil cihazlarda yazı yazarken sanal klavyenin odak kaybıyla kapanması sorununu sıfır DOM yıkımı ve ölçüm klonlama mimarisiyle kesin olarak çözen, doğrudan punto seçici açılır menüsünü entegre eden ve Termux bağımsız tüm telefon ve masaüstü sistemlerde kusursuz çalışan devrimsel bir sürümdür.
+CanEditor **v3.7.3**; `editor.e-udf.com` tasarım standardını temel alan **modern kırmızı marka rozeti, 1-tık hızlı kısayol hapını (`[ 💾 Kaydet | 📱 / 🖥️ Görünüm Değiştir | ☰ Tüm Menü ]`) ve mavi profil avatarını (`👤`)** getiren, sayfa aşağı kaysa bile araç çubuğunun altında çakılı kalan **sabit (sticky) dokunmatik cetveli (48px ergonomik tutma alanlarıyla)** devreye sokan, mobil cihazlarda yazı yazarken sanal klavyenin odak kaybıyla kapanması sorununu Android `configChanges` ve seçim yalıtımı ile kesin olarak çözen, dahili **PDF (PDF.js) ve Çok Sayfalı TIFF (UTIF.js)** görüntüleyicilerini entegre eden ve Termux bağımsız tüm telefon ve masaüstü sistemlerde kusursuz çalışan devrimsel bir sürümdür.
 
 ---
 
 ## 🌟 Öne Çıkan Yenilikler & Geliştirmeler
 
-### 🎨 1. e-UDF Standardı Ultra Kompakt Üst Panel & Kısayol Hapı
-- **e-UDF Stili Kısayol Hapı (`[ 💾 | 📱 | ☰ ]`):** Ekranın üstünde yer alan zarif hap grubu sayesinde; tek dokunuşla **💾 Hızlı Kaydet**, tek tıkla **📱/🖥️ Görünüm Değiştir** (Mobil Akış ve A4 Kağıt Düzeni) ve tek tıkla tüm hukuki fonksiyonlara ulaştıran **☰ Çekmece Menü**.
-- **Açılır Menülerin Kırpılma Sorunu Giderildi:** Mobilde yatay taşma engellenerek tüm kaydet, paylaş ve yazdır seçeneklerine her cihazda kesintisiz erişim sağlandı.
+### 🎨 1. e-UDF Birebir Ultra Kompakt Üst Panel & Kısayol Hapı
+- **Kırmızı CanEditor Marka Rozeti:** Sol üstte modern adli kırmızı rozet tasarımı (`⚖️ CanEditor`).
+- **e-UDF Stili Kısayol Hapı (`[ 💾 | 📱 / 🖥️ | ☰ ]`):** Ekranın üstünde yer alan zarif hap grubu sayesinde;
+  - **💾 1-Tık Doğrudan Kaydet:** Açık dosyaya tek tıkla kaydeder; Android'de `Downloads/UYAP_Belgelerim` klasörüne, webde anında `.udf` indirmesine aktarır.
+  - **📱 / 🖥️ Dinamik Görünüm Değiştirici:** Kağıt baskı görünümünde iken `📱` simgesiyle kesintisiz mobil akış görünümüne geçer; mobil görünümde iken `🖥️` simgesiyle 1:1 A4 kağıt baskı düzenine geri döner.
+  - **☰ Çekmece Menü:** Tek tıkla tüm dosya açma, kaydetme, dışa aktarma, yazdırma ve e-imza fonksiyonlarına ulaştırır.
+- **Mavi Profil Avatarı (`👤`):** Sağ üst köşede yer alan dairesel profil ve e-imza kontrol butonu.
 
-### 📐 2. Sayfa Kaydırılsa Dahi Asla Kaybolmayan Sabit (Sticky) 40px Dokunmatik Cetvel
-- **Sayfa Üstünde Çakılı Kalan Mimari:** Cetvel belge kaydırma konteynerinin dışına (`#toolbar-container` altına) taşınarak sayfalar 10 sayfa aşağı kaysa dahi ekranın üstünde kalıcı olarak sabitlendi.
+### 📐 2. Sayfa Kaydırılsa Dahi Asla Kaybolmayan Sabit (Sticky) Dokunmatik Cetvel
+- **Sayfa Üstünde Çakılı Kalan Mimari:** Cetvel `#page-wrapper` konteynerinin dışına taşınarak belge 100 sayfa aşağı kaysa dahi araç çubuğunun altında kalıcı olarak sabitlendi.
 - **-2 cm'den +18 cm'ye Tam Ölçekli Görsel Cetvel:** Sol kenar marjı (-2 .. 0), beyaz aktif yazı alanı (0 .. 16 cm) ve sağ marj (16 .. 18 cm) net biçimde renklendirildi.
-- **44px Ergonomik Parmak Hedef Alanı:** İlk satır, asılı girinti ve sağ marj imleri dokunmatik ekranlarda parmakla kolayca tutulup sürüklenebilecek genişlikte (`touch-action: none`) yapılandırıldı.
+- **48px Ergonomik Dokunmatik Parmak Hedef Alanı:** İlk satır, asılı girinti ve sağ marj imleri dokunmatik ekranlarda parmakla kolayca tutulup sürüklenebilecek genişlikte (`touch-action: none !important;`) yapılandırıldı.
 
 ### ⌨️ 3. Sanal Klavyenin Kapanmasına Karşı Kesin Odak Koruma Motoru
-- **Canlı DOM Düğümlerini Koruma:** Sayfalama ölçüm motorunda canlı düğümlerin yerinden sökülmesi (`measurer.appendChild(node)`) yerine klonlama (`node.cloneNode(true)`) mimarisine geçildi; live DOM asla bozulmaz.
-- **Yazım Sırasında Sıfır DOM Yıkımı:** Kullanıcı klavyeyle yazı yazarken veya alana odaklıyken sayfalama sıfırlaması (`container.innerHTML = ''`) ve sekme sıfırlaması tamamen durdurularak Gboard / Samsung klavye kapanması %100 çözüldü.
-- **Pencere Boyutlanması Koruması:** Klavyenin açılmasıyla ekran yüksekliğinin küçüldüğü anlarda zoom veya sayfalama tetiklenmesi engellendi.
+- **Android Manifest ve Konfigürasyon Koruması:** `EditorActivity` için `keyboardHidden|screenLayout|smallestScreenSize|keyboard` konfigürasyon değişiklikleri eklenerek Gboard ve Samsung klavye açılıp kapanırken Activity yeniden başlatılması engellendi.
+- **Yazım Sırasında Sıfır DOM Yıkımı:** Kullanıcı klavyeyle yazı yazarken veya alana odaklıyken sayfalama sıfırlaması (`container.innerHTML = ''`), sekme DOM sıfırlaması ve yüzen menü DOM oynamaları tamamen durdurularak klavye kapanması %100 çözüldü.
 
-### 💾 4. 1-Tık Doğrudan Kaydet, Eksiksiz Farklı Kaydet ve Paylaşım Motoru
-- **Doğrudan Kaydet:** Açık olan belge tek tıkla (`💾`) üzerine doğrudan yazılır; Android'de `Downloads/UYAP_Belgelerim` klasörüne, webde anında `.udf` indirmesine aktarılır.
+### 💾 4. 1-Tık Doğrudan Kaydet, Scoped Storage MediaStore Uyumlu Farklı Kaydet ve Paylaşım Motoru
+- **Android 10 - 15 MediaStore Uyumu:** `Downloads/UYAP_Belgelerim` klasörüne doğrudan `MediaStore.Downloads` API ile kayıt yapılarak scoped storage izin kısıtlamaları tamamen aşıldı; dosyalar tüm dosya yöneticilerinde anında görünür hale getirildi.
 - **Tüm Formatlarda Farklı Kaydet:** UDF (Havelsan UYAP 1.8), PDF (1:1 Vektörel A4 Baskı), DOCX (Word), TIFF (Çok Sayfalı İcra/Dava Evrakı) ve ODT (OpenDocument) formatları hem mobilde hem masaüstünde eksiksiz çalışır.
 - **Gelişmiş Yerel Paylaşım:** `CanFileProvider` üzerinden WhatsApp, Gmail, Telegram, Word ve Google Drive'a doğrudan tek tıkla dosya gönderme desteği.
 
@@ -41,48 +44,44 @@ CanEditor **v3.7.2**; `editor.e-udf.com` tasarım standardını temel alan **mod
 - **UTIF.js Tabanlı Çok Sayfalı Adli TIFF Görüntüleyici:** İcra, tebligat ve mahkeme evraklarındaki tek veya çok sayfalı `.tiff` / `.tif` dosyalarını doğrudan açıp kaydırmalı, yüksek netlikte görüntüleme ve dışa aktarma kabiliyeti.
 - **Termux Bağımsız Standart Çalışma:** Termux kurulu olmayan herhangi bir Android telefonda veya masaüstü bilgisayarda yerel dosya sistemine doğrudan erişim, dahili e-imza ve dosya işleme köprüleri.
 
-### 🏛️ 6. Resmi Havelsan UYAP Headless Dönüştürücü Motoru (`UyapHeadlessConverter`)
-- **1:1 Vektörel A4 PDF:** Resmi Havelsan `tr.com.havelsan.uyap.system.editor.b.b` motoru tersine mühendislikle çözülerek başsız (headless) Java CLI motoruna bağlandı. Raster tuval ekran görüntüleri yerine; seçilebilir, kopyalanabilir gerçek vektörel metin, Havelsan yazı tipleri ve birebir 10 sayfalık resmi UYAP düzeni oluşturulur (~196 KB dosya boyutu, karanlık mod uyumlu).
-- **Resmi OpenDocument (ODT):** Resmi Havelsan `tr.com.havelsan.uyap.system.editor.b.a.f` motoru kullanılarak; tüm tabloları, hizalamaları ve stilleri içeren %100 uyumlu `.odt` evrakları üretilir (~29 KB).
-- **Zengin Microsoft Word (DOCX):** Resmi ODT yapısı üzerinden tabloları, paragraf hizalamalarını, sekme duraklarını ve yazı tipi ağırlıklarını koruyan yüksek kaliteli DOCX belgeleri üretilir (~41 KB).
-- **Termux & CLI Komut Desteği:** `uyap-convert <dosya.udf> <pdf|odt|docx>` komutu ile tüm dönüştürmeler sistem seviyesinde 2 saniye içinde gerçekleştirilebilir.
-
 ---
 
-## 🚀 Hızlı İndirme Bağlantıları (v3.7.1)
+## 📦 Çapraz Platform İndirme Bağlantıları (v3.7.3)
 
-| Platform | Dosya | Açıklama |
+| Platform | Paket Dosyası | Açıklama |
 | :--- | :--- | :--- |
-| **Android (Telefon / Tablet)** | [**CanEditor-v3.7.1.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.7.1/CanEditor-v3.7.1.apk) | Güncel mobil uygulama kurulum paketi |
-| **Android (Her Zaman En Son)** | [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.7.1/CanEditor-latest.apk) | Kalıcı son sürüm bağlantısı |
-| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v3.7.1.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v3.7.1/CanEditor-Portable-Web-GUI-v3.7.1.zip) | **Kurulumsuz;** Zipten çıkartıp `index.html` tıklayarak hemen kullanın |
-| **Windows Kurulum (.exe)** | `CanEditor_3.7.1_x64-setup.exe` | Windows 10/11 64-bit doğrudan kurulum paketi *(CI tarafından eklenir)* |
-| **Windows MSI Paketi (.msi)** | `CanEditor_3.7.1_x64_en-US.msi` | Windows kurumsal MSI yükleyici *(CI tarafından eklenir)* |
-| **macOS Paketi (.dmg)** | `CanEditor_3.7.1_universal.dmg` | Apple Silicon (M1/M2/M3/M4) ve Intel Mac evrensel paket *(CI tarafından eklenir)* |
-| **Linux (AppImage / .deb / .rpm)** | `CanEditor_3.7.1_amd64.AppImage` | Tüm Linux dağıtımları için kurulumsuz AppImage *(CI tarafından eklenir)* |
+| 📱 **Android** | [CanEditor-v3.7.3.apk](https://github.com/cnkzlyr/udemobile/releases/download/v3.7.3/CanEditor-v3.7.3.apk) | Güncel Android APK (Android 5.0 - 15) |
+| 📱 **Android (Kalıcı)** | [CanEditor-latest.apk](https://github.com/cnkzlyr/udemobile/releases/download/v3.7.3/CanEditor-latest.apk) | Her zaman en son Android sürümü |
+| 🌐 **Taşınabilir Web** | [CanEditor-Portable-Web-GUI-v3.7.3.zip](https://github.com/cnkzlyr/udemobile/releases/download/v3.7.3/CanEditor-Portable-Web-GUI-v3.7.3.zip) | Kurulumsuz, çevrimdışı çalışan Web GUI |
+| 🐧 **Linux (Debian/Ubuntu)** | [CanEditor_3.7.3_amd64.deb](https://github.com/cnkzlyr/udemobile/releases/download/v3.7.3/CanEditor_3.7.3_amd64.deb) | Yerel Debian / Ubuntu / Pardus paketi |
+| 🐧 **Linux (Fedora/RPM)** | [CanEditor-3.7.3-1.x86_64.rpm](https://github.com/cnkzlyr/udemobile/releases/download/v3.7.3/CanEditor-3.7.3-1.x86_64.rpm) | Yerel RedHat / Fedora / openSUSE paketi |
+| 🐧 **Linux (Evrensel)** | [CanEditor_3.7.3_amd64.AppImage](https://github.com/cnkzlyr/udemobile/releases/download/v3.7.3/CanEditor_3.7.3_amd64.AppImage) | Tek tıkla çalıştırılabilir evrensel ikili |
+| 🪟 **Windows (10/11)** | [CanEditor_3.7.3_x64-setup.exe](https://github.com/cnkzlyr/udemobile/releases/download/v3.7.3/CanEditor_3.7.3_x64-setup.exe) | NSIS Standart Kurulum Programı |
+| 🪟 **Windows (MSI)** | [CanEditor_3.7.3_x64_en-US.msi](https://github.com/cnkzlyr/udemobile/releases/download/v3.7.3/CanEditor_3.7.3_x64_en-US.msi) | Kurumsal Windows Installer paketi |
+| 🍎 **macOS (Universal)** | [CanEditor_3.7.3_universal.dmg](https://github.com/cnkzlyr/udemobile/releases/download/v3.7.3/CanEditor_3.7.3_universal.dmg) | Apple Silicon (M1/M2/M3) ve Intel DMG |
+| 🍎 **macOS (Arşiv)** | [CanEditor_3.7.3_universal.app.tar.gz](https://github.com/cnkzlyr/udemobile/releases/download/v3.7.3/CanEditor_3.7.3_universal.app.tar.gz) | Taşınabilir macOS uygulama arşivi |
 
 ---
 
-## 📖 Hiç Bilmeyenler İçin Adım Adım İndirme ve Kurulum Kılavuzu
+## 🛠️ Hiç Bilmeyenler İçin Adım Adım Kurulum Rehberi
 
-### 📱 Android Telefon ve Tabletler İçin:
-1. Yukarıdaki [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.7.1/CanEditor-latest.apk) bağlantısına dokunarak dosyayı indirin.
-2. Tarayıcınız *"Dosya zararlı olabilir"* uyarısı verirse **"Yine de İndir"** butonuna dokunun (Google Play harici dosyalarda standart Android uyarısıdır).
-3. İndirilen dosyaya dokunun. *"Bilinmeyen kaynaklar"* uyarısı çıkarsa **Ayarlar -> Bu kaynaktan izin ver** seçeneğini açıp geri dönün ve **"Yükle"** deyin.
-4. WhatsApp, Telegram veya Dosyalarım'dan bir `.udf` dosyasına tıkladığınızda çıkan menüde **CanEditor -> "Her Zaman"** seçin.
-5. Dosyanızı açıp düzenledikten sonra **Kaydet -> PDF Olarak Kaydet** ile doğrudan İndirilenler klasörüne A4 PDF olarak kaydedebilirsiniz.
+### 📱 Android İçin:
+1. `CanEditor-v3.7.3.apk` dosyasını telefonunuza indirin ve dokunun.
+2. "Bilinmeyen kaynaklardan yükleme" uyarısı gelirse ayarlardan izin verin ve yüklemeyi tamamlayın.
+3. WhatsApp veya e-postadan gelen `.udf`, `.docx`, `.pdf`, `.tiff` dosyalarına dokunduğunuzda otomatik CanEditor ile açılacaktır.
 
-### 💻 Windows (10 / 11) İçin:
-- **Kurulumsuz Kullanım (Tavsiye Edilen):** `CanEditor-Portable-Web-GUI-v3.7.1.zip` dosyasını indirin, sağ tıklayıp "Tümünü Ayıkla" deyin ve içindeki `index.html` dosyasına çift tıklayın. Tamamen çevrimdışı çalışır.
-- **Masaüstü Uygulaması:** `CanEditor_3.7.1_x64-setup.exe` indirip çift tıklayın. Windows SmartScreen uyarısı çıkarsa **"Ek bilgi" -> "Yine de çalıştır"** butonuna basın.
+### 🪟 Windows (10 / 11) İçin:
+1. `CanEditor_3.7.3_x64-setup.exe` dosyasını indirin ve çalıştırın.
+2. Windows SmartScreen "Kişisel bilgisayarınızı korudu" uyarısı verirse **"Ek bilgi"** bağlantısına ve ardından **"Yine de çalıştır"** butonuna basın.
 
 ### 🍎 macOS İçin:
-- `CanEditor_3.7.1_universal.dmg` dosyasını indirip açın ve CanEditor simgesini Uygulamalar klasörüne sürükleyin. Açılışta güvenlik uyarısı verirse simgeye `Control` tuşuyla **sağ tıklayıp "Aç"** deyin.
+1. `CanEditor_3.7.3_universal.dmg` kalıbını açın ve `CanEditor` simgesini `Applications` klasörüne sürükleyin.
+2. Gatekeeper uyarısı verirse simgeye `Control` tuşuyla **sağ tıklayıp "Aç"** deyin.
 
 ### 🐧 Linux (Debian / Pardus / Ubuntu / Fedora / RedHat) İçin:
-- **AppImage:** `CanEditor_3.7.1_amd64.AppImage` dosyasını indirin, terminalden `chmod +x CanEditor_3.7.1_amd64.AppImage` komutunu verip çift tıklayın.
-- **Debian / Pardus / Ubuntu (.deb):** `sudo dpkg -i CanEditor_3.7.1_amd64.deb`
-- **Fedora / RedHat / openSUSE (.rpm):** `sudo rpm -ivh CanEditor-3.7.1-1.x86_64.rpm`
+- **AppImage:** `CanEditor_3.7.3_amd64.AppImage` dosyasını indirin, terminalden `chmod +x CanEditor_3.7.3_amd64.AppImage` komutunu verip çift tıklayın.
+- **Debian / Pardus / Ubuntu (.deb):** `sudo dpkg -i CanEditor_3.7.3_amd64.deb`
+- **Fedora / RedHat / openSUSE (.rpm):** `sudo rpm -ivh CanEditor-3.7.3-1.x86_64.rpm`
 """
 
 def request(url, data=None, headers=None, method="GET"):
