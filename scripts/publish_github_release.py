@@ -53,41 +53,36 @@ CanEditor **v3.7.1**; harici uygulama gereksinimini ortadan kaldıran **Dahili P
 
 | Platform | Dosya | Açıklama |
 | :--- | :--- | :--- |
-| **Android (Güncel)** | [CanEditor-v3.7.1.apk](https://github.com/cnkzlyr/udemobile/releases/download/v3.7.1/CanEditor-v3.7.1.apk) | v3.7.1 APK paketi |
-| **Android (En Son)** | [CanEditor-latest.apk](https://github.com/cnkzlyr/udemobile/releases/download/v3.7.1/CanEditor-latest.apk) | Her zaman en son sürüm APK |
-| **Taşınabilir Web GUI** | [CanEditor-Portable-Web-GUI-v3.7.1.zip](https://github.com/cnkzlyr/udemobile/releases/download/v3.7.1/CanEditor-Portable-Web-GUI-v3.7.1.zip) | Kurulumsuz, çevrimdışı web sürümü |
-| **Windows / macOS / Linux** | [GitHub Releases](https://github.com/cnkzlyr/udemobile/releases/tag/v3.7.1) | GitHub Actions tarafından derlenen yerel ikililer (.exe, .msi, .dmg, .AppImage, .deb, .rpm) |
-"""
-| **Android (Telefon / Tablet)** | [**CanEditor-v3.6.5.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.6.5/CanEditor-v3.6.5.apk) | Güncel mobil uygulama kurulum paketi |
-| **Android (Her Zaman En Son)** | [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.6.5/CanEditor-latest.apk) | Kalıcı son sürüm bağlantısı |
-| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v3.6.5.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v3.6.5/CanEditor-Portable-Web-GUI-v3.6.5.zip) | **Kurulumsuz;** Zipten çıkartıp `index.html` tıklayarak hemen kullanın |
-| **Windows Kurulum (.exe)** | `CanEditor_3.6.5_x64-setup.exe` | Windows 10/11 64-bit doğrudan kurulum paketi *(CI tarafından eklenir)* |
-| **Windows MSI Paketi (.msi)** | `CanEditor_3.6.5_x64_en-US.msi` | Windows kurumsal MSI yükleyici *(CI tarafından eklenir)* |
-| **macOS Paketi (.dmg)** | `CanEditor_3.6.5_universal.dmg` | Apple Silicon (M1/M2/M3/M4) ve Intel Mac evrensel paket *(CI tarafından eklenir)* |
-| **Linux (AppImage / .deb / .rpm)** | `CanEditor_3.6.5_amd64.AppImage` | Tüm Linux dağıtımları için kurulumsuz AppImage *(CI tarafından eklenir)* |
+| **Android (Telefon / Tablet)** | [**CanEditor-v3.7.1.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.7.1/CanEditor-v3.7.1.apk) | Güncel mobil uygulama kurulum paketi |
+| **Android (Her Zaman En Son)** | [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.7.1/CanEditor-latest.apk) | Kalıcı son sürüm bağlantısı |
+| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v3.7.1.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v3.7.1/CanEditor-Portable-Web-GUI-v3.7.1.zip) | **Kurulumsuz;** Zipten çıkartıp `index.html` tıklayarak hemen kullanın |
+| **Windows Kurulum (.exe)** | `CanEditor_3.7.1_x64-setup.exe` | Windows 10/11 64-bit doğrudan kurulum paketi *(CI tarafından eklenir)* |
+| **Windows MSI Paketi (.msi)** | `CanEditor_3.7.1_x64_en-US.msi` | Windows kurumsal MSI yükleyici *(CI tarafından eklenir)* |
+| **macOS Paketi (.dmg)** | `CanEditor_3.7.1_universal.dmg` | Apple Silicon (M1/M2/M3/M4) ve Intel Mac evrensel paket *(CI tarafından eklenir)* |
+| **Linux (AppImage / .deb / .rpm)** | `CanEditor_3.7.1_amd64.AppImage` | Tüm Linux dağıtımları için kurulumsuz AppImage *(CI tarafından eklenir)* |
 
 ---
 
 ## 📖 Hiç Bilmeyenler İçin Adım Adım İndirme ve Kurulum Kılavuzu
 
 ### 📱 Android Telefon ve Tabletler İçin:
-1. Yukarıdaki [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.6.5/CanEditor-latest.apk) bağlantısına dokunarak dosyayı indirin.
+1. Yukarıdaki [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.7.1/CanEditor-latest.apk) bağlantısına dokunarak dosyayı indirin.
 2. Tarayıcınız *"Dosya zararlı olabilir"* uyarısı verirse **"Yine de İndir"** butonuna dokunun (Google Play harici dosyalarda standart Android uyarısıdır).
 3. İndirilen dosyaya dokunun. *"Bilinmeyen kaynaklar"* uyarısı çıkarsa **Ayarlar -> Bu kaynaktan izin ver** seçeneğini açıp geri dönün ve **"Yükle"** deyin.
 4. WhatsApp, Telegram veya Dosyalarım'dan bir `.udf` dosyasına tıkladığınızda çıkan menüde **CanEditor -> "Her Zaman"** seçin.
 5. Dosyanızı açıp düzenledikten sonra **Kaydet -> PDF Olarak Kaydet** ile doğrudan İndirilenler klasörüne A4 PDF olarak kaydedebilirsiniz.
 
 ### 💻 Windows (10 / 11) İçin:
-- **Kurulumsuz Kullanım (Tavsiye Edilen):** `CanEditor-Portable-Web-GUI-v3.6.5.zip` dosyasını indirin, sağ tıklayıp "Tümünü Ayıkla" deyin ve içindeki `index.html` dosyasına çift tıklayın. Tamamen çevrimdışı çalışır.
-- **Masaüstü Uygulaması:** `CanEditor_3.6.5_x64-setup.exe` indirip çift tıklayın. Windows SmartScreen uyarısı çıkarsa **"Ek bilgi" -> "Yine de çalıştır"** butonuna basın.
+- **Kurulumsuz Kullanım (Tavsiye Edilen):** `CanEditor-Portable-Web-GUI-v3.7.1.zip` dosyasını indirin, sağ tıklayıp "Tümünü Ayıkla" deyin ve içindeki `index.html` dosyasına çift tıklayın. Tamamen çevrimdışı çalışır.
+- **Masaüstü Uygulaması:** `CanEditor_3.7.1_x64-setup.exe` indirip çift tıklayın. Windows SmartScreen uyarısı çıkarsa **"Ek bilgi" -> "Yine de çalıştır"** butonuna basın.
 
 ### 🍎 macOS İçin:
-- `CanEditor_3.6.5_universal.dmg` dosyasını indirip açın ve CanEditor simgesini Uygulamalar klasörüne sürükleyin. Açılışta güvenlik uyarısı verirse simgeye `Control` tuşuyla **sağ tıklayıp "Aç"** deyin.
+- `CanEditor_3.7.1_universal.dmg` dosyasını indirip açın ve CanEditor simgesini Uygulamalar klasörüne sürükleyin. Açılışta güvenlik uyarısı verirse simgeye `Control` tuşuyla **sağ tıklayıp "Aç"** deyin.
 
 ### 🐧 Linux (Debian / Pardus / Ubuntu / Fedora / RedHat) İçin:
-- **AppImage:** `CanEditor_3.6.5_amd64.AppImage` dosyasını indirin, terminalden `chmod +x CanEditor_3.6.5_amd64.AppImage` komutunu verip çift tıklayın.
-- **Debian / Pardus / Ubuntu (.deb):** `sudo dpkg -i CanEditor_3.6.5_amd64.deb`
-- **Fedora / RedHat / openSUSE (.rpm):** `sudo rpm -ivh CanEditor-3.6.5-1.x86_64.rpm`
+- **AppImage:** `CanEditor_3.7.1_amd64.AppImage` dosyasını indirin, terminalden `chmod +x CanEditor_3.7.1_amd64.AppImage` komutunu verip çift tıklayın.
+- **Debian / Pardus / Ubuntu (.deb):** `sudo dpkg -i CanEditor_3.7.1_amd64.deb`
+- **Fedora / RedHat / openSUSE (.rpm):** `sudo rpm -ivh CanEditor-3.7.1-1.x86_64.rpm`
 """
 
 def request(url, data=None, headers=None, method="GET"):
