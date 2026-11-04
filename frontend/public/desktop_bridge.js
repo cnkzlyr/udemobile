@@ -1883,17 +1883,20 @@ async function generateOdtBlob(docData) {
   });
 
   const contentXml = `<?xml version="1.0" encoding="UTF-8"?>
-<office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0" xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0">
+<office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0" xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0" xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0">
+  <office:font-face-decls>
+    <style:font-face style:name="Times New Roman" svg:font-family="'Times New Roman'" style:font-family-generic="roman" style:font-pitch="variable"/>
+  </office:font-face-decls>
   <office:automatic-styles>
-    <style:style style:name="P_justify" style:family="paragraph"><style:paragraph-properties fo:text-align="justify"/></style:style>
-    <style:style style:name="P_center" style:family="paragraph"><style:paragraph-properties fo:text-align="center"/></style:style>
-    <style:style style:name="P_right" style:family="paragraph"><style:paragraph-properties fo:text-align="right"/></style:style>
-    <style:style style:name="P_left" style:family="paragraph"><style:paragraph-properties fo:text-align="left"/></style:style>
+    <style:style style:name="P_justify" style:family="paragraph"><style:paragraph-properties fo:text-align="justify"/><style:text-properties fo:font-family="'Times New Roman'" fo:font-size="12pt" fo:color="#000000"/></style:style>
+    <style:style style:name="P_center" style:family="paragraph"><style:paragraph-properties fo:text-align="center"/><style:text-properties fo:font-family="'Times New Roman'" fo:font-size="12pt" fo:color="#000000"/></style:style>
+    <style:style style:name="P_right" style:family="paragraph"><style:paragraph-properties fo:text-align="right"/><style:text-properties fo:font-family="'Times New Roman'" fo:font-size="12pt" fo:color="#000000"/></style:style>
+    <style:style style:name="P_left" style:family="paragraph"><style:paragraph-properties fo:text-align="left"/><style:text-properties fo:font-family="'Times New Roman'" fo:font-size="12pt" fo:color="#000000"/></style:style>
     <style:style style:name="P_break" style:family="paragraph"><style:paragraph-properties fo:break-after="page"/></style:style>
-    <style:style style:name="T_bold" style:family="text"><style:text-properties fo:font-weight="bold"/></style:style>
-    <style:style style:name="T_italic" style:family="text"><style:text-properties fo:font-style="italic"/></style:style>
-    <style:style style:name="T_bold_italic" style:family="text"><style:text-properties fo:font-weight="bold" fo:font-style="italic"/></style:style>
-    <style:style style:name="T_underline" style:family="text"><style:text-properties style:text-underline-style="solid"/></style:style>
+    <style:style style:name="T_bold" style:family="text"><style:text-properties fo:font-weight="bold" fo:font-family="'Times New Roman'" fo:color="#000000"/></style:style>
+    <style:style style:name="T_italic" style:family="text"><style:text-properties fo:font-style="italic" fo:font-family="'Times New Roman'" fo:color="#000000"/></style:style>
+    <style:style style:name="T_bold_italic" style:family="text"><style:text-properties fo:font-weight="bold" fo:font-style="italic" fo:font-family="'Times New Roman'" fo:color="#000000"/></style:style>
+    <style:style style:name="T_underline" style:family="text"><style:text-properties style:text-underline-style="solid" fo:font-family="'Times New Roman'" fo:color="#000000"/></style:style>
   </office:automatic-styles>
   <office:body>
     <office:text>
@@ -1906,14 +1909,22 @@ ${pXml}    </office:text>
 }
 
 // -------------------------------------------------------------
-// 3C. ÇOK SAYFALI ADLİ TIFF EVRAKI ÜRETİCİ
+// 3C. ÇOK SAYFALI ADLİ TIFF EVRAKI ÜRETİCİ (UTIF.js & IFD Motoru)
 // -------------------------------------------------------------
 async function generateTiffBlob(docData) {
-  const pageSheets = Array.from(document.querySelectorAll(".a4-sheet-page"));
-  const width = 794;
-  const height = 1123;
-  const pages = [];
+  let pageSheets = Array.from(document.querySelectorAll(".a4-sheet-page"));
+  if (pageSheets.length === 0) {
+    const single = document.getElementById("sheet-container") || document.getElementById("page-wrapper") || document.getElementById("editor-content");
+    if (single) pageSheets = [single];
+  }
+  const isLandscape = (typeof currentMargins !== "undefined" && currentMargins.orientation === "landscape") ||
+    (pageSheets[0] && pageSheets[0].classList.contains("landscape"));
+  const width = isLandscape ? 1123 : 794;
+  const height = isLandscape ? 794 : 1123;
   const totalPages = Math.max(1, pageSheets.length);
+
+  const ifds = [];
+  const rawPages = [];
 
   for (let p = 1; p <= totalPages; p++) {
     const canvas = document.createElement("canvas");
@@ -1925,31 +1936,37 @@ async function generateTiffBlob(docData) {
 
     const sheet = pageSheets[p - 1];
     if (sheet) {
-      ctx.fillStyle = "#000000";
-      ctx.font = '11pt "Times New Roman", serif';
-      const body = sheet.querySelector(".page-body-box") || sheet;
-      const text = body.innerText || "";
-      const lines = text.split("\n");
-      let y = 100;
-      for (const line of lines) {
-        if (y > height - 100) break;
-        const trimmed = line.trim();
-        if (trimmed) {
-          ctx.fillText(trimmed.substring(0, 85), 80, y);
-          y += 22;
-        } else {
-          y += 12;
-        }
-      }
+      renderSheetDirectToCanvas(sheet, ctx, width, height, 1, p, totalPages, docData);
     }
+    const imgData = ctx.getImageData(0, 0, width, height);
+    rawPages.push(imgData);
 
-    ctx.fillStyle = "#333333";
-    ctx.font = '10pt "Times New Roman", serif';
-    ctx.fillText(`Sayfa: ${p} / ${totalPages}`, width - 180, height - 40);
-
-    pages.push(ctx.getImageData(0, 0, width, height));
+    if (typeof UTIF !== "undefined") {
+      ifds.push({
+        data: new Uint8Array(imgData.data),
+        width: width,
+        height: height
+      });
+    }
   }
 
+  // UTIF.js mevcut ise standart sıkıştırılmış TIFF üret
+  if (typeof UTIF !== "undefined" && ifds.length > 0) {
+    try {
+      if (ifds.length === 1) {
+        const tiffBuf = UTIF.encodeImage(ifds[0].data, width, height);
+        return new Blob([tiffBuf], { type: "image/tiff" });
+      } else {
+        const tiffBuf = UTIF.encode(ifds);
+        return new Blob([tiffBuf], { type: "image/tiff" });
+      }
+    } catch (e) {
+      console.warn("UTIF encode hatası, fallback uygulanıyor:", e);
+    }
+  }
+
+  // Fallback: Standart IFD başlığı ile TIFF üretimi
+  const pages = rawPages;
   const ifdSize = 2 + 11 * 12 + 4;
   const bytesPerPage = width * height * 4;
   let totalFileSize = 8;

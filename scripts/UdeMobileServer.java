@@ -34,6 +34,7 @@ public class UdeMobileServer {
         server.createContext("/api/v1/mimza/init", new MimzaInitHandler());
         server.createContext("/api/v1/mimza/poll", new MimzaPollHandler());
         server.createContext("/api/v1/signature/combine", new SignatureCombineHandler());
+        server.createContext("/api/v1/convert", new ConvertHandler());
 
         server.start();
         System.out.println("✓ UdeMobileServer 0.0.0.0:" + PORT + " (Havelsan UYAP Headless) üzerinde hazır!");
@@ -392,5 +393,111 @@ public class UdeMobileServer {
         }
 
         return base1.getEncoded();
+    }
+
+    /**
+     * Havelsan UYAP Resmi Headless Donusturucu HTTP Handler (/api/v1/convert)
+     * UDF belgelerini resmi JAR'lar vasitasiyla birebir A4 PDF veya ODT'ye cevirir.
+     */
+    static class ConvertHandler implements HttpHandler {
+        @Override
+        public void handle(HttpExchange exchange) throws IOException {
+            exchange.getResponseHeaders().set("Access-Control-Allow-Origin", "*");
+            exchange.getResponseHeaders().set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+            exchange.getResponseHeaders().set("Access-Control-Allow-Headers", "Content-Type");
+
+            if ("OPTIONS".equalsIgnoreCase(exchange.getRequestMethod())) {
+                exchange.sendResponseHeaders(204, -1);
+                return;
+            }
+
+            if (!"POST".equalsIgnoreCase(exchange.getRequestMethod())) {
+                sendJsonResponse(exchange, 405, "{\"error\": \"Yalnizca POST desteklenir\"}");
+                return;
+            }
+
+            String query = exchange.getRequestURI().getQuery();
+            String targetFormat = "pdf";
+            if (query != null && query.contains("format=")) {
+                for (String param : query.split("&")) {
+                    String[] kv = param.split("=");
+                    if (kv.length == 2 && "format".equalsIgnoreCase(kv[0])) {
+                        targetFormat = kv[1].toLowerCase().trim();
+                    }
+                }
+            }
+
+            byte[] bodyBytes;
+            try (InputStream is = exchange.getRequestBody();
+                 ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+                byte[] buf = new byte[4096];
+                int r;
+                while ((r = is.read(buf)) != -1) baos.write(buf, 0, r);
+                bodyBytes = baos.toByteArray();
+            }
+
+            byte[] udfBytes = null;
+            boolean isJsonReq = false;
+
+            // JSON icinde udfBase64 gonderilmis olabilir veya dogrudan ham baytlar
+            if (bodyBytes.length > 0 && bodyBytes[0] == '{') {
+                String bodyStr = new String(bodyBytes, StandardCharsets.UTF_8);
+                String b64 = getJsonString(bodyStr, "udfBase64");
+                if (b64 != null && !b64.isEmpty()) {
+                    udfBytes = decodeB64(b64);
+                    isJsonReq = true;
+                }
+                String fmt = getJsonString(bodyStr, "format");
+                if (fmt != null && !fmt.isEmpty()) {
+                    targetFormat = fmt.toLowerCase().trim();
+                }
+            }
+
+            if (udfBytes == null || udfBytes.length == 0) {
+                udfBytes = bodyBytes;
+            }
+
+            if (udfBytes == null || udfBytes.length == 0) {
+                sendJsonResponse(exchange, 400, "{\"error\": \"UDF bayt verisi bos\"}");
+                return;
+            }
+
+            File tempIn = File.createTempFile("udf_conv_in_", ".udf");
+            File tempOut = File.createTempFile("udf_conv_out_", "." + targetFormat);
+            try {
+                try (FileOutputStream fos = new FileOutputStream(tempIn)) {
+                    fos.write(udfBytes);
+                }
+
+                boolean ok = false;
+                if ("pdf".equals(targetFormat)) {
+                    ok = UyapHeadlessConverter.convertUdfToPdf(tempIn, tempOut);
+                } else if ("odt".equals(targetFormat)) {
+                    ok = UyapHeadlessConverter.convertUdfToOdt(tempIn, tempOut);
+                }
+
+                if (!ok || !tempOut.exists() || tempOut.length() == 0) {
+                    sendJsonResponse(exchange, 500, "{\"error\": \"Donusum basarisiz oldu\"}");
+                    return;
+                }
+
+                byte[] outBytes = java.nio.file.Files.readAllBytes(tempOut.toPath());
+                if (isJsonReq) {
+                    String outB64 = Base64.getEncoder().encodeToString(outBytes);
+                    String resp = "{\"success\": true, \"format\": \"" + targetFormat + "\", \"fileBase64\": \"" + outB64 + "\", \"size\": " + outBytes.length + "}";
+                    sendJsonResponse(exchange, 200, resp);
+                } else {
+                    String mime = "pdf".equals(targetFormat) ? "application/pdf" : "application/vnd.oasis.opendocument.text";
+                    exchange.getResponseHeaders().set("Content-Type", mime);
+                    exchange.sendResponseHeaders(200, outBytes.length);
+                    try (OutputStream os = exchange.getResponseBody()) {
+                        os.write(outBytes);
+                    }
+                }
+            } finally {
+                if (tempIn.exists()) tempIn.delete();
+                if (tempOut.exists()) tempOut.delete();
+            }
+        }
     }
 }

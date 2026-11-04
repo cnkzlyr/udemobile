@@ -1883,17 +1883,20 @@ async function generateOdtBlob(docData) {
   });
 
   const contentXml = `<?xml version="1.0" encoding="UTF-8"?>
-<office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0" xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0">
+<office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0" xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0" xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0">
+  <office:font-face-decls>
+    <style:font-face style:name="Times New Roman" svg:font-family="'Times New Roman'" style:font-family-generic="roman" style:font-pitch="variable"/>
+  </office:font-face-decls>
   <office:automatic-styles>
-    <style:style style:name="P_justify" style:family="paragraph"><style:paragraph-properties fo:text-align="justify"/></style:style>
-    <style:style style:name="P_center" style:family="paragraph"><style:paragraph-properties fo:text-align="center"/></style:style>
-    <style:style style:name="P_right" style:family="paragraph"><style:paragraph-properties fo:text-align="right"/></style:style>
-    <style:style style:name="P_left" style:family="paragraph"><style:paragraph-properties fo:text-align="left"/></style:style>
+    <style:style style:name="P_justify" style:family="paragraph"><style:paragraph-properties fo:text-align="justify"/><style:text-properties fo:font-family="'Times New Roman'" fo:font-size="12pt" fo:color="#000000"/></style:style>
+    <style:style style:name="P_center" style:family="paragraph"><style:paragraph-properties fo:text-align="center"/><style:text-properties fo:font-family="'Times New Roman'" fo:font-size="12pt" fo:color="#000000"/></style:style>
+    <style:style style:name="P_right" style:family="paragraph"><style:paragraph-properties fo:text-align="right"/><style:text-properties fo:font-family="'Times New Roman'" fo:font-size="12pt" fo:color="#000000"/></style:style>
+    <style:style style:name="P_left" style:family="paragraph"><style:paragraph-properties fo:text-align="left"/><style:text-properties fo:font-family="'Times New Roman'" fo:font-size="12pt" fo:color="#000000"/></style:style>
     <style:style style:name="P_break" style:family="paragraph"><style:paragraph-properties fo:break-after="page"/></style:style>
-    <style:style style:name="T_bold" style:family="text"><style:text-properties fo:font-weight="bold"/></style:style>
-    <style:style style:name="T_italic" style:family="text"><style:text-properties fo:font-style="italic"/></style:style>
-    <style:style style:name="T_bold_italic" style:family="text"><style:text-properties fo:font-weight="bold" fo:font-style="italic"/></style:style>
-    <style:style style:name="T_underline" style:family="text"><style:text-properties style:text-underline-style="solid"/></style:style>
+    <style:style style:name="T_bold" style:family="text"><style:text-properties fo:font-weight="bold" fo:font-family="'Times New Roman'" fo:color="#000000"/></style:style>
+    <style:style style:name="T_italic" style:family="text"><style:text-properties fo:font-style="italic" fo:font-family="'Times New Roman'" fo:color="#000000"/></style:style>
+    <style:style style:name="T_bold_italic" style:family="text"><style:text-properties fo:font-weight="bold" fo:font-style="italic" fo:font-family="'Times New Roman'" fo:color="#000000"/></style:style>
+    <style:style style:name="T_underline" style:family="text"><style:text-properties style:text-underline-style="solid" fo:font-family="'Times New Roman'" fo:color="#000000"/></style:style>
   </office:automatic-styles>
   <office:body>
     <office:text>

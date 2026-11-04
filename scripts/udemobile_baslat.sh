@@ -6,7 +6,7 @@
 DIR="$(cd "$(dirname "$0")" && pwd)"
 PIDFILE="$HOME/eimza/udemobile.pid"
 LOGFILE="$HOME/eimza/udemobile.log"
-CP="$HOME/jars/editor_utility.jar:$HOME/jars/editor_lib.jar:$HOME/jars/editor_lib2.jar:$HOME/jars/org-json.jar:$HOME/eimza"
+CP="$HOME/jars/*:$HOME/jars:$HOME/eimza"
 
 pid_alive() {
     [ -f "$PIDFILE" ] && p=$(cat "$PIDFILE" 2>/dev/null) && [ -n "$p" ] && kill -0 "$p" 2>/dev/null

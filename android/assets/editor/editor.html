@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>CanEditor - Cross-Platform UYAP &amp; Word Editörü</title>
   <script src="jszip.min.js"></script>
+  <script src="pdf.min.js"></script>
+  <script src="utif.js"></script>
   <script src="desktop_bridge.js"></script>
   <link rel="stylesheet" href="editor.css">
 </head>
@@ -32,6 +34,16 @@
       <!-- Doğrudan 1-Tık A4 PDF İndirme Butonu (UYAP Portal Standardı) -->
       <button type="button" class="desktop-action-btn pdf-btn" onclick="triggerSavePdf()" title="Doğrudan A4 PDF Belgesi İndir (Ctrl+Shift+P)" style="background: #DC2626; color: #FFFFFF; border: none; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 12.5px; font-weight: 600; display: flex; align-items: center; gap: 5px;">
         📕 PDF İndir
+      </button>
+
+      <!-- Görünüm Değiştirici (Mobil / Kağıt A4) -->
+      <button type="button" class="desktop-action-btn mobile-header-btn" onclick="toggleViewMode()" title="Görünüm Değiştir (Kağıt / Mobil)" style="background: #475569; color: #FFFFFF; border: none; padding: 6px 10px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 4px;">
+        📱 <span class="hide-on-mobile">Görünüm</span>
+      </button>
+
+      <!-- Mobil Hamburger Menü Butonu (Tek Tıkla Tüm Menülere Ulaşım) -->
+      <button type="button" id="btn-mobile-menu" class="desktop-action-btn mobile-menu-btn" onclick="openMobileMenuModal()" title="Tüm İşlemler Menüsü" style="background: #0284C7; color: #FFFFFF; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 700; display: flex; align-items: center; gap: 4px;">
+        ☰ <span class="hide-on-mobile">Menü</span>
       </button>
 
       <!-- Farklı Kaydet Açılır Menüsü -->
@@ -102,24 +114,25 @@
     <!-- SATIR 1: İşlemler, Görünüm, Şablon, AI Formatla, Yazı Tipi ve Punto -->
     <div class="toolbar-row" id="toolbar-row-1">
 
-      <!-- Geri Al / Yinele / Güncelle -->
+      <!-- Sekme (Tab), Geri Al / Yinele / Güncelle -->
       <div class="tool-group">
-        <button type="button" id="btn-undo" class="tool-btn" onclick="format('undo')" title="Geri Al (Ctrl+Z)">↶ <span>Geri Al</span></button>
-        <button type="button" id="btn-redo" class="tool-btn" onclick="format('redo')" title="Yinele (Ctrl+Y)">↷ <span>Yinele</span></button>
-        <button type="button" class="tool-btn" onclick="checkForUpdates(true)" title="Güncellemeleri Denetle">🔄 <span>Güncelle</span></button>
+        <button type="button" class="tool-btn tab-mini-btn" onclick="handleTabAction()" title="Sekme / Tab Ekle (⇥)">⇥ <span class="hide-on-mobile">Sekme</span></button>
+        <button type="button" id="btn-undo" class="tool-btn" onclick="format('undo')" title="Geri Al (Ctrl+Z)">↶ <span class="hide-on-mobile">Geri Al</span></button>
+        <button type="button" id="btn-redo" class="tool-btn" onclick="format('redo')" title="Yinele (Ctrl+Y)">↷ <span class="hide-on-mobile">Yinele</span></button>
+        <button type="button" class="tool-btn hide-on-mobile" onclick="checkForUpdates(true)" title="Güncellemeleri Denetle">🔄 <span>Güncelle</span></button>
       </div>
 
       <div class="divider"></div>
 
       <!-- Görünüm Modu Değiştirici -->
-      <div class="tool-group">
+      <div class="tool-group hide-on-mobile">
         <button type="button" id="btn-toggle-view" class="tool-btn view-toggle-btn" onclick="toggleViewMode()" title="Görünüm Değiştir (Kağıt / Mobil)">📱 <span>Görünüm</span></button>
       </div>
 
-      <div class="divider"></div>
+      <div class="divider hide-on-mobile"></div>
 
       <!-- Hızlı Dilekçe Şablonları Menüsü & AI Biçimlendirme -->
-      <div class="tool-group">
+      <div class="tool-group hide-on-mobile">
         <select id="select-template" onchange="insertTemplate(this.value); this.selectedIndex=0;" title="Resmi Dilekçe Şablonları">
           <option value="" disabled selected>⚖️ Şablon</option>
           <option value="dava">Dava Dilekçesi</option>
@@ -134,7 +147,7 @@
         <button type="button" id="btn-ai-format" class="tool-btn text-btn ai-format-btn" onclick="openAiFormatModal()" title="AI Dilekçe Formatlama (Canlı AI & Hukuki Biçimlendirme)">🤖 <span>AI Formatla</span></button>
       </div>
 
-      <div class="divider"></div>
+      <div class="divider hide-on-mobile"></div>
 
       <!-- Yazı Tipi Ailesi -->
       <div class="tool-group">
@@ -161,10 +174,20 @@
       <div class="divider"></div>
 
       <!-- Yazı Boyutu -->
-      <div class="tool-group">
-        <button type="button" class="tool-btn" onclick="adjustFontSize(-1)" title="Yazıyı Küçült">A- <span>Küçült</span></button>
+      <div class="tool-group font-size-group">
+        <button type="button" class="tool-btn" onclick="adjustFontSize(-1)" title="Yazıyı Küçült">A- <span class="hide-on-mobile">Küçült</span></button>
         <span id="font-size-label">12pt</span>
-        <button type="button" class="tool-btn" onclick="adjustFontSize(1)" title="Yazıyı Büyüt">A+ <span>Büyüt</span></button>
+        <button type="button" class="tool-btn" onclick="adjustFontSize(1)" title="Yazıyı Büyüt">A+ <span class="hide-on-mobile">Büyüt</span></button>
+      </div>
+
+      <!-- Mobil Hızlı Biçim Grubu (B, I, U, Renk) & Araç Çubuğu Genişletme Chevron'u -->
+      <div class="tool-group mobile-quick-formatting">
+        <button type="button" id="btn-mobile-bold" class="tool-btn show-on-mobile" onclick="format('bold')" title="Kalın (Ctrl+B)"><b>B</b></button>
+        <button type="button" id="btn-mobile-italic" class="tool-btn show-on-mobile" onclick="format('italic')" title="İtalik (Ctrl+I)"><i>I</i></button>
+        <button type="button" id="btn-mobile-underline" class="tool-btn show-on-mobile" onclick="format('underline')" title="Altı Çizili (Ctrl+U)"><u>U</u></button>
+        <button type="button" id="btn-toggle-toolbar-expand" class="tool-btn chevron-toggle-btn" onclick="toggleToolbarExpand()" title="Tüm Araç Çubuğunu Genişlet / Daralt">
+          <span id="chevron-icon">▾</span>
+        </button>
       </div>
 
     </div>
@@ -322,6 +345,49 @@
     </div>
   </div>
 
+  <!-- SABİT ETKİLEŞİMLİ CETVEL (Her Zaman Ekranın Üstünde Sabit & Dokunmatik Uyumlu) -->
+  <div id="ruler-container" class="ruler-container">
+    <div id="ruler-body" class="ruler-body">
+      <!-- Sol Kenar Boşluğu Arka Planı -->
+      <div class="ruler-margin-left"></div>
+
+      <!-- Aktif Cetvel Ölçeği (0 - 16 cm) -->
+      <div id="ruler-scale" class="ruler-scale">
+        <!-- İlk Satır Girintisi İmi (Üst Üçgen) -->
+        <div id="marker-first-line" class="ruler-marker marker-first-line" title="İlk Satır Girintisi (Sürükleyin veya Dokunun)">
+          <div class="marker-triangle-down"></div>
+        </div>
+
+        <!-- Asılı Girinti İmi (Alt Yukarı Bakan Üçgen - Taşan/Alt Satırların Hizası) -->
+        <div id="marker-hanging-indent" class="ruler-marker marker-hanging-indent" title="Asılı Girinti (Alt satırların hizasını belirler)">
+          <div class="marker-triangle-up"></div>
+        </div>
+
+        <!-- Sol Girinti İmi (Alt Dikdörtgen - Tüm Paragrafı Taşır) -->
+        <div id="marker-left-indent" class="ruler-marker marker-left-indent" title="Sol Girinti (Tüm paragrafı blok halinde taşır)">
+          <div class="marker-box"></div>
+        </div>
+
+        <!-- Cetvel cm ve mm Çizgileri Dinamik Üretilir -->
+        <div id="ruler-ticks" class="ruler-ticks"></div>
+
+        <!-- Sağ Kenar Girinti İmi (Alt Üçgen) -->
+        <div id="marker-right-indent" class="ruler-marker marker-right-indent" title="Sağ Girinti (Sürükleyin)">
+          <div class="marker-triangle-up"></div>
+        </div>
+
+        <!-- Canlı Ölçüm İpucu Rozeti -->
+        <div id="ruler-tooltip" class="ruler-tooltip" style="display: none;"></div>
+      </div>
+
+      <!-- Sağ Kenar Boşluğu Arka Planı -->
+      <div class="ruler-margin-right"></div>
+    </div>
+  </div>
+
+  <!-- Düşey Kılavuz Hizalama Çizgisi -->
+  <div id="ruler-guide-line" class="ruler-guide-line" style="display: none;"></div>
+
   <!-- A4 Kağıt / Mobil Görünüm Konteyneri -->
   <div id="page-wrapper" class="paper-view">
     <div id="sheet-wrapper">
@@ -335,49 +401,6 @@
           </div>
           <span class="sig-banner-action">Ayrıntılar &amp; Rapor 🔍</span>
         </div>
-        
-        <!-- ETKİLEŞİMLİ CETVEL (Word & UYAP Stili İlk Satır / Asılı / Sağ Girinti) -->
-        <div id="ruler-container" class="ruler-container">
-          <div id="ruler-body" class="ruler-body">
-            <!-- Sol Kenar Boşluğu Arka Planı -->
-            <div class="ruler-margin-left"></div>
-
-            <!-- Aktif Cetvel Ölçeği (0 - 16 cm) -->
-            <div id="ruler-scale" class="ruler-scale">
-              <!-- İlk Satır Girintisi İmi (Üst Üçgen) -->
-              <div id="marker-first-line" class="ruler-marker marker-first-line" title="İlk Satır Girintisi (Sürükleyin veya Dokunun)">
-                <div class="marker-triangle-down"></div>
-              </div>
-
-              <!-- Asılı Girinti İmi (Alt Yukarı Bakan Üçgen - Taşan/Alt Satırların Hizası) -->
-              <div id="marker-hanging-indent" class="ruler-marker marker-hanging-indent" title="Asılı Girinti (Alt satırların hizasını belirler)">
-                <div class="marker-triangle-up"></div>
-              </div>
-
-              <!-- Sol Girinti İmi (Alt Dikdörtgen - Tüm Paragrafı Taşır) -->
-              <div id="marker-left-indent" class="ruler-marker marker-left-indent" title="Sol Girinti (Tüm paragrafı blok halinde taşır)">
-                <div class="marker-box"></div>
-              </div>
-
-              <!-- Cetvel cm ve mm Çizgileri Dinamik Üretilir -->
-              <div id="ruler-ticks" class="ruler-ticks"></div>
-
-              <!-- Sağ Kenar Girinti İmi (Alt Üçgen) -->
-              <div id="marker-right-indent" class="ruler-marker marker-right-indent" title="Sağ Girinti (Sürükleyin)">
-                <div class="marker-triangle-up"></div>
-              </div>
-
-              <!-- Canlı Ölçüm İpucu Rozeti -->
-              <div id="ruler-tooltip" class="ruler-tooltip" style="display: none;"></div>
-            </div>
-
-            <!-- Sağ Kenar Boşluğu Arka Planı -->
-            <div class="ruler-margin-right"></div>
-          </div>
-        </div>
-
-        <!-- Düşey Kılavuz Hizalama Çizgisi -->
-        <div id="ruler-guide-line" class="ruler-guide-line" style="display: none;"></div>
 
         <!-- Havelsan UYAP Fiziksel A4 Çoklu Sayfa Konteyneri -->
         <div id="pages-container" class="pages-container">
@@ -987,6 +1010,98 @@
     <button type="button" class="bubble-btn" onclick="format('underline')" title="Altı Çizili"><u>U</u></button>
     <button type="button" class="bubble-btn" onclick="format('hiliteColor', '#FFF59D')" title="Vurgula">🖍️</button>
     <button type="button" class="bubble-btn" onclick="clearFormatting()" title="Biçimi Temizle">🧹</button>
+  </div>
+
+  <!-- DAHİLİ PDF GÖRÜNTÜLEYİCİ MODAL (PDF.js Motoru) -->
+  <div id="modal-pdf-viewer" class="modal-backdrop full-viewer-modal" style="display: none;">
+    <div class="modal-card viewer-card">
+      <div class="modal-header viewer-header">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 18px;">📕</span>
+          <h3 id="pdf-viewer-title" style="margin: 0; font-size: 14px; font-weight: 700; max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">PDF Görüntüleyici</h3>
+        </div>
+        <div class="viewer-toolbar-controls">
+          <button type="button" class="viewer-btn" onclick="stepPdfPage(-1)" title="Önceki Sayfa">◀</button>
+          <span id="pdf-page-indicator" class="viewer-page-badge">1 / 1</span>
+          <button type="button" class="viewer-btn" onclick="stepPdfPage(1)" title="Sonraki Sayfa">▶</button>
+          <button type="button" class="viewer-btn" onclick="zoomPdf(-0.15)" title="Uzaklaştır">−</button>
+          <span id="pdf-zoom-badge" class="viewer-zoom-badge" onclick="resetPdfZoom()">%100</span>
+          <button type="button" class="viewer-btn" onclick="zoomPdf(0.15)" title="Yakınlaştır">+</button>
+          <button type="button" class="viewer-btn action" onclick="downloadCurrentPdf()" title="PDF Dosyasını İndir">📥 İndir</button>
+          <button type="button" class="viewer-btn action" onclick="shareCurrentPdf()" title="PDF Paylaş">📤 Paylaş</button>
+          <button type="button" class="modal-close" onclick="closeModal('modal-pdf-viewer')">✕</button>
+        </div>
+      </div>
+      <div class="modal-body viewer-body" id="pdf-viewer-container">
+        <div id="pdf-pages-render-rail" class="pages-render-rail"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DAHİLİ ÇOK SAYFALI TIFF GÖRÜNTÜLEYİCİ MODAL (UTIF.js Motoru) -->
+  <div id="modal-tiff-viewer" class="modal-backdrop full-viewer-modal" style="display: none;">
+    <div class="modal-card viewer-card">
+      <div class="modal-header viewer-header">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 18px;">🖼️</span>
+          <h3 id="tiff-viewer-title" style="margin: 0; font-size: 14px; font-weight: 700; max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Çok Sayfalı TIFF Görüntüleyici</h3>
+        </div>
+        <div class="viewer-toolbar-controls">
+          <button type="button" class="viewer-btn" onclick="stepTiffPage(-1)" title="Önceki Sayfa">◀</button>
+          <span id="tiff-page-indicator" class="viewer-page-badge">1 / 1</span>
+          <button type="button" class="viewer-btn" onclick="stepTiffPage(1)" title="Sonraki Sayfa">▶</button>
+          <button type="button" class="viewer-btn" onclick="zoomTiff(-0.15)" title="Uzaklaştır">−</button>
+          <span id="tiff-zoom-badge" class="viewer-zoom-badge" onclick="resetTiffZoom()">%100</span>
+          <button type="button" class="viewer-btn" onclick="zoomTiff(0.15)" title="Yakınlaştır">+</button>
+          <button type="button" class="viewer-btn action" onclick="downloadCurrentTiff()" title="TIFF İndir">📥 İndir</button>
+          <button type="button" class="viewer-btn action" onclick="shareCurrentTiff()" title="TIFF Paylaş">📤 Paylaş</button>
+          <button type="button" class="modal-close" onclick="closeModal('modal-tiff-viewer')">✕</button>
+        </div>
+      </div>
+      <div class="modal-body viewer-body" id="tiff-viewer-container">
+        <div id="tiff-pages-render-rail" class="pages-render-rail"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MOBİL ANA ÇEKMECE MENÜSÜ (Hamburger Menü) -->
+  <div id="modal-mobile-menu" class="modal-backdrop" style="display: none;" onclick="if(event.target===this)closeModal('modal-mobile-menu')">
+    <div class="mobile-drawer-card">
+      <div class="mobile-drawer-header">
+        <span style="font-size: 16px; font-weight: 700; color: #1E293B; display: flex; align-items: center; gap: 6px;">⚖️ CanEditor Menü</span>
+        <button type="button" class="modal-close" onclick="closeModal('modal-mobile-menu')">✕</button>
+      </div>
+      <div class="mobile-drawer-body">
+        <button type="button" class="drawer-item" onclick="closeModal('modal-mobile-menu'); triggerOpenDocument();">📂 Belge Aç (UDF, PDF, DOCX, TIFF, ODT)</button>
+        <button type="button" class="drawer-item primary" onclick="closeModal('modal-mobile-menu'); triggerQuickSave();">💾 Hızlı Kaydet (Ctrl+S)</button>
+        <div class="drawer-divider"></div>
+        <div class="drawer-section-label">FARKLI KAYDET</div>
+        <button type="button" class="drawer-item" onclick="closeModal('modal-mobile-menu'); triggerSaveAs('udf');">📄 Havelsan UDF (.udf)</button>
+        <button type="button" class="drawer-item" onclick="closeModal('modal-mobile-menu'); triggerSaveAs('pdf');">📕 Adobe A4 PDF (.pdf)</button>
+        <button type="button" class="drawer-item" onclick="closeModal('modal-mobile-menu'); triggerSaveAs('docx');">📘 Microsoft Word (.docx)</button>
+        <button type="button" class="drawer-item" onclick="closeModal('modal-mobile-menu'); triggerSaveAs('tiff');">🖼️ Çok Sayfalı TIFF (.tiff)</button>
+        <button type="button" class="drawer-item" onclick="closeModal('modal-mobile-menu'); triggerSaveAs('odt');">📗 OpenDocument (.odt)</button>
+        <div class="drawer-divider"></div>
+        <div class="drawer-section-label">PAYLAŞ &amp; YAZDIR</div>
+        <button type="button" class="drawer-item" onclick="closeModal('modal-mobile-menu'); triggerShareFormat('pdf');">📕 PDF Olarak Paylaş</button>
+        <button type="button" class="drawer-item" onclick="closeModal('modal-mobile-menu'); triggerShareFormat('udf');">📄 UDF Olarak Paylaş</button>
+        <button type="button" class="drawer-item" onclick="closeModal('modal-mobile-menu'); triggerShareFormat('docx');">📘 Word Olarak Paylaş</button>
+        <button type="button" class="drawer-item" onclick="closeModal('modal-mobile-menu'); triggerShareFormat('tiff');">🖼️ TIFF Olarak Paylaş</button>
+        <button type="button" class="drawer-item" onclick="closeModal('modal-mobile-menu'); triggerShareFormat('text');">📋 Düz Metin Paylaş</button>
+        <button type="button" class="drawer-item" onclick="closeModal('modal-mobile-menu'); triggerDirectPrint();">🖨️ Yazıcıya Yazdır</button>
+        <button type="button" class="drawer-item" onclick="closeModal('modal-mobile-menu'); openPrintPreview();">👁️ Yazdırma Önizleme</button>
+        <div class="drawer-divider"></div>
+        <div class="drawer-section-label">HUKUK &amp; E-İMZA ARAÇLARI</div>
+        <button type="button" class="drawer-item" onclick="closeModal('modal-mobile-menu'); openFindReplaceModal();">🔍 Bul ve Değiştir</button>
+        <button type="button" class="drawer-item" onclick="closeModal('modal-mobile-menu'); openAiFormatModal();">🤖 AI Dilekçe Formatlama</button>
+        <button type="button" class="drawer-item" onclick="closeModal('modal-mobile-menu'); openMobileSignModal();">📱 Mobil İmza (GSM M-İmza)</button>
+        <button type="button" class="drawer-item" onclick="closeModal('modal-mobile-menu'); openSmartCardSignModal();">✍️ Nitelikli E-İmza (USB Token)</button>
+        <button type="button" class="drawer-item" onclick="closeModal('modal-mobile-menu'); checkDocumentSignature();">🛡️ E-İmzaları Doğrula</button>
+        <button type="button" class="drawer-item" onclick="closeModal('modal-mobile-menu'); openPageSetupModal();">📐 Sayfa Yapısı &amp; Kenarlar</button>
+        <button type="button" class="drawer-item" onclick="closeModal('modal-mobile-menu'); openDocStatsModal();">ℹ️ Belge İstatistikleri</button>
+        <button type="button" class="drawer-item" onclick="closeModal('modal-mobile-menu'); checkForUpdates(true);">🔄 Güncellemeleri Denetle</button>
+      </div>
+    </div>
   </div>
 
   <!-- DİNAMİK KAYDIRMA BLUR BANTLARI (iOS Progressive Dynamic Blur) -->

@@ -6,37 +6,41 @@ import urllib.error
 
 TOKEN = "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"
 REPO = "cnkzlyr/udemobile"
-TAG = "v3.6.5"
-NAME = "CanEditor v3.6.5 — 1-Tık Hızlı Kaydet, Mobil Görünüm ve Klavye Odak Koruma Motoru, Sticky Dokunmatik Cetvel"
+TAG = "v3.7.0"
+NAME = "CanEditor v3.7.0 — Resmi Havelsan UYAP Motorlu Headless Çeviri, Kesintisiz Mobil Akış, Klavye Odak Koruması ve Sabit Dokunmatik Cetvel"
 
-BODY = """# 🏛️ CanEditor (UdeMobile) v3.6.5 — Sürüm Notları
+BODY = """# 🏛️ CanEditor (UdeMobile) v3.7.0 — Sürüm Notları
 
-CanEditor **v3.6.5**; mobil ve dokunmatik cihazlarda yazım deneyimini zirveye taşıyan, yazı yazarken sanal klavyenin odak kaybıyla kapanması sorununu tamamen ortadan kaldıran, sayfa kaydırılsa dahi ekranın üstünde sabit (sticky) kalan ve parmakla yönetilebilen 42px dokunmatik cetveli devreye alan, 1-tık doğrudan `💾 Kaydet` (Ctrl+S) özelliğini sunan ve Android 10+ harici uygulama paylaşımlarını (WhatsApp, Gmail) yetkilendiren kapsamlı bir kullanıcı deneyimi ve stabilite sürümüdür.
+CanEditor **v3.7.0**; resmi Havelsan UYAP doküman kütüphanelerini tersine mühendislikle çözerek başsız (headless) Java motoruna entegre eden, raster tuval görüntüleri yerine **1:1 gerçek vektörel A4 PDF, resmi OpenDocument (ODT) ve biçimlendirilmiş Word (DOCX)** evrakları üreten, mobil cihazlarda yazı yazarken sanal klavyenin odak kaybıyla kapanması sorununu kesin olarak çözen, ekranın üstüne sabitlenen (sticky) ve 38px hassas dokunma alanlarına sahip cetveli devreye alan devrimsel bir sürümdür.
 
 ---
 
-## 🌟 Öne Çıkan Yenilikler & Hata Düzeltmeleri
+## 🌟 Öne Çıkan Yenilikler & Geliştirmeler
 
-### 💾 1. Doğrudan 1-Tık Hızlı Kaydet Butonu (Ctrl+S & Android Doğrudan Kayıt)
-- **Doğrudan Üzerine Kayıt:** Açılmış olan belgeyi anında kaydetmek için hem web üst araç çubuğuna hem de Android yerel eylem çubuğuna belirgin, yeşil renkli **`💾 Kaydet`** butonu eklendi.
-- **Tek Dokunuşla UYAP Kaydı:** Masaüstünde `Ctrl+S`, mobilde ise tek dokunuşla açık olan `.udf` dosyasının üzerine doğrudan kayıt gerçekleştirilir.
+### 🏛️ 1. Resmi Havelsan UYAP Headless Dönüştürücü Motoru (`UyapHeadlessConverter`)
+- **1:1 Vektörel A4 PDF:** Resmi Havelsan `tr.com.havelsan.uyap.system.editor.b.b` motoru tersine mühendislikle çözülerek başsız (headless) Java CLI motoruna bağlandı. Raster tuval ekran görüntüleri yerine; seçilebilir, kopyalanabilir gerçek vektörel metin, Havelsan yazı tipleri ve birebir 10 sayfalık resmi UYAP düzeni oluşturulur (~196 KB dosya boyutu, karanlık mod uyumlu).
+- **Resmi OpenDocument (ODT):** Resmi Havelsan `tr.com.havelsan.uyap.system.editor.b.a.f` motoru kullanılarak; tüm tabloları, hizalamaları ve stilleri içeren %100 uyumlu `.odt` evrakları üretilir (~29 KB).
+- **Zengin Microsoft Word (DOCX):** Resmi ODT yapısı üzerinden tabloları, paragraf hizalamalarını, sekme duraklarını ve yazı tipi ağırlıklarını koruyan yüksek kaliteli DOCX belgeleri üretilir (~41 KB).
+- **Termux & CLI Komut Desteği:** `uyap-convert <dosya.udf> <pdf|odt|docx>` komutu ile tüm dönüştürmeler sistem seviyesinde 2 saniye içinde gerçekleştirilebilir.
 
-### ⌨️ 2. Yazı Yazarken Klavyenin Kapanmasını Engelleyen Akıllı Odak Koruması
-- **Klavye Açılma (adjustResize) Koruması:** Android'de sanal klavye açıldığında tetiklenen pencere yeniden boyutlandırma olayında (`window.resize`), aktif düzenleme odağı varsa otomatik yakınlaştırma (fit-zoom) engellendi; CSS zoom değişiminden kaynaklanan imleç ve klavye kaybı tamamen ortadan kaldırıldı.
-- **Yazım Esnasında Sıfır DOM Yıkımı:** Aktif yazım esnasında sayfalamanın DOM ağacını yeniden kurması 2500ms bekleme süresine alındı ve dikey taşma olmadığı sürece DOM ağacının korunması sağlandı. Böylece yazı yazarken sanal klavyenin kendi kendine kapanması sorunu %100 çözüldü.
+### ⌨️ 2. Yazı Yazarken Sanal Klavyenin Kapanmasını %100 Önleyen Odak Koruması
+- **Sıfır DOM Yıkımı:** Aktif yazım esnasında veya imleç editör alanındayken DOM ağacının `container.innerHTML = ''` ile silinip yeniden inşa edilmesi kesin olarak engellendi.
+- **Kesintisiz Yazım Deneyimi:** Android sanal klavyesinin (Gboard, Samsung Keyboard) odak kaybı nedeniyle kapanması, harf yutulması ve imleç sıçraması tamamen ortadan kaldırıldı.
+- **Yalnızca Odaktan Çıkıldığında Sayfalama:** Sayfa düzenleme ve bölünme işlemleri yalnızca kullanıcı yazımı bitirip alandan çıktığında (`blur`) çalıştırılır.
 
-### 📐 3. Ekranın Üstüne Sabitlenen (Sticky) Dokunmatik Cetvel (42px)
-- **Sayfa Kaydıkça Ekranda Kalan Cetvel:** Sayfa ne kadar aşağı kaydırılırsa kaydırılsın, cetvel ekranın en üstünde (`position: sticky; top: 0; z-index: 90;`) sabit kalarak her an görünür durumda kalır.
-- **Parmakla Kontrol Edilebilen 44x44px Geniş Dokunmatik Alanlar:** Cetvel yüksekliği 42px'e çıkarıldı. 4 ayrı girinti imi (**İlk Satır Girintisi** - mavi ters üçgen, **Asılı Girinti** - mavi düz üçgen, **Sol Girinti** - lacivert kutu, **Sağ Marj** - koyu üçgen) için parmakla rahatça tutulup sürüklenebilen görünmez 44x44 piksellik dokunmatik etki alanları (`::before`) entegre edildi.
+### 📱 3. Yeniden Yapılandırılmış Kesintisiz Mobil Görünüm
+- **Akıcı Tek Akış Düzeni:** Mobil görünüme geçildiğinde tüm sayfaların gövde paragrafları tek bir kesintisiz akış konteynerinde birleştirilir; sayfa sınırları, boşluklar ve tekrarlayan üstbilgi/altbilgiler metni bölmez (Google Docs ve Word mobil standardı).
+- **Kağıt Görünümüne Anında Dönüş:** `📄 Kağıt` butonuna tıklandığında belge anında 1:1 Havelsan A4 çok sayfalı baskı düzenine geri döner.
 
-### 📱 4. Kusursuz Mobil Görünüm (Word & Google Docs Standardı)
-- **Sıfır Yatay Taşma:** Dar mobil ekranlarda (`max-width: 820px`) `document.body` ve editör kapsayıcısının yatay taşması (`overflow-x: hidden`) tamamen önlendi (`bodyScrollW: 390px`).
-- **Yatay Kaydırılabilir Araç Çubuğu:** Web araç çubuğu butonlarının mobilde alt alta 10 satır yığılması engellendi; Word ve `editor.e-udf.com` standardında tek satırda parmakla pürüzsüz kaydırılabilir hale getirildi.
-- **Android Arayüz Bütünlüğü:** Android uygulamasında yerel başlık çubuğu bulunduğu için WebView içindeki masaüstü başlık çubuğu gizlendi; gereksiz dikey alan kaybı ve çift başlık görünümü önlendi.
+### 📐 4. Ekranın Üstüne Sabitlenen (Sticky) 44px Dokunmatik Cetvel
+- **Sayfa Boyunca Sabit Kalan Cetvel:** Cetvel A4 kağıt kartının içinden çıkarılarak sayfa kaydırma alanının üstüne (`sticky`, `top: 0`, `z-index: 100`) sabitlendi. Sayfa 10 sayfa aşağı kaysa bile cetvel her an ekranın üstünde kalır.
+- **38px Dokunmatik Etki Alanları:** İlk satır girintisi, asılı girinti, sol girinti ve sağ marj imleri 38px ergonomik dokunmatik alanlarla büyütüldü; parmakla kaydırma anında sayfa kaymasını engelleyen `touch-action: none` koruması eklendi.
+- **Mobilde Tek Dokunuşla Sekme Durağı:** Cetvel ölçeğine mobilde dokunulduğunda doğrudan sekme durağı (tab stop) ekleme/kaldırma özelliği entegre edildi.
 
-### 📤 5. Android 10+ Harici Paylaşım ve Farklı Kaydet Onarımı
-- **WhatsApp ve Gmail Paylaşım İzni Hatası Çözüldü:** `launchShareIntent` içinde `shareIntent.setClipData(...)` ve `FLAG_GRANT_READ_URI_PERMISSION` yetkileri tanımlanarak Android 10, 11, 12, 13, 14 ve 15 sürümlerinde harici uygulamaların paylaşılan dosyaları "erişim engellendi" hatası vermeden açması sağlandı.
-- **Tüm Formatlarda Farklı Kaydet:** Menüdeki tüm seçenekler (**UDF, Adobe PDF, Microsoft Word DOCX, Çok Sayfalı TIFF, OpenDocument ODT**) Base64 veri köprüsüyle doğrudan `Downloads/UYAP_Belgelerim` klasörüne anında kaydedilir hale getirildi.
+### 💾 5. Doğrudan 1-Tık Hızlı Kaydet & Taşmayan Ergonomik Üst Çubuk
+- **Belirgin 1-Tık Kaydet Butonu:** Üst barda dosya adının hemen yanında canlı yeşil renkli **`💾 Kaydet`** butonu yer alır; açık olan belgenin üzerine doğrudan, tek tıkla ve hiçbir diyalog açmadan anında kayıt yapar.
+- **Responsive Üst Bar:** Mobilde butonların ekrandan taşmasını ve başlığın ezilmesini önlemek amacıyla kompakt simge düzeni (`←`, `💾 Kaydet`, `Başlık`, `📱`, `📤`, `⋮`) uygulandı.
+- **Eksiksiz Paylaşım ve Farklı Kaydet:** PDF, UDF, Word, TIFF, ODT ve Metin formatlarında paylaşım ve indirme köprüleri Android 10-15 Scoped Storage standartlarıyla tam uyumlu hale getirildi.
 
 ---
 

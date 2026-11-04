@@ -14,4 +14,8 @@ debug.keystore
 
 *.idsig
 scratch/
+*.class
+__pycache__/
+scripts/tr/
+scripts/com/
 

@@ -6,17 +6,19 @@
     android:background="#F0F2F5"
     android:fitsSystemWindows="true">
 
-    <!-- Üst Eylem Çubuğu (Responsive, Tek Satır, Taşmayan Ergonomik Bar) -->
+    <!-- Üst Eylem Çubuğu (Responsive, Ergonomik, Taşmayan Akıllı Bar) -->
     <LinearLayout
+        android:id="@+id/editorTopBar"
         android:layout_width="match_parent"
-        android:layout_height="52dp"
+        android:layout_height="48dp"
         android:background="#1565C0"
         android:orientation="horizontal"
         android:gravity="center_vertical"
         android:paddingStart="4dp"
-        android:paddingEnd="6dp"
+        android:paddingEnd="4dp"
         android:elevation="4dp">
 
+        <!-- Geri Butonu -->
         <Button
             android:id="@+id/btnBack"
             android:layout_width="38dp"
@@ -25,9 +27,27 @@
             android:textColor="#FFFFFF"
             android:textSize="20sp"
             android:textStyle="bold"
-            android:background="?android:attr/selectableItemBackgroundBorderless" />
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Geri Dön" />
 
-        <!-- Belge Başlığı (Esnek Genişlik) -->
+        <!-- 1-Tık Hızlı Kaydet Butonu (Canlı Yeşil, Öne Çıkan Floppy Disk) -->
+        <Button
+            android:id="@+id/btnQuickSave"
+            android:layout_width="wrap_content"
+            android:minWidth="44dp"
+            android:layout_height="36dp"
+            android:text="💾 Kaydet"
+            android:textColor="#FFFFFF"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:background="@drawable/button_udf"
+            android:paddingStart="10dp"
+            android:paddingEnd="10dp"
+            android:layout_marginStart="2dp"
+            android:layout_marginEnd="6dp"
+            android:contentDescription="Açık Olan Belgeyi Doğrudan Kaydet (1-Tık)" />
+
+        <!-- Belge Başlığı (Esnek Genişlik, Tek Satır, Kırpılabilir) -->
         <EditText
             android:id="@+id/etDocTitle"
             android:layout_width="0dp"
@@ -41,62 +61,49 @@
             android:singleLine="true"
             android:ellipsize="middle"
             android:paddingStart="4dp"
-            android:paddingEnd="6dp" />
-
-        <!-- Doğrudan 1-Tık Hızlı Kaydet Butonu (Canlı Yeşil) -->
-        <Button
-            android:id="@+id/btnQuickSave"
-            android:layout_width="wrap_content"
-            android:layout_height="32dp"
-            android:text="💾 Kaydet"
-            android:textColor="#FFFFFF"
-            android:textSize="11.5sp"
-            android:textStyle="bold"
-            android:background="@drawable/button_udf"
-            android:paddingStart="9dp"
-            android:paddingEnd="9dp"
-            android:layout_marginEnd="4dp" />
+            android:paddingEnd="4dp"
+            android:contentDescription="Belge Başlığı" />
 
         <!-- Görünüm Değiştirici (Mobil / Kağıt A4) -->
         <Button
             android:id="@+id/btnToggleView"
-            android:layout_width="wrap_content"
-            android:layout_height="32dp"
-            android:text="📱 Görünüm"
+            android:layout_width="40dp"
+            android:layout_height="36dp"
+            android:text="📱"
             android:textColor="#FFFFFF"
-            android:textSize="11sp"
+            android:textSize="15sp"
             android:textStyle="bold"
-            android:background="@drawable/badge_bg"
-            android:paddingStart="7dp"
-            android:paddingEnd="7dp"
-            android:layout_marginEnd="4dp" />
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:padding="0dp"
+            android:layout_marginEnd="2dp"
+            android:contentDescription="Görünüm Değiştir (Mobil / A4 Kağıt)" />
 
         <!-- Paylaş Butonu -->
         <Button
             android:id="@+id/btnShare"
-            android:layout_width="wrap_content"
-            android:layout_height="32dp"
-            android:text="📤 Paylaş ▼"
-            android:textColor="#283593"
-            android:textSize="11sp"
+            android:layout_width="40dp"
+            android:layout_height="36dp"
+            android:text="📤"
+            android:textColor="#FFFFFF"
+            android:textSize="15sp"
             android:textStyle="bold"
-            android:background="@drawable/button_share"
-            android:paddingStart="7dp"
-            android:paddingEnd="7dp"
-            android:layout_marginEnd="4dp" />
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:padding="0dp"
+            android:layout_marginEnd="2dp"
+            android:contentDescription="Belgeyi Paylaş" />
 
-        <!-- Farklı Kaydet ve Diğer İşlemler Menü Butonu -->
+        <!-- Farklı Kaydet ve Diğer İşlemler Menü Butonu (3 Nokta) -->
         <Button
             android:id="@+id/btnSave"
-            android:layout_width="wrap_content"
-            android:layout_height="32dp"
-            android:text="⋮ Menü ▼"
+            android:layout_width="38dp"
+            android:layout_height="36dp"
+            android:text="⋮"
             android:textColor="#FFFFFF"
-            android:textSize="11sp"
+            android:textSize="18sp"
             android:textStyle="bold"
-            android:background="@drawable/badge_bg"
-            android:paddingStart="8dp"
-            android:paddingEnd="8dp" />
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:padding="0dp"
+            android:contentDescription="Farklı Kaydet ve İşlemler Menüsü" />
 
         <!-- Uyumluluk için Gizlenen Eski Butonlar -->
         <Button
@@ -139,21 +146,26 @@
 
         <TextView
             android:id="@+id/tvWordCount"
-            android:layout_width="0dp"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="0 kelime • 0 karakter"
-            android:textColor="#5F6368"
+            android:text="0 kelime | 0 karakter"
+            android:textColor="#555555"
             android:textSize="11sp" />
+
+        <View
+            android:layout_width="0dp"
+            android:layout_height="1dp"
+            android:layout_weight="1" />
 
         <TextView
             android:id="@+id/tvSaveStatus"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="✓ Hazır"
+            android:text="Hazır"
             android:textColor="#2E7D32"
             android:textSize="11sp"
             android:textStyle="bold" />
+
     </LinearLayout>
 
 </LinearLayout>

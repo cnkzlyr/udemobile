@@ -11,11 +11,14 @@ import android.graphics.BitmapFactory;
 import android.graphics.pdf.PdfRenderer;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.CancellationSignal;
 import android.os.Environment;
 import android.os.ParcelFileDescriptor;
 import android.provider.OpenableColumns;
+import android.print.PageRange;
 import android.print.PrintAttributes;
 import android.print.PrintDocumentAdapter;
+import android.print.PrintDocumentInfo;
 import android.print.PrintManager;
 import android.util.Base64;
 import android.view.View;
@@ -140,6 +143,7 @@ public class EditorActivity extends Activity {
             public void onPageFinished(WebView view, String url) {
                 super.onPageFinished(view, url);
                 isPageLoaded = true;
+                editorWebView.evaluateJavascript("document.body.classList.add('in-android');", null);
                 if (pendingHtmlToLoad != null) {
                     injectHtmlContent(pendingHtmlToLoad);
                     pendingHtmlToLoad = null;
@@ -514,6 +518,18 @@ public class EditorActivity extends Activity {
         }
     }
 
+    /**
+     * PDF dışa aktarma ve paylaşma motoru.
+     * JavaScript tarafındaki yüksek çözünürlüklü A4 PDF üreticisi ile veya sistem yazdırma motoru ile çalışır.
+     */
+    private void saveAsPdfFile(boolean andShare) {
+        exportToPdf();
+    }
+
+    private void shareAsPdf() {
+        exportToPdf();
+    }
+
     private void showSaveMenu(View anchor) {
         PopupMenu popup = new PopupMenu(this, anchor);
         popup.getMenu().add(0, 1, 0, "📄 Havelsan UDF Olarak Kaydet (.udf)");
@@ -530,7 +546,7 @@ public class EditorActivity extends Activity {
                     saveDocument(false, false);
                     return true;
                 case 2:
-                    editorWebView.evaluateJavascript("triggerSaveAs('pdf');", null);
+                    saveAsPdfFile(false);
                     return true;
                 case 3:
                     saveDocument(true, false);
@@ -568,7 +584,7 @@ public class EditorActivity extends Activity {
                     editorWebView.evaluateJavascript("openPrintPreview();", null);
                     return true;
                 case 3:
-                    editorWebView.evaluateJavascript("triggerSaveAs('pdf');", null);
+                    saveAsPdfFile(false);
                     return true;
             }
             return false;
@@ -588,7 +604,7 @@ public class EditorActivity extends Activity {
         popup.setOnMenuItemClickListener(item -> {
             switch (item.getItemId()) {
                 case 1:
-                    editorWebView.evaluateJavascript("triggerShareFormat('pdf');", null);
+                    saveAsPdfFile(true);
                     return true;
                 case 2:
                     shareAsUdf();
@@ -1493,6 +1509,16 @@ public class EditorActivity extends Activity {
             runOnUiThread(() -> {
                 saveDocument(false, true);
             });
+        }
+
+        @JavascriptInterface
+        public void saveAsPdf() {
+            runOnUiThread(() -> saveAsPdfFile(false));
+        }
+
+        @JavascriptInterface
+        public void shareAsPdf() {
+            runOnUiThread(() -> saveAsPdfFile(true));
         }
 
         @JavascriptInterface

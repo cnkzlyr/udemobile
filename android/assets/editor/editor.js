@@ -259,23 +259,53 @@ document.addEventListener('DOMContentLoaded', () => {
 function toggleViewMode() {
   const wrapper = document.getElementById('page-wrapper');
   const btn = document.getElementById('btn-toggle-view');
+  const sheetContainer = document.getElementById('sheet-container');
+  const container = document.getElementById('pages-container') || sheetContainer;
   
   isMobileView = !isMobileView;
   if (isMobileView) {
     wrapper.classList.remove('paper-view');
     wrapper.classList.add('mobile-view');
     if (btn) btn.innerHTML = '📄 <span>Kağıt</span>';
+
+    // Mobil Görünüm (Kesintisiz Akış):
+    // Tüm paragrafları ilk sayfa gövdesinde toplayarak sayfa kırılmalarını ve tekrarlayan başlıkları gizle
+    if (container) {
+      const bodyBoxes = Array.from(container.querySelectorAll('.page-body-box'));
+      if (bodyBoxes.length > 1) {
+        const firstBox = bodyBoxes[0];
+        for (let i = 1; i < bodyBoxes.length; i++) {
+          while (bodyBoxes[i].firstChild) {
+            firstBox.appendChild(bodyBoxes[i].firstChild);
+          }
+        }
+        const allPages = Array.from(container.querySelectorAll('.a4-sheet-page'));
+        for (let i = 1; i < allPages.length; i++) {
+          allPages[i].style.display = 'none';
+        }
+        const gaps = Array.from(container.querySelectorAll('.page-desk-gap, .page-break-desk-gap'));
+        gaps.forEach(g => g.style.display = 'none');
+      }
+    }
+
     const oldBreaks = document.querySelectorAll('.auto-page-break');
     oldBreaks.forEach(b => b.remove());
-    const sheetContainer = document.getElementById('sheet-container');
     if (sheetContainer) sheetContainer.style.zoom = '1';
     showEditorToast('📱 Mobil Görünüme Geçildi (Kesintisiz Akış)');
   } else {
     wrapper.classList.remove('mobile-view');
     wrapper.classList.add('paper-view');
     if (btn) btn.innerHTML = '📱 <span>Görünüm</span>';
+
+    if (container) {
+      const allPages = Array.from(container.querySelectorAll('.a4-sheet-page'));
+      allPages.forEach(p => p.style.display = '');
+      const gaps = Array.from(container.querySelectorAll('.page-desk-gap, .page-break-desk-gap'));
+      gaps.forEach(g => g.style.display = '');
+    }
+
     applyAutoFitZoom();
-    setTimeout(updatePagination, 100);
+    setTimeout(updatePagination, 80);
     showEditorToast('📄 Kağıt Görünümüne Geçildi (1:1 A4 Baskı Düzeni)');
   }
 }
@@ -621,22 +651,42 @@ function findParagraphSplitIndex(pNode, maxH) {
 function updatePagination() {
   if (isMobileView || isPaginating) return;
 
+  // Sanal klavyenin açık olduğu veya kullanıcının aktif yazı yazdığı anlarda
+  // DOM yıkımını (container.innerHTML = '') kesinlikle engelle!
+  const activeEl = document.activeElement;
+  const isUserEditing = activeEl && (
+    activeEl.classList?.contains('page-body-box') ||
+    activeEl.id === 'editor-content' ||
+    activeEl.isContentEditable ||
+    (activeEl.closest && activeEl.closest('.page-body-box'))
+  );
+  if (isUserEditing) {
+    return;
+  }
+
   const container = document.getElementById('pages-container') || document.getElementById('sheet-container');
   if (!container) return;
 
-  // Kullanıcı aktif olarak yazı yazıyorsa ve sayfalarda dikey taşma yoksa klavyenin kapanmaması için DOM'u yıkma
+  // KESİN KLAVYE VE ODAK KORUMASI:
+  // Kullanıcı imleç içerideyken veya klavyeyle yazı yazarken DOM ağacı ASLA yıkılmaz.
+  // container.innerHTML = '' çağrılmadığı için Android sanal klavyesinin kapanması
+  // ve imleç kayıpları %100 engellenir.
   const activeEl = document.activeElement;
-  const isTypingNow = activeEl && (activeEl.classList?.contains('page-body-box') || activeEl.id === 'editor-content' || activeEl.isContentEditable || activeEl.closest?.('.page-body-box'));
+  const isTypingNow = activeEl && (
+    activeEl.classList?.contains('page-body-box') ||
+    activeEl.id === 'editor-content' ||
+    activeEl.isContentEditable ||
+    activeEl.closest?.('.page-body-box') ||
+    activeEl.closest?.('#editor-content')
+  );
   const currentBoxes = Array.from(container.querySelectorAll('.page-body-box'));
 
-  if (isTypingNow && currentBoxes.length > 0) {
-    const isOverflowing = currentBoxes.some(b => b.scrollHeight > b.clientHeight + 4);
-    if (!isOverflowing) {
-      // Sayfa taşması yok, DOM ağacını bozmadan sadece sayaçları güncelle
-      const statusEl = document.getElementById('stat-page-count');
-      if (statusEl) statusEl.textContent = `Sayfa 1 / ${currentBoxes.length}`;
-      return;
+  if (isTypingNow) {
+    const statusEl = document.getElementById('stat-page-count');
+    if (statusEl && currentBoxes.length > 0) {
+      statusEl.textContent = `Sayfa 1 / ${currentBoxes.length}`;
     }
+    return;
   }
 
   isPaginating = true;
@@ -1608,21 +1658,40 @@ function initRuler() {
     // Editördeki metin seçiminin cetvele tıklanınca kaybolmaması için mousedown'u engelle
     e.preventDefault();
   });
-  rulerScale.onclick = (e) => {
+
+  const handleRulerScaleTap = (clientX, target) => {
     if (activeDragMarker) return;
-    
-    // Eğer tıklanan bir sekme durağı veya cetvel imi ise atla
-    if (e.target && (e.target.closest('.ruler-tab-stop') || e.target.closest('.ruler-marker'))) {
+    if (target && (target.closest('.ruler-tab-stop') || target.closest('.ruler-marker'))) {
       return;
     }
-
     const rect = rulerScale.getBoundingClientRect();
-    const x = e.clientX - rect.left;
+    const x = clientX - rect.left;
     const pct = Math.max(0, Math.min(1, x / rect.width));
     const cm = Math.round((pct * activeCm) * 10) / 10;
-    
     toggleTabStop(cm);
   };
+
+  rulerScale.onclick = (e) => {
+    handleRulerScaleTap(e.clientX, e.target);
+  };
+
+  let touchStartPos = null;
+  rulerScale.addEventListener('touchstart', (e) => {
+    if (e.touches && e.touches.length === 1) {
+      touchStartPos = { x: e.touches[0].clientX, y: e.touches[0].clientY, target: e.target };
+    }
+  }, { passive: true });
+
+  rulerScale.addEventListener('touchend', (e) => {
+    if (touchStartPos && e.changedTouches && e.changedTouches.length === 1) {
+      const dx = Math.abs(e.changedTouches[0].clientX - touchStartPos.x);
+      const dy = Math.abs(e.changedTouches[0].clientY - touchStartPos.y);
+      if (dx < 10 && dy < 10) {
+        handleRulerScaleTap(e.changedTouches[0].clientX, touchStartPos.target);
+      }
+    }
+    touchStartPos = null;
+  }, { passive: true });
 }
 
 let currentTabStops = [];
@@ -1963,6 +2032,7 @@ function setupMarkerDragging(markerId, type, activeCm) {
     }
 
     const moveHandler = (moveEvent) => {
+      if (moveEvent.cancelable) moveEvent.preventDefault();
       const clientX = moveEvent.touches ? moveEvent.touches[0].clientX : moveEvent.clientX;
       const rect = scale.getBoundingClientRect();
       const x = clientX - rect.left;
@@ -2493,15 +2563,44 @@ function restoreCurrentSelection() {
 }
 
 function openModal(id) {
-  document.getElementById(id).classList.add('open');
+  const el = document.getElementById(id);
+  if (el) {
+    el.classList.add('open');
+    el.style.display = 'flex';
+  }
 }
 
 function closeModal(id) {
-  document.getElementById(id).classList.remove('open');
+  const el = document.getElementById(id);
+  if (el) {
+    el.classList.remove('open');
+    el.style.display = 'none';
+  }
   if (id === 'modal-paragraph-settings') {
     setTimeout(restoreCurrentSelection, 50);
   }
   if (id === 'modal-smartcard-sign' && smartCardPollInterval) {
+    clearInterval(smartCardPollInterval);
+    smartCardPollInterval = null;
+  }
+}
+
+function toggleToolbarExpand() {
+  const tb = document.getElementById('toolbar-container');
+  const icon = document.getElementById('chevron-icon');
+  if (!tb) return;
+  tb.classList.toggle('toolbar-expanded');
+  const isExp = tb.classList.contains('toolbar-expanded');
+  if (icon) {
+    icon.textContent = isExp ? '▴' : '▾';
+  }
+}
+window.toggleToolbarExpand = toggleToolbarExpand;
+
+function openMobileMenuModal() {
+  openModal('modal-mobile-menu');
+}
+window.openMobileMenuModal = openMobileMenuModal;
     clearInterval(smartCardPollInterval);
     smartCardPollInterval = null;
   }
