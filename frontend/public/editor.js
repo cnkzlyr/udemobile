@@ -51,8 +51,21 @@ if (typeof window !== 'undefined') {
 
 // Aktif yazım ve klavye odak koruma durumu
 let lastUserTypingTimestamp = 0;
+function noteUserActivity() {
+  lastUserTypingTimestamp = Date.now();
+  window.__userHasEditedDocument = true;
+  if (window.AndroidBridge && window.AndroidBridge.setDocModified) {
+    try { window.AndroidBridge.setDocModified(true); } catch (e) {}
+  }
+}
+if (typeof document !== 'undefined') {
+  ['beforeinput', 'input', 'keydown', 'compositionstart', 'compositionupdate', 'compositionend'].forEach(evt => {
+    document.addEventListener(evt, noteUserActivity, { passive: true, capture: true });
+  });
+}
+
 function isUserTypingActive() {
-  return (Date.now() - lastUserTypingTimestamp) < 3500;
+  return (Date.now() - lastUserTypingTimestamp) < 3000;
 }
 window.isUserTypingActive = isUserTypingActive;
 
@@ -76,12 +89,12 @@ let lastActiveParagraph = null;
 
 function recordCurrentSelection() {
   const sel = window.getSelection();
-  const editor = document.getElementById('editor-content');
-  if (!sel || sel.rangeCount === 0 || !editor) return;
+  if (!sel || sel.rangeCount === 0) return;
 
   const anchor = sel.anchorNode;
-  if (!editor.contains(anchor)) {
-    // Odak editör dışında ise (örneğin araç çubuğuna tıklandıysa), seçimi koru ve silme!
+  const container = document.getElementById('pages-container') || document.getElementById('sheet-container') || document.getElementById('editor-content') || document.body;
+  if (!container || !container.contains(anchor)) {
+    // Odak editör dışında ise seçimi koru
     return;
   }
 
@@ -92,10 +105,10 @@ function recordCurrentSelection() {
   // Aktif paragrafı bul
   let node = anchor;
   let activeP = null;
-  while (node && node !== editor && node !== document.body) {
+  while (node && node !== container && node !== document.body) {
     if (node.nodeType === Node.ELEMENT_NODE) {
       const tag = node.tagName.toLowerCase();
-      if (tag === 'p' || tag === 'li' || tag === 'blockquote' || (tag === 'div' && node.parentNode === editor)) {
+      if (tag === 'p' || tag === 'li' || tag === 'blockquote' || (tag === 'div' && (node.parentElement?.classList?.contains('page-body-box') || node.parentNode === container))) {
         activeP = node;
         break;
       }
@@ -103,6 +116,19 @@ function recordCurrentSelection() {
     node = node.parentNode;
   }
   if (activeP) lastActiveParagraph = activeP;
+
+  // Seçili paragrafları bul
+  try {
+    const range = sel.getRangeAt(0);
+    const allBlocks = Array.from(container.querySelectorAll('.page-body-box p, .page-body-box li, .page-body-box blockquote, #editor-content p, #editor-content li, #editor-content blockquote'));
+    lastSelectedParagraphs = allBlocks.filter(b => range.intersectsNode(b));
+    if (lastSelectedParagraphs.length === 0 && activeP) {
+      lastSelectedParagraphs = [activeP];
+    }
+  } catch (e) {
+    if (activeP) lastSelectedParagraphs = [activeP];
+  }
+}
 
   // Seçili paragrafları bul
   try {
@@ -153,7 +179,7 @@ window.showToast = showEditorToast;
 
 document.addEventListener('DOMContentLoaded', () => {
   // Araç çubuğu butonlarının editördeki metin seçimini ve imleç odağını çalmasını engelle
-  ['toolbar-container', 'floating-zoom-bar'].forEach(id => {
+  ['toolbar-container', 'floating-zoom-bar', 'ruler-container'].forEach(id => {
     const el = document.getElementById(id);
     if (el) {
       el.addEventListener('mousedown', (e) => {
@@ -161,25 +187,31 @@ document.addEventListener('DOMContentLoaded', () => {
           e.preventDefault();
         }
       });
+      el.addEventListener('touchstart', (e) => {
+        if (!e.target.closest('select, input, textarea, .ruler-marker')) {
+          // İlgisiz dokunmalarda seçimi koru
+        }
+      }, { passive: true });
     }
   });
 
   const editor = document.getElementById('editor-content');
   if (editor) {
     editor.addEventListener('input', () => {
-      markDocumentUserEdited();
-      debouncedUpdateCounts(800);
+      noteUserActivity();
+      debouncedUpdateCounts(1500);
     });
   }
 
   document.addEventListener('selectionchange', () => {
     recordCurrentSelection();
     updateActiveButtons();
-    // Yazma esnasında (IME etkinken) cetvel DOM ağacını bozarak ve yüzen menüyü açarak klavyenin kapanmasını engelle
-    if (!isUserTypingActive()) {
+    // Yazma esnasında (IME etkinken) veya kullanıcı odağı içerideyken cetvel DOM ağacını ve yüzen menüyü ASLA kurcalama
+    // Bu sayede klavyenin aniden kapanması %100 engellenir
+    if (!isUserTypingActive() && !isEditorFocused()) {
       updateRulerFromActiveParagraph();
       if (!isFormatPainterActive) {
-        setTimeout(updateFloatingContextMenu, 120);
+        setTimeout(updateFloatingContextMenu, 150);
       }
     }
   });
@@ -300,8 +332,10 @@ function toggleViewMode() {
   
   isMobileView = !isMobileView;
   if (isMobileView) {
-    wrapper.classList.remove('paper-view');
-    wrapper.classList.add('mobile-view');
+    if (wrapper) {
+      wrapper.classList.remove('paper-view');
+      wrapper.classList.add('mobile-view');
+    }
     if (btn) btn.innerHTML = '🖥️ <span>Kağıt</span>';
     if (headerBtn) headerBtn.innerHTML = '🖥️ <span class="hide-on-mobile">Kağıt</span>';
     if (pillBtn) pillBtn.textContent = '🖥️';
@@ -311,34 +345,14 @@ function toggleViewMode() {
       try { window.AndroidBridge.onViewModeChanged(true); } catch (e) {}
     }
 
-    // Mobil Görünüm (Kesintisiz Akış):
-    // Tüm paragrafları ilk sayfa gövdesinde toplayarak sayfa kırılmalarını ve tekrarlayan başlıkları gizle
-    if (container) {
-      const bodyBoxes = Array.from(container.querySelectorAll('.page-body-box'));
-      if (bodyBoxes.length > 1) {
-        const firstBox = bodyBoxes[0];
-        for (let i = 1; i < bodyBoxes.length; i++) {
-          while (bodyBoxes[i].firstChild) {
-            firstBox.appendChild(bodyBoxes[i].firstChild);
-          }
-        }
-        const allPages = Array.from(container.querySelectorAll('.a4-sheet-page'));
-        for (let i = 1; i < allPages.length; i++) {
-          allPages[i].style.display = 'none';
-        }
-        const gaps = Array.from(container.querySelectorAll('.page-desk-gap, .page-break-desk-gap'));
-        gaps.forEach(g => g.style.display = 'none');
-      }
-    }
-
-    const oldBreaks = document.querySelectorAll('.auto-page-break');
-    oldBreaks.forEach(b => b.remove());
     if (sheetContainer) sheetContainer.style.zoom = '1';
     updateRulerBodyWidth();
     showEditorToast('📱 Mobil Görünüme Geçildi (Kesintisiz Akış)');
   } else {
-    wrapper.classList.remove('mobile-view');
-    wrapper.classList.add('paper-view');
+    if (wrapper) {
+      wrapper.classList.remove('mobile-view');
+      wrapper.classList.add('paper-view');
+    }
     if (btn) btn.innerHTML = '📱 <span>Görünüm</span>';
     if (headerBtn) headerBtn.innerHTML = '📱 <span class="hide-on-mobile">Görünüm</span>';
     if (pillBtn) pillBtn.textContent = '📱';
@@ -348,16 +362,8 @@ function toggleViewMode() {
       try { window.AndroidBridge.onViewModeChanged(false); } catch (e) {}
     }
 
-    if (container) {
-      const allPages = Array.from(container.querySelectorAll('.a4-sheet-page'));
-      allPages.forEach(p => p.style.display = '');
-      const gaps = Array.from(container.querySelectorAll('.page-desk-gap, .page-break-desk-gap'));
-      gaps.forEach(g => g.style.display = '');
-    }
-
     applyAutoFitZoom();
     updateRulerBodyWidth();
-    setTimeout(updatePagination, 80);
     showEditorToast('📄 Kağıt Görünümüne Geçildi (1:1 A4 Baskı Düzeni)');
   }
 }

@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- USB CCID Smart Card Reader & Token Sınıfı (Class 0x0B = 11) -->
+    <usb-device class="11" />
+
+    <!-- Popüler Türk Hukuk E-İmza Token ve Okuyucu Vendor ID'leri -->
+    <!-- ACS ACR38 / ACR39 (Türkiye Barolar Birliği Standart Okuyucu) -->
+    <usb-device vendor-id="1839" /> <!-- 0x072F -->
+
+    <!-- SafeNet eToken 5100 / 5110 (Barokart, TNB, TürkTrust Kırmızı Token) -->
+    <usb-device vendor-id="1321" /> <!-- 0x0529 -->
+
+    <!-- ArkSigner Kriptografik USB Token -->
+    <usb-device vendor-id="11491" /> <!-- 0x2CE3 -->
+
+    <!-- Gemalto / Thales SmartCard Okuyucu & Token -->
+    <usb-device vendor-id="2278" /> <!-- 0x08E6 -->
+
+    <!-- Identiv / SCM Microsystems SCR3310 -->
+    <usb-device vendor-id="1254" /> <!-- 0x04E6 -->
+
+    <!-- HID Global / Omnikey 3021 / 3121 -->
+    <usb-device vendor-id="1899" /> <!-- 0x076B -->
+
+    <!-- Feitian ePass2003 / R301 -->
+    <usb-device vendor-id="2414" /> <!-- 0x096E -->
+
+    <!-- Alcor Micro USB SmartCard Reader -->
+    <usb-device vendor-id="1423" /> <!-- 0x058F -->
+
+    <!-- Realtek SmartCard Reader -->
+    <usb-device vendor-id="3034" /> <!-- 0x0BDA -->
+</resources>

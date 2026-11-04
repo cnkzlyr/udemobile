@@ -1,12 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.agy.uyapacici"
-    android:versionCode="39"
-    android:versionName="3.7.3">
+    android:versionCode="40"
+    android:versionName="3.8.0">
 
     <uses-sdk
         android:minSdkVersion="21"
         android:targetSdkVersion="34" />
+
+    <!-- USB Host Desteği (OTG E-İmza Akıllı Kart Okuyucular & Tokenlar) -->
+    <uses-feature android:name="android.hardware.usb.host" android:required="false" />
 
     <!-- Termux ve Depolama İzinleri -->
     <uses-permission android:name="com.termux.permission.RUN_COMMAND" />
@@ -40,7 +43,9 @@
             android:name=".CanFileProvider"
             android:authorities="com.agy.uyapacici.fileprovider"
             android:exported="true"
-            android:grantUriPermissions="true" />
+            android:grantUriPermissions="true">
+            <grant-uri-permission android:pathPrefix="/" />
+        </provider>
 
         <!-- Ana Karşılama ve Dosya Köprüsü -->
         <activity
@@ -206,7 +211,14 @@
             android:name=".EditorActivity"
             android:windowSoftInputMode="adjustResize"
             android:configChanges="orientation|screenSize|keyboardHidden|screenLayout|smallestScreenSize|keyboard"
-            android:exported="true" />
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED" />
+            </intent-filter>
+            <meta-data
+                android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED"
+                android:resource="@xml/device_filter" />
+        </activity>
 
     </application>
 </manifest>

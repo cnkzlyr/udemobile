@@ -2,14 +2,18 @@ package com.agy.uyapacici;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.pdf.PdfRenderer;
+import android.hardware.usb.UsbDevice;
+import android.hardware.usb.UsbManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -24,6 +28,7 @@ import android.print.PrintDocumentAdapter;
 import android.print.PrintDocumentInfo;
 import android.print.PrintManager;
 import android.util.Base64;
+import android.util.Log;
 import android.view.View;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebChromeClient;
@@ -105,9 +110,58 @@ public class EditorActivity extends Activity {
         setupWebView();
         setupListeners();
 
+        // Dahili Yerel Adalet E-İmza Sunucusu (Port 5975) & USB CCID Sürücüsü
+        try {
+            EmbeddedAdaletServer.getInstance(this).start();
+            setupUsbReceiver();
+            CcidDriver.getInstance(this).scanAndConnect();
+        } catch (Exception ignored) {}
+
         new Thread(this::ensureEimzaServiceRunning).start();
 
         loadIncomingFile();
+    }
+
+    private final BroadcastReceiver usbReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            String action = intent.getAction();
+            if (CcidDriver.ACTION_USB_PERMISSION.equals(action)) {
+                synchronized (this) {
+                    UsbDevice device = intent.getParcelableExtra(UsbManager.EXTRA_DEVICE);
+                    if (intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false)) {
+                        if (device != null) {
+                            CcidDriver.getInstance(context).scanAndConnect();
+                            queryRealSmartCardStatus();
+                        }
+                    }
+                }
+            } else if (UsbManager.ACTION_USB_DEVICE_ATTACHED.equals(action)) {
+                CcidDriver.getInstance(context).scanAndConnect();
+                queryRealSmartCardStatus();
+            } else if (UsbManager.ACTION_USB_DEVICE_DETACHED.equals(action)) {
+                CcidDriver.getInstance(context).disconnect();
+                queryRealSmartCardStatus();
+            }
+        }
+    };
+
+    private void setupUsbReceiver() {
+        try {
+            IntentFilter filter = new IntentFilter();
+            filter.addAction(CcidDriver.ACTION_USB_PERMISSION);
+            filter.addAction(UsbManager.ACTION_USB_DEVICE_ATTACHED);
+            filter.addAction(UsbManager.ACTION_USB_DEVICE_DETACHED);
+            registerReceiver(usbReceiver, filter);
+        } catch (Exception ignored) {}
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        try { unregisterReceiver(usbReceiver); } catch (Exception ignored) {}
+        try { EmbeddedAdaletServer.getInstance(this).stop(); } catch (Exception ignored) {}
+        try { CcidDriver.getInstance(this).disconnect(); } catch (Exception ignored) {}
     }
 
     @Override
@@ -344,7 +398,7 @@ public class EditorActivity extends Activity {
     private void injectHtmlContent(String html) {
         String quoted = JSONObject.quote(html != null ? html : "");
         String quotedTitle = JSONObject.quote(etDocTitle != null ? etDocTitle.getText().toString() : "Dilekce.udf");
-        editorWebView.evaluateJavascript("window.currentDocFileName = " + quotedTitle + "; setHtmlContent(" + quoted + ");", null);
+        editorWebView.evaluateJavascript("window.currentDocFileName = " + quotedTitle + "; if (typeof updateDocTitleDisplay === 'function') updateDocTitleDisplay(" + quotedTitle + "); setHtmlContent(" + quoted + ");", null);
     }
 
     private String cleanJsonString(String raw) {
@@ -406,7 +460,7 @@ public class EditorActivity extends Activity {
         btnSave.setEnabled(false);
         btnSaveDocx.setEnabled(false);
 
-        String js = "(function(){try{AndroidBridge.setDocModified(isDocumentModified());}catch(e){} return JSON.stringify(getStructuredDocument());})()";
+        String js = "(function(){try{var t=document.getElementById('desktopDocTitle');if(t&&t.value)AndroidBridge.syncDocumentTitle(t.value);AndroidBridge.setDocModified(isDocumentModified());}catch(e){} return JSON.stringify(getStructuredDocument());})()";
         editorWebView.evaluateJavascript(js, rawResult -> {
             if (btnQuickSave != null) btnQuickSave.setEnabled(true);
             btnSave.setEnabled(true);
@@ -758,15 +812,6 @@ public class EditorActivity extends Activity {
         try {
             file.setReadable(true, false);
 
-            // Harici uygulamaların (WhatsApp, Gmail, Office) doğrudan erişebilmesi için public İndirilenler klasörüne de yedekle
-            try {
-                File pubDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "CanEditor");
-                pubDir.mkdirs();
-                File pubFile = new File(pubDir, file.getName());
-                copyFile(file, pubFile);
-                pubFile.setReadable(true, false);
-            } catch (Exception ignored) {}
-
             Intent shareIntent = new Intent(Intent.ACTION_SEND);
             shareIntent.setType(mimeType);
 
@@ -777,7 +822,19 @@ public class EditorActivity extends Activity {
             shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
             shareIntent.addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
 
-            startActivity(Intent.createChooser(shareIntent, chooserTitle));
+            Intent chooser = Intent.createChooser(shareIntent, chooserTitle);
+            chooser.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+
+            // Tüm alıcı uygulamalara (WhatsApp, Gmail vb.) açıkça okuma izni ver
+            try {
+                android.content.pm.PackageManager pm = getPackageManager();
+                java.util.List<android.content.pm.ResolveInfo> matches = pm.queryIntentActivities(shareIntent, android.content.pm.PackageManager.MATCH_DEFAULT_ONLY);
+                for (android.content.pm.ResolveInfo info : matches) {
+                    grantUriPermission(info.activityInfo.packageName, contentUri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                }
+            } catch (Exception ignored) {}
+
+            startActivity(chooser);
         } catch (Exception e) {
             Toast.makeText(this, "Paylaşım başlatılamadı: " + e.getMessage(), Toast.LENGTH_SHORT).show();
         }
@@ -954,7 +1011,33 @@ public class EditorActivity extends Activity {
         new Thread(() -> {
             JSONObject responseToJs = new JSONObject();
             try {
-                // E-imza servislerini kontrol et / başlat
+                // 1. Katman: Doğrudan Android Yerel USB Host CCID Sürücüsü (Sıfır Termux, Bağımsız)
+                CcidDriver driver = CcidDriver.getInstance(this);
+                if (!driver.isConnected()) {
+                    driver.scanAndConnect();
+                }
+                if (driver.isConnected()) {
+                    CcidDriver.CardCertificateInfo cert = driver.getCertificateInfo();
+                    JSONArray certsArray = new JSONArray();
+                    JSONObject item = new JSONObject();
+                    item.put("id", cert != null ? cert.certificateId : "CERT_0");
+                    item.put("subject", cert != null && !cert.subject.isEmpty() ? cert.subject : "Nitelikli Elektronik Sertifika");
+                    item.put("issuer", cert != null && !cert.issuer.isEmpty() ? cert.issuer : driver.getCardType());
+                    item.put("serial", cert != null && !cert.serial.isEmpty() ? cert.serial : "NES-1");
+                    item.put("validUntil", cert != null && !cert.notAfter.isEmpty() ? cert.notAfter : "31.12.2028");
+                    item.put("terminal", driver.getReaderName());
+                    certsArray.put(item);
+
+                    responseToJs.put("connected", true);
+                    responseToJs.put("terminal", driver.getReaderName());
+                    responseToJs.put("certificates", certsArray);
+
+                    final String jsonStr = responseToJs.toString();
+                    runOnUiThread(() -> editorWebView.evaluateJavascript("onSmartCardStatusUpdated(" + jsonStr + ");", null));
+                    return;
+                }
+
+                // 2. Katman: Dahili/Harici Adalet E-İmza Servisi (Port 5975)
                 File adaletScript = new File("/data/data/com.termux/files/home/eimza/adalet_baslat.sh");
                 if (adaletScript.exists()) {
                     ensureEimzaServiceRunning();
@@ -1149,66 +1232,81 @@ public class EditorActivity extends Activity {
                 byte[] contentDigest = MessageDigest.getInstance("SHA-256").digest(contentXmlBytes);
                 String base64Digest = Base64.encodeToString(contentDigest, Base64.NO_WRAP);
 
-                // 3. Adalet E-İmza Servisi üzerinden gerçek donanımsal imzalama isteği gönder
-                URL url = new URL("http://127.0.0.1:5975/api/v1/docsignature/signdigest");
-                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-                conn.setRequestMethod("POST");
-                conn.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
-                conn.setDoOutput(true);
-                conn.setConnectTimeout(6000);
-                conn.setReadTimeout(20000);
-
-                JSONObject reqObj = new JSONObject();
-                reqObj.put("certificateId", certificateId);
-                reqObj.put("pin", pin);
-                reqObj.put("password", pin);
-                reqObj.put("content", base64Digest);
-
-                byte[] postData = reqObj.toString().getBytes(StandardCharsets.UTF_8);
-                try (OutputStream os = conn.getOutputStream()) {
-                    os.write(postData);
-                    os.flush();
+                // 1. Katman: Doğrudan Android Yerel USB Host CCID Sürücüsü (Termux'suz, Bağımsız)
+                byte[] realCmsBytes = null;
+                CcidDriver driver = CcidDriver.getInstance(this);
+                if (driver.isConnected()) {
+                    try {
+                        byte[] rawSig = driver.signWithPin(pin, contentDigest);
+                        byte[] certDer = driver.getCertificateInfo() != null ? driver.getCertificateInfo().derBytes : null;
+                        realCmsBytes = EmbeddedAdaletServer.buildSimpleCms(contentDigest, rawSig, certDer);
+                    } catch (Exception e) {
+                        Log.w("EditorActivity", "CcidDriver doğrudan imzalama başarısız, HTTP servisine geçiliyor: " + e.getMessage());
+                    }
                 }
 
-                int code = conn.getResponseCode();
-                InputStream is = (code >= 200 && code < 400) ? conn.getInputStream() : conn.getErrorStream();
-                BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8));
-                StringBuilder sb = new StringBuilder();
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    sb.append(line);
+                if (realCmsBytes == null) {
+                    // 2. Katman: Adalet E-İmza Servisi (Port 5975) üzerinden istek gönder
+                    URL url = new URL("http://127.0.0.1:5975/api/v1/docsignature/signdigest");
+                    HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                    conn.setRequestMethod("POST");
+                    conn.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
+                    conn.setDoOutput(true);
+                    conn.setConnectTimeout(6000);
+                    conn.setReadTimeout(20000);
+
+                    JSONObject reqObj = new JSONObject();
+                    reqObj.put("certificateId", certificateId);
+                    reqObj.put("pin", pin);
+                    reqObj.put("password", pin);
+                    reqObj.put("content", base64Digest);
+
+                    byte[] postData = reqObj.toString().getBytes(StandardCharsets.UTF_8);
+                    try (OutputStream os = conn.getOutputStream()) {
+                        os.write(postData);
+                        os.flush();
+                    }
+
+                    int code = conn.getResponseCode();
+                    InputStream is = (code >= 200 && code < 400) ? conn.getInputStream() : conn.getErrorStream();
+                    BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8));
+                    StringBuilder sb = new StringBuilder();
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        sb.append(line);
+                    }
+                    reader.close();
+
+                    JSONObject res = new JSONObject(sb.toString());
+                    JSONObject metadata = res.optJSONObject("metadata");
+                    String status = metadata != null ? metadata.optString("STATUS", "") : "";
+                    String msg = metadata != null ? metadata.optString("MESSAGE", "Bilinmeyen hata") : "İşlem başarısız";
+
+                    if (!"SUCCESS".equalsIgnoreCase(status) || res.isNull("data")) {
+                        final String errMsg = msg;
+                        runOnUiThread(() -> {
+                            editorWebView.evaluateJavascript("onRealSignFailed(" + JSONObject.quote(errMsg) + ");", null);
+                            tvSaveStatus.setText("Hata");
+                            Toast.makeText(EditorActivity.this, "E-İmza Hatası: " + errMsg, Toast.LENGTH_LONG).show();
+                        });
+                        return;
+                    }
+
+                    // 4. Başarılı! Gerçek CAdES CMS DER imza verisini al
+                    String signedDataBase64 = "";
+                    Object dataObj = res.get("data");
+                    if (dataObj instanceof JSONObject) {
+                        signedDataBase64 = ((JSONObject) dataObj).optString("signedData", "");
+                    } else if (dataObj instanceof String) {
+                        signedDataBase64 = (String) dataObj;
+                    }
+
+                    if (signedDataBase64.isEmpty()) {
+                        throw new IllegalStateException("İmza verisi boş döndü.");
+                    }
+
+                    realCmsBytes = Base64.decode(signedDataBase64, Base64.DEFAULT);
                 }
-                reader.close();
-
-                JSONObject res = new JSONObject(sb.toString());
-                JSONObject metadata = res.optJSONObject("metadata");
-                String status = metadata != null ? metadata.optString("STATUS", "") : "";
-                String msg = metadata != null ? metadata.optString("MESSAGE", "Bilinmeyen hata") : "İşlem başarısız";
-
-                if (!"SUCCESS".equalsIgnoreCase(status) || res.isNull("data")) {
-                    final String errMsg = msg;
-                    runOnUiThread(() -> {
-                        editorWebView.evaluateJavascript("onRealSignFailed(" + JSONObject.quote(errMsg) + ");", null);
-                        tvSaveStatus.setText("Hata");
-                        Toast.makeText(EditorActivity.this, "E-İmza Hatası: " + errMsg, Toast.LENGTH_LONG).show();
-                    });
-                    return;
-                }
-
-                // 4. Başarılı! Gerçek CAdES CMS DER imza verisini al
-                String signedDataBase64 = "";
-                Object dataObj = res.get("data");
-                if (dataObj instanceof JSONObject) {
-                    signedDataBase64 = ((JSONObject) dataObj).optString("signedData", "");
-                } else if (dataObj instanceof String) {
-                    signedDataBase64 = (String) dataObj;
-                }
-
-                if (signedDataBase64.isEmpty()) {
-                    throw new IllegalStateException("İmza verisi boş döndü.");
-                }
-
-                byte[] realCmsBytes = Base64.decode(signedDataBase64, Base64.DEFAULT);
 
                 // 5. Dosya hedefini belirle
                 String baseTitle = etDocTitle.getText().toString().trim();
@@ -1394,16 +1492,24 @@ public class EditorActivity extends Activity {
     private boolean writeToDownloadsMediaStore(String fileName, String mimeType, byte[] bytes) {
         if (Build.VERSION.SDK_INT >= 29) {
             try {
+                Uri collection = MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY);
+
+                // Eski aynı isimli kaydı temizle
+                try {
+                    String where = MediaStore.MediaColumns.DISPLAY_NAME + "=? AND " + MediaStore.MediaColumns.RELATIVE_PATH + "=?";
+                    String[] args = new String[]{fileName, Environment.DIRECTORY_DOWNLOADS + "/UYAP_Belgelerim/"};
+                    getContentResolver().delete(collection, where, args);
+                } catch (Exception ignored) {}
+
                 ContentValues values = new ContentValues();
                 values.put(MediaStore.MediaColumns.DISPLAY_NAME, fileName);
-                values.put(MediaStore.MediaColumns.MIME_TYPE, mimeType != null ? mimeType : "application/octet-stream");
+                values.put(MediaStore.MediaColumns.MIME_TYPE, (mimeType != null && !mimeType.isEmpty()) ? mimeType : "application/octet-stream");
                 values.put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/UYAP_Belgelerim");
                 values.put(MediaStore.MediaColumns.IS_PENDING, 1);
 
-                Uri collection = MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY);
                 Uri itemUri = getContentResolver().insert(collection, values);
                 if (itemUri != null) {
-                    try (OutputStream os = getContentResolver().openOutputStream(itemUri)) {
+                    try (OutputStream os = getContentResolver().openOutputStream(itemUri, "wt")) {
                         if (os != null) {
                             os.write(bytes);
                             os.flush();
@@ -1425,6 +1531,15 @@ public class EditorActivity extends Activity {
         @JavascriptInterface
         public void setDocModified(boolean modified) {
             docModified = modified;
+        }
+
+        @JavascriptInterface
+        public void syncDocumentTitle(String title) {
+            if (title != null && !title.trim().isEmpty()) {
+                runOnUiThread(() -> {
+                    if (etDocTitle != null) etDocTitle.setText(title.trim());
+                });
+            }
         }
 
         @JavascriptInterface
@@ -1693,16 +1808,19 @@ public class EditorActivity extends Activity {
                     } catch (Exception ignored) {}
 
                     if (!mediaStoreOk) {
-                        File targetDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "UYAP_Belgelerim");
-                        targetDir.mkdirs();
-                        File targetFile = new File(targetDir, fileName);
-                        try (FileOutputStream fos = new FileOutputStream(targetFile)) {
-                            fos.write(bytes);
-                            fos.flush();
-                        }
-                        targetFile.setReadable(true, false);
                         try {
-                            android.media.MediaScannerConnection.scanFile(EditorActivity.this, new String[]{targetFile.getAbsolutePath()}, new String[]{mimeType}, null);
+                            File targetDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "UYAP_Belgelerim");
+                            targetDir.mkdirs();
+                            File targetFile = new File(targetDir, fileName);
+                            try (FileOutputStream fos = new FileOutputStream(targetFile)) {
+                                fos.write(bytes);
+                                fos.flush();
+                            }
+                            targetFile.setReadable(true, false);
+                            try {
+                                android.media.MediaScannerConnection.scanFile(EditorActivity.this, new String[]{targetFile.getAbsolutePath()}, new String[]{mimeType}, null);
+                            } catch (Exception ignored) {}
+                            mediaStoreOk = true;
                         } catch (Exception ignored) {}
                     }
                     tvSaveStatus.setText("✓ " + fileName + " Kaydedildi");

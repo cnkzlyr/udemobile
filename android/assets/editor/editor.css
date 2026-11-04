@@ -971,11 +971,15 @@ select {
 
 /* 2. MOBİL GÖRÜNÜM MODU (Telefona Tam Oturan, Kesintisiz Düzen - Word & Google Docs Standardı) */
 #page-wrapper.mobile-view {
-  padding: 0 0 80px 0 !important;
-  background-color: #FFFFFF !important;
+  flex: 1 !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  padding: 12px 14px 100px 14px !important;
+  background-color: #F8FAFC !important;
   display: block !important;
   width: 100% !important;
-  overflow-x: hidden !important;
+  -webkit-overflow-scrolling: touch;
 }
 
 #page-wrapper.mobile-view #sheet-wrapper,
@@ -2681,13 +2685,39 @@ body.in-android #desktop-app-footer {
     overflow: visible !important;
     background: #FFFFFF !important;
     border-bottom: 1px solid #E2E8F0 !important;
+    position: relative !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+  }
+
+  .header-left-cluster {
+    display: flex !important;
+    align-items: center !important;
+    flex-shrink: 0 !important;
+  }
+
+  .header-pill-group {
+    position: absolute !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    margin: 0 !important;
+    z-index: 10 !important;
+  }
+
+  .header-right-cluster {
+    display: flex !important;
+    align-items: center !important;
+    flex-shrink: 0 !important;
+    margin-left: auto !important;
   }
 
   .header-doc-title-input {
-    width: 90px !important;
-    min-width: 60px !important;
-    font-size: 11px !important;
-    padding: 3px 5px !important;
+    display: none !important;
+  }
+
+  .header-sig-badge {
+    display: none !important;
   }
 
   .header-status-text {
@@ -2763,22 +2793,32 @@ body.in-android #desktop-app-footer {
   }
 
   .chevron-toggle-btn {
-    background: #FEF3C7 !important;
-    color: #D97706 !important;
-    border: 1px solid #FCD34D !important;
-    font-weight: bold !important;
+    background: #FEF2F2 !important;
+    color: #DC2626 !important;
+    border: 1px solid #FECACA !important;
+    font-weight: 800 !important;
+    font-size: 15px !important;
     padding: 3px 10px !important;
     border-radius: 6px !important;
   }
 
   /* CETVEL MOBİLDE HER ZAMAN GÖRÜNÜR VE STICKY */
   .ruler-container {
-    height: 38px !important;
+    height: 44px !important;
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 95 !important;
     display: flex !important;
     visibility: visible !important;
   }
+  .ruler-body {
+    height: 44px !important;
+  }
+  .ruler-scale {
+    height: 44px !important;
+  }
   .ruler-number {
-    font-size: 10px !important;
+    font-size: 11px !important;
     font-weight: 700 !important;
     color: #334155 !important;
   }

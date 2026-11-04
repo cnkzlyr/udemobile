@@ -19,20 +19,20 @@
         ⚖️ <span class="logo-text">CanEditor</span>
       </span>
 
-      <!-- e-UDF Stili Yuvarlak Mobil Kısayol Hapı (Pill Group: 💾 Kaydet | 📱 Görünüm | ☰ Menü) -->
-      <div class="header-pill-group">
-        <button type="button" id="pill-quick-save" class="header-pill-btn pill-save" onclick="triggerQuickSave()" title="Açık Belgeyi Doğrudan Kaydet (1-Tık / Ctrl+S)">
-          💾
-        </button>
-        <button type="button" id="pill-toggle-view" class="header-pill-btn pill-view" onclick="toggleViewMode()" title="Görünüm Değiştir (Kağıt Baskı / Mobil Akış)">
-          📱
-        </button>
-        <button type="button" id="pill-mobile-menu" class="header-pill-btn pill-menu" onclick="openMobileMenuModal()" title="Tüm İşlemler Menüsü">
-          ☰
-        </button>
-      </div>
+      <input type="text" id="desktopDocTitle" value="Dilekce_20261015.udf" class="header-doc-title-input" title="Belge Adını Değiştir" oninput="if(window.AndroidBridge&amp;&amp;window.AndroidBridge.syncDocumentTitle)window.AndroidBridge.syncDocumentTitle(this.value)">
+    </div>
 
-      <input type="text" id="desktopDocTitle" value="Dilekce_20261015.udf" class="header-doc-title-input" title="Belge Adını Değiştir">
+    <!-- e-UDF Stili Yuvarlak Mobil Kısayol Hapı (Pill Group: 💾 Kaydet | 📱 Görünüm | ☰ Menü) -->
+    <div class="header-pill-group">
+      <button type="button" id="pill-quick-save" class="header-pill-btn pill-save" onclick="triggerQuickSave()" title="Açık Belgeyi Doğrudan Kaydet (1-Tık / Ctrl+S)">
+        💾
+      </button>
+      <button type="button" id="pill-toggle-view" class="header-pill-btn pill-view" onclick="toggleViewMode()" title="Görünüm Değiştir (Kağıt Baskı / Mobil Akış)">
+        📱
+      </button>
+      <button type="button" id="pill-mobile-menu" class="header-pill-btn pill-menu" onclick="openMobileMenuModal()" title="Tüm İşlemler Menüsü">
+        ☰
+      </button>
     </div>
 
     <!-- Masaüstü Geniş Ekran Eylem Butonları -->
@@ -1155,7 +1155,7 @@
     <div style="display: flex; gap: 16px; align-items: center;">
       <span style="opacity: 0.7;">Kısayollar: <b>Ctrl+O</b> Aç • <b>Ctrl+S</b> UDF • <b>Ctrl+Shift+S</b> Word • <b>Ctrl+P</b> PDF/Yazdır</span>
       <span>•</span>
-      <span style="color: #38BDF8; font-weight: 600;">CanEditor v3.7.3 (Cross-Platform)</span>
+      <span style="color: #38BDF8; font-weight: 600;">CanEditor v3.8.0 (Cross-Platform)</span>
     </div>
   </footer>
 

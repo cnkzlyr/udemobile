@@ -2819,6 +2819,9 @@ function updateDocTitleDisplay(name) {
   const el = document.getElementById("desktopDocTitle");
   if (el) el.value = name;
   document.title = name + " - CanEditor";
+  if (window.AndroidBridge && window.AndroidBridge.syncDocumentTitle) {
+    try { window.AndroidBridge.syncDocumentTitle(name); } catch (e) {}
+  }
 }
 
 function updateSignatureBadge(sig) {
