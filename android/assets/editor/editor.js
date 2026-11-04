@@ -37,6 +37,18 @@ var isFormatPainterPersistent = false;
 var copiedFormat = null;
 window.isFormatPainterActive = isFormatPainterActive;
 
+// Android Native WebView ortam tespiti
+if (typeof window !== 'undefined' && window.AndroidBridge) {
+  try { document.body.classList.add('is-android'); } catch (e) {}
+}
+if (typeof window !== 'undefined') {
+  window.addEventListener('DOMContentLoaded', () => {
+    if (window.AndroidBridge && document.body) {
+      document.body.classList.add('is-android');
+    }
+  });
+}
+
 // --- Google Dokümanlar Yazdırma Düzeni & Zoom Motoru ---
 let currentDocFooterTemplate = '';
 let currentDocHeaderTemplate = '';
@@ -144,7 +156,11 @@ document.addEventListener('DOMContentLoaded', () => {
       const ap = getActiveParagraph();
       if (ap && ap.querySelector('.udf-tab-space')) realignTabsInParagraph(ap);
       updateCounts();
-      debouncedPagination();
+      // Klavyenin kapanmasını engellemek için aktif yazım sırasında DOM'u yıkma (2500ms bekle)
+      debouncedPagination(2500);
+    });
+    editor.addEventListener('blur', () => {
+      debouncedPagination(120);
     });
   }
 
@@ -251,12 +267,16 @@ function toggleViewMode() {
     if (btn) btn.innerHTML = '📄 <span>Kağıt</span>';
     const oldBreaks = document.querySelectorAll('.auto-page-break');
     oldBreaks.forEach(b => b.remove());
+    const sheetContainer = document.getElementById('sheet-container');
+    if (sheetContainer) sheetContainer.style.zoom = '1';
+    showEditorToast('📱 Mobil Görünüme Geçildi (Kesintisiz Akış)');
   } else {
     wrapper.classList.remove('mobile-view');
     wrapper.classList.add('paper-view');
     if (btn) btn.innerHTML = '📱 <span>Görünüm</span>';
     applyAutoFitZoom();
     setTimeout(updatePagination, 100);
+    showEditorToast('📄 Kağıt Görünümüne Geçildi (1:1 A4 Baskı Düzeni)');
   }
 }
 
@@ -600,12 +620,28 @@ function findParagraphSplitIndex(pNode, maxH) {
 
 function updatePagination() {
   if (isMobileView || isPaginating) return;
+
+  const container = document.getElementById('pages-container') || document.getElementById('sheet-container');
+  if (!container) return;
+
+  // Kullanıcı aktif olarak yazı yazıyorsa ve sayfalarda dikey taşma yoksa klavyenin kapanmaması için DOM'u yıkma
+  const activeEl = document.activeElement;
+  const isTypingNow = activeEl && (activeEl.classList?.contains('page-body-box') || activeEl.id === 'editor-content' || activeEl.isContentEditable || activeEl.closest?.('.page-body-box'));
+  const currentBoxes = Array.from(container.querySelectorAll('.page-body-box'));
+
+  if (isTypingNow && currentBoxes.length > 0) {
+    const isOverflowing = currentBoxes.some(b => b.scrollHeight > b.clientHeight + 4);
+    if (!isOverflowing) {
+      // Sayfa taşması yok, DOM ağacını bozmadan sadece sayaçları güncelle
+      const statusEl = document.getElementById('stat-page-count');
+      if (statusEl) statusEl.textContent = `Sayfa 1 / ${currentBoxes.length}`;
+      return;
+    }
+  }
+
   isPaginating = true;
   try {
     try { realignAllTabs(); } catch (e) {}
-
-    const container = document.getElementById('pages-container') || document.getElementById('sheet-container');
-    if (!container) return;
 
     // 1. Gather all body content nodes across all pages in order
     const existingBodyBoxes = Array.from(container.querySelectorAll('.page-body-box'));
@@ -944,11 +980,13 @@ function updatePagination() {
         const ap = getActiveParagraph();
         if (ap && ap.querySelector('.udf-tab-space')) realignTabsInParagraph(ap);
         updateCounts();
-        if (this.scrollHeight > this.clientHeight + 2) {
-          debouncedPagination(120);
-        } else {
-          debouncedPagination(600);
-        }
+        // Yazı yazarken sanal klavyenin odak kaybıyla kapanmasını engellemek için
+        // sayfalamayı yalnızca yazım durakladığında (2500ms) veya alandan çıkıldığında yap
+        debouncedPagination(2500);
+      });
+
+      bodyBox.addEventListener('blur', function() {
+        debouncedPagination(120);
       });
 
       pageSheet.appendChild(bodyBox);
@@ -1400,8 +1438,13 @@ function applyPageSetupFromModal() {
 function calculateFitScale() {
   const availableWidth = window.innerWidth - 16;
   const sheetWidth = currentMargins.orientation === 'landscape' ? 1123 : 794;
+  const isMobileDevice = window.innerWidth < 650;
   if (!isMobileView) {
     const scale = availableWidth / sheetWidth;
+    if (isMobileDevice) {
+      // Telefonda A4 kağıt görünümünü ekran genişliğine sığdır
+      return Math.round(Math.min(1.0, Math.max(0.38, scale)) * 100) / 100;
+    }
     // Masaüstünde pencere daralsa dahi UYAP standardında net okunabilirlik için min %75
     return Math.round(Math.max(0.75, Math.min(1.2, scale)) * 100) / 100;
   }
@@ -1510,6 +1553,11 @@ function initPinchToZoom() {
   });
 
   window.addEventListener('resize', () => {
+    // Sanal klavye açıldığında veya kullanıcı düzenleme yaparken odak kaybını ve klavye kapanmasını engelle
+    const active = document.activeElement;
+    if (active && (active.classList?.contains('page-body-box') || active.id === 'editor-content' || active.isContentEditable || active.closest?.('.page-body-box'))) {
+      return;
+    }
     if (isFitMode && !isMobileView) {
       applyAutoFitZoom();
     }

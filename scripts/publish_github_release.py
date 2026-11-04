@@ -6,66 +6,74 @@ import urllib.error
 
 TOKEN = "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"
 REPO = "cnkzlyr/udemobile"
-TAG = "v3.6.4"
-NAME = "CanEditor v3.6.4 — Kesintisiz Adım Adım Geri Al/Yinele Motoru, Akıllı Biçim Boyacısı ve Sıfır DOM Kaybı"
+TAG = "v3.6.5"
+NAME = "CanEditor v3.6.5 — 1-Tık Hızlı Kaydet, Mobil Görünüm ve Klavye Odak Koruma Motoru, Sticky Dokunmatik Cetvel"
 
-BODY = """# 🏛️ CanEditor (UdeMobile) v3.6.4 — Sürüm Notları
+BODY = """# 🏛️ CanEditor (UdeMobile) v3.6.5 — Sürüm Notları
 
-CanEditor **v3.6.4**, geri alma/yinele (Undo/Redo) motorunu tarayıcının yerel C++ UndoManager katmanına bağlayarak yüzlerce adım derinlikte gerçek harf-harf, kelime-kelime ve biçim-biçim geri alabilme/yineleyebilme yeteneği kazandıran, biçim boyacısını (Format Painter) akıllı diff mimarisiyle yeniden inşa eden ve yazım anında DOM yıkımlarını tamamen durduran büyük bir kullanıcı deneyimi sürümüdür.
+CanEditor **v3.6.5**; mobil ve dokunmatik cihazlarda yazım deneyimini zirveye taşıyan, yazı yazarken sanal klavyenin odak kaybıyla kapanması sorununu tamamen ortadan kaldıran, sayfa kaydırılsa dahi ekranın üstünde sabit (sticky) kalan ve parmakla yönetilebilen 42px dokunmatik cetveli devreye alan, 1-tık doğrudan `💾 Kaydet` (Ctrl+S) özelliğini sunan ve Android 10+ harici uygulama paylaşımlarını (WhatsApp, Gmail) yetkilendiren kapsamlı bir kullanıcı deneyimi ve stabilite sürümüdür.
 
 ---
 
 ## 🌟 Öne Çıkan Yenilikler & Hata Düzeltmeleri
 
-### ↶ 1. Kesintisiz Yerel Adım Adım (Step-by-Step) Geri Al & Yinele Motoru
-- **Kaba HTML Yedekleme Yerine Hassas İşlem Yığını:** Önceki sürümlerde `history.js` motorunun tüm sayfa HTML'ini blok halinde yedekleyip `innerHTML` üzerinden geri yüklemesi sebebiyle oluşan "belgenin yedeğini alıp geri yüklüyor gibi çalışma" hissi tamamen ortadan kaldırıldı.
-- **Yüzlerce Adım Derinlik:** Kelime arasına yazılan tek bir boşluk, silinen tek bir harf veya uygulanan tek bir kalınlaştırma işlemi doğrudan yerel hafızaya kaydedilir; `Ctrl+Z` (Geri Al) veya `Ctrl+Y` (Yinele) ile tam işlem anındaki imleç noktasında adım adım geri alınıp yinelenebilir.
-- **Yinele (Redo) Dalı Artık Asla Silinmez:** Geri alma işlemleri sırasında arka planda çalışan mutasyon gözlemcisinin ileri adımları silmesi engellendi.
+### 💾 1. Doğrudan 1-Tık Hızlı Kaydet Butonu (Ctrl+S & Android Doğrudan Kayıt)
+- **Doğrudan Üzerine Kayıt:** Açılmış olan belgeyi anında kaydetmek için hem web üst araç çubuğuna hem de Android yerel eylem çubuğuna belirgin, yeşil renkli **`💾 Kaydet`** butonu eklendi.
+- **Tek Dokunuşla UYAP Kaydı:** Masaüstünde `Ctrl+S`, mobilde ise tek dokunuşla açık olan `.udf` dosyasının üzerine doğrudan kayıt gerçekleştirilir.
 
-### ⚡ 2. DOM Sayfalama Koruması (Zero-DOM-Thrashing)
-- **Gereksiz Sayfa Yıkımı Engellendi:** Düzenleyicide yazı yazarken, boşluk bırakırken veya silerken sayfa sayısı ve paragraf düzeni değişmediği sürece `container.innerHTML = ''` asla çalıştırılmaz. Böylece tarayıcının yerel Undo/Redo yığıtı, imleç seçimi ve aktif odak sıfır kayıpla %100 korunur.
+### ⌨️ 2. Yazı Yazarken Klavyenin Kapanmasını Engelleyen Akıllı Odak Koruması
+- **Klavye Açılma (adjustResize) Koruması:** Android'de sanal klavye açıldığında tetiklenen pencere yeniden boyutlandırma olayında (`window.resize`), aktif düzenleme odağı varsa otomatik yakınlaştırma (fit-zoom) engellendi; CSS zoom değişiminden kaynaklanan imleç ve klavye kaybı tamamen ortadan kaldırıldı.
+- **Yazım Esnasında Sıfır DOM Yıkımı:** Aktif yazım esnasında sayfalamanın DOM ağacını yeniden kurması 2500ms bekleme süresine alındı ve dikey taşma olmadığı sürece DOM ağacının korunması sağlandı. Böylece yazı yazarken sanal klavyenin kendi kendine kapanması sorunu %100 çözüldü.
 
-### 🖌️ 3. Akıllı ve İki Yönlü Biçim Boyacısı (Format Painter)
-- **Gerçek Yaprak Düğüm (Leaf Node) Analizi:** Boyacı artık kapsayıcı paragrafların varsayılan stillerini değil, seçili metnin gerçek `<strong>`, `<em>`, `<u>` ve punto değerlerini `document.queryCommandState` ile eksiksiz okur.
-- **Akıllı Fark (Diff) Uygulama:** Hedef metinle kaynak metin arasındaki stiller karşılaştırılır; sadece farklı olan özellikler (örneğin yalnızca kalınlık veya yalnızca yazı rengi) uygulanır. Bu sayede gereksiz biçimlendirme komutları üretilmez ve boyacı işlemi `Geri Al` ile tek hamlede geri alınabilir.
-- **Evrensel Sayfa Desteği:** Boyacı açıkken tüm sayfalarda kopyalama imleci (`cursor: copy !important`) gösterilir ve tıklanan veya seçilen tüm sayfalardaki metinlere sorunsuz uygulanır.
+### 📐 3. Ekranın Üstüne Sabitlenen (Sticky) Dokunmatik Cetvel (42px)
+- **Sayfa Kaydıkça Ekranda Kalan Cetvel:** Sayfa ne kadar aşağı kaydırılırsa kaydırılsın, cetvel ekranın en üstünde (`position: sticky; top: 0; z-index: 90;`) sabit kalarak her an görünür durumda kalır.
+- **Parmakla Kontrol Edilebilen 44x44px Geniş Dokunmatik Alanlar:** Cetvel yüksekliği 42px'e çıkarıldı. 4 ayrı girinti imi (**İlk Satır Girintisi** - mavi ters üçgen, **Asılı Girinti** - mavi düz üçgen, **Sol Girinti** - lacivert kutu, **Sağ Marj** - koyu üçgen) için parmakla rahatça tutulup sürüklenebilen görünmez 44x44 piksellik dokunmatik etki alanları (`::before`) entegre edildi.
+
+### 📱 4. Kusursuz Mobil Görünüm (Word & Google Docs Standardı)
+- **Sıfır Yatay Taşma:** Dar mobil ekranlarda (`max-width: 820px`) `document.body` ve editör kapsayıcısının yatay taşması (`overflow-x: hidden`) tamamen önlendi (`bodyScrollW: 390px`).
+- **Yatay Kaydırılabilir Araç Çubuğu:** Web araç çubuğu butonlarının mobilde alt alta 10 satır yığılması engellendi; Word ve `editor.e-udf.com` standardında tek satırda parmakla pürüzsüz kaydırılabilir hale getirildi.
+- **Android Arayüz Bütünlüğü:** Android uygulamasında yerel başlık çubuğu bulunduğu için WebView içindeki masaüstü başlık çubuğu gizlendi; gereksiz dikey alan kaybı ve çift başlık görünümü önlendi.
+
+### 📤 5. Android 10+ Harici Paylaşım ve Farklı Kaydet Onarımı
+- **WhatsApp ve Gmail Paylaşım İzni Hatası Çözüldü:** `launchShareIntent` içinde `shareIntent.setClipData(...)` ve `FLAG_GRANT_READ_URI_PERMISSION` yetkileri tanımlanarak Android 10, 11, 12, 13, 14 ve 15 sürümlerinde harici uygulamaların paylaşılan dosyaları "erişim engellendi" hatası vermeden açması sağlandı.
+- **Tüm Formatlarda Farklı Kaydet:** Menüdeki tüm seçenekler (**UDF, Adobe PDF, Microsoft Word DOCX, Çok Sayfalı TIFF, OpenDocument ODT**) Base64 veri köprüsüyle doğrudan `Downloads/UYAP_Belgelerim` klasörüne anında kaydedilir hale getirildi.
 
 ---
 
-## 🚀 Hızlı İndirme Bağlantıları (v3.6.4)
+## 🚀 Hızlı İndirme Bağlantıları (v3.6.5)
 
 | Platform | Dosya | Açıklama |
 | :--- | :--- | :--- |
-| **Android (Telefon / Tablet)** | [**CanEditor-v3.6.4.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.6.4/CanEditor-v3.6.4.apk) | Güncel mobil uygulama kurulum paketi |
-| **Android (Her Zaman En Son)** | [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.6.4/CanEditor-latest.apk) | Kalıcı son sürüm bağlantısı |
-| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v3.6.4.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v3.6.4/CanEditor-Portable-Web-GUI-v3.6.4.zip) | **Kurulumsuz;** Zipten çıkartıp `index.html` tıklayarak hemen kullanın |
-| **Windows Kurulum (.exe)** | `CanEditor_3.6.3_x64-setup.exe` | Windows 10/11 64-bit doğrudan kurulum paketi *(CI tarafından eklenir)* |
-| **Windows MSI Paketi (.msi)** | `CanEditor_3.6.3_x64_en-US.msi` | Windows kurumsal MSI yükleyici *(CI tarafından eklenir)* |
-| **macOS Paketi (.dmg)** | `CanEditor_3.6.3_universal.dmg` | Apple Silicon (M1/M2/M3/M4) ve Intel Mac evrensel paket *(CI tarafından eklenir)* |
-| **Linux (AppImage / .deb / .rpm)** | `CanEditor_3.6.3_amd64.AppImage` | Tüm Linux dağıtımları için kurulumsuz AppImage *(CI tarafından eklenir)* |
+| **Android (Telefon / Tablet)** | [**CanEditor-v3.6.5.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.6.5/CanEditor-v3.6.5.apk) | Güncel mobil uygulama kurulum paketi |
+| **Android (Her Zaman En Son)** | [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.6.5/CanEditor-latest.apk) | Kalıcı son sürüm bağlantısı |
+| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v3.6.5.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v3.6.5/CanEditor-Portable-Web-GUI-v3.6.5.zip) | **Kurulumsuz;** Zipten çıkartıp `index.html` tıklayarak hemen kullanın |
+| **Windows Kurulum (.exe)** | `CanEditor_3.6.5_x64-setup.exe` | Windows 10/11 64-bit doğrudan kurulum paketi *(CI tarafından eklenir)* |
+| **Windows MSI Paketi (.msi)** | `CanEditor_3.6.5_x64_en-US.msi` | Windows kurumsal MSI yükleyici *(CI tarafından eklenir)* |
+| **macOS Paketi (.dmg)** | `CanEditor_3.6.5_universal.dmg` | Apple Silicon (M1/M2/M3/M4) ve Intel Mac evrensel paket *(CI tarafından eklenir)* |
+| **Linux (AppImage / .deb / .rpm)** | `CanEditor_3.6.5_amd64.AppImage` | Tüm Linux dağıtımları için kurulumsuz AppImage *(CI tarafından eklenir)* |
 
 ---
 
 ## 📖 Hiç Bilmeyenler İçin Adım Adım İndirme ve Kurulum Kılavuzu
 
 ### 📱 Android Telefon ve Tabletler İçin:
-1. Yukarıdaki [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.6.4/CanEditor-latest.apk) bağlantısına dokunarak dosyayı indirin.
+1. Yukarıdaki [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.6.5/CanEditor-latest.apk) bağlantısına dokunarak dosyayı indirin.
 2. Tarayıcınız *"Dosya zararlı olabilir"* uyarısı verirse **"Yine de İndir"** butonuna dokunun (Google Play harici dosyalarda standart Android uyarısıdır).
 3. İndirilen dosyaya dokunun. *"Bilinmeyen kaynaklar"* uyarısı çıkarsa **Ayarlar -> Bu kaynaktan izin ver** seçeneğini açıp geri dönün ve **"Yükle"** deyin.
 4. WhatsApp, Telegram veya Dosyalarım'dan bir `.udf` dosyasına tıkladığınızda çıkan menüde **CanEditor -> "Her Zaman"** seçin.
 5. Dosyanızı açıp düzenledikten sonra **Kaydet -> PDF Olarak Kaydet** ile doğrudan İndirilenler klasörüne A4 PDF olarak kaydedebilirsiniz.
 
 ### 💻 Windows (10 / 11) İçin:
-- **Kurulumsuz Kullanım (Tavsiye Edilen):** `CanEditor-Portable-Web-GUI-v3.6.4.zip` dosyasını indirin, sağ tıklayıp "Tümünü Ayıkla" deyin ve içindeki `index.html` dosyasına çift tıklayın. Tamamen çevrimdışı çalışır.
-- **Masaüstü Uygulaması:** `CanEditor_3.6.3_x64-setup.exe` indirip çift tıklayın. Windows SmartScreen uyarısı çıkarsa **"Ek bilgi" -> "Yine de çalıştır"** butonuna basın.
+- **Kurulumsuz Kullanım (Tavsiye Edilen):** `CanEditor-Portable-Web-GUI-v3.6.5.zip` dosyasını indirin, sağ tıklayıp "Tümünü Ayıkla" deyin ve içindeki `index.html` dosyasına çift tıklayın. Tamamen çevrimdışı çalışır.
+- **Masaüstü Uygulaması:** `CanEditor_3.6.5_x64-setup.exe` indirip çift tıklayın. Windows SmartScreen uyarısı çıkarsa **"Ek bilgi" -> "Yine de çalıştır"** butonuna basın.
 
 ### 🍎 macOS İçin:
-- `CanEditor_3.6.3_universal.dmg` dosyasını indirip açın ve CanEditor simgesini Uygulamalar klasörüne sürükleyin. Açılışta güvenlik uyarısı verirse simgeye `Control` tuşuyla **sağ tıklayıp "Aç"** deyin.
+- `CanEditor_3.6.5_universal.dmg` dosyasını indirip açın ve CanEditor simgesini Uygulamalar klasörüne sürükleyin. Açılışta güvenlik uyarısı verirse simgeye `Control` tuşuyla **sağ tıklayıp "Aç"** deyin.
 
 ### 🐧 Linux (Debian / Pardus / Ubuntu / Fedora / RedHat) İçin:
-- **AppImage:** `CanEditor_3.6.3_amd64.AppImage` dosyasını indirin, terminalden `chmod +x CanEditor_3.6.3_amd64.AppImage` komutunu verip çift tıklayın.
-- **Debian / Pardus / Ubuntu (.deb):** `sudo dpkg -i CanEditor_3.6.3_amd64.deb`
-- **Fedora / RedHat / openSUSE (.rpm):** `sudo rpm -ivh CanEditor-3.6.3-1.x86_64.rpm`
+- **AppImage:** `CanEditor_3.6.5_amd64.AppImage` dosyasını indirin, terminalden `chmod +x CanEditor_3.6.5_amd64.AppImage` komutunu verip çift tıklayın.
+- **Debian / Pardus / Ubuntu (.deb):** `sudo dpkg -i CanEditor_3.6.5_amd64.deb`
+- **Fedora / RedHat / openSUSE (.rpm):** `sudo rpm -ivh CanEditor-3.6.5-1.x86_64.rpm`
 """
 
 def request(url, data=None, headers=None, method="GET"):

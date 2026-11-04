@@ -6,15 +6,15 @@
     android:background="#F0F2F5"
     android:fitsSystemWindows="true">
 
-    <!-- Üst Eylem Çubuğu -->
+    <!-- Üst Eylem Çubuğu (Responsive, Tek Satır, Taşmayan Ergonomik Bar) -->
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="56dp"
+        android:layout_height="52dp"
         android:background="#1565C0"
         android:orientation="horizontal"
         android:gravity="center_vertical"
         android:paddingStart="4dp"
-        android:paddingEnd="8dp"
+        android:paddingEnd="6dp"
         android:elevation="4dp">
 
         <Button
@@ -27,7 +27,7 @@
             android:textStyle="bold"
             android:background="?android:attr/selectableItemBackgroundBorderless" />
 
-        <!-- Belge Başlığı -->
+        <!-- Belge Başlığı (Esnek Genişlik) -->
         <EditText
             android:id="@+id/etDocTitle"
             android:layout_width="0dp"
@@ -35,39 +35,38 @@
             android:layout_weight="1"
             android:text="Yeni_Dilekce.udf"
             android:textColor="#FFFFFF"
-            android:textSize="14sp"
+            android:textSize="13sp"
             android:textStyle="bold"
             android:background="@null"
             android:singleLine="true"
             android:ellipsize="middle"
             android:paddingStart="4dp"
-            android:paddingEnd="4dp" />
+            android:paddingEnd="6dp" />
 
-        <!-- DOCX Olarak Kaydet (Menüye Taşındı, Uyumluluk İçin Gizlendi) -->
+        <!-- Doğrudan 1-Tık Hızlı Kaydet Butonu (Canlı Yeşil) -->
         <Button
-            android:id="@+id/btnSaveDocx"
+            android:id="@+id/btnQuickSave"
             android:layout_width="wrap_content"
             android:layout_height="32dp"
-            android:text="W Word"
-            android:textColor="#185ABD"
-            android:textSize="11sp"
+            android:text="💾 Kaydet"
+            android:textColor="#FFFFFF"
+            android:textSize="11.5sp"
             android:textStyle="bold"
-            android:background="@drawable/button_word"
-            android:paddingStart="7dp"
-            android:paddingEnd="7dp"
-            android:layout_marginEnd="4dp"
-            android:visibility="gone" />
+            android:background="@drawable/button_udf"
+            android:paddingStart="9dp"
+            android:paddingEnd="9dp"
+            android:layout_marginEnd="4dp" />
 
-        <!-- Yazdır / Yazdırma Önizleme Butonu -->
+        <!-- Görünüm Değiştirici (Mobil / Kağıt A4) -->
         <Button
-            android:id="@+id/btnExportPdf"
+            android:id="@+id/btnToggleView"
             android:layout_width="wrap_content"
             android:layout_height="32dp"
-            android:text="🖨️ Yazdır ▼"
-            android:textColor="#C62828"
+            android:text="📱 Görünüm"
+            android:textColor="#FFFFFF"
             android:textSize="11sp"
             android:textStyle="bold"
-            android:background="@drawable/button_pdf"
+            android:background="@drawable/badge_bg"
             android:paddingStart="7dp"
             android:paddingEnd="7dp"
             android:layout_marginEnd="4dp" />
@@ -86,32 +85,37 @@
             android:paddingEnd="7dp"
             android:layout_marginEnd="4dp" />
 
-        <!-- Farklı Kaydet Butonu -->
+        <!-- Farklı Kaydet ve Diğer İşlemler Menü Butonu -->
         <Button
             android:id="@+id/btnSave"
             android:layout_width="wrap_content"
             android:layout_height="32dp"
-            android:text="💾 Kaydet ▼"
-            android:textColor="#FFFFFF"
-            android:textSize="11sp"
-            android:textStyle="bold"
-            android:background="@drawable/button_udf"
-            android:paddingStart="8dp"
-            android:paddingEnd="8dp"
-            android:layout_marginEnd="4dp" />
-
-        <!-- Masaüstü UYAP Butonu -->
-        <Button
-            android:id="@+id/btnDesktopUyap"
-            android:layout_width="wrap_content"
-            android:layout_height="32dp"
-            android:text="🖥️ UYAP"
+            android:text="⋮ Menü ▼"
             android:textColor="#FFFFFF"
             android:textSize="11sp"
             android:textStyle="bold"
             android:background="@drawable/badge_bg"
-            android:paddingStart="7dp"
-            android:paddingEnd="7dp" />
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp" />
+
+        <!-- Uyumluluk için Gizlenen Eski Butonlar -->
+        <Button
+            android:id="@+id/btnExportPdf"
+            android:layout_width="wrap_content"
+            android:layout_height="32dp"
+            android:visibility="gone" />
+
+        <Button
+            android:id="@+id/btnSaveDocx"
+            android:layout_width="wrap_content"
+            android:layout_height="32dp"
+            android:visibility="gone" />
+
+        <Button
+            android:id="@+id/btnDesktopUyap"
+            android:layout_width="wrap_content"
+            android:layout_height="32dp"
+            android:visibility="gone" />
 
     </LinearLayout>
 

@@ -2531,12 +2531,38 @@ function updateSignatureBadge(sig) {
 }
 
 // -------------------------------------------------------------
-// 7. DESKTOP EYLEMLERİ (AÇ, FARKLIKAYDET, PAYLAŞ, YAZDIR)
+// 7. DESKTOP EYLEMLERİ (AÇ, HIZLI KAYDET, FARKLIKAYDET, PAYLAŞ, YAZDIR)
 // -------------------------------------------------------------
 async function triggerOpenDocument() {
   const fileInput = document.getElementById("desktopFileInput");
   if (fileInput) fileInput.click();
 }
+
+async function triggerQuickSave() {
+  const statusEl = document.getElementById("desktopStatusMsg");
+  if (statusEl) statusEl.innerText = "Kaydediliyor...";
+
+  if (window.AndroidBridge && window.AndroidBridge.requestSave) {
+    try {
+      window.AndroidBridge.requestSave();
+      if (typeof showEditorToast === "function") {
+        const now = new Date().toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
+        showEditorToast(`✓ Belge Başarıyla Kaydedildi (${now})`);
+      }
+      return;
+    } catch (e) {
+      console.warn("AndroidBridge requestSave hatası, fallback uygulanıyor:", e);
+    }
+  }
+
+  // Web veya Tauri ortamında hızlı kaydet
+  await triggerSaveUdf();
+  if (typeof showEditorToast === "function") {
+    const now = new Date().toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
+    showEditorToast(`✓ Belge Başarıyla Kaydedildi (${now})`);
+  }
+}
+window.triggerQuickSave = triggerQuickSave;
 
 async function triggerSaveUdf() {
   let name = (document.getElementById("desktopDocTitle")?.value || currentDocFileName).trim();
@@ -2545,18 +2571,39 @@ async function triggerSaveUdf() {
   const isModified = window.isDocumentModified ? window.isDocumentModified() : false;
   if (!isModified && currentDocOriginalBuffer && currentDocFileName.toLowerCase().endsWith(".udf")) {
     const blob = new Blob([currentDocOriginalBuffer], { type: "application/octet-stream" });
-    downloadBlob(blob, name);
+    if (window.AndroidBridge && window.AndroidBridge.saveBlobToDownloads) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const b64 = reader.result.split(",")[1];
+        window.AndroidBridge.saveBlobToDownloads(name, "application/octet-stream", b64);
+      };
+      reader.readAsDataURL(blob);
+    } else {
+      downloadBlob(blob, name);
+    }
     const statusEl = document.getElementById("desktopStatusMsg");
     if (statusEl) statusEl.innerText = "✓ UDF Korunarak Kaydedildi";
+    if (typeof showEditorToast === "function") showEditorToast("✓ UDF Belgesi Kaydedildi");
     return;
   }
 
   if (!window.getStructuredDocument) return;
   const docData = window.getStructuredDocument();
   const blob = await generateUdfBlob(docData);
-  downloadBlob(blob, name);
+
+  if (window.AndroidBridge && window.AndroidBridge.saveBlobToDownloads) {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const b64 = reader.result.split(",")[1];
+      window.AndroidBridge.saveBlobToDownloads(name, "application/octet-stream", b64);
+    };
+    reader.readAsDataURL(blob);
+  } else {
+    downloadBlob(blob, name);
+  }
   const statusEl = document.getElementById("desktopStatusMsg");
   if (statusEl) statusEl.innerText = "✓ UDF Kaydedildi";
+  if (typeof showEditorToast === "function") showEditorToast("✓ Havelsan UDF Kaydedildi");
 }
 
 async function triggerSaveDocx() {
@@ -2565,9 +2612,20 @@ async function triggerSaveDocx() {
   let name = (document.getElementById("desktopDocTitle")?.value || currentDocFileName).trim();
   name = name.replace(/\.(udf|pdf|tiff|tif|odt)$/i, "") + ".docx";
   const blob = await generateDocxBlob(docData);
-  downloadBlob(blob, name);
+
+  if (window.AndroidBridge && window.AndroidBridge.saveBlobToDownloads) {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const b64 = reader.result.split(",")[1];
+      window.AndroidBridge.saveBlobToDownloads(name, "application/vnd.openxmlformats-officedocument.wordprocessingml.document", b64);
+    };
+    reader.readAsDataURL(blob);
+  } else {
+    downloadBlob(blob, name);
+  }
   const statusEl = document.getElementById("desktopStatusMsg");
   if (statusEl) statusEl.innerText = "✓ Word (DOCX) Kaydedildi";
+  if (typeof showEditorToast === "function") showEditorToast("✓ Word (DOCX) Kaydedildi");
 }
 
 async function triggerSaveAs(format) {
@@ -2598,6 +2656,7 @@ async function triggerSaveAs(format) {
         downloadBlob(blob, fileName);
       }
       if (statusEl) statusEl.innerText = "✓ Adobe PDF (.pdf) Kaydedildi";
+      if (typeof showEditorToast === "function") showEditorToast("✓ Adobe PDF Kaydedildi");
     } catch (err) {
       console.error("PDF kaydetme hatası:", err);
       if (statusEl) statusEl.innerText = "PDF oluşturulamadı, yazdırma menüsü açılıyor...";
@@ -2618,6 +2677,7 @@ async function triggerSaveAs(format) {
       downloadBlob(blob, fileName);
     }
     if (statusEl) statusEl.innerText = "✓ TIFF Kaydedildi";
+    if (typeof showEditorToast === "function") showEditorToast("✓ Çok Sayfalı TIFF Kaydedildi");
   } else if (format === "odt") {
     if (statusEl) statusEl.innerText = "ODT hazırlanıyor...";
     const blob = await generateOdtBlob(docData);
@@ -2633,6 +2693,7 @@ async function triggerSaveAs(format) {
       downloadBlob(blob, fileName);
     }
     if (statusEl) statusEl.innerText = "✓ ODT Kaydedildi";
+    if (typeof showEditorToast === "function") showEditorToast("✓ OpenDocument (ODT) Kaydedildi");
   }
 }
 
@@ -2667,12 +2728,14 @@ async function triggerShareFormat(format) {
         };
         reader.readAsDataURL(blob);
         if (statusEl) statusEl.innerText = "✓ PDF Paylaşıldı";
+        if (typeof showEditorToast === "function") showEditorToast("✓ PDF Paylaşılıyor");
         return;
       } catch (err) {
         console.error("PDF paylaşım hatası:", err);
       }
     } else if (window.AndroidBridge.shareDocument && (format === "udf" || format === "docx" || format === "text")) {
       window.AndroidBridge.shareDocument(format, base, docJson);
+      if (typeof showEditorToast === "function") showEditorToast(`✓ ${format.toUpperCase()} Paylaşılıyor`);
       return;
     } else if (format === "tiff" || format === "tif") {
       const blob = await generateTiffBlob(docData);
@@ -2686,6 +2749,7 @@ async function triggerShareFormat(format) {
         }
       };
       reader.readAsDataURL(blob);
+      if (typeof showEditorToast === "function") showEditorToast("✓ TIFF Paylaşılıyor");
       return;
     } else if (format === "odt") {
       const blob = await generateOdtBlob(docData);
@@ -2699,6 +2763,7 @@ async function triggerShareFormat(format) {
         }
       };
       reader.readAsDataURL(blob);
+      if (typeof showEditorToast === "function") showEditorToast("✓ ODT Paylaşılıyor");
       return;
     }
   }
@@ -2744,9 +2809,11 @@ async function triggerShareFormat(format) {
         text: `${base} belgesi CanEditor üzerinden paylaşıldı.`
       });
       if (statusEl) statusEl.innerText = "✓ Paylaşıldı";
+      if (typeof showEditorToast === "function") showEditorToast("✓ Belge Paylaşıldı");
     } else {
       downloadBlob(blob, fileName);
       if (statusEl) statusEl.innerText = "✓ Paylaşım için İndirildi";
+      if (typeof showEditorToast === "function") showEditorToast("✓ Belge İndirildi");
     }
   } catch (e) {
     if (statusEl) statusEl.innerText = "Paylaşım tamamlandı";

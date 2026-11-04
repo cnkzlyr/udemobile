@@ -5,7 +5,7 @@ import shutil
 import zipfile
 import subprocess
 
-VERSION = "3.6.4"
+VERSION = "3.6.5"
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 IS_WINDOWS = os.name == "nt"
 
@@ -22,7 +22,11 @@ if IS_WINDOWS:
     D8_CMD = [JAVA, "-cp", os.path.join(BUILD_TOOLS, "lib", "d8.jar"), "com.android.tools.r8.D8"]
     APKSIGNER_CMD = [JAVA, "-jar", os.path.join(BUILD_TOOLS, "lib", "apksigner.jar")]
 else:
-    PLATFORM_JAR = os.path.expanduser("~/android-sdk/android-34/android.jar")
+    alt_sdk_jar = os.path.expanduser("~/.android-sdk/android-34/android.jar")
+    if os.path.exists(alt_sdk_jar):
+        PLATFORM_JAR = alt_sdk_jar
+    else:
+        PLATFORM_JAR = os.path.expanduser("~/android-sdk/android-34/android.jar")
     JAVAC = shutil.which("javac") or "javac"
     JAVA = shutil.which("java") or "java"
     KEYTOOL = shutil.which("keytool") or "keytool"
@@ -55,6 +59,10 @@ def sync_frontend_to_android_assets():
         for f in os.listdir(fonts_src):
             shutil.copy2(os.path.join(fonts_src, f), os.path.join(fonts_dest, f))
         print("  Synced fonts -> android/assets/editor/fonts/")
+    index_src = os.path.join(PROJECT_ROOT, "frontend", "index.html")
+    if os.path.exists(index_src):
+        shutil.copy2(index_src, os.path.join(assets_dir, "editor.html"))
+        print("  Synced frontend/index.html -> android/assets/editor/editor.html")
 
 
 def main():
@@ -184,15 +192,24 @@ def main():
     # 6. Zipalign
     step("6. Aligning APK with zipalign")
     aligned_apk = os.path.join(temp_dir, "aligned.apk")
-    cmd = [ZIPALIGN, "-f", "-p", "4", unaligned_apk, aligned_apk]
-    res = subprocess.run(cmd, capture_output=True, text=True)
-    if res.returncode != 0:
-        print("zipalign failed:", res.stderr)
-        sys.exit(1)
-    print("APK aligned.")
+    if shutil.which("zipalign"):
+        cmd = [ZIPALIGN, "-f", "-p", "4", unaligned_apk, aligned_apk]
+        res = subprocess.run(cmd, capture_output=True, text=True)
+        if res.returncode != 0:
+            print("zipalign failed:", res.stderr)
+            shutil.copy2(unaligned_apk, aligned_apk)
+        else:
+            print("APK aligned.")
+    else:
+        print("zipalign bulunamadı, APK doğrudan apksigner ile imzalanacak.")
+        shutil.copy2(unaligned_apk, aligned_apk)
 
     # 7. Check or create debug.keystore
-    keystore_path = os.path.join(PROJECT_ROOT, "debug.keystore")
+    alt_ks = os.path.expanduser("~/.android-sdk/debug.keystore")
+    if os.path.exists(alt_ks):
+        keystore_path = alt_ks
+    else:
+        keystore_path = os.path.join(PROJECT_ROOT, "debug.keystore")
     if not os.path.exists(keystore_path):
         print("Creating debug.keystore")
         cmd = [

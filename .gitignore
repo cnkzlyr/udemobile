@@ -11,3 +11,7 @@ uyapcodes.txt
 
 debug.keystore
 
+
+*.idsig
+scratch/
+

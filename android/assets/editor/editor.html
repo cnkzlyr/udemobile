@@ -3,10 +3,99 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>CanEditor - Profesyonel UYAP &amp; Word Editörü</title>
+  <title>CanEditor - Cross-Platform UYAP &amp; Word Editörü</title>
+  <script src="jszip.min.js"></script>
+  <script src="desktop_bridge.js"></script>
   <link rel="stylesheet" href="editor.css">
 </head>
 <body>
+
+  <!-- MASAÜSTÜ ANA PANELİ (Windows / macOS / Linux GUI) -->
+  <header id="desktop-app-header" style="background: #1E293B; color: #FFFFFF; padding: 8px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid #334155; user-select: none;">
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <span style="font-size: 18px; font-weight: 700; display: flex; align-items: center; gap: 6px; color: #38BDF8;">
+        ⚖️ CanEditor
+      </span>
+      <input type="text" id="desktopDocTitle" value="Dilekce_20261015.udf" style="background: #0F172A; color: #F1F5F9; border: 1px solid #475569; border-radius: 6px; padding: 4px 10px; font-size: 13px; font-weight: 500; width: 260px; outline: none;" title="Belge Adını Değiştir">
+    </div>
+
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <button type="button" class="desktop-action-btn" onclick="triggerOpenDocument()" title="UDF, PDF, DOCX, TIFF veya ODT Belgesi Aç (Ctrl+O)" style="background: #334155; color: #FFFFFF; border: 1px solid #475569; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12.5px; font-weight: 600; display: flex; align-items: center; gap: 5px;">
+        📂 Aç <span style="opacity: 0.6; font-size: 11px;">(Ctrl+O)</span>
+      </button>
+
+      <!-- Doğrudan 1-Tık Hızlı Kaydet Butonu (Ctrl+S) -->
+      <button type="button" id="btn-quick-save" class="desktop-action-btn quick-save-btn" onclick="triggerQuickSave()" title="Açık Belgeyi Doğrudan Kaydet (Ctrl+S)" style="background: #16A34A; color: #FFFFFF; border: none; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 12.5px; font-weight: 700; display: flex; align-items: center; gap: 5px; box-shadow: 0 1px 4px rgba(0,0,0,0.3);">
+        💾 Kaydet <span style="opacity: 0.75; font-size: 11px;">(Ctrl+S)</span>
+      </button>
+
+      <!-- Doğrudan 1-Tık A4 PDF İndirme Butonu (UYAP Portal Standardı) -->
+      <button type="button" class="desktop-action-btn pdf-btn" onclick="triggerSavePdf()" title="Doğrudan A4 PDF Belgesi İndir (Ctrl+Shift+P)" style="background: #DC2626; color: #FFFFFF; border: none; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 12.5px; font-weight: 600; display: flex; align-items: center; gap: 5px;">
+        📕 PDF İndir
+      </button>
+
+      <!-- Farklı Kaydet Açılır Menüsü -->
+      <div style="position: relative; display: inline-block;">
+        <button type="button" class="desktop-action-btn primary" onclick="toggleSaveMenu(event)" title="Belgeyi Farklı Formatlarda Kaydet" style="background: #0284C7; color: #FFFFFF; border: none; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 12.5px; font-weight: 600; display: flex; align-items: center; gap: 5px;">
+          💾 Farklı Kaydet ▾
+        </button>
+        <div id="saveAsDropdown" class="action-dropdown-menu">
+          <button type="button" class="action-dropdown-item" onclick="triggerSaveAs('udf')">📄 Havelsan UDF Formatı (.udf)</button>
+          <button type="button" class="action-dropdown-item" onclick="triggerSaveAs('pdf')">📕 Adobe PDF Belgesi (.pdf)</button>
+          <button type="button" class="action-dropdown-item" onclick="triggerSaveAs('docx')">📘 Microsoft Word Formatı (.docx)</button>
+          <button type="button" class="action-dropdown-item" onclick="triggerSaveAs('tiff')">🖼️ Çok Sayfalı TIFF Formatı (.tiff)</button>
+          <button type="button" class="action-dropdown-item" onclick="triggerSaveAs('odt')">📗 OpenDocument Metin Belgesi (.odt)</button>
+        </div>
+      </div>
+
+      <!-- Paylaş Açılır Menüsü -->
+      <div style="position: relative; display: inline-block;">
+        <button type="button" class="desktop-action-btn" onclick="toggleShareMenu(event)" title="Belgeyi Farklı Formatlarda Paylaş" style="background: #2563EB; color: #FFFFFF; border: none; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 12.5px; font-weight: 600; display: flex; align-items: center; gap: 5px;">
+          📤 Paylaş ▾
+        </button>
+        <div id="shareDropdown" class="action-dropdown-menu">
+          <button type="button" class="action-dropdown-item" onclick="triggerShareFormat('pdf')">📕 PDF Olarak Paylaş</button>
+          <button type="button" class="action-dropdown-item" onclick="triggerShareFormat('udf')">📄 UDF (UYAP) Olarak Paylaş</button>
+          <button type="button" class="action-dropdown-item" onclick="triggerShareFormat('docx')">📘 Word (DOCX) Olarak Paylaş</button>
+          <button type="button" class="action-dropdown-item" onclick="triggerShareFormat('tiff')">🖼️ Çok Sayfalı TIFF Olarak Paylaş</button>
+          <button type="button" class="action-dropdown-item" onclick="triggerShareFormat('odt')">📗 OpenDocument (ODT) Olarak Paylaş</button>
+          <button type="button" class="action-dropdown-item" onclick="triggerShareFormat('text')">📋 Düz Metin Olarak Paylaş</button>
+        </div>
+      </div>
+
+      <!-- Yazdırma ve Yazdırma Önizleme Açılır Menüsü -->
+      <div style="position: relative; display: inline-block;">
+        <button type="button" class="desktop-action-btn secondary" onclick="togglePrintMenu(event)" title="Yazdır veya Önizleme" style="background: #475569; color: #FFFFFF; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12.5px; font-weight: 600; display: flex; align-items: center; gap: 5px;">
+          🖨️ Yazdır ▾
+        </button>
+        <div id="printDropdown" class="action-dropdown-menu">
+          <button type="button" class="action-dropdown-item" onclick="triggerDirectPrint()">🖨️ Yazıcıya Yazdır <span style="opacity: 0.6; font-size: 11px; margin-left: auto;">(Ctrl+P)</span></button>
+          <button type="button" class="action-dropdown-item" onclick="openPrintPreview()">👁️ Yazdırma Önizleme</button>
+        </div>
+      </div>
+
+      <!-- UYAP Portal Belge İçi Arama Grubu -->
+      <div class="udv-search-group" title="Belge İçinde Hızlı Ara (Enter: Sonraki, Shift+Enter: Önceki, Esc: Temizle)">
+        <div class="udv-search-box">
+          <span style="font-size: 12px; opacity: 0.7;">🔍</span>
+          <input type="text" id="inDocSearchInput" class="udv-search-input" placeholder="Belgede Ara..."
+                 oninput="executeInDocSearch(this.value)"
+                 onkeydown="if(event.key==='Enter'){event.preventDefault();navigateInDocSearch(event.shiftKey?'prev':'next');}else if(event.key==='Escape'){clearInDocSearchHighlights();this.value='';updateSearchBadge();}">
+          <button type="button" class="udv-search-btn" onclick="navigateInDocSearch('prev')" title="Önceki (Shift+Enter)">▲</button>
+          <button type="button" class="udv-search-btn" onclick="navigateInDocSearch('next')" title="Sonraki (Enter)">▼</button>
+          <span id="inDocSearchCount" class="udv-search-badge" style="display: none;">0/0</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <span id="desktopSigBadge" style="display: none; padding: 3px 8px; border-radius: 4px; font-size: 11.5px; font-weight: bold; background: #334155;">⚪ İmzasız</span>
+      <span id="desktopStatusMsg" style="font-size: 12px; color: #94A3B8;">Hazır</span>
+    </div>
+  </header>
+
+  <input type="file" id="desktopFileInput" accept=".udf,.docx,.pdf,.tiff,.tif,.odt" style="display: none;">
+
 
   <!-- Havelsan UYAP & Word Stili Yazılı Zengin Biçimlendirme Araç Çubuğu (3 Satırlı Ergonomik Düzen) -->
   <div id="toolbar-container">
@@ -15,8 +104,8 @@
 
       <!-- Geri Al / Yinele / Güncelle -->
       <div class="tool-group">
-        <button type="button" class="tool-btn" onclick="format('undo')" title="Geri Al (Ctrl+Z)">↶ <span>Geri Al</span></button>
-        <button type="button" class="tool-btn" onclick="format('redo')" title="Yinele (Ctrl+Y)">↷ <span>Yinele</span></button>
+        <button type="button" id="btn-undo" class="tool-btn" onclick="format('undo')" title="Geri Al (Ctrl+Z)">↶ <span>Geri Al</span></button>
+        <button type="button" id="btn-redo" class="tool-btn" onclick="format('redo')" title="Yinele (Ctrl+Y)">↷ <span>Yinele</span></button>
         <button type="button" class="tool-btn" onclick="checkForUpdates(true)" title="Güncellemeleri Denetle">🔄 <span>Güncelle</span></button>
       </div>
 
@@ -904,10 +993,23 @@
   <div id="scroll-blur-top" class="scroll-blur-band top"></div>
   <div id="scroll-blur-bottom" class="scroll-blur-band bottom"></div>
 
-  <script src="jszip.min.js"></script>
-  <script src="desktop_bridge.js"></script>
   <script src="editor.js"></script>
   <script src="history.js"></script>
   <script src="updater.js"></script>
+
+  <!-- MASAÜSTÜ DURUM ÇUBUĞU (STATUS BAR) -->
+  <footer id="desktop-app-footer" style="background: #0F172A; color: #94A3B8; padding: 4px 16px; font-size: 11.5px; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #1E293B; user-select: none; z-index: 100;">
+    <div style="display: flex; gap: 16px; align-items: center;">
+      <span id="desktopWordCount">0 kelime, 0 karakter</span>
+      <span>•</span>
+      <span>A4 Baskı Düzeni</span>
+    </div>
+    <div style="display: flex; gap: 16px; align-items: center;">
+      <span style="opacity: 0.7;">Kısayollar: <b>Ctrl+O</b> Aç • <b>Ctrl+S</b> UDF • <b>Ctrl+Shift+S</b> Word • <b>Ctrl+P</b> PDF/Yazdır</span>
+      <span>•</span>
+      <span style="color: #38BDF8; font-weight: 600;">CanEditor v3.6.5 (Cross-Platform)</span>
+    </div>
+  </footer>
+
 </body>
 </html>

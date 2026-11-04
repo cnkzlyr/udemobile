@@ -64,6 +64,7 @@ public class EditorActivity extends Activity {
     private WebView editorWebView;
     private EditText etDocTitle;
     private Button btnBack;
+    private Button btnQuickSave;
     private Button btnSave;
     private Button btnSaveDocx;
     private Button btnExportPdf;
@@ -114,6 +115,7 @@ public class EditorActivity extends Activity {
         editorWebView = findViewById(R.id.editorWebView);
         etDocTitle = findViewById(R.id.etDocTitle);
         btnBack = findViewById(R.id.btnBack);
+        btnQuickSave = findViewById(R.id.btnQuickSave);
         btnSave = findViewById(R.id.btnSave);
         btnSaveDocx = findViewById(R.id.btnSaveDocx);
         btnExportPdf = findViewById(R.id.btnExportPdf);
@@ -155,7 +157,20 @@ public class EditorActivity extends Activity {
     private void setupListeners() {
         btnBack.setOnClickListener(v -> finish());
 
-        // Farklı Kaydet Menüsü
+        // Doğrudan Hızlı Kaydet Butonu (1-Tık Kaydet)
+        if (btnQuickSave != null) {
+            btnQuickSave.setOnClickListener(v -> saveDocument(false, false));
+        }
+
+        // Görünüm Değiştirici Buton (Kağıt / Mobil)
+        Button btnToggleView = findViewById(R.id.btnToggleView);
+        if (btnToggleView != null) {
+            btnToggleView.setOnClickListener(v -> {
+                editorWebView.evaluateJavascript("toggleViewMode();", null);
+            });
+        }
+
+        // Farklı Kaydet ve İşlem Menüsü
         btnSave.setOnClickListener(v -> showSaveMenu(v));
 
         // DOCX (Word) Olarak Kaydet (Hızlı Kısayol)
@@ -344,11 +359,13 @@ public class EditorActivity extends Activity {
 
     private void saveDocument(boolean isDocx, boolean andOpenInDesktop) {
         tvSaveStatus.setText("Kaydediliyor...");
+        if (btnQuickSave != null) btnQuickSave.setEnabled(false);
         btnSave.setEnabled(false);
         btnSaveDocx.setEnabled(false);
 
         String js = "(function(){try{AndroidBridge.setDocModified(isDocumentModified());}catch(e){} return JSON.stringify(getStructuredDocument());})()";
         editorWebView.evaluateJavascript(js, rawResult -> {
+            if (btnQuickSave != null) btnQuickSave.setEnabled(true);
             btnSave.setEnabled(true);
             btnSaveDocx.setEnabled(true);
 
@@ -504,6 +521,8 @@ public class EditorActivity extends Activity {
         popup.getMenu().add(0, 3, 2, "📘 Microsoft Word Olarak Kaydet (.docx)");
         popup.getMenu().add(0, 4, 3, "🖼️ Çok Sayfalı TIFF Olarak Kaydet (.tiff)");
         popup.getMenu().add(0, 5, 4, "📗 OpenDocument Olarak Kaydet (.odt)");
+        popup.getMenu().add(0, 6, 5, "🖨️ Yazdır / Yazdırma Önizleme");
+        popup.getMenu().add(0, 7, 6, "🖥️ Klasik Masaüstü UYAP'ta Aç");
 
         popup.setOnMenuItemClickListener(item -> {
             switch (item.getItemId()) {
@@ -521,6 +540,12 @@ public class EditorActivity extends Activity {
                     return true;
                 case 5:
                     editorWebView.evaluateJavascript("triggerSaveAs('odt');", null);
+                    return true;
+                case 6:
+                    showPrintMenu(anchor);
+                    return true;
+                case 7:
+                    saveDocument(false, true);
                     return true;
             }
             return false;
@@ -674,6 +699,7 @@ public class EditorActivity extends Activity {
             Uri contentUri = Uri.parse("content://" + CanFileProvider.AUTHORITY + file.getAbsolutePath());
             shareIntent.putExtra(Intent.EXTRA_STREAM, contentUri);
             shareIntent.putExtra(Intent.EXTRA_SUBJECT, file.getName());
+            shareIntent.setClipData(android.content.ClipData.newRawUri(file.getName(), contentUri));
             shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
             shareIntent.addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
 
