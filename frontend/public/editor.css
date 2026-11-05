@@ -489,8 +489,8 @@ select {
 
 /* 1. KAĞIT GÖRÜNÜMÜ MODU (Havelsan UYAP Masaüstü Düzeni) */
 #page-wrapper.paper-view {
-  padding: 24px 12px 140px 12px;
-  background-color: #71767C;
+  padding: 18px 8px 140px 8px;
+  background-color: #F1F5F9;
   overflow-x: auto;
   overflow-y: auto;
   display: flex;
@@ -983,13 +983,15 @@ select {
 
 /* 2. MOBİL GÖRÜNÜM MODU (Telefona Tam Oturan, Kesintisiz Düzen - Word & Google Docs Standardı) */
 body.mobile-view #page-wrapper,
-#page-wrapper.mobile-view {
+#page-wrapper.mobile-view,
+body.mobile-reflow-active #page-wrapper,
+#page-wrapper.mobile-reflow-active {
   flex: 1 !important;
   min-height: 0 !important;
   overflow-y: auto !important;
   overflow-x: hidden !important;
   padding: 12px 14px 100px 14px !important;
-  background-color: #FFFFFF !important;
+  background-color: #F8FAFC !important;
   display: block !important;
   width: 100% !important;
   -webkit-overflow-scrolling: touch;
@@ -1000,7 +1002,13 @@ body.mobile-view #sheet-container,
 body.mobile-view #pages-container,
 #page-wrapper.mobile-view #sheet-wrapper,
 #page-wrapper.mobile-view #sheet-container,
-#page-wrapper.mobile-view #pages-container {
+#page-wrapper.mobile-view #pages-container,
+body.mobile-reflow-active #sheet-wrapper,
+body.mobile-reflow-active #sheet-container,
+body.mobile-reflow-active #pages-container,
+#page-wrapper.mobile-reflow-active #sheet-wrapper,
+#page-wrapper.mobile-reflow-active #sheet-container,
+#page-wrapper.mobile-reflow-active #pages-container {
   width: 100% !important;
   max-width: 100% !important;
   min-width: 0 !important;
@@ -1010,6 +1018,25 @@ body.mobile-view #pages-container,
   display: block !important;
   position: static !important;
   box-shadow: none !important;
+}
+
+body.mobile-view .a4-sheet-page,
+#page-wrapper.mobile-view .a4-sheet-page,
+body.mobile-reflow-active .a4-sheet-page,
+#page-wrapper.mobile-reflow-active .a4-sheet-page {
+  width: 100% !important;
+  max-width: 820px !important;
+  height: auto !important;
+  min-height: auto !important;
+  max-height: none !important;
+  margin: 12px auto !important;
+  padding: 18px 20px !important;
+  background: #FFFFFF !important;
+  border-radius: 8px !important;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08) !important;
+  box-sizing: border-box !important;
+  position: relative !important;
+  overflow: visible !important;
 }
 
 body.mobile-view .mobile-flow-sheet,
@@ -1025,14 +1052,17 @@ body.mobile-view .mobile-flow-sheet,
 
 body.mobile-view .mobile-flow-body,
 #page-wrapper.mobile-view .mobile-flow-body,
-#page-wrapper.mobile-view .page-body-box {
+body.mobile-view .page-body-box,
+#page-wrapper.mobile-view .page-body-box,
+body.mobile-reflow-active .page-body-box,
+#page-wrapper.mobile-reflow-active .page-body-box {
   position: static !important;
   top: auto !important;
   left: auto !important;
   width: 100% !important;
   max-width: 100% !important;
   height: auto !important;
-  min-height: 400px !important;
+  min-height: 200px !important;
   max-height: none !important;
   overflow: visible !important;
   font-size: 15px !important;

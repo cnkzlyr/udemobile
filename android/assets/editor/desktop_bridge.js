@@ -3001,8 +3001,9 @@ async function triggerSaveUdf() {
     return;
   }
 
-  if (!window.getStructuredDocument) return;
-  const docData = window.getStructuredDocument();
+  const getDocFn = window.getStructuredDocument || (typeof getStructuredDocument === 'function' ? getStructuredDocument : null);
+  if (!getDocFn) return;
+  const docData = getDocFn();
   const blob = await generateUdfBlob(docData);
 
   if (window.AndroidBridge && window.AndroidBridge.saveBlobToDownloads) {
@@ -3022,8 +3023,9 @@ async function triggerSaveUdf() {
 }
 
 async function triggerSaveDocx() {
-  if (!window.getStructuredDocument) return;
-  const docData = window.getStructuredDocument();
+  const getDocFn = window.getStructuredDocument || (typeof getStructuredDocument === 'function' ? getStructuredDocument : null);
+  if (!getDocFn) return;
+  const docData = getDocFn();
   let name = (document.getElementById("desktopDocTitle")?.value || currentDocFileName).trim();
   name = name.replace(/\.(udf|pdf|tiff|tif|odt)$/i, "") + ".docx";
   const blob = await generateDocxBlob(docData);
@@ -3048,7 +3050,8 @@ async function triggerSaveAs(format) {
   base = base.replace(/\.(udf|docx|pdf|tiff|tif|odt)$/i, "");
   if (!base) base = "Dilekce";
 
-  const docData = window.getStructuredDocument ? window.getStructuredDocument() : null;
+  const getDocFn = window.getStructuredDocument || (typeof getStructuredDocument === 'function' ? getStructuredDocument : null);
+  const docData = getDocFn ? getDocFn() : null;
   const statusEl = document.getElementById("desktopStatusMsg");
 
   if (format === "udf") {
@@ -3137,7 +3140,8 @@ async function triggerShareFormat(format) {
   base = base.replace(/\.(udf|docx|pdf|tiff|tif|odt)$/i, "");
   if (!base) base = "Dilekce";
 
-  const docData = window.getStructuredDocument ? window.getStructuredDocument() : null;
+  const getDocFn = window.getStructuredDocument || (typeof getStructuredDocument === 'function' ? getStructuredDocument : null);
+  const docData = getDocFn ? getDocFn() : null;
   const statusEl = document.getElementById("desktopStatusMsg");
 
   // Android köprüsü varsa doğrudan yerel paylaşım diyaloğunu aç:

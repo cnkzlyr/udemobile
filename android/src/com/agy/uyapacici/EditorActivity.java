@@ -86,6 +86,7 @@ public class EditorActivity extends Activity {
     private TextView tvSaveStatus;
 
     private File currentFile = null;
+    private Uri originDataUri = null;
     private boolean isPageLoaded = false;
     private String pendingHeader = null;
     private String pendingFooter = null;
@@ -279,6 +280,7 @@ public class EditorActivity extends Activity {
         if ((path == null || path.trim().isEmpty()) && getIntent().getData() != null) {
             try {
                 Uri dataUri = getIntent().getData();
+                originDataUri = dataUri;
                 String displayName = null;
                 if ("content".equalsIgnoreCase(dataUri.getScheme())) {
                     try (Cursor cursor = getContentResolver().query(dataUri, null, null, null, null)) {
@@ -480,6 +482,15 @@ public class EditorActivity extends Activity {
 
             // Orijinal e-imzalı belgede değişiklik yapılmamışsa: e-imzayı bit'i bit'ine koru
             if (!isDocx && !docModified && isSigned && currentFile != null && currentFile.exists()) {
+                if (originDataUri != null) {
+                    try (OutputStream out = getContentResolver().openOutputStream(originDataUri, "wt")) {
+                        if (out != null) {
+                            byte[] rawBytes = java.nio.file.Files.readAllBytes(currentFile.toPath());
+                            out.write(rawBytes);
+                            out.flush();
+                        }
+                    } catch (Exception ignored) {}
+                }
                 if (targetFile.equals(currentFile)) {
                     tvSaveStatus.setText("✓ İmzalı belge korundu");
                     Toast.makeText(EditorActivity.this, "✓ " + targetFile.getName() + " kaydedildi (orijinal e-imza korundu).", Toast.LENGTH_SHORT).show();
@@ -537,6 +548,18 @@ public class EditorActivity extends Activity {
                 }
                 currentFile = targetFile;
                 markPristineOnUi();
+
+                // Kullanıcı belgeyi harici bir uygulamadan (WhatsApp, Dosyalarım vb.) SAF / content:// üzerinden açtıysa
+                // Değişikliği orijinal dosyaya da doğrudan geri yaz:
+                if (originDataUri != null && !isDocx) {
+                    try (OutputStream out = getContentResolver().openOutputStream(originDataUri, "wt")) {
+                        if (out != null) {
+                            byte[] targetBytes = java.nio.file.Files.readAllBytes(targetFile.toPath());
+                            out.write(targetBytes);
+                            out.flush();
+                        }
+                    } catch (Exception ignored) {}
+                }
 
                 // Kullanıcının dosyayı Dosyalarım/İndirilenler klasöründe rahatça bulabilmesi için UYAP_Belgelerim klasörüne de eşzamanla
                 try {

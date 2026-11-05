@@ -237,7 +237,12 @@ document.addEventListener('DOMContentLoaded', () => {
         setTimeout(applyCopiedFormatToTarget, 20);
       }
     } else {
-      setTimeout(updateFloatingContextMenu, 60);
+      const sel = window.getSelection();
+      if (sel && !sel.isCollapsed && sel.toString().trim().length > 0) {
+        setTimeout(updateFloatingContextMenu, 60);
+      } else {
+        hideFloatingContextMenu();
+      }
     }
   });
 
@@ -249,14 +254,21 @@ document.addEventListener('DOMContentLoaded', () => {
         setTimeout(applyCopiedFormatToTarget, 20);
       }
     } else {
-      setTimeout(updateFloatingContextMenu, 100);
+      const sel = window.getSelection();
+      if (sel && !sel.isCollapsed && sel.toString().trim().length > 0 && !isUserTypingActive()) {
+        setTimeout(updateFloatingContextMenu, 120);
+      } else {
+        hideFloatingContextMenu();
+      }
     }
   });
 
   document.addEventListener('click', (e) => {
     if (e.target && (e.target.classList?.contains('page-body-box') || e.target.id === 'editor-content' || (e.target.closest && (e.target.closest('.page-body-box') || e.target.closest('#editor-content'))))) {
       recordCurrentSelection();
-      updateRulerFromActiveParagraph();
+      if (!isUserTypingActive()) {
+        requestAnimationFrame(updateRulerFromActiveParagraph);
+      }
     }
   });
 
@@ -335,9 +347,9 @@ function toggleViewMode() {
   if (isMobileView) {
     if (wrapper) {
       wrapper.classList.remove('paper-view');
-      wrapper.classList.add('mobile-view');
+      wrapper.classList.add('mobile-view', 'mobile-reflow-active');
     }
-    document.body.classList.add('mobile-view');
+    document.body.classList.add('mobile-view', 'mobile-reflow-active');
     if (btn) btn.innerHTML = '🖥️ <span>Kağıt</span>';
     if (headerBtn) headerBtn.innerHTML = '🖥️ <span class="hide-on-mobile">Kağıt</span>';
     if (pillBtn) pillBtn.textContent = '🖥️';
@@ -348,15 +360,14 @@ function toggleViewMode() {
     }
 
     if (sheetContainer) sheetContainer.style.zoom = '1';
-    switchToMobileViewFlow();
     updateRulerBodyWidth();
-    showEditorToast('📱 Mobil Akış Görünümü (Kesintisiz Akış)');
+    showEditorToast('📱 Mobil Akış Görünümü (Kesintisiz Metin)');
   } else {
     if (wrapper) {
-      wrapper.classList.remove('mobile-view');
+      wrapper.classList.remove('mobile-view', 'mobile-reflow-active');
       wrapper.classList.add('paper-view');
     }
-    document.body.classList.remove('mobile-view');
+    document.body.classList.remove('mobile-view', 'mobile-reflow-active');
     if (btn) btn.innerHTML = '📱 <span>Mobil</span>';
     if (headerBtn) headerBtn.innerHTML = '📱 <span class="hide-on-mobile">Mobil</span>';
     if (pillBtn) pillBtn.textContent = '📱';
@@ -366,7 +377,6 @@ function toggleViewMode() {
       try { window.AndroidBridge.onViewModeChanged(false); } catch (e) {}
     }
 
-    switchToPaperViewFlow();
     applyAutoFitZoom();
     updateRulerBodyWidth();
     showEditorToast('📄 Kağıt Baskı Düzeni (1:1 A4 Havelsan)');
@@ -374,55 +384,15 @@ function toggleViewMode() {
 }
 
 function switchToMobileViewFlow() {
-  const container = document.getElementById('pages-container') || document.getElementById('sheet-container');
-  if (!container) return;
-
-  const existingBoxes = Array.from(container.querySelectorAll('.page-body-box'));
-  let allNodes = [];
-  if (existingBoxes.length > 0) {
-    existingBoxes.forEach((bb, idx) => {
-      if (idx > 0) {
-        const divider = document.createElement('div');
-        divider.className = 'mobile-page-divider';
-        divider.contentEditable = 'false';
-        divider.innerHTML = `<span>── Sayfa ${idx + 1} ──</span>`;
-        allNodes.push(divider);
-      }
-      Array.from(bb.children).forEach(c => {
-        if (!c.classList.contains('auto-page-break') &&
-            !c.classList.contains('page-break-desk-gap') &&
-            !c.classList.contains('page-desk-gap') &&
-            !c.classList.contains('mobile-page-divider')) {
-          allNodes.push(c);
-        }
-      });
-    });
-  } else {
-    const ed = document.getElementById('editor-content');
-    if (ed) allNodes = Array.from(ed.children).filter(c => !c.classList.contains('mobile-page-divider'));
-  }
-
-  container.innerHTML = `
-    <div class="mobile-flow-sheet" id="mobile-sheet">
-      <div id="editor-content" class="page-body-box mobile-flow-body" contenteditable="true" spellcheck="true" autocomplete="off" autocapitalize="sentences"></div>
-    </div>
-  `;
-  const mobileEd = document.getElementById('editor-content');
-  allNodes.forEach(n => mobileEd.appendChild(n));
-  if (mobileEd.children.length === 0) {
-    mobileEd.innerHTML = '<p style="text-align: justify;"><br></p>';
-  }
-  mobileEd.addEventListener('input', function() {
-    markDocumentUserEdited();
-    debouncedUpdateCounts(1500);
-  });
+  const wrapper = document.getElementById('page-wrapper');
+  if (wrapper) wrapper.classList.add('mobile-reflow-active');
+  document.body.classList.add('mobile-reflow-active');
 }
 
 function switchToPaperViewFlow() {
-  const container = document.getElementById('pages-container') || document.getElementById('sheet-container');
-  if (!container) return;
-  container.querySelectorAll('.mobile-page-divider').forEach(d => d.remove());
-  updatePagination();
+  const wrapper = document.getElementById('page-wrapper');
+  if (wrapper) wrapper.classList.remove('mobile-reflow-active');
+  document.body.classList.remove('mobile-reflow-active');
 }
 
 // Minimal standard QR Code generator (Byte Mode, Mask 0, ECC Level L, Version 1 to 4)
@@ -2338,7 +2308,7 @@ function toggleRuler() {
 }
 
 function updateRulerFromActiveParagraph() {
-  if (activeDragMarker) return;
+  if (activeDragMarker || isUserTypingActive()) return;
   const p = getActiveParagraph();
   if (!p) return;
 
@@ -4325,6 +4295,7 @@ function setHtmlContent(content) {
   }, 100);
   setTimeout(markDocumentPristine, 350);
 }
+window.setHtmlContent = setHtmlContent;
 
 function getHtmlContent() {
   const bodyBoxes = Array.from(document.querySelectorAll('.page-body-box'));
@@ -4334,6 +4305,7 @@ function getHtmlContent() {
   const ed = document.getElementById('editor-content');
   return ed ? ed.innerHTML : '';
 }
+window.getHtmlContent = getHtmlContent;
 
 function getPlainText() {
   const parts = [];
@@ -4387,6 +4359,7 @@ function getPlainText() {
 
   return parts.join('\n\n');
 }
+window.getPlainText = getPlainText;
 
 // Belgeyi Java/Web UDF & DOCX Üreticileri için Üstbilgi, Altbilgi, Tablo, Görsel ve Paragraflar Olarak Çıkar
 function extractParagraphNode(node) {
@@ -4674,6 +4647,7 @@ function getStructuredDocument() {
 
   return docPayload;
 }
+window.getStructuredDocument = getStructuredDocument;
 
 function parseInlineRuns(element, runs, state) {
   const st = state || {};
