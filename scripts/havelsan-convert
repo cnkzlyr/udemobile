@@ -1,0 +1,12 @@
+#!/data/data/com.termux/files/usr/bin/bash
+# =============================================================================
+# Havelsan UYAP Headless Çevrim CLI Aracı
+# Kullanım: havelsan-convert <girdi.udf> <cikti.pdf|cikti.odt|cikti.tiff>
+# =============================================================================
+
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CP="$SCRIPT_DIR:/data/data/com.termux/files/home/uyap-editor/*"
+
+exec java -Djava.awt.headless=true -cp "$CP" scripts.HavelsanConverter "$@"
