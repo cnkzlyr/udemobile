@@ -65,7 +65,7 @@ if (typeof document !== 'undefined') {
 }
 
 function isUserTypingActive() {
-  return (Date.now() - lastUserTypingTimestamp) < 3000;
+  return (Date.now() - lastUserTypingTimestamp) < 6000;
 }
 window.isUserTypingActive = isUserTypingActive;
 
@@ -189,13 +189,32 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  const editor = document.getElementById('editor-content');
-  if (editor) {
-    editor.addEventListener('input', () => {
+  document.addEventListener('input', (e) => {
+    if (e.target && (e.target.classList?.contains('page-body-box') || e.target.id === 'editor-content' || (e.target.closest && (e.target.closest('.page-body-box') || e.target.closest('#editor-content'))))) {
       noteUserActivity();
       debouncedUpdateCounts(1500);
-    });
-  }
+    }
+  }, { passive: true, capture: true });
+
+  document.addEventListener('keydown', (e) => {
+    const isEdit = e.target && (e.target.classList?.contains('page-body-box') || e.target.id === 'editor-content' || (e.target.closest && (e.target.closest('.page-body-box') || e.target.closest('#editor-content'))));
+    if (!isEdit) return;
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      markDocumentUserEdited();
+      handleTabAction();
+    } else if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key.length === 1) {
+      markDocumentUserEdited();
+    } else if (e.key === 'Backspace' || e.key === 'Delete' || e.key === 'Enter') {
+      markDocumentUserEdited();
+    }
+  }, { capture: true });
+
+  document.addEventListener('keyup', (e) => {
+    if (e.target && (e.target.classList?.contains('page-body-box') || e.target.id === 'editor-content' || (e.target.closest && (e.target.closest('.page-body-box') || e.target.closest('#editor-content'))))) {
+      recordCurrentSelection();
+    }
+  }, { passive: true, capture: true });
 
   document.addEventListener('selectionchange', () => {
     recordCurrentSelection();
@@ -234,32 +253,18 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  editor.addEventListener('keyup', () => {
-    recordCurrentSelection();
-  });
-
-  editor.addEventListener('keydown', (e) => {
-    if (e.key === 'Tab') {
-      e.preventDefault();
-      markDocumentUserEdited();
-      handleTabAction();
-    } else if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key.length === 1) {
-      markDocumentUserEdited();
-    } else if (e.key === 'Backspace' || e.key === 'Delete' || e.key === 'Enter') {
-      markDocumentUserEdited();
+  document.addEventListener('click', (e) => {
+    if (e.target && (e.target.classList?.contains('page-body-box') || e.target.id === 'editor-content' || (e.target.closest && (e.target.closest('.page-body-box') || e.target.closest('#editor-content'))))) {
+      recordCurrentSelection();
+      updateRulerFromActiveParagraph();
     }
-  });
-
-  // Tıklama ile aktif paragrafı algılama
-  editor.addEventListener('click', () => {
-    recordCurrentSelection();
-    updateRulerFromActiveParagraph();
   });
 
   // Sayfa dışına veya araç çubuğuna tıklayınca context bubble gizle
   document.addEventListener('mousedown', (e) => {
     const bubble = document.getElementById('floating-context-menu');
-    if (bubble && !bubble.contains(e.target) && !editor.contains(e.target)) {
+    const ed = document.getElementById('editor-content') || document.querySelector('.page-body-box');
+    if (bubble && !bubble.contains(e.target) && (!ed || !ed.contains(e.target))) {
       hideFloatingContextMenu();
     }
   });
@@ -4095,6 +4100,7 @@ function markDocumentUserEdited() {
     try { window.AndroidBridge.setDocModified(true); } catch (e) {}
   }
 }
+window.markDocumentUserEdited = markDocumentUserEdited;
 
 function snapshotDocument() {
   try {
@@ -4104,6 +4110,7 @@ function snapshotDocument() {
     return null;
   }
 }
+window.snapshotDocument = snapshotDocument;
 
 function markDocumentPristine() {
   window.__userHasEditedDocument = false;
@@ -4113,12 +4120,14 @@ function markDocumentPristine() {
   }
   try { localStorage.removeItem(AUTOSAVE_STORAGE_KEY); } catch (x) {}
 }
+window.markDocumentPristine = markDocumentPristine;
 
 function isDocumentModified() {
-  if (!window.__userHasEditedDocument) return false;
-  if (window.__origDocSnapshot === null) return true;
+  if (window.__userHasEditedDocument) return true;
+  if (window.__origDocSnapshot === null) return false;
   return snapshotDocument() !== window.__origDocSnapshot;
 }
+window.isDocumentModified = isDocumentModified;
 
 // --- 30 Saniyede Bir Otomatik Taslak Kaydetme & Kurtarma ---
 const AUTOSAVE_STORAGE_KEY = 'caneditor_autosave_draft';
@@ -4151,6 +4160,7 @@ setInterval(saveAutoDraft, 30000);
 
 function checkAutoDraftRecovery() {
   try {
+    if (isEditorFocused() || isUserTypingActive() || window.__userHasEditedDocument) return;
     const raw = localStorage.getItem(AUTOSAVE_STORAGE_KEY);
     if (!raw) return;
     const data = JSON.parse(raw);
@@ -4583,7 +4593,7 @@ function getStructuredDocument() {
       if (node.classList && (node.classList.contains('auto-page-break') || node.classList.contains('page-break-desk-gap') || node.classList.contains('page-desk-gap') || node.classList.contains('page-break-header-area') || node.classList.contains('page-break-footer-area'))) {
         continue;
       }
-      if (node.classList && node.classList.contains('udf-page-break')) {
+      if (node.classList && (node.classList.contains('udf-page-break') || node.classList.contains('mobile-page-divider'))) {
         paragraphs.push({ type: 'pageBreak' });
         continue;
       }

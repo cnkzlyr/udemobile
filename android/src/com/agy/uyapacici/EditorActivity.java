@@ -478,11 +478,11 @@ public class EditorActivity extends Activity {
 
             final boolean isSigned = (currentFile != null && udfHasSignature(currentFile));
 
-            // Belgede hiçbir değişiklik yapılmamışsa: orijinal dosyayı asla bozma, bit'i bit'ine koru
-            if (!isDocx && !docModified && currentFile != null && currentFile.exists()) {
+            // Orijinal e-imzalı belgede değişiklik yapılmamışsa: e-imzayı bit'i bit'ine koru
+            if (!isDocx && !docModified && isSigned && currentFile != null && currentFile.exists()) {
                 if (targetFile.equals(currentFile)) {
-                    tvSaveStatus.setText(isSigned ? "✓ İmzalı belge korundu" : "✓ Belge korundu");
-                    Toast.makeText(EditorActivity.this, "✓ " + targetFile.getName() + " kaydedildi (orijinal e-imza ve yapı korundu).", Toast.LENGTH_SHORT).show();
+                    tvSaveStatus.setText("✓ İmzalı belge korundu");
+                    Toast.makeText(EditorActivity.this, "✓ " + targetFile.getName() + " kaydedildi (orijinal e-imza korundu).", Toast.LENGTH_SHORT).show();
                     if (andOpenInDesktop) openInDesktopUyap(targetFile.getAbsolutePath());
                     return;
                 } else {
@@ -495,7 +495,7 @@ public class EditorActivity extends Activity {
                             etDocTitle.setText(targetFile.getName());
                             String time = new SimpleDateFormat("HH:mm", Locale.getDefault()).format(new Date());
                             tvSaveStatus.setText("✓ Kopya Kaydedildi (" + time + ")");
-                            Toast.makeText(EditorActivity.this, "✓ " + targetFile.getName() + " kaydedildi (orijinal e-imza ve yapı korundu).", Toast.LENGTH_SHORT).show();
+                            Toast.makeText(EditorActivity.this, "✓ " + targetFile.getName() + " kaydedildi (orijinal e-imza korundu).", Toast.LENGTH_SHORT).show();
                             if (andOpenInDesktop) openInDesktopUyap(targetFile.getAbsolutePath());
                         });
                         return;

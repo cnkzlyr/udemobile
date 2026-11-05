@@ -10,7 +10,7 @@
 (function () {
   'use strict';
 
-  const VERSION = '3.10.0';
+  const VERSION = '3.11.0';
   const REPO = 'cnkzlyr/udemobile';
   const API = 'https://api.github.com/repos/' + REPO + '/releases/latest';
   const LS_LAST = 'caneditor_update_last_check';
@@ -99,6 +99,9 @@
     return true;
   }
   function checkDraftOnStart() {
+    if (typeof isEditorFocused === 'function' && isEditorFocused()) return;
+    if (typeof isUserTypingActive === 'function' && isUserTypingActive()) return;
+    if (window.__userHasEditedDocument) return;
     const raw = ls.get(LS_DRAFT);
     if (!raw) return;
     let d; try { d = JSON.parse(raw); } catch (e) { ls.del(LS_DRAFT); return; }
@@ -261,6 +264,9 @@
         return false;
       }
       if (!manual && ls.get(LS_SKIP) === newVer) return false;
+      if (!manual && ((typeof isEditorFocused === 'function' && isEditorFocused()) || (typeof isUserTypingActive === 'function' && isUserTypingActive()))) {
+        return false;
+      }
       const info = await platformInfo();
       showUpdateDialog(rel, pickAsset(rel, info), info);
       return true;

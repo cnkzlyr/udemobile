@@ -1972,7 +1972,8 @@ async function generateTiffBlob(docData) {
     (pageSheets[0] && pageSheets[0].classList.contains("landscape"));
   const width = isLandscape ? 1123 : 794;
   const height = isLandscape ? 794 : 1123;
-  const totalPages = Math.max(1, pageSheets.length);
+  const pageBuckets = getPageElementBuckets(docData, width, height, 1);
+  const totalPages = Math.max(1, pageBuckets.length);
 
   const ifds = [];
   const rawPages = [];
@@ -1985,10 +1986,8 @@ async function generateTiffBlob(docData) {
     ctx.fillStyle = "#FFFFFF";
     ctx.fillRect(0, 0, width, height);
 
-    const sheet = pageSheets[p - 1];
-    if (sheet) {
-      renderSheetDirectToCanvas(sheet, ctx, width, height, 1, p, totalPages, docData);
-    }
+    const sheet = (pageSheets && pageSheets[p - 1]) ? pageSheets[p - 1] : null;
+    renderSheetDirectToCanvas(sheet, ctx, width, height, 1, p, totalPages, docData, pageBuckets[p - 1]);
     const imgData = ctx.getImageData(0, 0, width, height);
     rawPages.push(imgData);
 
@@ -2238,7 +2237,73 @@ function renderTableDirectToCanvas(tableEl, ctx, leftPx, curY, maxW, scale, maxY
   return rowY;
 }
 
-function renderSheetDirectToCanvas(sheet, ctx, targetW, targetH, scale, pageNum, totalPages, docData) {
+function getPageElementBuckets(docData, targetW, targetH, scale) {
+  const pageSheets = Array.from(document.querySelectorAll(".a4-sheet-page"));
+  if (pageSheets.length > 1) {
+    return pageSheets.map(s => {
+      const body = s.querySelector(".page-body-box") || s;
+      return Array.from(body.children).filter(ch =>
+        !ch.classList.contains("auto-page-break") &&
+        !ch.classList.contains("page-break-desk-gap") &&
+        !ch.classList.contains("page-desk-gap") &&
+        !ch.classList.contains("mobile-page-divider")
+      );
+    });
+  }
+
+  const m = (typeof currentMargins !== "undefined" && currentMargins) ? currentMargins : (docData?.margins || {});
+  const topCm = !isNaN(parseFloat(m.top)) ? parseFloat(m.top) : 2.5;
+  const bottomCm = !isNaN(parseFloat(m.bottom)) ? parseFloat(m.bottom) : 2.5;
+  const ppc = 37.795275 * scale;
+  const topPx = Math.round(topCm * ppc);
+  const bottomPx = Math.round(bottomCm * ppc);
+  const maxPageH = Math.max(300, targetH - topPx - bottomPx);
+
+  const bodyEl = document.querySelector(".page-body-box") || document.getElementById("editor-content");
+  const allChildren = bodyEl ? Array.from(bodyEl.children).filter(ch =>
+    !ch.classList.contains("auto-page-break") &&
+    !ch.classList.contains("page-break-desk-gap") &&
+    !ch.classList.contains("page-desk-gap")
+  ) : [];
+
+  if (allChildren.length === 0) return [[]];
+
+  const buckets = [];
+  let curBucket = [];
+  let curH = 0;
+
+  for (const ch of allChildren) {
+    if (ch.classList.contains("udf-page-break") || ch.classList.contains("mobile-page-divider")) {
+      if (curBucket.length > 0) buckets.push(curBucket);
+      curBucket = [];
+      curH = 0;
+      continue;
+    }
+    const tag = ch.tagName ? ch.tagName.toLowerCase() : "";
+    let estH = 30 * scale;
+    if (tag === "table") estH = Math.max(80 * scale, (ch.offsetHeight || 120) * scale);
+    else {
+      const textLen = (ch.innerText || "").length;
+      const fontPt = parseFloat(ch.style.fontSize) || 12;
+      const lineCount = Math.max(1, Math.ceil(textLen / 70));
+      estH = lineCount * fontPt * 1.6 * scale;
+    }
+    if (curH + estH > maxPageH && curBucket.length > 0) {
+      buckets.push(curBucket);
+      curBucket = [ch];
+      curH = estH;
+    } else {
+      curBucket.push(ch);
+      curH += estH;
+    }
+  }
+  if (curBucket.length > 0 || buckets.length === 0) {
+    buckets.push(curBucket);
+  }
+  return buckets;
+}
+
+function renderSheetDirectToCanvas(sheet, ctx, targetW, targetH, scale, pageNum, totalPages, docData, explicitChildren = null) {
   ctx.fillStyle = "#FFFFFF";
   ctx.fillRect(0, 0, targetW, targetH);
 
@@ -2258,7 +2323,7 @@ function renderSheetDirectToCanvas(sheet, ctx, targetW, targetH, scale, pageNum,
   let curY = topPx;
 
   // 1. Üstbilgi (Header)
-  const headerEl = sheet.querySelector(".page-header-box");
+  const headerEl = sheet ? sheet.querySelector(".page-header-box") : document.getElementById("doc-header");
   if (headerEl) {
     const hText = (headerEl.innerText || "").trim();
     if (hText) {
@@ -2276,12 +2341,12 @@ function renderSheetDirectToCanvas(sheet, ctx, targetW, targetH, scale, pageNum,
   }
 
   // 2. Gövde Paragrafları ve Tabloları
-  const bodyEl = sheet.querySelector(".page-body-box") || sheet;
-  const children = Array.from(bodyEl.children).filter(ch =>
+  const children = explicitChildren ? explicitChildren : (sheet ? Array.from((sheet.querySelector(".page-body-box") || sheet).children).filter(ch =>
     !ch.classList.contains("auto-page-break") &&
     !ch.classList.contains("page-break-desk-gap") &&
-    !ch.classList.contains("page-desk-gap")
-  );
+    !ch.classList.contains("page-desk-gap") &&
+    !ch.classList.contains("mobile-page-divider")
+  ) : []);
 
   for (const child of children) {
     if (curY > targetH - bottomPx - 20) break;
@@ -2419,12 +2484,13 @@ async function generatePdfBlob(docData) {
   const targetW = Math.round(baseW * renderScale);
   const targetH = Math.round(baseH * renderScale);
 
-  const totalPages = Math.max(1, pageSheets.length);
+  const pageBuckets = getPageElementBuckets(docData, targetW, targetH, renderScale);
+  const totalPages = Math.max(1, pageBuckets.length);
   const pagesData = [];
 
   for (let p = 0; p < totalPages; p++) {
     if (statusEl) statusEl.innerText = `PDF Sayfa ${p + 1}/${totalPages} hazırlanıyor...`;
-    const sheet = pageSheets[p];
+    const sheet = (pageSheets && pageSheets[p]) ? pageSheets[p] : null;
     const canvas = document.createElement("canvas");
     canvas.width = targetW;
     canvas.height = targetH;
@@ -2432,9 +2498,7 @@ async function generatePdfBlob(docData) {
     ctx.fillStyle = "#FFFFFF";
     ctx.fillRect(0, 0, targetW, targetH);
 
-    if (sheet) {
-      renderSheetDirectToCanvas(sheet, ctx, targetW, targetH, renderScale, p + 1, totalPages, docData);
-    }
+    renderSheetDirectToCanvas(sheet, ctx, targetW, targetH, renderScale, p + 1, totalPages, docData, pageBuckets[p]);
 
     const jpegUrl = canvas.toDataURL("image/jpeg", 0.92);
     const jpegBytes = dataUrlToUint8Array(jpegUrl);
@@ -2917,8 +2981,9 @@ async function triggerSaveUdf() {
   let name = (document.getElementById("desktopDocTitle")?.value || currentDocFileName).trim();
   name = name.replace(/\.(docx|pdf|tiff|tif|odt)$/i, "") + ".udf";
 
-  const isModified = window.isDocumentModified ? window.isDocumentModified() : false;
-  if (!isModified && currentDocOriginalBuffer && currentDocFileName.toLowerCase().endsWith(".udf")) {
+  const hasSig = window.__currentDocSignature && window.__currentDocSignature.hasSignature;
+  const isModified = window.isDocumentModified ? window.isDocumentModified() : true;
+  if (!isModified && hasSig && currentDocOriginalBuffer && currentDocFileName.toLowerCase().endsWith(".udf")) {
     const blob = new Blob([currentDocOriginalBuffer], { type: "application/octet-stream" });
     if (window.AndroidBridge && window.AndroidBridge.saveBlobToDownloads) {
       const reader = new FileReader();
@@ -2932,7 +2997,7 @@ async function triggerSaveUdf() {
     }
     const statusEl = document.getElementById("desktopStatusMsg");
     if (statusEl) statusEl.innerText = "✓ UDF Korunarak Kaydedildi";
-    if (typeof showEditorToast === "function") showEditorToast("✓ UDF Belgesi Kaydedildi");
+    if (typeof showEditorToast === "function") showEditorToast("✓ UDF Belgesi (İmza Korundu) Kaydedildi");
     return;
   }
 
@@ -2950,6 +3015,7 @@ async function triggerSaveUdf() {
   } else {
     downloadBlob(blob, name);
   }
+  if (window.markDocumentPristine) window.markDocumentPristine();
   const statusEl = document.getElementById("desktopStatusMsg");
   if (statusEl) statusEl.innerText = "✓ UDF Kaydedildi";
   if (typeof showEditorToast === "function") showEditorToast("✓ Havelsan UDF Kaydedildi");

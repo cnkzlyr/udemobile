@@ -1,6 +1,6 @@
 # ⚖️ CanEditor (UdeMobile) — Çapraz Platform UYAP & Word Editörü
 
-[![Sürüm](https://img.shields.io/badge/Sürüm-v3.10.0-blue.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v3.10.0)
+[![Sürüm](https://img.shields.io/badge/Sürüm-v3.11.0-blue.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v3.11.0)
 [![Platformlar](https://img.shields.io/badge/Platformlar-Android%20%7C%20Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Web-success.svg)](https://github.com/cnkzlyr/udemobile/releases)
 [![UYAP](https://img.shields.io/badge/Format-UYAP_UDF_v1.8-0D47A1.svg)](https://uyap.gov.tr)
 [![Word](https://img.shields.io/badge/Format-MS_DOCX_OpenXML-2B579A.svg?logo=microsoft-word&logoColor=white)](https://microsoft.com)
@@ -11,32 +11,44 @@
 
 ---
 
-## 🚀 Hızlı İndirme (v3.10.0)
+## 🚀 Hızlı İndirme (v3.11.0)
 
 | Platform | Paket Dosyası | Açıklama |
 | :--- | :--- | :--- |
-| **Android (Telefon & Tablet)** | [**CanEditor-v3.10.0.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.10.0/CanEditor-v3.10.0.apk) | Güncel Android APK paketi (Termux gerektirmez) |
-| **Android (Her Zaman En Son)** | [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.10.0/CanEditor-latest.apk) | Kalıcı son sürüm bağlantısı |
-| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v3.10.0.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v3.10.0/CanEditor-Portable-Web-GUI-v3.10.0.zip) | **Kurulumsuz;** zipten çıkarıp `index.html` açarak tüm işletim sistemlerinde doğrudan çalışır |
-| **Windows / macOS / Linux** | [**GitHub Releases Sayfası**](https://github.com/cnkzlyr/udemobile/releases/tag/v3.10.0) | GitHub Actions CI ile derlenen yerel ikili (.msi, .exe, .dmg, .AppImage, .deb, .rpm) paketleri |
+| **Android (Telefon & Tablet)** | [**CanEditor-v3.11.0.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.11.0/CanEditor-v3.11.0.apk) | Güncel Android APK paketi (Termux gerektirmez) |
+| **Android (Her Zaman En Son)** | [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.11.0/CanEditor-latest.apk) | Kalıcı son sürüm bağlantısı |
+| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v3.11.0.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v3.11.0/CanEditor-Portable-Web-GUI-v3.11.0.zip) | **Kurulumsuz;** zipten çıkarıp `index.html` açarak tüm işletim sistemlerinde doğrudan çalışır |
+| **Windows / macOS / Linux** | [**GitHub Releases Sayfası**](https://github.com/cnkzlyr/udemobile/releases/tag/v3.11.0) | GitHub Actions CI ile derlenen yerel ikili (.msi, .exe, .dmg, .AppImage, .deb, .rpm) paketleri |
 
 ---
 
-## 🌟 v3.10.0 ile Gelen Devrimsel Yenilikler (1:1 e-UDF Kompakt Arayüzü, Kalıcı Sticky Cetvel, Kesintisiz Klavye Odağı, Tek-Gövde Mobil Akış ve Gelişmiş Paylaşım/Kayıt)
+## 🌟 v3.11.0 ile Gelen Devrimsel Yenilikler (1:1 e-UDF Standardı, Tam Fonksiyonel 1-Tık Kaydet/Farklı Kaydet/Paylaşım, Kesintisiz Klavye Odağı, Kalıcı Dokunmatik Cetvel, Dahili PDF/TIFF Görüntüleyici ve Termux'suz Yerel E-İmza)
 
-### 🎨 1. e-UDF Standardı Birebir Kompakt Üst Panel & Kısayol Hapı
+### 🎨 1. e-UDF Standardı Birebir Kompakt Üst Panel & 1-Tık Kaydetme
 - **e-UDF Birebir Kısayol Hapı (`[ 💾 | 📱 / 🖥️ | ☰ ]`):** Ekranın tam ortasında yer alan merkezlenmiş hap konteyneri sayesinde:
-  - **💾 1-Tık Doğrudan Kaydet:** Açık olan belge üzerinde yapılan tüm değişiklikleri anında açık olan dosyaya veya `Downloads/UYAP_Belgelerim` klasörüne kaydeder (Ctrl+S).
+  - **💾 1-Tık Doğrudan Kaydet:** Açık olan belge üzerinde yapılan tüm değişiklikleri anında açık olan dosyaya veya `Downloads/UYAP_Belgelerim` klasörüne yazar. Orijinal dosya üzerinde yapılan değişikliklerin korunmaması sorunu (`isDocumentModified` köprü senkronizasyonu) %100 çözüldü.
   - **📱 / 🖥️ Görünüm Değiştir:** Kağıt baskı görünümünde iken `📱` gösterir (tek tıkla mobil akışa geçer), mobil akışta iken `🖥️` gösterir (tek tıkla A4 baskı düzenine döner).
-  - **☰ Tüm İşlemler Çekmece Menüsü:** Yeni belge, dosya açma, farklı kaydet (UDF, PDF, DOCX, TIFF, ODT), paylaşım, yazdırma, e-imza ve ayarlar seçeneklerine anında erişim.
-- **Modern Crimson Marka Rozeti & Mavi Profil Butonu:** Sol üstte kırmızı gradyan `⚖️ CanEditor` logo rozeti, sağ üstte tek dokunuşla tüm seçenekleri açan solid mavi daire `👤` kullanıcı simgesi.
-- **Kompakt Tek Satır Şerit Araç Çubuğu:** Mobilde yatay kaydırılabilir, sağındaki kırmızı `⌵` chevron butonuyla genişleyip daralabilen ergonomik araç şeridi.
+  - **☰ Tüm İşlemler Çekmece Menüsü:** Yeni belge, dosya açma, farklı kaydet (UDF, PDF, DOCX, TIFF, ODT), paylaşım, yazdırma, e-imza ve ayarlar seçeneklerine anında erişim. En üstte belirgin yeşil 1-tık hızlı kaydetme butonu eklendi.
+- **Kusursuz Farklı Kaydet & Paylaşım Motoru:** UDF, Adobe A4 PDF, Word DOCX, Çok Sayfalı TIFF, OpenDocument ODT ve Düz Metin formatlarının tamamı yerel Android paylaşım sayfasına (`shareBlobData`) ve Scoped Storage İndirilenler klasörüne doğrudan entegre edildi. WhatsApp, Gmail, Telegram ve Samsung Dosyalarım ile tek tıkla paylaşım sağlandı.
 
-### 📐 2. Sayfa Onlarca Sayfa Aşağı Kaydırılsa Dahi Asla Kaybolmayan Çakılı (Sticky) Dokunmatik Cetvel
-- **Bütünleşik Sabit Üst Kabuk (`#app-fixed-top-shell`):** Başlık, araç çubuğu ve cetvel tek bir sabit üst kabuk altında birleştirildi. Bu sayede cetvelin araç çubuğunun arkasına kayması veya sayfa aşağı kaydırıldığında ekrandan çıkması imkansız hale getirildi.
-- **-2 cm'den +18 cm'ye Tam Ölçekli Sürekli Görsel Cetvel:** Sol kenar marjı (-2 .. 0 cm), beyaz aktif yazı alanı (0 .. 16 cm) ve sağ marj (16 .. 18 cm) kesintisiz milimetrik ve santimetrik çizgilerle donatıldı.
-- **Sayfa ile %100 Hizalı Genişlik (`updateRulerBodyWidth`):** Cetvel gövdesi A4 kağıt kartının ekran üzerindeki gerçek genişliği ve konumuyla pikseli pikseline eşzamanlanarak `0` noktası sol metin marjına tam oturtuldu.
-- **48px Ergonomik Parmak Hedef Alanı & Düşey Kılavuz Çizgisi:** İlk satır girintisi, asılı girinti ve sağ marj imleri 48px dokunmatik vuruş alanı (`touch-action: none !important`) ile genişletildi; sürükleme anında düşey mavi kılavuz çizgisi ve anlık santimetre ipucu rozeti eklendi.
+### ⌨️ 2. Kesintisiz Klavye Odak Koruması (Klavye Kapanması ve Titreme Engellendi)
+- **Arka Plan Modallarının Odak Çalması Engellendi:** Düzenleme esnasında arka plandan gelen otomatik taslak kurtarma ve güncelleme denetimi pencerelerinin kullanıcının klavyesini aniden kapatması sorunu tamamen ortadan kaldırıldı (`isUserTypingActive` ve `isEditorFocused` koruması).
+- **DOM Yıkımsız Paragraf ve Sayfa Ayrımı:** Sayfa bölme motorunun kullanıcının yazı yazma duraksamalarında DOM ağacını temizlemesi (`container.innerHTML = ''`) kesin olarak engellendi. Kullanıcı imleci içeride olduğu sürece sanal klavye (Gboard, Samsung Keyboard, SwiftKey) asla kapanmaz.
+- **Tek-Gövde Kesintisiz Mobil Akış:** Mobil modda sayfalar arası yapay kutular ve bölünmeler yerine tek bir sürekli akış gövdesi kullanılarak sayfa sınırlarında klavye düşüşü önlendi.
+
+### 📐 3. Sayfa Aşağı Kaydırılsa Dahi Kalıcı Çakılı (Sticky) Dokunmatik Cetvel
+- **Bütünleşik Sabit Üst Kabuk (`#app-fixed-top-shell`):** Başlık, araç çubuğu ve cetvel tek bir sabit üst kabuk altında birleştirildi. Cetvel sayfa ne kadar aşağı kaydırılırsa kaydırılsın ekranın en üstünde toolbar'ın hemen altında sabit kalır.
+- **-2 cm'den +18 cm'ye Sürekli Markaj:** Sol marj (-2 .. 0 cm), aktif metin alanı (0 .. 16 cm) ve sağ marj (16 .. 18 cm) kesintisiz milimetrik çizgilerle donatıldı.
+- **Ergonomik 48px Ayrık Dokunmatik Hedefler:** Üst üçgen (İlk Satır Girintisi), alt üçgen (Asılı Girinti) ve kutu (Sol Girinti) için dikeyde ayrıştırılmış 48px dokunma alanları oluşturuldu; mobilde parmakla istenen im doğrudan tutulup kaydırılabilir hale getirildi. Canlı dikey kılavuz çizgisi ve anlık santimetre ipucu rozeti eklendi.
+
+### 📕 4. Dahili Adli PDF ve Çok Sayfalı TIFF/TIF Görüntüleyici
+- **Dahili PDF.js & UTIF.js Motorları:** Harici hiçbir uygulama gerekmeden, CanEditor doğrudan adli `.pdf` ve tekli/çoklu sayfalı adli `.tiff`/`.tif` evraklarını tam ekran kaydırmalı, yakınlaştırmalı (zoom +/-), sayfa sayaçlı (`1 / N`), yazdırmalı, indirmeli ve paylaşımlı olarak görüntüler.
+- **Çok Sayfalı Mobil A4 Çıktı Üretimi:** Mobil görünümde dahi uzun metinler otomatik olarak sayfa sınırlarına (`getPageElementBuckets`) göre bölümlenerek A4 PDF ve TIFF olarak tam ve eksiksiz üretilir.
+
+### 🏛️ 5. Rootsuz & Termux'suz Tam Bağımsız Yerel E-İmza & USB OTG Akıllı Kart Desteği
+- **Android Yerel USB CCID Sürücüsü (`CcidDriver.java`):** Termux, harici konsol veya root gerektirmeden; SafeNet eToken 5110/5100 (Kırmızı Token / Barokart), ArkSigner, ACS ACR38/39 ve TÜBİTAK Akis kart okuyucuları doğrudan telefonun Type-C / USB OTG portuna takılarak çalışır.
+- **Dahili Adalet Port Sunucusu (`EmbeddedAdaletServer.java` - Port 5975):** Android uygulaması içinde çalışan yerel Adalet E-İmza REST API sayesinde hem CanEditor içinden hem de UYAP Avukat Portal'dan doğrudan e-imza ile giriş ve belge imzalama gerçekleştirilir.
+- **Headless Havelsan UYAP Dönüşüm Altyapısı (`UdeMobileServer.java`):** Termux veya masaüstü ortamlarında Havelsan UYAP resmi jar kütüphaneleri (`editor_lib.jar`, `jai_hvl.jar`) ile birebir adli vektör PDF ve ODT dönüşümleri sağlanır.
 
 ### ⌨️ 3. Sanal Klavyenin Kapanmasını Kesin Olarak Önleyen Mimari (Sıfır Klavye Kapanması)
 - **Tek-Gövde Mobil Akış Düzeni (`switchToMobileViewFlow`):** Mobil görünüme geçildiğinde tüm sayfaların gövde paragrafları tek bir kesintisiz `<div id="editor-content">` konteynerinde birleştirilir. Sayfalar arası kart kopmaları ve çoklu contenteditable yapıları kaldırıldığı için Android IME sanal klavyesi (Gboard, Samsung Keyboard, SwiftKey) yazım esnasında ASLA kapanmaz.
