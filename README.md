@@ -1,6 +1,6 @@
 # ⚖️ CanEditor (UdeMobile) — Çapraz Platform UYAP & Word Editörü
 
-[![Sürüm](https://img.shields.io/badge/Sürüm-v3.12.0-blue.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v3.12.0)
+[![Sürüm](https://img.shields.io/badge/Sürüm-v3.13.0-blue.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v3.13.0)
 [![Platformlar](https://img.shields.io/badge/Platformlar-Android%20%7C%20Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Web-success.svg)](https://github.com/cnkzlyr/udemobile/releases)
 [![UYAP](https://img.shields.io/badge/Format-UYAP_UDF_v1.8-0D47A1.svg)](https://uyap.gov.tr)
 [![Word](https://img.shields.io/badge/Format-MS_DOCX_OpenXML-2B579A.svg?logo=microsoft-word&logoColor=white)](https://microsoft.com)
@@ -11,18 +11,34 @@
 
 ---
 
-## 🚀 Hızlı İndirme (v3.12.0)
+## 🚀 Hızlı İndirme (v3.13.0)
 
 | Platform | Paket Dosyası | Açıklama |
 | :--- | :--- | :--- |
-| **Android (Telefon & Tablet)** | [**CanEditor-v3.12.0.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.12.0/CanEditor-v3.12.0.apk) | Güncel Android APK paketi (Termux gerektirmez) |
-| **Android (Her Zaman En Son)** | [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.12.0/CanEditor-latest.apk) | Kalıcı son sürüm bağlantısı |
-| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v3.12.0.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v3.12.0/CanEditor-Portable-Web-GUI-v3.12.0.zip) | **Kurulumsuz;** zipten çıkarıp `index.html` açarak tüm işletim sistemlerinde doğrudan çalışır |
-| **Windows / macOS / Linux** | [**GitHub Releases Sayfası**](https://github.com/cnkzlyr/udemobile/releases/tag/v3.12.0) | GitHub Actions CI ile derlenen yerel ikili (.msi, .exe, .dmg, .AppImage, .deb, .rpm) paketleri |
+| **Android (Telefon & Tablet)** | [**CanEditor-v3.13.0.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.13.0/CanEditor-v3.13.0.apk) | Güncel Android APK paketi (Termux gerektirmez) |
+| **Android (Her Zaman En Son)** | [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.13.0/CanEditor-latest.apk) | Kalıcı son sürüm bağlantısı |
+| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v3.13.0.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v3.13.0/CanEditor-Portable-Web-GUI-v3.13.0.zip) | **Kurulumsuz;** zipten çıkarıp `index.html` açarak tüm işletim sistemlerinde doğrudan çalışır |
+| **Windows / macOS / Linux** | [**GitHub Releases Sayfası**](https://github.com/cnkzlyr/udemobile/releases/tag/v3.13.0) | GitHub Actions CI ile derlenen yerel ikili (.msi, .exe, .dmg, .AppImage, .deb, .rpm) paketleri |
 
 ---
 
-## 🌟 v3.12.0 ile Gelen Devrimsel Yenilikler (1:1 e-UDF Standardı, Yıkımsız Mobil Akış, Kusursuz Farklı Kaydet/Paylaşım, Sıfır Klavye Kapanması, SAF Geri Yazma ve Sabit Sticky Cetvel)
+## 🌟 v3.13.0 ile Gelen Devrimsel Yenilikler (Orijinal Havelsan UYAP Headless Çevrim Motoru, iText Vektörel PDF, ODFDOM ODT & CLI Desteği)
+
+1. **Orijinal Havelsan UYAP Headless Çevrim Motoru Entegrasyonu:**
+   * Orijinal UYAP Editör JAR'ları tersine mühendislikle decompile edilerek `tr.com.havelsan.uyap.system.editor.b.b` (vektörel iText PDF) ve `tr.com.havelsan.uyap.system.editor.b.a.f` (ODFDOM ODT) motorları headless olarak CanEditor'e bağlandı.
+   * `scripts/HavelsanConverter.java` ve tek tıkla çalışan `scripts/havelsan-convert` CLI aracı projeye eklendi.
+   * CanEditor içinden "Farklı Kaydet" veya "Paylaş" yapıldığında yerel 5976 portu üzerinden 1:1 orijinal UYAP kalitesinde PDF, ODT ve DOCX çıktısı alınması sağlandı.
+2. **1:1 editor.e-udf.com Mobil Tasarım ve Ergonomi:**
+   * Üst yuvarlak hap (pill) kapsülü: `[ 💾 Kaydet | 📱 Görünüm Değiştir | ☰ Tüm Menü ]`.
+   * Alt araç çubuğu: Girinti, Geri Al, Yinele, Yazı Tipi ve Punto kontrolleri.
+3. **Kalıcı Sticky Cetvel:**
+   * Sayfa aşağı kaysa da üst panelin hemen altında daima sabit kalan `-2 ... +18cm` ölçekli cetvel.
+4. **Sıfır Klavye Kapanması (IME Focus Protection):**
+   * Android WebView üzerinde yazı yazarken veya imleç hareket ederken klavyenin aniden kapanmasına yol açan tüm senkron layout ve reflow tetikleyicileri engellendi.
+5. **SAF Doğrudan Geri Yazma (1-Tık Kaydet 💾):**
+   * WhatsApp veya Dosyalarım'dan açılan dosyalara yapılan değişiklikler `content://` URI'sine doğrudan geri yazılır (`openOutputStream(originDataUri, "wt")`).
+6. **Termux Bağımsız USB E-İmza & Görüntüleme:**
+   * Yerel `CcidDriver.java` USB Host sürücüsü, 5975 portundaki yerel Adalet e-imza köprüsü ve dahili PDF/TIFF görüntüleyiciler ile Termux gerektirmeyen %100 bağımsız mobil deneyim.
 
 ### 🎨 1. e-UDF Birebir Ergonomik Üst Arayüz & Görünüm Modu
 - **e-UDF Birebir Kısayol Hapı (`[ 💾 | 📱 / 🖥️ | ☰ ]`):**
