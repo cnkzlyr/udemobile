@@ -1632,6 +1632,27 @@ async function generateUdfBlob(docData) {
 // 4. DOCX DOSYASI OLUŞTURMA & KAYDETME (TABLO, GÖRSEL, GİRİNTİ DESTEKLİ)
 // -------------------------------------------------------------
 async function generateDocxBlob(docData) {
+  // 1. Resmi Havelsan UYAP Headless Motoru (Port 5976) üzerinden 1:1 DOCX
+  try {
+    const udfBlob = await generateUdfBlob(docData);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 6000);
+    const resp = await fetch("http://127.0.0.1:5976/api/v1/convert?format=docx", {
+      method: "POST",
+      body: udfBlob,
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+    if (resp.ok) {
+      const serverBlob = await resp.blob();
+      if (serverBlob && serverBlob.size > 1000) {
+        return serverBlob;
+      }
+    }
+  } catch (netErr) {
+    // Havelsan yerel sunucusu aktif değil, doğrudan yerel JSZip motoru ile üret
+  }
+
   const zip = new JSZip();
   const m = docData.margins || {};
   const topDxa = Math.round((m.top || docData.topMarginCm || 1.5) * 567);
@@ -1782,6 +1803,27 @@ async function generateDocxBlob(docData) {
 // 3B. 1:1 STANDART OPENDOCUMENT (ODT) ÜRETİCİ
 // -------------------------------------------------------------
 async function generateOdtBlob(docData) {
+  // 1. Resmi Havelsan UYAP Headless Motoru (Port 5976) üzerinden 1:1 ODT
+  try {
+    const udfBlob = await generateUdfBlob(docData);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 6000);
+    const resp = await fetch("http://127.0.0.1:5976/api/v1/convert?format=odt", {
+      method: "POST",
+      body: udfBlob,
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+    if (resp.ok) {
+      const serverBlob = await resp.blob();
+      if (serverBlob && serverBlob.size > 1000) {
+        return serverBlob;
+      }
+    }
+  } catch (netErr) {
+    // Havelsan yerel sunucusu aktif değil, doğrudan yerel JSZip motoru ile üret
+  }
+
   const zip = new JSZip();
 
   // 1. mimetype (STORED)
@@ -2338,7 +2380,7 @@ async function generatePdfBlob(docData) {
   try {
     const udfBlob = await generateUdfBlob(docData);
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 1200);
+    const timeoutId = setTimeout(() => controller.abort(), 6000);
     const resp = await fetch("http://127.0.0.1:5976/api/v1/convert?format=pdf", {
       method: "POST",
       body: udfBlob,

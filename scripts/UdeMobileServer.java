@@ -474,6 +474,28 @@ public class UdeMobileServer {
                     ok = UyapHeadlessConverter.convertUdfToPdf(tempIn, tempOut);
                 } else if ("odt".equals(targetFormat)) {
                     ok = UyapHeadlessConverter.convertUdfToOdt(tempIn, tempOut);
+                } else if ("docx".equals(targetFormat)) {
+                    File tempOdt = File.createTempFile("udf_conv_odt_", ".odt");
+                    try {
+                        if (UyapHeadlessConverter.convertUdfToOdt(tempIn, tempOdt)) {
+                            // Havelsan ODT -> DOCX donusumu
+                            String pythonBin = new File("/data/data/com.termux/files/usr/bin/python3").exists()
+                                ? "/data/data/com.termux/files/usr/bin/python3" : "python3";
+                            String scriptPath = "/data/data/com.termux/files/home/udemobile/scripts/odt_to_docx.py";
+                            ProcessBuilder pb = new ProcessBuilder(pythonBin, scriptPath, tempOdt.getAbsolutePath(), tempOut.getAbsolutePath());
+                            pb.redirectErrorStream(true);
+                            Process p = pb.start();
+                            int exitCode = -1;
+                            try {
+                                exitCode = p.waitFor();
+                            } catch (InterruptedException ie) {
+                                Thread.currentThread().interrupt();
+                            }
+                            ok = (exitCode == 0 && tempOut.exists() && tempOut.length() > 0);
+                        }
+                    } finally {
+                        if (tempOdt.exists()) tempOdt.delete();
+                    }
                 }
 
                 if (!ok || !tempOut.exists() || tempOut.length() == 0) {
@@ -487,7 +509,9 @@ public class UdeMobileServer {
                     String resp = "{\"success\": true, \"format\": \"" + targetFormat + "\", \"fileBase64\": \"" + outB64 + "\", \"size\": " + outBytes.length + "}";
                     sendJsonResponse(exchange, 200, resp);
                 } else {
-                    String mime = "pdf".equals(targetFormat) ? "application/pdf" : "application/vnd.oasis.opendocument.text";
+                    String mime = "pdf".equals(targetFormat) ? "application/pdf"
+                        : ("docx".equals(targetFormat) ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                        : "application/vnd.oasis.opendocument.text");
                     exchange.getResponseHeaders().set("Content-Type", mime);
                     exchange.sendResponseHeaders(200, outBytes.length);
                     try (OutputStream os = exchange.getResponseBody()) {

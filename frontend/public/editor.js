@@ -130,19 +130,6 @@ function recordCurrentSelection() {
   }
 }
 
-  // Seçili paragrafları bul
-  try {
-    const range = sel.getRangeAt(0);
-    const allBlocks = Array.from(editor.querySelectorAll('p, li, blockquote'));
-    const intersected = allBlocks.filter(b => range.intersectsNode(b));
-    if (intersected.length > 0) {
-      lastSelectedParagraphs = intersected;
-    } else if (activeP) {
-      lastSelectedParagraphs = [activeP];
-    }
-  } catch (e) {}
-}
-
 // --- BİLDİRİM VE TOAST MOTORU ---
 function showEditorToast(msg) {
   let toast = document.getElementById('editor-toast-notification');
@@ -287,6 +274,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Başlangıçta kenar boşlukları ve kağıt ölçeğini uygula
   applyPageSetup(currentMargins.left, currentMargins.right, currentMargins.top, currentMargins.bottom, currentMargins.orientation, currentMargins.header, currentMargins.footer);
+  initRuler();
+  updateRulerBodyWidth();
   initPinchToZoom();
   initDynamicScrollBlur();
   updateCounts();
@@ -294,6 +283,7 @@ document.addEventListener('DOMContentLoaded', () => {
   setTimeout(() => {
     applyAutoFitZoom();
     updatePagination();
+    initRuler();
     updateRulerFromActiveParagraph();
   }, 200);
 });
@@ -336,9 +326,9 @@ function toggleViewMode() {
       wrapper.classList.remove('paper-view');
       wrapper.classList.add('mobile-view');
     }
-    if (btn) btn.innerHTML = '🖥️ <span>Kağıt</span>';
-    if (headerBtn) headerBtn.innerHTML = '🖥️ <span class="hide-on-mobile">Kağıt</span>';
-    if (pillBtn) pillBtn.textContent = '🖥️';
+    if (btn) btn.innerHTML = '📱 <span>Mobil</span>';
+    if (headerBtn) headerBtn.innerHTML = '📱 <span class="hide-on-mobile">Mobil</span>';
+    if (pillBtn) pillBtn.textContent = '📱';
 
     // Android yerel başlığındaki butonu güncelle (🖥️)
     if (window.AndroidBridge && window.AndroidBridge.onViewModeChanged) {
@@ -353,9 +343,9 @@ function toggleViewMode() {
       wrapper.classList.remove('mobile-view');
       wrapper.classList.add('paper-view');
     }
-    if (btn) btn.innerHTML = '📱 <span>Görünüm</span>';
-    if (headerBtn) headerBtn.innerHTML = '📱 <span class="hide-on-mobile">Görünüm</span>';
-    if (pillBtn) pillBtn.textContent = '📱';
+    if (btn) btn.innerHTML = '🖥️ <span>Kağıt</span>';
+    if (headerBtn) headerBtn.innerHTML = '🖥️ <span class="hide-on-mobile">Kağıt</span>';
+    if (pillBtn) pillBtn.textContent = '🖥️';
 
     // Android yerel başlığındaki butonu güncelle (📱)
     if (window.AndroidBridge && window.AndroidBridge.onViewModeChanged) {

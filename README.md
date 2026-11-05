@@ -1,6 +1,6 @@
 # ⚖️ CanEditor (UdeMobile) — Çapraz Platform UYAP & Word Editörü
 
-[![Sürüm](https://img.shields.io/badge/Sürüm-v3.8.0-blue.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v3.8.0)
+[![Sürüm](https://img.shields.io/badge/Sürüm-v3.9.0-blue.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v3.9.0)
 [![Platformlar](https://img.shields.io/badge/Platformlar-Android%20%7C%20Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Web-success.svg)](https://github.com/cnkzlyr/udemobile/releases)
 [![UYAP](https://img.shields.io/badge/Format-UYAP_UDF_v1.8-0D47A1.svg)](https://uyap.gov.tr)
 [![Word](https://img.shields.io/badge/Format-MS_DOCX_OpenXML-2B579A.svg?logo=microsoft-word&logoColor=white)](https://microsoft.com)
@@ -11,43 +11,48 @@
 
 ---
 
-## 🚀 Hızlı İndirme (v3.8.0)
+## 🚀 Hızlı İndirme (v3.9.0)
 
 | Platform | Paket Dosyası | Açıklama |
 | :--- | :--- | :--- |
-| **Android (Telefon & Tablet)** | [**CanEditor-v3.8.0.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.8.0/CanEditor-v3.8.0.apk) | Güncel Android APK paketi (Termux gerektirmez) |
-| **Android (Her Zaman En Son)** | [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.8.0/CanEditor-latest.apk) | Kalıcı son sürüm bağlantısı |
-| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v3.8.0.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v3.8.0/CanEditor-Portable-Web-GUI-v3.8.0.zip) | **Kurulumsuz;** zipten çıkarıp `index.html` açarak tüm işletim sistemlerinde doğrudan çalışır |
-| **Windows / macOS / Linux** | [**GitHub Releases Sayfası**](https://github.com/cnkzlyr/udemobile/releases/tag/v3.8.0) | GitHub Actions CI ile derlenen yerel ikili (.msi, .exe, .dmg, .AppImage, .deb, .rpm) paketleri |
+| **Android (Telefon & Tablet)** | [**CanEditor-v3.9.0.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.9.0/CanEditor-v3.9.0.apk) | Güncel Android APK paketi (Termux gerektirmez) |
+| **Android (Her Zaman En Son)** | [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.9.0/CanEditor-latest.apk) | Kalıcı son sürüm bağlantısı |
+| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v3.9.0.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v3.9.0/CanEditor-Portable-Web-GUI-v3.9.0.zip) | **Kurulumsuz;** zipten çıkarıp `index.html` açarak tüm işletim sistemlerinde doğrudan çalışır |
+| **Windows / macOS / Linux** | [**GitHub Releases Sayfası**](https://github.com/cnkzlyr/udemobile/releases/tag/v3.9.0) | GitHub Actions CI ile derlenen yerel ikili (.msi, .exe, .dmg, .AppImage, .deb, .rpm) paketleri |
 
 ---
 
-## 🌟 v3.8.0 ile Gelen Devrimsel Yenilikler (Termux-Bağımsız Yerel Android USB CCID E-İmza Sürücüsü, Dahili Adalet Port 5975 Sunucusu, e-UDF Birebir Tasarımı ve Sabit Cetvel)
+## 🌟 v3.9.0 ile Gelen Devrimsel Yenilikler (1:1 e-UDF Kompakt Arayüzü, Kalıcı Sticky Cetvel, Kesintisiz Klavye Odağı, Dahili PDF/TIFF Görüntüleyici ve Havelsan Headless Motoru)
 
-### 🛡️ 1. Sıfır-Termux: Doğrudan Android Yerel USB Host CCID E-İmza Sürücüsü
-- **Bağımsız Donanım Erişimi:** Android telefonunuza OTG kablo ile takılan her türlü USB token (SafeNet 5110 kırmızı token, ArkSigner, ACS ACR38/ACR39, Gemalto, AKİS) doğrudan Android SDK USB Host katmanında algılanır (`device_filter.xml` & `CcidDriver.java`).
-- **ISO 7816-4 APDU & CAdES-BES:** Harici hiçbir yazılım veya sürücüye gerek kalmadan akıllı karttan X.509 Nitelikli Elektronik Sertifika (NES) okunur, PIN doğrulaması yapılır ve donanım içinde 2048-bit RSA ile SHA-256 özeti imzalanıp CAdES CMS DER formatında zarflanır.
-- **Dahili Adalet Port 5975 Sunucusu:** CanEditor arka planda `127.0.0.1:5975` portunda Adalet Bakanlığı E-İmza REST API (`/api/v1/signature/getCertificates` ve `/api/v1/docsignature/signdigest`) sunar. Hem CanEditor hem de telefondaki Chrome tarayıcısı (UYAP Avukat Portal) bu yerel port üzerinden e-imza atabilir.
-
-### 🎨 2. e-UDF Standardı Birebir Kompakt Üst Panel & Kısayol Hapı
-- **e-UDF Stili Kısayol Hapı (`[ 💾 | 📱 / 🖥️ | ☰ ]`):** Ekranın üstünde yer alan zarif hap grubu sayesinde; tek dokunuşla **💾 Hızlı Kaydet**, tek tıkla **📱/🖥️ Görünüm Değiştir** (Mobil Akış ve A4 Kağıt Düzeni) ve tek tıkla tüm hukuki fonksiyonlara ulaştıran **☰ Çekmece Menü**.
-- **Modern Crimson Marka Rozeti:** Sol üstte kırmızı gradyan `⚖️ CanEditor` logosu, sağ üstte tek tıkla profil ve işlemler menüsünü açan `👤` kullanıcı simgesi.
+### 🎨 1. e-UDF Standardı Birebir Kompakt Üst Panel & Kısayol Hapı
+- **e-UDF Birebir Kısayol Hapı (`[ 💾 | 📱 / 🖥️ | ☰ ]`):** Ekranın tam ortasında yer alan merkezlenmiş hap konteyneri sayesinde:
+  - **💾 1-Tık Doğrudan Kaydet:** Açık olan belge üzerinde yapılan tüm değişiklikleri anında diske kaydeder (Ctrl+S).
+  - **📱 / 🖥️ Görünüm Değiştir:** Mobil akış görünümü ile 1:1 A4 kağıt baskı düzeni arasında tek dokunuşla geçiş yapar.
+  - **☰ Tüm İşlemler Çekmece Menüsü:** Yeni belge, dosya açma, farklı kaydet, dışa aktar, e-imza ve ayarlar seçeneklerine anında erişim.
+- **Modern Crimson Marka Rozeti & Mavi Profil Butonu:** Sol üstte kırmızı gradyan `⚖️ CanEditor` logo rozeti, sağ üstte tek dokunuşla tüm seçenekleri açan `👤` kullanıcı simgesi.
 - **Kompakt Tek Satır Şerit Araç Çubuğu:** Mobilde yatay kaydırılabilir, sağındaki kırmızı `⌵` chevron butonuyla genişleyip daralabilen ergonomik araç şeridi.
 
-### 📐 3. Sayfa Kaydırılsa Dahi Asla Kaybolmayan Sabit (Sticky) Dokunmatik Cetvel
-- **Sayfa Üstünde Çakılı Kalan Mimari:** Cetvel belge kaydırma konteynerinin dışına (`#toolbar-container` altına) taşınarak sayfalar 10 sayfa aşağı kaysa dahi ekranın üstünde kalıcı olarak sabitlendi.
+### 📐 2. Sayfa Kaydırılsa Dahi Asla Kaybolmayan Sabit (Sticky) Dokunmatik Cetvel
+- **Sayfa Üstünde Çakılı Kalan Mimari:** Cetvel belge kaydırma konteynerinin dışına (`#toolbar-container` altına) taşınarak sayfalar onlarca sayfa aşağı kaysa dahi ekranın üstünde kalıcı olarak sabitlendi (`position: sticky !important`).
 - **-2 cm'den +18 cm'ye Tam Ölçekli Görsel Cetvel:** Sol kenar marjı (-2 .. 0), beyaz aktif yazı alanı (0 .. 16 cm) ve sağ marj (16 .. 18 cm) net biçimde renklendirildi ve sayfa kenar boşluklarıyla orantılı ölçeklendi.
-- **48px Ergonomik Parmak Hedef Alanı:** İlk satır, asılı girinti ve sağ marj imleri dokunmatik ekranlarda parmakla kolayca tutulup sürüklenebilecek genişlikte (`touch-action: none !important`) yapılandırıldı.
+- **48px Ergonomik Parmak Hedef Alanı:** İlk satır girintisi, asılı girinti ve sağ marj imleri dokunmatik ekranlarda parmakla kolayca tutulup sürüklenebilecek genişlikte (`touch-action: none !important`) yapılandırıldı.
 
-### ⌨️ 4. Sanal Klavyenin Kapanmasına Karşı Kesin Odak Koruma Motoru
+### ⌨️ 3. Sanal Klavyenin Kapanmasına Karşı Kesin Odak Koruma Motoru
+- **Sıfır Klavye Kapanması:** Yazı yazarken (Gboard, Samsung Keyboard, SwiftKey) IME kompozisyonu ve odak koruma motoru (`isUserTypingActive()` & `isEditorFocused()`) devreye girerek DOM ağacının yıkılmasını, gereksiz yeniden çizimleri ve seçim sıfırlamalarını %100 engeller.
 - **Android Soft-Keyboard ConfigChanges:** `EditorActivity` üzerinde `orientation|screenSize|keyboardHidden|screenLayout|smallestScreenSize|keyboard` bayrakları tanımlanarak klavye açılıp kapandığında aktivitenin yeniden başlatılması önlendi.
-- **Yazım Sırasında Sıfır DOM Yıkımı:** Kullanıcı klavyeyle yazı yazarken (`isUserTypingActive()`) sekme duraklarının yeniden çizilmesi ve yüzen menünün açılması engellendi; Gboard / Samsung klavye odak kaybı ve kapanması %100 çözüldü.
-- **WebView Odak Yönetimi:** WebView için dokunmatik odaklanma ve klavye donanım entegrasyonu güçlendirildi.
 
-### 💾 5. MediaStore.Downloads API ile 1-Tık Doğrudan Kayıt ve Paylaşım
-- **Doğrudan Kaydet:** Açık olan belge tek tıkla (`💾`) üzerine doğrudan yazılır; Android 10-15 Scoped Storage standartlarında `Downloads/UYAP_Belgelerim` klasörüne MediaStore API üzerinden anında işlenir.
-- **Tüm Formatlarda Farklı Kaydet & Paylaş:** UDF (Havelsan UYAP 1.8), PDF (1:1 Vektörel A4 Baskı), DOCX (Word), TIFF (Çok Sayfalı İcra/Dava Evrakı) ve ODT formatları hem mobilde hem masaüstünde eksiksiz çalışır.
-- **Kusursuz Harici Paylaşım:** `CanFileProvider` üzerinden WhatsApp, Gmail, Telegram ve Word'e dosya paylaşımında `FLAG_GRANT_READ_URI_PERMISSION` ve `<grant-uri-permission android:pathPrefix="/" />` yetkileriyle erişim engeli tamamen kaldırıldı.
+### 📕 4. Dahili PDF ve Çok Sayfalı Adli TIFF Görüntüleyici
+- **PDF.js Entegrasyonu:** Herhangi bir PDF dosyası CanEditor ile açıldığında, dahili sayfalı PDF görüntüleyici devreye girer; sayfalar arası geçiş, yakınlaştırma/uzaklaştırma, yerel indirme ve paylaşım sunar.
+- **Çok Sayfalı TIFF / TIF Görüntüleyici (UTIF.js):** Tekli ve çok sayfalı adli tarama evrakları, icra dosyaları ve tapu/bilirkişi belgeleri tıpkı modern bir PDF okuyucu gibi sayfa sayfa kaydırılarak incelenebilir.
+
+### 🏛️ 5. Havelsan UYAP Resmi Headless Dönüşüm Motoru (Port 5976) & İstemci Yedek Motoru
+- **1:1 Vektörel A4 PDF:** Resmi Havelsan JAR sınıfları (`tr.com.havelsan.uyap.system.editor.b.b`) üzerinden birebir UYAP kalitesinde PDF dönüşümü.
+- **Resmi ODT ve DOCX Desteği:** Havelsan'ın ODT ayrıştırıcısı (`tr.com.havelsan.uyap.system.editor.b.a.f`) ve `odt_to_docx.py` köprüsüyle mükemmel Microsoft Word dönüşümü.
+- **Çevrimdışı İstemci Desteği:** Termux veya arka plan servisi bulunmayan ortamlarda dahili JS motoru otomatik olarak devreye girerek belgeleri kaydeder.
+
+### 🛡️ 6. Sıfır-Termux: Doğrudan Android Yerel USB Host CCID E-İmza Sürücüsü
+- **Bağımsız Donanım Erişimi:** Android telefonunuza OTG kablo ile takılan her türlü USB token (SafeNet 5110 kırmızı token, ArkSigner, ACS ACR38/ACR39, Gemalto, AKİS) doğrudan Android SDK USB Host katmanında algılanır (`device_filter.xml` & `CcidDriver.java`).
+- **Dahili Adalet Port 5975 Sunucusu:** CanEditor arka planda `127.0.0.1:5975` portunda Adalet Bakanlığı E-İmza REST API (`/api/v1/signature/getCertificates` ve `/api/v1/docsignature/signdigest`) sunar. Termux kurulumuna gerek olmadan telefonunuz bir e-imza merkezine dönüşür.
 
 ### 📕 6. Dahili PDF ve Çok Sayfalı Adli TIFF Görüntüleyici
 - **PDF.js Dahili Görüntüleyici:** Harici bir uygulama açmaya gerek kalmadan uygulama içinde sayfa gezintisi, dinamik yakınlaştırma (%40 - %300) ve tek tıkla paylaşım.
@@ -219,7 +224,7 @@ Uygulamayı daha önce hiç kullanmamış veya bilgisayar/telefon ayarları konu
 
 ### 📱 1. Android Telefon ve Tablet İçin Adım Adım Kurulum
 
-1. **İndirme:** Telefonunuzun tarayıcısından (Chrome, Samsung Internet vb.) yukarıdaki [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.8.0/CanEditor-latest.apk) bağlantısına dokunun.
+1. **İndirme:** Telefonunuzun tarayıcısından (Chrome, Samsung Internet vb.) yukarıdaki [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.9.0/CanEditor-latest.apk) bağlantısına dokunun.
 2. **Güvenlik Uyarısına Onay Verme:**
    - Chrome veya Samsung Internet, Google Play dışından indirilen her dosya için *"Bu türden bir dosya cihazınıza zarar verebilir"* veya *"Dosya zararlı olabilir"* uyarısı gösterebilir.
    - Bu standart bir Android güvenlik uyarısıdır. **"Yine de İndir"** (Download anyway) butonuna dokunun.
@@ -241,13 +246,13 @@ Uygulamayı daha önce hiç kullanmamış veya bilgisayar/telefon ayarları konu
 ### 💻 2. Windows (10 / 11) İçin Kurulum Rehberi
 
 #### Yöntem A: Taşınabilir (Portable) Sürüm — En Kolay, Kurulumsuz!
-1. [**CanEditor-Portable-Web-GUI-v3.8.0.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v3.8.0/CanEditor-Portable-Web-GUI-v3.8.0.zip) dosyasını indirin.
+1. [**CanEditor-Portable-Web-GUI-v3.9.0.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v3.9.0/CanEditor-Portable-Web-GUI-v3.9.0.zip) dosyasını indirin.
 2. İndirilen `.zip` dosyasına sağ tıklayıp **"Tümünü Ayıkla..."** (Extract All) seçeneğine basın.
 3. Klasörün içindeki `index.html` dosyasına çift tıklayın.
 4. Google Chrome, Microsoft Edge veya varsayılan tarayıcınızda CanEditor anında açılır. İnternet bağlantısı olmasa bile tamamen çevrimdışı ve güvenli çalışır.
 
 #### Yöntem B: Kurulabilir Masaüstü Uygulaması (.msi veya .exe)
-1. [Releases sayfasından](https://github.com/cnkzlyr/udemobile/releases/tag/v3.8.0) `CanEditor_3.8.0_x64-setup.exe` veya `CanEditor_3.8.0_x64_en-US.msi` dosyasını indirin.
+1. [Releases sayfasından](https://github.com/cnkzlyr/udemobile/releases/tag/v3.9.0) `CanEditor_3.9.0_x64-setup.exe` veya `CanEditor_3.9.0_x64_en-US.msi` dosyasını indirin.
 2. İndirilen dosyaya çift tıklayın.
 3. **Windows Defender SmartScreen Uyarısı Çıkarsa:**
    - Açık kaynak kodlu ve yeni yayınlanan bağımsız uygulamalarda Windows *"Kişisel bilgisayarınız korundu"* uyarısı gösterebilir.
@@ -260,7 +265,7 @@ Uygulamayı daha önce hiç kullanmamış veya bilgisayar/telefon ayarları konu
 
 ### 🍎 3. macOS (Apple Silicon M1/M2/M3/M4 & Intel) Kurulum Rehberi
 
-1. [Releases sayfasından](https://github.com/cnkzlyr/udemobile/releases/tag/v3.8.0) `CanEditor_3.8.0_universal.dmg` dosyasını indirin (veya kurulumsuz Portable ZIP'i kullanın).
+1. [Releases sayfasından](https://github.com/cnkzlyr/udemobile/releases/tag/v3.9.0) `CanEditor_3.9.0_universal.dmg` dosyasını indirin (veya kurulumsuz Portable ZIP'i kullanın).
 2. İndirilen `.dmg` dosyasına çift tıklayın ve açılan penceredeki **CanEditor** simgesini **Applications (Uygulamalar)** klasörüne sürükleyip bırakın.
 3. **macOS Gatekeeper Uyarısı Çıkarsa:**
    - Apple, App Store dışı uygulamalarda *"Geliştirici doğrulanamadığı için açılamıyor"* uyarısı verebilir.
@@ -272,20 +277,20 @@ Uygulamayı daha önce hiç kullanmamış veya bilgisayar/telefon ayarları konu
 ### 🐧 4. Linux (Ubuntu, Debian, Fedora, Arch, Pardus) Kurulum Rehberi
 
 1. **AppImage ile Kurulumsuz Çalıştırma (Tüm Dağıtımlar):**
-   - Releases sayfasından `CanEditor_3.8.0_amd64.AppImage` dosyasını indirin.
+   - Releases sayfasından `CanEditor_3.9.0_amd64.AppImage` dosyasını indirin.
    - Dosyaya sağ tıklayıp **Özellikler -> İzinler -> "Dosyayı bir program gibi çalıştırmaya izin ver"** kutusunu işaretleyin (veya terminalde: `chmod +x CanEditor*.AppImage`).
    - Çift tıklayarak doğrudan çalıştırın.
 2. **Debian / Ubuntu / Pardus (.deb):**
-   - Terminalde: `sudo dpkg -i CanEditor_3.8.0_amd64.deb`
+   - Terminalde: `sudo dpkg -i CanEditor_3.9.0_amd64.deb`
 3. **Fedora / RedHat / openSUSE (.rpm):**
-   - Terminalde: `sudo rpm -ivh CanEditor-3.8.0-1.x86_64.rpm`
+   - Terminalde: `sudo rpm -ivh CanEditor-3.9.0-1.x86_64.rpm`
 
 ---
 
 ### 🌐 5. Web Tarayıcısında Sıfır Kurulumla Doğrudan Kullanım
 
 CanEditor, modern web teknolojileri (HTML5, WebAssembly, Canvas, SVG) üzerinde çalıştığı için herhangi bir yazılım kurmadan doğrudan kullanılabilir:
-1. İndirdiğiniz `CanEditor-Portable-Web-GUI-v3.8.0.zip` içindeki `index.html` dosyasına çift tıklayın.
+1. İndirdiğiniz `CanEditor-Portable-Web-GUI-v3.9.0.zip` içindeki `index.html` dosyasına çift tıklayın.
 2. Açılan sayfaya bilgisayarınızdaki herhangi bir `.udf` veya `.docx` dosyasını **sürükleyip bırakın** ya da **"Belge Aç"** butonuna basın.
 3. Dokümanınız anında UYAP standartlarında ekrana gelecektir.
 4. Düzenlemenizi yaptıktan sonra tek tıkla **"UDF Kaydet"**, **"DOCX Kaydet"** veya **"📕 PDF İndir"** butonlarına basarak dosyanızı anında indirebilirsiniz.
