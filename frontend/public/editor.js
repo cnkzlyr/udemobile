@@ -117,11 +117,18 @@ function recordCurrentSelection() {
   }
   if (activeP) lastActiveParagraph = activeP;
 
-  // Seçili paragrafları bul
+  // Seçili paragrafları bul: Hızlı O(1) imleç koruması
+  if (sel.isCollapsed) {
+    if (activeP) lastSelectedParagraphs = [activeP];
+    return;
+  }
+
+  // Sadece kullanıcı açıkça birden çok satırı sürükleyerek seçmişse (drag selection) filtrele:
   try {
     const range = sel.getRangeAt(0);
-    const allBlocks = Array.from(container.querySelectorAll('.page-body-box p, .page-body-box li, .page-body-box blockquote, #editor-content p, #editor-content li, #editor-content blockquote'));
-    lastSelectedParagraphs = allBlocks.filter(b => range.intersectsNode(b));
+    const parentBox = (activeP && activeP.parentElement) ? activeP.parentElement : container;
+    const blocks = Array.from(parentBox.querySelectorAll('p, li, blockquote'));
+    lastSelectedParagraphs = blocks.filter(b => range.intersectsNode(b));
     if (lastSelectedParagraphs.length === 0 && activeP) {
       lastSelectedParagraphs = [activeP];
     }
@@ -318,7 +325,6 @@ function toggleViewMode() {
   const headerBtn = document.querySelector('.mobile-header-btn');
   const pillBtn = document.getElementById('pill-toggle-view');
   const sheetContainer = document.getElementById('sheet-container');
-  const container = document.getElementById('pages-container') || sheetContainer;
   
   isMobileView = !isMobileView;
   if (isMobileView) {
@@ -326,9 +332,10 @@ function toggleViewMode() {
       wrapper.classList.remove('paper-view');
       wrapper.classList.add('mobile-view');
     }
-    if (btn) btn.innerHTML = '📱 <span>Mobil</span>';
-    if (headerBtn) headerBtn.innerHTML = '📱 <span class="hide-on-mobile">Mobil</span>';
-    if (pillBtn) pillBtn.textContent = '📱';
+    document.body.classList.add('mobile-view');
+    if (btn) btn.innerHTML = '🖥️ <span>Kağıt</span>';
+    if (headerBtn) headerBtn.innerHTML = '🖥️ <span class="hide-on-mobile">Kağıt</span>';
+    if (pillBtn) pillBtn.textContent = '🖥️';
 
     // Android yerel başlığındaki butonu güncelle (🖥️)
     if (window.AndroidBridge && window.AndroidBridge.onViewModeChanged) {
@@ -336,26 +343,81 @@ function toggleViewMode() {
     }
 
     if (sheetContainer) sheetContainer.style.zoom = '1';
+    switchToMobileViewFlow();
     updateRulerBodyWidth();
-    showEditorToast('📱 Mobil Görünüme Geçildi (Kesintisiz Akış)');
+    showEditorToast('📱 Mobil Akış Görünümü (Kesintisiz Akış)');
   } else {
     if (wrapper) {
       wrapper.classList.remove('mobile-view');
       wrapper.classList.add('paper-view');
     }
-    if (btn) btn.innerHTML = '🖥️ <span>Kağıt</span>';
-    if (headerBtn) headerBtn.innerHTML = '🖥️ <span class="hide-on-mobile">Kağıt</span>';
-    if (pillBtn) pillBtn.textContent = '🖥️';
+    document.body.classList.remove('mobile-view');
+    if (btn) btn.innerHTML = '📱 <span>Mobil</span>';
+    if (headerBtn) headerBtn.innerHTML = '📱 <span class="hide-on-mobile">Mobil</span>';
+    if (pillBtn) pillBtn.textContent = '📱';
 
     // Android yerel başlığındaki butonu güncelle (📱)
     if (window.AndroidBridge && window.AndroidBridge.onViewModeChanged) {
       try { window.AndroidBridge.onViewModeChanged(false); } catch (e) {}
     }
 
+    switchToPaperViewFlow();
     applyAutoFitZoom();
     updateRulerBodyWidth();
-    showEditorToast('📄 Kağıt Görünümüne Geçildi (1:1 A4 Baskı Düzeni)');
+    showEditorToast('📄 Kağıt Baskı Düzeni (1:1 A4 Havelsan)');
   }
+}
+
+function switchToMobileViewFlow() {
+  const container = document.getElementById('pages-container') || document.getElementById('sheet-container');
+  if (!container) return;
+
+  const existingBoxes = Array.from(container.querySelectorAll('.page-body-box'));
+  let allNodes = [];
+  if (existingBoxes.length > 0) {
+    existingBoxes.forEach((bb, idx) => {
+      if (idx > 0) {
+        const divider = document.createElement('div');
+        divider.className = 'mobile-page-divider';
+        divider.contentEditable = 'false';
+        divider.innerHTML = `<span>── Sayfa ${idx + 1} ──</span>`;
+        allNodes.push(divider);
+      }
+      Array.from(bb.children).forEach(c => {
+        if (!c.classList.contains('auto-page-break') &&
+            !c.classList.contains('page-break-desk-gap') &&
+            !c.classList.contains('page-desk-gap') &&
+            !c.classList.contains('mobile-page-divider')) {
+          allNodes.push(c);
+        }
+      });
+    });
+  } else {
+    const ed = document.getElementById('editor-content');
+    if (ed) allNodes = Array.from(ed.children).filter(c => !c.classList.contains('mobile-page-divider'));
+  }
+
+  container.innerHTML = `
+    <div class="mobile-flow-sheet" id="mobile-sheet">
+      <div id="editor-content" class="page-body-box mobile-flow-body" contenteditable="true" spellcheck="true" autocomplete="off" autocapitalize="sentences"></div>
+    </div>
+  `;
+  const mobileEd = document.getElementById('editor-content');
+  allNodes.forEach(n => mobileEd.appendChild(n));
+  if (mobileEd.children.length === 0) {
+    mobileEd.innerHTML = '<p style="text-align: justify;"><br></p>';
+  }
+  mobileEd.addEventListener('input', function() {
+    markDocumentUserEdited();
+    debouncedUpdateCounts(1500);
+  });
+}
+
+function switchToPaperViewFlow() {
+  const container = document.getElementById('pages-container') || document.getElementById('sheet-container');
+  if (!container) return;
+  container.querySelectorAll('.mobile-page-divider').forEach(d => d.remove());
+  updatePagination();
 }
 
 // Minimal standard QR Code generator (Byte Mode, Mask 0, ECC Level L, Version 1 to 4)
@@ -1637,14 +1699,15 @@ function initPinchToZoom() {
 
   let lastRecordedWidth = window.innerWidth;
   window.addEventListener('resize', () => {
-    // Sanal klavye açıldığında/kapandığında odak kaybını ve klavye kapanmasını %100 engelle
-    if (isEditorFocused() || isUserTypingActive()) {
-      return;
-    }
-    if (Math.abs(window.innerWidth - lastRecordedWidth) < 20) {
+    // Sanal klavye açıldığında/kapandığında innerHeight değişir, innerWidth DEĞİŞMEZ.
+    // Klavye tetiklemeli odak kaybını ve klavye kapanmasını %100 engelle:
+    if (Math.abs(window.innerWidth - lastRecordedWidth) < 25) {
       return;
     }
     lastRecordedWidth = window.innerWidth;
+    if (isEditorFocused() || isUserTypingActive()) {
+      return;
+    }
     if (isFitMode && !isMobileView) {
       applyAutoFitZoom();
     }
@@ -1652,13 +1715,23 @@ function initPinchToZoom() {
   });
 }
 
-// Cetvel genişliğini ekrana tam oturacak şekilde ayarla (e-UDF standardı)
+// Cetvel genişliğini kağıt sayfasına veya ekrana tam oturacak şekilde ayarla (e-UDF standardı)
 function updateRulerBodyWidth() {
   const rulerBody = document.getElementById('ruler-body');
   if (!rulerBody) return;
+  const sheet = document.querySelector('.a4-sheet-page') || document.querySelector('.mobile-flow-sheet') || document.getElementById('editor-content');
+  if (sheet && !isMobileView) {
+    const rect = sheet.getBoundingClientRect();
+    if (rect.width > 200) {
+      rulerBody.style.width = Math.round(rect.width) + 'px';
+      rulerBody.style.maxWidth = Math.round(rect.width) + 'px';
+      rulerBody.style.margin = '0 auto';
+      return;
+    }
+  }
   rulerBody.style.width = '100%';
   rulerBody.style.maxWidth = '100%';
-  rulerBody.style.margin = '0';
+  rulerBody.style.margin = '0 auto';
 }
 window.updateRulerBodyWidth = updateRulerBodyWidth;
 
@@ -1678,35 +1751,71 @@ function initRuler() {
   const leftPct = (leftCm / totalPageCm) * 100;
   const rightPct = (rightCm / totalPageCm) * 100;
 
-  // Kenar boşluklarındaki negatif ve uzantı ölçeklerini yaz
+  // Sol kenar boşluğunda negatif ölçek (-2cm .. 0)
   const leftMarginBox = document.querySelector('.ruler-margin-left');
   if (leftMarginBox) {
     leftMarginBox.style.width = leftPct.toFixed(2) + '%';
     leftMarginBox.innerHTML = '';
-    const span2 = document.createElement('span');
-    span2.className = 'ruler-margin-num';
-    span2.textContent = '-2';
-    const span1 = document.createElement('span');
-    span1.className = 'ruler-margin-num';
-    span1.textContent = '-1';
-    leftMarginBox.appendChild(span2);
-    leftMarginBox.appendChild(span1);
+    const negMm = Math.round(leftCm * 10);
+    for (let m = 0; m <= negMm; m++) {
+      const tick = document.createElement('div');
+      tick.style.left = ((m / negMm) * 100) + '%';
+      if (m === 0) {
+        tick.className = 'ruler-tick cm';
+        const num = document.createElement('div');
+        num.className = 'ruler-number';
+        num.style.left = ((m / negMm) * 100) + '%';
+        num.textContent = -Math.round(leftCm);
+        leftMarginBox.appendChild(num);
+      } else if (m === Math.round(negMm / 2)) {
+        tick.className = 'ruler-tick cm';
+        const num = document.createElement('div');
+        num.className = 'ruler-number';
+        num.style.left = ((m / negMm) * 100) + '%';
+        num.textContent = -1;
+        leftMarginBox.appendChild(num);
+      } else if (m % 5 === 0) {
+        tick.className = 'ruler-tick half-cm';
+      } else {
+        tick.className = 'ruler-tick mm';
+      }
+      leftMarginBox.appendChild(tick);
+    }
   }
 
+  // Sağ kenar boşluğunda pozitif uzantı ölçeği (16cm .. 18cm)
   const rightMarginBox = document.querySelector('.ruler-margin-right');
   if (rightMarginBox) {
     rightMarginBox.style.width = rightPct.toFixed(2) + '%';
     rightMarginBox.innerHTML = '';
-    const spanR1 = document.createElement('span');
-    spanR1.className = 'ruler-margin-num';
-    spanR1.textContent = Math.round(activeCm + 1);
-    const spanR2 = document.createElement('span');
-    spanR2.className = 'ruler-margin-num';
-    spanR2.textContent = Math.round(activeCm + 2);
-    rightMarginBox.appendChild(spanR1);
-    rightMarginBox.appendChild(spanR2);
+    const posMm = Math.round(rightCm * 10);
+    for (let m = 0; m <= posMm; m++) {
+      const tick = document.createElement('div');
+      tick.style.left = ((m / posMm) * 100) + '%';
+      if (m === Math.round(posMm / 2)) {
+        tick.className = 'ruler-tick cm';
+        const num = document.createElement('div');
+        num.className = 'ruler-number';
+        num.style.left = ((m / posMm) * 100) + '%';
+        num.textContent = Math.round(activeCm + 1);
+        rightMarginBox.appendChild(num);
+      } else if (m === posMm) {
+        tick.className = 'ruler-tick cm';
+        const num = document.createElement('div');
+        num.className = 'ruler-number';
+        num.style.left = ((m / posMm) * 100) + '%';
+        num.textContent = Math.round(activeCm + rightCm);
+        rightMarginBox.appendChild(num);
+      } else if (m % 5 === 0) {
+        tick.className = 'ruler-tick half-cm';
+      } else {
+        tick.className = 'ruler-tick mm';
+      }
+      rightMarginBox.appendChild(tick);
+    }
   }
 
+  // Aktif yazı alanı ölçeği (0 .. 16cm)
   for (let mm = 0; mm <= totalMm; mm++) {
     const pct = (mm / totalMm) * 100;
     const tick = document.createElement('div');

@@ -1629,15 +1629,17 @@ async function generateUdfBlob(docData) {
 }
 
 // -------------------------------------------------------------
-// 4. DOCX DOSYASI OLUŞTURMA & KAYDETME (TABLO, GÖRSEL, GİRİNTİ DESTEKLİ)
+// HIZLI VE DAYANIKLI HEADLESS SUNUCU KONTROLÜ (Port 5976)
 // -------------------------------------------------------------
-async function generateDocxBlob(docData) {
-  // 1. Resmi Havelsan UYAP Headless Motoru (Port 5976) üzerinden 1:1 DOCX
+let isHeadlessServerChecked = false;
+let isHeadlessServerOnline = false;
+
+async function tryHeadlessConvert(format, udfBlob) {
+  if (isHeadlessServerChecked && !isHeadlessServerOnline) return null;
   try {
-    const udfBlob = await generateUdfBlob(docData);
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 6000);
-    const resp = await fetch("http://127.0.0.1:5976/api/v1/convert?format=docx", {
+    const timeoutId = setTimeout(() => controller.abort(), 1000);
+    const resp = await fetch(`http://127.0.0.1:5976/api/v1/convert?format=${format}`, {
       method: "POST",
       body: udfBlob,
       signal: controller.signal
@@ -1646,9 +1648,27 @@ async function generateDocxBlob(docData) {
     if (resp.ok) {
       const serverBlob = await resp.blob();
       if (serverBlob && serverBlob.size > 1000) {
+        isHeadlessServerChecked = true;
+        isHeadlessServerOnline = true;
         return serverBlob;
       }
     }
+  } catch (e) {
+    isHeadlessServerChecked = true;
+    isHeadlessServerOnline = false;
+  }
+  return null;
+}
+
+// -------------------------------------------------------------
+// 4. DOCX DOSYASI OLUŞTURMA & KAYDETME (TABLO, GÖRSEL, GİRİNTİ DESTEKLİ)
+// -------------------------------------------------------------
+async function generateDocxBlob(docData) {
+  // 1. Resmi Havelsan UYAP Headless Motoru (Port 5976) üzerinden 1:1 DOCX
+  try {
+    const udfBlob = await generateUdfBlob(docData);
+    const serverBlob = await tryHeadlessConvert("docx", udfBlob);
+    if (serverBlob) return serverBlob;
   } catch (netErr) {
     // Havelsan yerel sunucusu aktif değil, doğrudan yerel JSZip motoru ile üret
   }
@@ -1806,20 +1826,8 @@ async function generateOdtBlob(docData) {
   // 1. Resmi Havelsan UYAP Headless Motoru (Port 5976) üzerinden 1:1 ODT
   try {
     const udfBlob = await generateUdfBlob(docData);
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 6000);
-    const resp = await fetch("http://127.0.0.1:5976/api/v1/convert?format=odt", {
-      method: "POST",
-      body: udfBlob,
-      signal: controller.signal
-    });
-    clearTimeout(timeoutId);
-    if (resp.ok) {
-      const serverBlob = await resp.blob();
-      if (serverBlob && serverBlob.size > 1000) {
-        return serverBlob;
-      }
-    }
+    const serverBlob = await tryHeadlessConvert("odt", udfBlob);
+    if (serverBlob) return serverBlob;
   } catch (netErr) {
     // Havelsan yerel sunucusu aktif değil, doğrudan yerel JSZip motoru ile üret
   }
@@ -2379,20 +2387,10 @@ async function generatePdfBlob(docData) {
   // 1. Resmi Havelsan UYAP Headless Motoru (Port 5976) üzerinden 1:1 Vektör PDF
   try {
     const udfBlob = await generateUdfBlob(docData);
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 6000);
-    const resp = await fetch("http://127.0.0.1:5976/api/v1/convert?format=pdf", {
-      method: "POST",
-      body: udfBlob,
-      signal: controller.signal
-    });
-    clearTimeout(timeoutId);
-    if (resp.ok) {
-      const serverBlob = await resp.blob();
-      if (serverBlob && serverBlob.size > 1000) {
-        if (statusEl) statusEl.innerText = "✓ Resmi UYAP PDF Hazırlandı";
-        return serverBlob;
-      }
+    const serverBlob = await tryHeadlessConvert("pdf", udfBlob);
+    if (serverBlob) {
+      if (statusEl) statusEl.innerText = "✓ Resmi UYAP PDF Hazırlandı";
+      return serverBlob;
     }
   } catch (netErr) {
     // Havelsan yerel sunucusu aktif değil, doğrudan yerel yüksek çözünürlüklü A4 tuval motoru ile üret
@@ -3055,13 +3053,25 @@ window.triggerSavePdf = triggerSavePdf;
 window.triggerSaveAs = triggerSaveAs;
 window.triggerShareFormat = triggerShareFormat;
 
+function sendBlobToShare(blob, fileName, mimeType) {
+  const reader = new FileReader();
+  reader.onloadend = () => {
+    const b64 = reader.result.split(",")[1];
+    if (window.AndroidBridge && window.AndroidBridge.shareBlobData) {
+      window.AndroidBridge.shareBlobData(fileName, mimeType, b64);
+    } else if (window.AndroidBridge && window.AndroidBridge.saveBlobToDownloads) {
+      window.AndroidBridge.saveBlobToDownloads(fileName, mimeType, b64);
+    }
+  };
+  reader.readAsDataURL(blob);
+}
+
 async function triggerShareFormat(format) {
   let base = (document.getElementById("desktopDocTitle")?.value || window.currentDocFileName || (typeof currentDocFileName !== 'undefined' ? currentDocFileName : '') || "Dilekce").trim();
   base = base.replace(/\.(udf|docx|pdf|tiff|tif|odt)$/i, "");
   if (!base) base = "Dilekce";
 
   const docData = window.getStructuredDocument ? window.getStructuredDocument() : null;
-  const docJson = docData ? JSON.stringify(docData) : "{}";
   const statusEl = document.getElementById("desktopStatusMsg");
 
   // Android köprüsü varsa doğrudan yerel paylaşım diyaloğunu aç:
@@ -3070,53 +3080,57 @@ async function triggerShareFormat(format) {
       if (statusEl) statusEl.innerText = "PDF hazırlanıyor...";
       try {
         const blob = await generatePdfBlob(docData);
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          const b64 = reader.result.split(",")[1];
-          if (window.AndroidBridge.shareBlobData) {
-            window.AndroidBridge.shareBlobData(base + ".pdf", "application/pdf", b64);
-          } else if (window.AndroidBridge.saveBlobToDownloads) {
-            window.AndroidBridge.saveBlobToDownloads(base + ".pdf", "application/pdf", b64);
-          }
-        };
-        reader.readAsDataURL(blob);
-        if (statusEl) statusEl.innerText = "✓ PDF Paylaşıldı";
+        sendBlobToShare(blob, base + ".pdf", "application/pdf");
         if (typeof showEditorToast === "function") showEditorToast("✓ PDF Paylaşılıyor");
         return;
       } catch (err) {
         console.error("PDF paylaşım hatası:", err);
       }
-    } else if (window.AndroidBridge.shareDocument && (format === "udf" || format === "docx" || format === "text")) {
-      window.AndroidBridge.shareDocument(format, base, docJson);
-      if (typeof showEditorToast === "function") showEditorToast(`✓ ${format.toUpperCase()} Paylaşılıyor`);
-      return;
+    } else if (format === "udf") {
+      if (statusEl) statusEl.innerText = "UDF hazırlanıyor...";
+      try {
+        const blob = await generateUdfBlob(docData);
+        sendBlobToShare(blob, base + ".udf", "application/octet-stream");
+        if (typeof showEditorToast === "function") showEditorToast("✓ Havelsan UDF Paylaşılıyor");
+        return;
+      } catch (err) {
+        console.error("UDF paylaşım hatası:", err);
+      }
+    } else if (format === "docx") {
+      if (statusEl) statusEl.innerText = "Word hazırlanıyor...";
+      try {
+        const blob = await generateDocxBlob(docData);
+        sendBlobToShare(blob, base + ".docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+        if (typeof showEditorToast === "function") showEditorToast("✓ Word (DOCX) Paylaşılıyor");
+        return;
+      } catch (err) {
+        console.error("Word paylaşım hatası:", err);
+      }
     } else if (format === "tiff" || format === "tif") {
-      const blob = await generateTiffBlob(docData);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const b64 = reader.result.split(",")[1];
-        if (window.AndroidBridge.shareBlobData) {
-          window.AndroidBridge.shareBlobData(base + ".tiff", "image/tiff", b64);
-        } else {
-          window.AndroidBridge.shareDocument("plain", base, docJson);
-        }
-      };
-      reader.readAsDataURL(blob);
-      if (typeof showEditorToast === "function") showEditorToast("✓ TIFF Paylaşılıyor");
-      return;
+      if (statusEl) statusEl.innerText = "TIFF hazırlanıyor...";
+      try {
+        const blob = await generateTiffBlob(docData);
+        sendBlobToShare(blob, base + ".tiff", "image/tiff");
+        if (typeof showEditorToast === "function") showEditorToast("✓ Çok Sayfalı TIFF Paylaşılıyor");
+        return;
+      } catch (err) {
+        console.error("TIFF paylaşım hatası:", err);
+      }
     } else if (format === "odt") {
-      const blob = await generateOdtBlob(docData);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const b64 = reader.result.split(",")[1];
-        if (window.AndroidBridge.shareBlobData) {
-          window.AndroidBridge.shareBlobData(base + ".odt", "application/vnd.oasis.opendocument.text", b64);
-        } else {
-          window.AndroidBridge.shareDocument("plain", base, docJson);
-        }
-      };
-      reader.readAsDataURL(blob);
-      if (typeof showEditorToast === "function") showEditorToast("✓ ODT Paylaşılıyor");
+      if (statusEl) statusEl.innerText = "ODT hazırlanıyor...";
+      try {
+        const blob = await generateOdtBlob(docData);
+        sendBlobToShare(blob, base + ".odt", "application/vnd.oasis.opendocument.text");
+        if (typeof showEditorToast === "function") showEditorToast("✓ OpenDocument (ODT) Paylaşılıyor");
+        return;
+      } catch (err) {
+        console.error("ODT paylaşım hatası:", err);
+      }
+    } else if (format === "text") {
+      const text = window.getPlainText ? window.getPlainText() : "";
+      const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+      sendBlobToShare(blob, base + ".txt", "text/plain");
+      if (typeof showEditorToast === "function") showEditorToast("✓ Düz Metin Paylaşılıyor");
       return;
     }
   }

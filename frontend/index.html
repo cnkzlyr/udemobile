@@ -12,6 +12,9 @@
 </head>
 <body>
 
+  <!-- SABİT ÜST KABUK (Header + Toolbar Ribbon + Sticky Ruler - Asla Kaybolmaz) -->
+  <div id="app-fixed-top-shell" class="app-fixed-top-shell">
+
   <!-- ANA UYGULAMA ÜST PANELİ (e-UDF & Masaüstü Ergonomik Standardı) -->
   <header id="desktop-app-header" class="app-header-main">
     <div class="header-left-cluster">
@@ -28,7 +31,7 @@
         💾
       </button>
       <button type="button" id="pill-toggle-view" class="header-pill-btn pill-view" onclick="toggleViewMode()" title="Görünüm Değiştir (Kağıt Baskı / Mobil Akış)">
-        🖥️
+        📱
       </button>
       <button type="button" id="pill-mobile-menu" class="header-pill-btn pill-menu" onclick="openMobileMenuModal()" title="Tüm İşlemler Menüsü">
         ☰
@@ -416,6 +419,8 @@
       <div class="ruler-margin-right"></div>
     </div>
   </div>
+
+  </div> <!-- /app-fixed-top-shell -->
 
   <!-- Düşey Kılavuz Hizalama Çizgisi -->
   <div id="ruler-guide-line" class="ruler-guide-line" style="display: none;"></div>

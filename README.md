@@ -1,6 +1,6 @@
 # ⚖️ CanEditor (UdeMobile) — Çapraz Platform UYAP & Word Editörü
 
-[![Sürüm](https://img.shields.io/badge/Sürüm-v3.9.0-blue.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v3.9.0)
+[![Sürüm](https://img.shields.io/badge/Sürüm-v3.10.0-blue.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v3.10.0)
 [![Platformlar](https://img.shields.io/badge/Platformlar-Android%20%7C%20Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Web-success.svg)](https://github.com/cnkzlyr/udemobile/releases)
 [![UYAP](https://img.shields.io/badge/Format-UYAP_UDF_v1.8-0D47A1.svg)](https://uyap.gov.tr)
 [![Word](https://img.shields.io/badge/Format-MS_DOCX_OpenXML-2B579A.svg?logo=microsoft-word&logoColor=white)](https://microsoft.com)
@@ -11,18 +11,56 @@
 
 ---
 
-## 🚀 Hızlı İndirme (v3.9.0)
+## 🚀 Hızlı İndirme (v3.10.0)
 
 | Platform | Paket Dosyası | Açıklama |
 | :--- | :--- | :--- |
-| **Android (Telefon & Tablet)** | [**CanEditor-v3.9.0.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.9.0/CanEditor-v3.9.0.apk) | Güncel Android APK paketi (Termux gerektirmez) |
-| **Android (Her Zaman En Son)** | [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.9.0/CanEditor-latest.apk) | Kalıcı son sürüm bağlantısı |
-| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v3.9.0.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v3.9.0/CanEditor-Portable-Web-GUI-v3.9.0.zip) | **Kurulumsuz;** zipten çıkarıp `index.html` açarak tüm işletim sistemlerinde doğrudan çalışır |
-| **Windows / macOS / Linux** | [**GitHub Releases Sayfası**](https://github.com/cnkzlyr/udemobile/releases/tag/v3.9.0) | GitHub Actions CI ile derlenen yerel ikili (.msi, .exe, .dmg, .AppImage, .deb, .rpm) paketleri |
+| **Android (Telefon & Tablet)** | [**CanEditor-v3.10.0.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.10.0/CanEditor-v3.10.0.apk) | Güncel Android APK paketi (Termux gerektirmez) |
+| **Android (Her Zaman En Son)** | [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.10.0/CanEditor-latest.apk) | Kalıcı son sürüm bağlantısı |
+| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v3.10.0.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v3.10.0/CanEditor-Portable-Web-GUI-v3.10.0.zip) | **Kurulumsuz;** zipten çıkarıp `index.html` açarak tüm işletim sistemlerinde doğrudan çalışır |
+| **Windows / macOS / Linux** | [**GitHub Releases Sayfası**](https://github.com/cnkzlyr/udemobile/releases/tag/v3.10.0) | GitHub Actions CI ile derlenen yerel ikili (.msi, .exe, .dmg, .AppImage, .deb, .rpm) paketleri |
 
 ---
 
-## 🌟 v3.9.0 ile Gelen Devrimsel Yenilikler (1:1 e-UDF Kompakt Arayüzü, Kalıcı Sticky Cetvel, Kesintisiz Klavye Odağı, Dahili PDF/TIFF Görüntüleyici ve Havelsan Headless Motoru)
+## 🌟 v3.10.0 ile Gelen Devrimsel Yenilikler (1:1 e-UDF Kompakt Arayüzü, Kalıcı Sticky Cetvel, Kesintisiz Klavye Odağı, Tek-Gövde Mobil Akış ve Gelişmiş Paylaşım/Kayıt)
+
+### 🎨 1. e-UDF Standardı Birebir Kompakt Üst Panel & Kısayol Hapı
+- **e-UDF Birebir Kısayol Hapı (`[ 💾 | 📱 / 🖥️ | ☰ ]`):** Ekranın tam ortasında yer alan merkezlenmiş hap konteyneri sayesinde:
+  - **💾 1-Tık Doğrudan Kaydet:** Açık olan belge üzerinde yapılan tüm değişiklikleri anında açık olan dosyaya veya `Downloads/UYAP_Belgelerim` klasörüne kaydeder (Ctrl+S).
+  - **📱 / 🖥️ Görünüm Değiştir:** Kağıt baskı görünümünde iken `📱` gösterir (tek tıkla mobil akışa geçer), mobil akışta iken `🖥️` gösterir (tek tıkla A4 baskı düzenine döner).
+  - **☰ Tüm İşlemler Çekmece Menüsü:** Yeni belge, dosya açma, farklı kaydet (UDF, PDF, DOCX, TIFF, ODT), paylaşım, yazdırma, e-imza ve ayarlar seçeneklerine anında erişim.
+- **Modern Crimson Marka Rozeti & Mavi Profil Butonu:** Sol üstte kırmızı gradyan `⚖️ CanEditor` logo rozeti, sağ üstte tek dokunuşla tüm seçenekleri açan solid mavi daire `👤` kullanıcı simgesi.
+- **Kompakt Tek Satır Şerit Araç Çubuğu:** Mobilde yatay kaydırılabilir, sağındaki kırmızı `⌵` chevron butonuyla genişleyip daralabilen ergonomik araç şeridi.
+
+### 📐 2. Sayfa Onlarca Sayfa Aşağı Kaydırılsa Dahi Asla Kaybolmayan Çakılı (Sticky) Dokunmatik Cetvel
+- **Bütünleşik Sabit Üst Kabuk (`#app-fixed-top-shell`):** Başlık, araç çubuğu ve cetvel tek bir sabit üst kabuk altında birleştirildi. Bu sayede cetvelin araç çubuğunun arkasına kayması veya sayfa aşağı kaydırıldığında ekrandan çıkması imkansız hale getirildi.
+- **-2 cm'den +18 cm'ye Tam Ölçekli Sürekli Görsel Cetvel:** Sol kenar marjı (-2 .. 0 cm), beyaz aktif yazı alanı (0 .. 16 cm) ve sağ marj (16 .. 18 cm) kesintisiz milimetrik ve santimetrik çizgilerle donatıldı.
+- **Sayfa ile %100 Hizalı Genişlik (`updateRulerBodyWidth`):** Cetvel gövdesi A4 kağıt kartının ekran üzerindeki gerçek genişliği ve konumuyla pikseli pikseline eşzamanlanarak `0` noktası sol metin marjına tam oturtuldu.
+- **48px Ergonomik Parmak Hedef Alanı & Düşey Kılavuz Çizgisi:** İlk satır girintisi, asılı girinti ve sağ marj imleri 48px dokunmatik vuruş alanı (`touch-action: none !important`) ile genişletildi; sürükleme anında düşey mavi kılavuz çizgisi ve anlık santimetre ipucu rozeti eklendi.
+
+### ⌨️ 3. Sanal Klavyenin Kapanmasını Kesin Olarak Önleyen Mimari (Sıfır Klavye Kapanması)
+- **Tek-Gövde Mobil Akış Düzeni (`switchToMobileViewFlow`):** Mobil görünüme geçildiğinde tüm sayfaların gövde paragrafları tek bir kesintisiz `<div id="editor-content">` konteynerinde birleştirilir. Sayfalar arası kart kopmaları ve çoklu contenteditable yapıları kaldırıldığı için Android IME sanal klavyesi (Gboard, Samsung Keyboard, SwiftKey) yazım esnasında ASLA kapanmaz.
+- **Yazım Anında Sıfır DOM Yıkımı:** Aktif yazım esnasında veya imleç editör alanındayken DOM ağacının `container.innerHTML = ''` ile silinip yeniden inşa edilmesi kesin olarak engellendi.
+- **O(1) Seçim ve Odak Koruma:** Normal yazım anında (`sel.isCollapsed === true`) tüm belge üzerinde yapılan ağır `querySelectorAll` ve `intersectsNode` sorgulamaları kaldırılarak yazım gecikmesi (jank) ve IME bağlantı kopmaları sıfırlandı.
+- **Android Soft-Keyboard ConfigChanges:** `EditorActivity` üzerinde `orientation|screenSize|keyboardHidden|screenLayout|smallestScreenSize|keyboard` bayrakları ve `adjustResize` modu ile klavye açılıp kapandığında aktivitenin veya WebView'ın yeniden yüklenmesi önlendi.
+
+### 💾 4. Eksiksiz 1-Tık Kaydet, Farklı Kaydet ve Yerel Paylaşım Motoru
+- **Açık Olan Belgeyi Doğrudan 1-Tık Kaydet:** 💾 butonuna basıldığında açık dosya doğrudan güncellenir; harici veya ekten açılan dosyalarda Scoped Storage standartlarında `İndirilenler/UYAP_Belgelerim` klasörüne anında kayıt yapılır.
+- **Farklı Kaydet (UDF, PDF, DOCX, TIFF, ODT):** Tüm formatlar 1 saniyelik hızlı arka plan kontrolü ve kesintisiz istemci motoruyla (Canvas PDF, JSZip Word/ODT, UTIF TIFF) sıfır bekleme ile dışa aktarılır.
+- **Kusursuz Sistem Paylaşımı (`shareBlobData` & `<queries>`):** WhatsApp, Gmail, Telegram ve Samsung Files gibi alıcı uygulamalara yönelik Android 11-15 paket görünürlüğü (`<queries>`) ve `grantUriPermission` izinleri tanımlanarak paylaşım menüsündeki tüm formatların doğrudan ilgili uygulamada açılması sağlandı.
+
+### 📕 5. Dahili PDF ve Çok Sayfalı Adli TIFF Görüntüleyici
+- **PDF.js Dahili Görüntüleyici:** Harici bir uygulama açmaya gerek kalmadan uygulama içinde sayfa gezintisi, dinamik yakınlaştırma (%40 - %300) ve tek tıkla paylaşım.
+- **UTIF.js Çok Sayfalı TIFF Görüntüleyici:** İcra ve mahkeme evraklarındaki tek veya çok sayfalı `.tiff` / `.tif` dosyalarını doğrudan açıp kaydırmalı, yüksek netlikte görüntüleme kabiliyeti.
+- **Termux Bağımsız Tek Başına Çalışan APK:** Termux kurulu olmayan herhangi bir Android telefonda tüm özellikleriyle bağımsız çalışır.
+
+### 🛡️ 6. Sıfır-Termux: Doğrudan Android Yerel USB Host CCID E-İmza Sürücüsü
+- **Bağımsız Donanım Erişimi:** Android telefonunuza OTG kablo ile takılan her türlü USB token (SafeNet 5110 kırmızı token, ArkSigner, ACS ACR38/ACR39, Gemalto, AKİS) doğrudan Android SDK USB Host katmanında algılanır (`device_filter.xml` & `CcidDriver.java`).
+- **Dahili Adalet Port 5975 Sunucusu:** CanEditor arka planda `127.0.0.1:5975` portunda Adalet Bakanlığı E-İmza REST API (`/api/v1/signature/getCertificates` ve `/api/v1/docsignature/signdigest`) sunar. Termux kurulumuna gerek olmadan telefonunuz bir e-imza merkezine dönüşür.
+
+---
+
+## 🌟 v3.9.0 ile Gelen Yenilikler (1:1 e-UDF Kompakt Arayüzü, Kalıcı Sticky Cetvel, Kesintisiz Klavye Odağı, Dahili PDF/TIFF Görüntüleyici ve Havelsan Headless Motoru)
 
 ### 🎨 1. e-UDF Standardı Birebir Kompakt Üst Panel & Kısayol Hapı
 - **e-UDF Birebir Kısayol Hapı (`[ 💾 | 📱 / 🖥️ | ☰ ]`):** Ekranın tam ortasında yer alan merkezlenmiş hap konteyneri sayesinde:

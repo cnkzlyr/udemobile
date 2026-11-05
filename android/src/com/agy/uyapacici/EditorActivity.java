@@ -420,7 +420,7 @@ public class EditorActivity extends Activity {
     }
 
     private File resolveTargetFile(String ext) {
-        String baseTitle = etDocTitle.getText().toString().trim();
+        String baseTitle = (etDocTitle != null) ? etDocTitle.getText().toString().trim() : "Yeni_Dilekce";
         if (baseTitle.isEmpty()) baseTitle = "Yeni_Dilekce";
         while (baseTitle.toLowerCase(Locale.ROOT).endsWith(".udf") || baseTitle.toLowerCase(Locale.ROOT).endsWith(".docx") ||
                baseTitle.toLowerCase(Locale.ROOT).endsWith(".pdf") || baseTitle.toLowerCase(Locale.ROOT).endsWith(".odt") ||
@@ -428,7 +428,8 @@ public class EditorActivity extends Activity {
             baseTitle = baseTitle.substring(0, baseTitle.lastIndexOf('.'));
         }
         File targetDir = null;
-        if (currentFile != null && currentFile.getParentFile() != null && currentFile.getParentFile().canWrite()) {
+        boolean isInCache = (currentFile != null && currentFile.getAbsolutePath().startsWith(getCacheDir().getAbsolutePath()));
+        if (!isInCache && currentFile != null && currentFile.getParentFile() != null && currentFile.getParentFile().canWrite()) {
             targetDir = currentFile.getParentFile();
         } else {
             File pubUyap = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "UYAP_Belgelerim");
@@ -480,8 +481,8 @@ public class EditorActivity extends Activity {
             // Belgede hiçbir değişiklik yapılmamışsa: orijinal dosyayı asla bozma, bit'i bit'ine koru
             if (!isDocx && !docModified && currentFile != null && currentFile.exists()) {
                 if (targetFile.equals(currentFile)) {
-                    tvSaveStatus.setText(isSigned ? "✓ İmzalı belge korunuyor" : "✓ Belge korunuyor");
-                    Toast.makeText(EditorActivity.this, "Belgede değişiklik yok — orijinal dosya olduğu gibi korundu.", Toast.LENGTH_SHORT).show();
+                    tvSaveStatus.setText(isSigned ? "✓ İmzalı belge korundu" : "✓ Belge korundu");
+                    Toast.makeText(EditorActivity.this, "✓ " + targetFile.getName() + " kaydedildi (orijinal e-imza ve yapı korundu).", Toast.LENGTH_SHORT).show();
                     if (andOpenInDesktop) openInDesktopUyap(targetFile.getAbsolutePath());
                     return;
                 } else {
@@ -828,9 +829,11 @@ public class EditorActivity extends Activity {
             // Tüm alıcı uygulamalara (WhatsApp, Gmail vb.) açıkça okuma izni ver
             try {
                 android.content.pm.PackageManager pm = getPackageManager();
-                java.util.List<android.content.pm.ResolveInfo> matches = pm.queryIntentActivities(shareIntent, android.content.pm.PackageManager.MATCH_DEFAULT_ONLY);
+                java.util.List<android.content.pm.ResolveInfo> matches = pm.queryIntentActivities(shareIntent, 0);
                 for (android.content.pm.ResolveInfo info : matches) {
-                    grantUriPermission(info.activityInfo.packageName, contentUri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                    if (info.activityInfo != null && info.activityInfo.packageName != null) {
+                        grantUriPermission(info.activityInfo.packageName, contentUri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                    }
                 }
             } catch (Exception ignored) {}
 
