@@ -1,6 +1,6 @@
 # ⚖️ CanEditor (UdeMobile) — Çapraz Platform UYAP & Word Editörü
 
-[![Sürüm](https://img.shields.io/badge/Sürüm-v3.13.0-blue.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v3.13.0)
+[![Sürüm](https://img.shields.io/badge/Sürüm-v3.14.0-blue.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v3.14.0)
 [![Platformlar](https://img.shields.io/badge/Platformlar-Android%20%7C%20Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Web-success.svg)](https://github.com/cnkzlyr/udemobile/releases)
 [![UYAP](https://img.shields.io/badge/Format-UYAP_UDF_v1.8-0D47A1.svg)](https://uyap.gov.tr)
 [![Word](https://img.shields.io/badge/Format-MS_DOCX_OpenXML-2B579A.svg?logo=microsoft-word&logoColor=white)](https://microsoft.com)
@@ -11,16 +11,31 @@
 
 ---
 
-## 🚀 Hızlı İndirme (v3.13.0)
+## 🚀 Hızlı İndirme (v3.14.0)
 
 | Platform | Paket Dosyası | Açıklama |
 | :--- | :--- | :--- |
-| **Android (Telefon & Tablet)** | [**CanEditor-v3.13.0.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.13.0/CanEditor-v3.13.0.apk) | Güncel Android APK paketi (Termux gerektirmez) |
-| **Android (Her Zaman En Son)** | [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.13.0/CanEditor-latest.apk) | Kalıcı son sürüm bağlantısı |
-| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v3.13.0.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v3.13.0/CanEditor-Portable-Web-GUI-v3.13.0.zip) | **Kurulumsuz;** zipten çıkarıp `index.html` açarak tüm işletim sistemlerinde doğrudan çalışır |
-| **Windows / macOS / Linux** | [**GitHub Releases Sayfası**](https://github.com/cnkzlyr/udemobile/releases/tag/v3.13.0) | GitHub Actions CI ile derlenen yerel ikili (.msi, .exe, .dmg, .AppImage, .deb, .rpm) paketleri |
+| **Android (Telefon & Tablet)** | [**CanEditor-v3.14.0.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.14.0/CanEditor-v3.14.0.apk) | Güncel Android APK paketi (Termux gerektirmez) |
+| **Android (Her Zaman En Son)** | [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.14.0/CanEditor-latest.apk) | Kalıcı son sürüm bağlantısı |
+| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v3.14.0.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v3.14.0/CanEditor-Portable-Web-GUI-v3.14.0.zip) | **Kurulumsuz;** zipten çıkarıp `index.html` açarak tüm işletim sistemlerinde doğrudan çalışır |
+| **Windows / macOS / Linux** | [**GitHub Releases Sayfası**](https://github.com/cnkzlyr/udemobile/releases/tag/v3.14.0) | GitHub Actions CI ile derlenen yerel ikili (.msi, .exe, .dmg, .AppImage, .deb, .rpm) paketleri |
 
 ---
+
+## ⚠️ Android: v3.14.0'a geçerken bir kerelik yeniden kurulum
+
+v3.14.0 APK'sı yeni bir imza anahtarıyla imzalanmıştır. Telefonunuzda eski CanEditor varsa önce **kaldırın**, sonra yeni APK'yı kurun (aksi halde Android "uygulama yüklenmedi / paket çakışıyor" hatası verir). Bu işlem yalnızca bu sürüme geçişte bir kez gereklidir.
+
+## 🌟 v3.14.0 ile Gelenler (Havelsan UYAP ile Birebir Uyum, Tek Motor, Yeni Arayüz)
+
+Tüm iyileştirmeler, gerçek UYAP belgeleri (27 UDF) Havelsan'ın kendi çevrim motoruyla üretilen referans PDF'lerle karşılaştırılarak doğrulanmıştır.
+
+1. **UYAP şablon belgeleri doğru açılıyor:** Takip Talebi, Portal evrakı gibi alanlı (`<data>`) belgelerde alacaklı/borçlu/vekil grupları, tekrar eden alacak satırları ve `eol`/`ceol` satır sonları Havelsan kurallarıyla çözülür. Metin uyumu %70 → %99,4.
+2. **Kaydederken biçim kaybı yok:** Paragraf, tablo, satır ve hücrelerin tüm orijinal öznitelikleri (sekme hizaları, satır bazlı sütun genişlikleri, stiller, sayfa ayarları, üst/altbilgi ayarları, doğrulama kodu) korunur; yalnızca değiştirdiğiniz yerler yeniden yazılır. Kaydedilen 27 belgenin tamamı Havelsan'da aynı sayfa sayısıyla açılır.
+3. **Sekmeler Havelsan ile aynı:** Ardışık sekmelerin teke inmesi giderildi; sekme yerleşimi Java Swing kuralıyla birebir (T.C. … BERAAT başlıkları, "BAŞKAN : …" hizaları).
+4. **Doğru sayfalama:** Altbilgi payı hesaba katılır, tablolar satır sınırından bölünür, küçük puntolu metinde satır yüksekliği doğru hesaplanır; sayfa sınırında bölünen paragraflar kayıtta tek paragraf kalır.
+5. **Mobil ve masaüstü tek motor:** Android artık UDF'yi masaüstüyle aynı motorla açar ve kaydeder; iki platformda çıktı aynıdır.
+6. **Yeni arayüz:** UYAP Doküman Editörü ile aynı menü çubuğu (Dosya, Düzen, Görünüm, Ekle, Biçim, Araçlar, İmza) ve tek satırlık modern biçim çubuğu; mobilde tek satır, yana kayan, parmakla kolay basılan düğmeler; gerçek renk seçici.
 
 ## 🌟 v3.13.0 ile Gelen Devrimsel Yenilikler (Orijinal Havelsan UYAP Headless Çevrim Motoru, iText Vektörel PDF, ODFDOM ODT & CLI Desteği)
 

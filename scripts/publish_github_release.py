@@ -4,98 +4,41 @@ import json
 import urllib.request
 import urllib.error
 
-TOKEN = "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"
+import os
+# Token koda yazılmaz: GITHUB_TOKEN ortam değişkeninden okunur.
+TOKEN = os.environ.get("GITHUB_TOKEN", "")
+if not TOKEN:
+    raise SystemExit("GITHUB_TOKEN ortam değişkeni gerekli")
 REPO = "cnkzlyr/udemobile"
 
 with open(os.path.join(os.path.dirname(__file__), "..", "package.json")) as f:
     VERSION = json.load(f)["version"]
 
 TAG = f"v{VERSION}"
-NAME = f"CanEditor v{VERSION} — 1:1 e-UDF Arayüzü, Kalıcı Sticky Cetvel, Kesintisiz Klavye Odak Koruması, Dahili PDF/TIFF Görüntüleyici ve Havelsan Headless Motoru"
+NAME = f"CanEditor v{VERSION} — Havelsan UYAP ile birebir uyum, tek motor (masaüstü + Android) ve yeni arayüz"
 
-BODY = f"""# 🏛️ CanEditor (UdeMobile) v{VERSION} — Sürüm Notları
+BODY = f"""# CanEditor v{VERSION}
 
-CanEditor **v{VERSION}**; `editor.e-udf.com` tasarım standardına birebir uyumlu merkezlenmiş kısayol hapını (`[ 💾 | 📱 / 🖥️ | ☰ ]`), sayfa kaydırılsa dahi üstte çakılı kalan 48px dokunmatik sabit cetveli, Gboard ve sanal klavyelerdeki odak kaybı/kapanma sorununu çözen odak muhafızını, dahili PDF.js ve çok sayfalı UTIF.js TIFF görüntüleyicisini, Port 5976 resmi Havelsan headless dönüşüm motorunu (PDF, DOCX, ODT) ve Termux gerektirmeyen bağımsız yerel Android USB Host CCID e-imza sürücüsünü içeren en kapsamlı sürümdür.
+## ⚠️ Android: v3.14.0'a geçerken bir kerelik yeniden kurulum
 
----
+v3.14.0 APK'sı yeni bir imza anahtarıyla imzalanmıştır. Telefonunuzda eski CanEditor varsa önce **kaldırın**, sonra yeni APK'yı kurun (aksi halde Android "uygulama yüklenmedi / paket çakışıyor" hatası verir). Bu işlem yalnızca bu sürüme geçişte bir kez gereklidir.
 
-## 🌟 Öne Çıkan Yenilikler & Geliştirmeler
+## 🌟 v3.14.0 ile Gelenler (Havelsan UYAP ile Birebir Uyum, Tek Motor, Yeni Arayüz)
 
-### 🎨 1. e-UDF Birebir Ultra Kompakt Üst Panel & Kısayol Hapı
-- **Kırmızı CanEditor Marka Rozeti:** Sol üstte modern adli kırmızı rozet tasarımı (`⚖️ CanEditor`).
-- **e-UDF Birebir Kısayol Hapı (`[ 💾 | 📱 / 🖥️ | ☰ ]`):** Ekranın tam ortasında yer alan merkezlenmiş hap grubu sayesinde;
-  - **💾 1-Tık Doğrudan Kaydet:** Açık dosyaya tek tıkla kaydeder; Android'de `Downloads/UYAP_Belgelerim` klasörüne, webde anında `.udf` indirmesine aktarır (Ctrl+S).
-  - **📱 / 🖥️ Dinamik Görünüm Değiştirici:** Kağıt baskı görünümünde iken `🖥️` simgesiyle, mobil görünümde iken `📱` simgesiyle iki mod arasında tek dokunuşla geçiş yapar.
-  - **☰ Çekmece Menü:** Tek tıkla tüm dosya açma, kaydetme, farklı kaydetme, dışa aktarma, yazdırma ve e-imza fonksiyonlarına ulaştırır.
-- **Mavi Profil Avatarı (`👤`):** Sağ üst köşede yer alan dairesel profil ve e-imza kontrol butonu.
+Tüm iyileştirmeler, gerçek UYAP belgeleri (27 UDF) Havelsan'ın kendi çevrim motoruyla üretilen referans PDF'lerle karşılaştırılarak doğrulanmıştır.
 
-### 📐 2. Sayfa Kaydırılsa Dahi Asla Kaybolmayan Sabit (Sticky) Dokunmatik Cetvel
-- **Sayfa Üstünde Çakılı Kalan Mimari:** Cetvel scroll wrapper dışına taşınarak belge 100 sayfa aşağı kaysa dahi araç çubuğunun altında kalıcı olarak sabitlendi (`position: sticky !important`).
-- **-2 cm'den +18 cm'ye Tam Ölçekli Görsel Cetvel:** Sol kenar marjı (-2 .. 0), beyaz aktif yazı alanı (0 .. 16 cm) ve sağ marj (16 .. 18 cm) net biçimde renklendirildi ve kenar boşluklarıyla orantılı ölçeklendi.
-- **48px Ergonomik Dokunmatik Parmak Hedef Alanı:** İlk satır, asılı girinti ve sağ marj imleri dokunmatik ekranlarda parmakla kolayca tutulup sürüklenebilecek genişlikte (`touch-action: none !important;`) yapılandırıldı.
+1. **UYAP şablon belgeleri doğru açılıyor:** Takip Talebi, Portal evrakı gibi alanlı (`<data>`) belgelerde alacaklı/borçlu/vekil grupları, tekrar eden alacak satırları ve `eol`/`ceol` satır sonları Havelsan kurallarıyla çözülür. Metin uyumu %70 → %99,4.
+2. **Kaydederken biçim kaybı yok:** Paragraf, tablo, satır ve hücrelerin tüm orijinal öznitelikleri (sekme hizaları, satır bazlı sütun genişlikleri, stiller, sayfa ayarları, üst/altbilgi ayarları, doğrulama kodu) korunur; yalnızca değiştirdiğiniz yerler yeniden yazılır. Kaydedilen 27 belgenin tamamı Havelsan'da aynı sayfa sayısıyla açılır.
+3. **Sekmeler Havelsan ile aynı:** Ardışık sekmelerin teke inmesi giderildi; sekme yerleşimi Java Swing kuralıyla birebir (T.C. … BERAAT başlıkları, "BAŞKAN : …" hizaları).
+4. **Doğru sayfalama:** Altbilgi payı hesaba katılır, tablolar satır sınırından bölünür, küçük puntolu metinde satır yüksekliği doğru hesaplanır; sayfa sınırında bölünen paragraflar kayıtta tek paragraf kalır.
+5. **Mobil ve masaüstü tek motor:** Android artık UDF'yi masaüstüyle aynı motorla açar ve kaydeder; iki platformda çıktı aynıdır.
+6. **Yeni arayüz:** UYAP Doküman Editörü ile aynı menü çubuğu (Dosya, Düzen, Görünüm, Ekle, Biçim, Araçlar, İmza) ve tek satırlık modern biçim çubuğu; mobilde tek satır, yana kayan, parmakla kolay basılan düğmeler; gerçek renk seçici.
 
-### ⌨️ 3. Sanal Klavyenin Kapanmasına Karşı Kesin Odak Koruma Motoru
-- **Sıfır Klavye Kapanması:** Yazı yazarken (Gboard, Samsung Keyboard vb.) IME kompozisyonu ve odak koruma muhafızları (`isUserTypingActive()` & `isEditorFocused()`) devreye girerek DOM ağacının yıkılmasını, gereksiz yeniden çizimleri ve seçim sıfırlamalarını %100 engeller.
-- **Android Manifest ve Konfigürasyon Koruması:** `EditorActivity` için `keyboardHidden|screenLayout|smallestScreenSize|keyboard` konfigürasyon değişiklikleri eklenerek Gboard ve Samsung klavye açılıp kapanırken Activity yeniden başlatılması engellendi.
 
-### 📕 4. Dahili PDF ve Çok Sayfalı Adli TIFF Görüntüleyici Motoru
-- **PDF.js Tabanlı Dahili PDF Görüntüleyici:** Harici bir uygulama açmaya gerek kalmadan; uygulama içinde sayfa gezintisi, dinamik yakınlaştırma/uzaklaştırma (%40 - %300), 1-tık indirme ve yerel paylaşım desteği.
-- **UTIF.js Tabanlı Çok Sayfalı Adli TIFF Görüntüleyici:** İcra, tebligat ve mahkeme evraklarındaki tek veya çok sayfalı `.tiff` / `.tif` dosyalarını doğrudan açıp kaydırmalı, yüksek netlikte görüntüleme ve dışa aktarma kabiliyeti.
-
-### 🏛️ 5. Havelsan UYAP Resmi Headless Dönüşüm Motoru (Port 5976) & İstemci Yedek Motoru
-- **1:1 Vektörel A4 PDF:** Resmi Havelsan JAR sınıfları (`tr.com.havelsan.uyap.system.editor.b.b`) üzerinden birebir UYAP kalitesinde PDF dönüşümü.
-- **Resmi ODT ve DOCX Desteği:** Havelsan'ın ODT ayrıştırıcısı (`tr.com.havelsan.uyap.system.editor.b.a.f`) ve `odt_to_docx.py` köprüsüyle mükemmel Microsoft Word dönüşümü.
-- **Çevrimdışı İstemci Desteği:** Termux veya arka plan servisi bulunmayan ortamlarda dahili JS motoru otomatik olarak devreye girerek belgeleri kaydeder.
-
-### 🛡️ 6. Sıfır-Termux: Doğrudan Android Yerel USB Host CCID E-İmza Sürücüsü
-- **Bağımsız Donanım Erişimi:** Android telefonunuza OTG kablo ile takılan her türlü USB token (SafeNet 5110 kırmızı token, ArkSigner, ACS ACR38/ACR39, Gemalto, AKİS) doğrudan Android SDK USB Host katmanında algılanır (`device_filter.xml` & `CcidDriver.java`).
-- **ISO 7816-4 APDU & CAdES-BES:** Harici hiçbir yazılım veya sürücüye gerek kalmadan akıllı karttan X.509 Nitelikli Elektronik Sertifika (NES) okunur, PIN doğrulaması yapılır ve donanım içinde 2048-bit RSA ile SHA-256 özeti imzalanıp CAdES CMS DER formatında zarflanır.
-- **Dahili Adalet Port 5975 Sunucusu:** CanEditor arka planda `127.0.0.1:5975` portunda Adalet Bakanlığı E-İmza REST API (`/api/v1/signature/getCertificates` ve `/api/v1/docsignature/signdigest`) sunar. Hem CanEditor hem de telefondaki Chrome tarayıcısı (UYAP Avukat Portal) bu yerel port üzerinden e-imza atabilir.
-
-### 💾 7. Scoped Storage MediaStore Uyumlu Kaydetme ve Paylaşım Motoru
-- **Android 10 - 15 MediaStore Uyumu:** `Downloads/UYAP_Belgelerim` klasörüne doğrudan `MediaStore.Downloads` API ile kayıt yapılarak scoped storage izin kısıtlamaları tamamen aşıldı; dosyalar tüm dosya yöneticilerinde anında görünür hale getirildi.
-- **Tüm Formatlarda Farklı Kaydet:** UDF (Havelsan UYAP 1.8), PDF (1:1 Vektörel A4 Baskı), DOCX (Word), TIFF (Çok Sayfalı İcra/Dava Evrakı) ve ODT (OpenDocument) formatları hem mobilde hem masaüstünde eksiksiz çalışır.
-- **Gelişmiş Yerel Paylaşım:** `CanFileProvider` üzerinden `<grant-uri-permission android:pathPrefix="/" />` yetkilendirmesiyle WhatsApp, Gmail, Telegram, Word ve Google Drive'a doğrudan tek tıkla dosya gönderme desteği.
-
----
-
-## 📦 Çapraz Platform İndirme Bağlantıları (v{VERSION})
-
-| Platform | Paket Dosyası | Açıklama |
-| :--- | :--- | :--- |
-| 📱 **Android** | [CanEditor-v{VERSION}.apk](https://github.com/cnkzlyr/udemobile/releases/download/v{VERSION}/CanEditor-v{VERSION}.apk) | Güncel Android APK (Android 5.0 - 15) |
-| 📱 **Android (Kalıcı)** | [CanEditor-latest.apk](https://github.com/cnkzlyr/udemobile/releases/download/v{VERSION}/CanEditor-latest.apk) | Her zaman en son Android sürümü |
-| 🌐 **Taşınabilir Web** | [CanEditor-Portable-Web-GUI-v{VERSION}.zip](https://github.com/cnkzlyr/udemobile/releases/download/v{VERSION}/CanEditor-Portable-Web-GUI-v{VERSION}.zip) | Kurulumsuz, çevrimdışı çalışan Web GUI |
-| 🐧 **Linux (Debian/Ubuntu)** | [CanEditor_{VERSION}_amd64.deb](https://github.com/cnkzlyr/udemobile/releases/download/v{VERSION}/CanEditor_{VERSION}_amd64.deb) | Yerel Debian / Ubuntu / Pardus paketi |
-| 🐧 **Linux (Fedora/RPM)** | [CanEditor-{VERSION}-1.x86_64.rpm](https://github.com/cnkzlyr/udemobile/releases/download/v{VERSION}/CanEditor-{VERSION}-1.x86_64.rpm) | Yerel RedHat / Fedora / openSUSE paketi |
-| 🐧 **Linux (Evrensel)** | [CanEditor_{VERSION}_amd64.AppImage](https://github.com/cnkzlyr/udemobile/releases/download/v{VERSION}/CanEditor_{VERSION}_amd64.AppImage) | Tek tıkla çalıştırılabilir evrensel ikili |
-| 🪟 **Windows (10/11)** | [CanEditor_{VERSION}_x64-setup.exe](https://github.com/cnkzlyr/udemobile/releases/download/v{VERSION}/CanEditor_{VERSION}_x64-setup.exe) | NSIS Standart Kurulum Programı |
-| 🪟 **Windows (MSI)** | [CanEditor_{VERSION}_x64_en-US.msi](https://github.com/cnkzlyr/udemobile/releases/download/v{VERSION}/CanEditor_{VERSION}_x64_en-US.msi) | Kurumsal Windows Installer paketi |
-| 🍎 **macOS (Universal)** | [CanEditor_{VERSION}_universal.dmg](https://github.com/cnkzlyr/udemobile/releases/download/v{VERSION}/CanEditor_{VERSION}_universal.dmg) | Apple Silicon (M1/M2/M3) ve Intel DMG |
-| 🍎 **macOS (Arşiv)** | [CanEditor_{VERSION}_universal.app.tar.gz](https://github.com/cnkzlyr/udemobile/releases/download/v{VERSION}/CanEditor_{VERSION}_universal.app.tar.gz) | Taşınabilir macOS uygulama arşivi |
-
----
-
-## 🛠️ Hiç Bilmeyenler İçin Adım Adım Kurulum Rehberi
-
-### 📱 Android İçin:
-1. `CanEditor-v{VERSION}.apk` dosyasını telefonunuza indirin ve dokunun.
-2. "Bilinmeyen kaynaklardan yükleme" uyarısı gelirse ayarlardan izin verin ve yüklemeyi tamamlayın.
-3. WhatsApp veya e-postadan gelen `.udf`, `.docx`, `.pdf`, `.tiff` dosyalarına dokunduğunuzda otomatik CanEditor ile açılacaktır.
-4. USB token (SafeNet, ArkSigner vb.) takıldığında gelen "CanEditor uygulamasının USB cihaza erişmesine izin verilsin mi?" sorusuna "Evet" demeniz yeterlidir.
-
-### 🪟 Windows (10 / 11) İçin:
-1. `CanEditor_{VERSION}_x64-setup.exe` dosyasını indirin ve çalıştırın.
-2. Windows SmartScreen "Kişisel bilgisayarınızı korudu" uyarısı verirse **"Ek bilgi"** bağlantısına ve ardından **"Yine de çalıştır"** butonuna basın.
-
-### 🍎 macOS İçin:
-1. `CanEditor_{VERSION}_universal.dmg` kalıbını açın ve `CanEditor` simgesini `Applications` klasörüne sürükleyin.
-2. Gatekeeper uyarısı verirse simgeye `Control` tuşuyla **sağ tıklayıp "Aç"** deyin.
-
-### 🐧 Linux (Debian / Pardus / Ubuntu / Fedora / RedHat) İçin:
-- **AppImage:** `CanEditor_{VERSION}_amd64.AppImage` dosyasını indirin, terminalden `chmod +x CanEditor_{VERSION}_amd64.AppImage` komutunu verip çift tıklayın.
-- **Debian / Pardus / Ubuntu (.deb):** `sudo dpkg -i CanEditor_{VERSION}_amd64.deb`
-- **Fedora / RedHat / openSUSE (.rpm):** `sudo rpm -ivh CanEditor-{VERSION}-1.x86_64.rpm`
+## Paketler
+- Android: `CanEditor-v{VERSION}.apk` / `CanEditor-latest.apk`
+- Taşınabilir web: `CanEditor-Portable-Web-GUI-v{VERSION}.zip`
+- Windows / macOS / Linux: GitHub Actions tarafından bu sürüme otomatik eklenir
 """
 
 def request(url, data=None, headers=None, method="GET"):
