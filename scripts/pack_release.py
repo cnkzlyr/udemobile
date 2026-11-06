@@ -47,7 +47,7 @@ def sync_frontend_to_android_assets():
     step("0. Syncing frontend/public/* to android/assets/editor/*")
     assets_dir = os.path.join(PROJECT_ROOT, "android", "assets", "editor")
     os.makedirs(assets_dir, exist_ok=True)
-    for fname in ["desktop_bridge.js", "editor.css", "editor.js", "favicon.svg", "history.js", "icons.svg", "jszip.min.js", "updater.js", "pdf.min.js", "pdf.worker.min.js", "utif.js"]:
+    for fname in ["desktop_bridge.js", "editor.css", "editor.js", "favicon.svg", "history.js", "icons.svg", "jszip.min.js", "updater.js", "ui-shell.js", "pdf.min.js", "pdf.worker.min.js", "utif.js"]:
         src = os.path.join(PROJECT_ROOT, "frontend", "public", fname)
         if os.path.exists(src):
             shutil.copy2(src, os.path.join(assets_dir, fname))
@@ -80,7 +80,7 @@ def main():
     if os.path.exists(zip_path):
         os.remove(zip_path)
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
-        for fname in ["desktop_bridge.js", "editor.css", "editor.js", "favicon.svg", "history.js", "icons.svg", "jszip.min.js", "updater.js", "pdf.min.js", "pdf.worker.min.js", "utif.js"]:
+        for fname in ["desktop_bridge.js", "editor.css", "editor.js", "favicon.svg", "history.js", "icons.svg", "jszip.min.js", "updater.js", "ui-shell.js", "pdf.min.js", "pdf.worker.min.js", "utif.js"]:
             p = os.path.join("frontend", "public", fname)
             if os.path.exists(p):
                 z.write(p, arcname=fname)
