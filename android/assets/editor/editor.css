@@ -3080,3 +3080,40 @@ body { background: var(--ce-bg) !important; }
 @media (max-width: 760px) { #desktop-app-footer { display: none !important; } }
 /* Kart penceresindeki uzun sürücü yönergesi satır satır görünsün */
 #cert-display-issuer, #sc-status { white-space: pre-line; word-break: break-word; }
+
+/* =========================================================================
+   v3.16 CETVEL GİRİNTİ İMLEÇLERİ (Word / UYAP düzeni):
+     ▼ ilk satır girintisi (üst)   ▲ asılı girinti (orta)   ▭ sol girinti / tüm paragraf (alt)
+   Eski kurallardan biri asılı girinti üçgenini dikdörtgenle AYNI yere koyuyordu (bottom:1px) ve
+   dikdörtgenin 48px görünmez dokunma alanı üçgeni örtüyordu: asılı girinti kullanılamıyordu.
+   Kimlik (id) seçicileri tüm eski sınıf kurallarını geçersiz kılar; dokunma alanları üst üste binmez.
+   ========================================================================= */
+#marker-first-line, #marker-hanging-indent, #marker-left-indent {
+  width: 22px !important;
+  transform: translateX(-50%) !important;
+  display: flex !important; align-items: center !important; justify-content: center !important;
+}
+#marker-first-line   { top: 0 !important;   bottom: auto !important; height: 15px !important; z-index: 62 !important; }
+#marker-hanging-indent { top: auto !important; bottom: 14px !important; height: 13px !important; z-index: 64 !important; }
+#marker-left-indent  { top: auto !important; bottom: 1px !important;  height: 13px !important; z-index: 63 !important; }
+#marker-first-line .marker-triangle-down { border-left-width: 8px !important; border-right-width: 8px !important; border-top-width: 12px !important; }
+#marker-hanging-indent .marker-triangle-up { border-left-width: 8px !important; border-right-width: 8px !important; border-bottom-width: 12px !important; border-bottom-color: #1D4ED8 !important; }
+#marker-left-indent .marker-box { width: 16px !important; height: 10px !important; }
+/* Dokunma alanları: yalnızca yatayda genişler, dikeyde kendi şeridinde kalır (birbirini örtmez) */
+#marker-first-line::before, #marker-hanging-indent::before, #marker-left-indent::before {
+  content: '' !important; position: absolute !important; transform: none !important;
+  left: -14px !important; right: -14px !important; width: auto !important;
+  top: 0 !important; bottom: 0 !important; height: auto !important;
+}
+#marker-first-line::before { top: -6px !important; }
+#marker-left-indent::before { bottom: -6px !important; }
+/* v3.16: UDF paragraflarında satır aralığı Havelsan gibi SABİT (data-udf-pitch). Aynı satırdaki farklı puntolu
+   parçalar tarayıcıda satır kutusunu büyütüp sayfaları kaydırıyordu; satır içi öğeler satır yüksekliğine katılmaz. */
+.page-body-box p[data-udf-pitch] *:not(img):not(table):not(.udf-tab-space),
+.page-header-box p[data-udf-pitch] *:not(img), .page-footer-box p[data-udf-pitch] *:not(img) { line-height: 0 !important; }
+#pagination-measurer p[data-udf-pitch] *:not(img):not(table):not(.udf-tab-space) { line-height: 0 !important; }
+/* v3.16: Havelsan (Swing) ardışık paragrafların SpaceBelow + SpaceAbove değerlerini TOPLAR; CSS blok düzeni ise
+   kenar boşluklarını çakıştırır (max). Bu fark her paragraf geçişinde birkaç punto kazandırıp sayfalara fazladan
+   satır sığdırıyor, sayfa sonlarını Havelsan'dan kaydırıyordu. Gövde kutusu flex sütun: boşluklar çakışmaz. */
+.a4-sheet-page > .page-body-box, #pagination-measurer { display: flex !important; flex-direction: column !important; align-items: stretch !important; }
+.a4-sheet-page > .page-body-box > *, #pagination-measurer > * { flex: 0 0 auto; min-width: 0; }

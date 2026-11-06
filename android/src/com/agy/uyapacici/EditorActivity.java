@@ -130,6 +130,7 @@ public class EditorActivity extends Activity {
             String action = intent.getAction();
             if (CcidDriver.ACTION_USB_PERMISSION.equals(action)) {
                 synchronized (this) {
+                    CcidDriver.getInstance(context).onPermissionResult();
                     UsbDevice device = intent.getParcelableExtra(UsbManager.EXTRA_DEVICE);
                     if (intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false)) {
                         if (device != null) {
@@ -154,7 +155,10 @@ public class EditorActivity extends Activity {
             filter.addAction(CcidDriver.ACTION_USB_PERMISSION);
             filter.addAction(UsbManager.ACTION_USB_DEVICE_ATTACHED);
             filter.addAction(UsbManager.ACTION_USB_DEVICE_DETACHED);
-            registerReceiver(usbReceiver, filter);
+            // Android 14 (API 34): bayraksız registerReceiver SecurityException fırlatıyordu (sessizce yutuluyordu)
+            // → USB izin sonucu ve tak/çıkar olayları hiç gelmiyor, kart "takılı değil" görünüyordu.
+            if (Build.VERSION.SDK_INT >= 33) registerReceiver(usbReceiver, filter, 2 /* RECEIVER_EXPORTED: sistem yayınları için */);
+            else registerReceiver(usbReceiver, filter);
         } catch (Exception ignored) {}
     }
 

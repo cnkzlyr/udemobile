@@ -370,8 +370,19 @@
           const fcs = getComputedStyle(first);
           const mt = parseFloat(fcs.marginTop) || 0;
           const prevMb = lastHere ? (parseFloat(getComputedStyle(lastHere).marginBottom) || 0) : 0;
-          const need = first.offsetHeight + (lastHere ? Math.max(mt, prevMb) : mt);
-          if (usedHeight(box) + need > box.clientHeight + 0.5) break;
+          const need = first.offsetHeight + (lastHere ? (mt + prevMb) : mt);
+          if (usedHeight(box) + need > box.clientHeight + 0.5) {
+            // Paragraf tamamen sığmıyorsa Havelsan/Word gibi sayfa sonunda BÖL: sığan satırlar bu sayfaya gelir
+            const lhPx = parseFloat(fcs.lineHeight) || 16;
+            const avail = box.clientHeight - usedHeight(box) - (lastHere ? (mt + prevMb) : mt);
+            if (first.tagName === 'P' && first.textContent.trim() && avail >= lhPx) {
+              box.appendChild(first);
+              const cont = splitParagraphToFit(box, first);
+              if (cont) { next.insertBefore(cont, contentChildren(next)[0] || null); changed = true; }
+              else next.insertBefore(first, contentChildren(next)[0] || null);
+            }
+            break;
+          }
           box.appendChild(first);
           changed = true;
           if (overflows(box)) { next.insertBefore(first, contentChildren(next)[0] || null); break; }
@@ -388,7 +399,8 @@
           if (kids.length === 0) { removePage(all[i]); changed = true; continue; }
           // tek boş paragraf: önceki sayfaya sığıyorsa taşı, sonra sayfayı sil
           all[i - 1].appendChild(kids[0]);
-          if (overflows(all[i - 1])) { all[i].appendChild(kids[0]); break; }
+          // Son sayfadaki tek boş paragraf (belge sonu) taşsa da önceki sayfada kalır (Havelsan yeni sayfa açmaz)
+          if (overflows(all[i - 1]) && i !== all.length - 1) { all[i].appendChild(kids[0]); break; }
           removePage(all[i]);
           changed = true;
         } else break;

@@ -568,7 +568,7 @@ function getDocFooterHtml(pageNum, totalPages) {
       const match = tpl.match(/data-verification-code="([^"]+)"/);
       const code = match ? match[1] : (currentDocVerificationCode || '');
       if (code) {
-        const qrSvg = createQrSvg("https://vatandas.uyap.gov.tr/?k=" + encodeURIComponent(code), 34);
+        const qrSvg = createQrSvg("https://vatandas.uyap.gov.tr/?k=" + encodeURIComponent(code), 68); // Havelsan: 51 pt
         tpl = tpl.replace(/(<div class="udf-footer-qr-container"[^>]*>)(<\/div>)/, `$1${qrSvg}$2`);
       }
     }
@@ -859,9 +859,31 @@ function updatePagination() {
     // Havelsan (referans PDF ölçümüyle doğrulandı): altbilgi varsa gövde alt sınırı
     // = sayfa yüksekliği - bottomMargin - footerFOffset. Altbilgi bu payın içine çizilir.
     const hasFooterArea = !!((currentDocFooterTemplate && currentDocFooterTemplate.trim()) || currentDocVerificationCode);
-    const bottomInsetPx = Math.round(hasFooterArea
-      ? Math.max(bottomMarginPx + footerOffsetPx, footerHeightPx + 4)
-      : Math.max(bottomMarginPx, footerHeightPx + 4));
+    // v3.16: Altbilginin GERÇEK yüksekliği ölçülür (karekod 51 pt, logo vb.). 14 belgelik Havelsan PDF karşılaştırmasıyla:
+    //  - karekodlu altbilgi sayfanın en altına yaslanır; gövde alt sınırı = sayfa − max(altKenar, altbilgiYüksekliği + boşluk)
+    //  - karekodsuz altbilgi footerFOffset'te çizilir; gövde alt sınırı = sayfa − max(altKenar, footerFOffset + yükseklik)
+    // Eski formül (altKenar + footerFOffset) alt kenarı geniş belgelerde 1. sayfayı ~40 pt erken kesiyordu.
+    let measuredFooterH = footerHeightPx;
+    let footerHasQr = false;
+    try {
+      const fm = document.createElement('div');
+      fm.className = 'page-footer-box';
+      fm.style.cssText = `position:absolute; visibility:hidden; left:-9999px; top:0; bottom:auto; height:auto; max-height:none; overflow:visible; width:${printableW}px;`;
+      fm.innerHTML = getDocFooterHtml(1, 1);
+      (container || document.body).appendChild(fm);
+      measuredFooterH = Math.ceil(fm.scrollHeight || fm.offsetHeight || footerHeightPx);
+      footerHasQr = !!fm.querySelector('.udf-footer-qr-container, svg');
+      fm.remove();
+    } catch (e) {}
+    footerHeightPx = measuredFooterH;
+    window.__footerHasQr = footerHasQr;
+    const FOOTER_BOTTOM_PAD = 5;   // karekodlu altbilginin sayfa kenarına uzaklığı (≈4 pt)
+    const FOOTER_GAP = 4;          // gövde ile altbilgi arası en az boşluk (Havelsan ölçümü)
+    const bottomInsetPx = Math.round(!hasFooterArea
+      ? bottomMarginPx
+      : (footerHasQr
+          ? Math.max(bottomMarginPx, FOOTER_BOTTOM_PAD + footerHeightPx + FOOTER_GAP)
+          : Math.max(bottomMarginPx, footerOffsetPx + footerHeightPx)));
     const printableH = Math.max(350, pageH - topInsetPx - bottomInsetPx);
 
     // Konteyner CSS değişkenlerini ayarla
@@ -926,7 +948,8 @@ function updatePagination() {
       const mb = parseFloat(cs.marginBottom) || 0;
       const rawH = clone.offsetHeight || 18.4;
       measurer.removeChild(clone);
-      const gap = (currentAccumHeight === 0) ? mt : Math.max(prevMb, mt);
+      // Havelsan/Swing paragraf boşluklarını TOPLAR (önceki SpaceBelow + bu SpaceAbove); CSS çakıştırmaz (flex sütun)
+      const gap = (currentAccumHeight === 0) ? mt : (prevMb + mt);
       const h = rawH + gap;
 
       const isTableNode = node.tagName && node.tagName.toLowerCase() === 'table';
@@ -1019,7 +1042,10 @@ function updatePagination() {
     }
 
     if (currentPageNodes.length > 0 || pagesData.length === 0) {
-      pagesData.push(currentPageNodes);
+      // Havelsan: belge sonundaki yalnızca boş paragraflar yeni sayfa AÇMAZ (son sayfaya taşar, görünmez)
+      const allEmpty = currentPageNodes.length > 0 && currentPageNodes.every(n => n.tagName === 'P' && !n.textContent.replace(/[\u200B\s]/g, '') && !n.querySelector('img,table'));
+      if (allEmpty && pagesData.length > 0) pagesData[pagesData.length - 1].push(...currentPageNodes);
+      else pagesData.push(currentPageNodes);
     }
 
     const totalPages = pagesData.length;
@@ -1161,10 +1187,12 @@ function updatePagination() {
       footerBox.className = 'page-footer-box';
       if (pageNum === 1) footerBox.id = 'doc-footer';
       footerBox.setAttribute('contenteditable', 'false');
-      footerBox.style.bottom = Math.round(footerOffsetPx) + 'px';
+      footerBox.style.bottom = (window.__footerHasQr ? 5 : Math.round(footerOffsetPx)) + 'px';
       footerBox.style.left = Math.round(leftMarginPx) + 'px';
       footerBox.style.width = printableW + 'px';
-      footerBox.style.height = footerHeightPx + 'px';
+      // Karekodlu altbilgi alta yaslanır ve içeriği kadar yukarı büyür (sabit yükseklik sayfa dışına taşırıyordu)
+      footerBox.style.height = window.__footerHasQr ? 'auto' : (footerHeightPx + 'px');
+      if (window.__footerHasQr) { footerBox.style.maxHeight = 'none'; footerBox.style.overflow = 'visible'; }
       footerBox.innerHTML = getDocFooterHtml(pageNum, totalPages);
       pageSheet.appendChild(footerBox);
 

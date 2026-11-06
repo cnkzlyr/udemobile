@@ -1,6 +1,6 @@
 # ⚖️ CanEditor (UdeMobile) — Çapraz Platform UYAP & Word Editörü
 
-[![Sürüm](https://img.shields.io/badge/Sürüm-v3.15.0-blue.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v3.15.0)
+[![Sürüm](https://img.shields.io/badge/Sürüm-v3.16.0-blue.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v3.16.0)
 [![Platformlar](https://img.shields.io/badge/Platformlar-Android%20%7C%20Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Web-success.svg)](https://github.com/cnkzlyr/udemobile/releases)
 [![UYAP](https://img.shields.io/badge/Format-UYAP_UDF_v1.8-0D47A1.svg)](https://uyap.gov.tr)
 [![Word](https://img.shields.io/badge/Format-MS_DOCX_OpenXML-2B579A.svg?logo=microsoft-word&logoColor=white)](https://microsoft.com)
@@ -11,20 +11,35 @@
 
 ---
 
-## 🚀 Hızlı İndirme (v3.15.0)
+## 🚀 Hızlı İndirme (v3.16.0)
 
 | Platform | Paket Dosyası | Açıklama |
 | :--- | :--- | :--- |
-| **Android (Telefon & Tablet)** | [**CanEditor-v3.15.0.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.15.0/CanEditor-v3.15.0.apk) | Güncel Android APK paketi (Termux gerektirmez) |
-| **Android (Her Zaman En Son)** | [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.15.0/CanEditor-latest.apk) | Kalıcı son sürüm bağlantısı |
-| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v3.15.0.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v3.15.0/CanEditor-Portable-Web-GUI-v3.15.0.zip) | **Kurulumsuz;** zipten çıkarıp `index.html` açarak tüm işletim sistemlerinde doğrudan çalışır |
-| **Windows / macOS / Linux** | [**GitHub Releases Sayfası**](https://github.com/cnkzlyr/udemobile/releases/tag/v3.15.0) | GitHub Actions CI ile derlenen yerel ikili (.msi, .exe, .dmg, .AppImage, .deb, .rpm) paketleri |
+| **Android (Telefon & Tablet)** | [**CanEditor-v3.16.0.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.16.0/CanEditor-v3.16.0.apk) | Güncel Android APK paketi (Termux gerektirmez) |
+| **Android (Her Zaman En Son)** | [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.16.0/CanEditor-latest.apk) | Kalıcı son sürüm bağlantısı |
+| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v3.16.0.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v3.16.0/CanEditor-Portable-Web-GUI-v3.16.0.zip) | **Kurulumsuz;** zipten çıkarıp `index.html` açarak tüm işletim sistemlerinde doğrudan çalışır |
+| **Windows / macOS / Linux** | [**GitHub Releases Sayfası**](https://github.com/cnkzlyr/udemobile/releases/tag/v3.16.0) | GitHub Actions CI ile derlenen yerel ikili (.msi, .exe, .dmg, .AppImage, .deb, .rpm) paketleri |
 
 ---
 
-## ⚠️ Android: v3.15.0'a geçerken bir kerelik yeniden kurulum
+## ⚠️ Android: v3.16.0'a geçerken bir kerelik yeniden kurulum
 
-Önceki sürümler farklı derleme ortamlarında farklı imza anahtarlarıyla imzalanmıştı. v3.15.0'dan itibaren APK **sabit bir proje anahtarıyla** imzalanır; telefonunuzda eski CanEditor varsa bir kez **kaldırıp** yeni APK'yı kurun (aksi halde Android "paket çakışıyor" hatası verir). Sonraki güncellemeler kaldırmadan, üzerine kurulur.
+Önceki sürümler farklı derleme ortamlarında farklı imza anahtarlarıyla imzalanmıştı. v3.16.0'dan itibaren APK **sabit bir proje anahtarıyla** imzalanır; telefonunuzda eski CanEditor varsa bir kez **kaldırıp** yeni APK'yı kurun (aksi halde Android "paket çakışıyor" hatası verir). Sonraki güncellemeler kaldırmadan, üzerine kurulur.
+
+## 🌟 v3.16.0 ile Gelenler (Havelsan ile Sayfa Uyumu, Cetvel, E-İmza Takınca Donma, Mobil İmza Doğrulaması)
+
+Sayfa düzeni, cihazdaki 13 gerçek UYAP belgesinin **Havelsan UYAP Editörü'nün kendi çevrim motoruyla** üretilen PDF'leriyle sayfa sayfa karşılaştırılarak ayarlandı.
+
+1. **Satır aralığı Havelsan ile aynı:** Havelsan (Java Swing) satır yüksekliğini tam sayıya yuvarlar ve `LineSpacing` payını satır yüksekliğinin tam sayı katı olarak ekler. Eskiden `1 + LineSpacing` oranı kullanılıyordu ve 12 pt'lik satırlar 16 pt yerine 14 pt çıkıyordu; bu yüzden sayfalar kayıyordu. Aynı satırdaki farklı puntolar artık satırı büyütmüyor.
+2. **Paragraf boşlukları toplanıyor:** Havelsan önceki paragrafın alt boşluğu ile sonrakinin üst boşluğunu toplar. Tarayıcı ise bunları çakıştırıyordu; her paragraf geçişinde birkaç punto kayıyordu.
+3. **Altbilgi, karekod ve sayfa numarası:** Sayfa numarası UDF'deki biçimle yazılıyor ("1/2", "Sayfa:1/10"; Arial 11). Karekod Havelsan boyutunda (51 pt) ve sağ altta; doğrulama metni çizginin altında. Logolu altbilgide logo, sayfa numarası ve karekod aynı satırda. Gövdenin alt sınırı gerçek altbilgi yüksekliğine göre hesaplanıyor; eski formül alt kenar boşluğu geniş belgelerde 1. sayfayı ~40 pt erken kesiyordu.
+4. **Sayfa sonunda paragraf bölme:** Sonraki sayfadan geri çekilen paragraf, sığan satırları kadar bölünüyor. Belge sonundaki boş satırlar yeni sayfa açmıyor.
+5. **Cetvel:** Asılı girinti üçgeni sol girinti dikdörtgeninin altında kalıp kullanılamıyordu. Artık ▼ ilk satır, ▲ asılı girinti ve ▭ tüm paragraf ayrı ayrı tutulup sürüklenebiliyor.
+6. **Android: e-imza takınca yeni pencere ve donma giderildi:** Editör ekranı her USB takılışında yeni bir kopyasını açıyordu (`USB_DEVICE_ATTACHED` filtresi). Kaldırıldı; editör tek örnek çalışıyor.
+7. **Android: USB izin sonucu artık alınıyor:** Android 14'te izin/tak-çıkar alıcısı bayraksız kaydedildiği için sessizce başarısız oluyordu. İzin `PendingIntent`'i de değiştirilemez (immutable) olduğundan sistem sonucu yazamıyordu. İkisi düzeltildi ve izin penceresinin tekrar tekrar açılması önlendi.
+8. **Mobil imza:** UYAP'tan gelen içerik gömülü imza Havelsan gibi ayrılıyor (`detachContent`). İmza belgeyle doğrulanmadan **asla kaydedilmiyor**; eşleşmezse ayrıntılı tanı veriliyor.
+
+> **Bilinen sınırlar:** Android'de USB akıllı kartla (AKİS, ArkSigner) imza, kartın kendine özgü komut setini gerektirir ve henüz gerçek kartla doğrulanmadı; Android'de **mobil imza**, masaüstünde **kart ile e-imza** (PKCS#11) önerilir. Çok sayfalı belgelerde bazı sayfa sonları Havelsan'dan hâlâ ±1 satır farklı olabilir.
 
 ## 🌟 v3.15.0 ile Gelenler (Arayüz Hataları, Canlı Sayfalama, Tüm Platformlarda Gerçek E-İmza / Mobil İmza, Yeni PDF·TIFF·ODT Motoru)
 

@@ -15,45 +15,24 @@ with open(os.path.join(os.path.dirname(__file__), "..", "package.json")) as f:
     VERSION = json.load(f)["version"]
 
 TAG = f"v{VERSION}"
-NAME = f"CanEditor v{VERSION} — Menü/arayüz düzeltmeleri, canlı sayfalama, tüm platformlarda e-imza & mobil imza, yeni PDF/TIFF/ODT motoru"
+NAME = f"CanEditor v{VERSION} — Havelsan ile sayfa uyumu, cetvel, e-imza takınca donma ve mobil imza düzeltmeleri"
 
 BODY = f"""# CanEditor v{VERSION}
 
-## ⚠️ Android: v3.15.0'a geçerken bir kerelik yeniden kurulum
+## 🌟 v3.16.0 ile Gelenler (Havelsan ile Sayfa Uyumu, Cetvel, E-İmza Takınca Donma, Mobil İmza Doğrulaması)
 
-Önceki sürümler farklı derleme ortamlarında farklı imza anahtarlarıyla imzalanmıştı. v3.15.0'dan itibaren APK **sabit bir proje anahtarıyla** imzalanır; telefonunuzda eski CanEditor varsa bir kez **kaldırıp** yeni APK'yı kurun (aksi halde Android "paket çakışıyor" hatası verir). Sonraki güncellemeler kaldırmadan, üzerine kurulur.
+Sayfa düzeni, cihazdaki 13 gerçek UYAP belgesinin **Havelsan UYAP Editörü'nün kendi çevrim motoruyla** üretilen PDF'leriyle sayfa sayfa karşılaştırılarak ayarlandı.
 
-## 🌟 v3.15.0 ile Gelenler (Arayüz Hataları, Canlı Sayfalama, Tüm Platformlarda Gerçek E-İmza / Mobil İmza, Yeni PDF·TIFF·ODT Motoru)
+1. **Satır aralığı Havelsan ile aynı:** Havelsan (Java Swing) satır yüksekliğini tam sayıya yuvarlar ve `LineSpacing` payını satır yüksekliğinin tam sayı katı olarak ekler. Eskiden `1 + LineSpacing` oranı kullanılıyordu ve 12 pt'lik satırlar 16 pt yerine 14 pt çıkıyordu; bu yüzden sayfalar kayıyordu. Aynı satırdaki farklı puntolar artık satırı büyütmüyor.
+2. **Paragraf boşlukları toplanıyor:** Havelsan önceki paragrafın alt boşluğu ile sonrakinin üst boşluğunu toplar. Tarayıcı ise bunları çakıştırıyordu; her paragraf geçişinde birkaç punto kayıyordu.
+3. **Altbilgi, karekod ve sayfa numarası:** Sayfa numarası UDF'deki biçimle yazılıyor ("1/2", "Sayfa:1/10"; Arial 11). Karekod Havelsan boyutunda (51 pt) ve sağ altta; doğrulama metni çizginin altında. Logolu altbilgide logo, sayfa numarası ve karekod aynı satırda. Gövdenin alt sınırı gerçek altbilgi yüksekliğine göre hesaplanıyor; eski formül alt kenar boşluğu geniş belgelerde 1. sayfayı ~40 pt erken kesiyordu.
+4. **Sayfa sonunda paragraf bölme:** Sonraki sayfadan geri çekilen paragraf, sığan satırları kadar bölünüyor. Belge sonundaki boş satırlar yeni sayfa açmıyor.
+5. **Cetvel:** Asılı girinti üçgeni sol girinti dikdörtgeninin altında kalıp kullanılamıyordu. Artık ▼ ilk satır, ▲ asılı girinti ve ▭ tüm paragraf ayrı ayrı tutulup sürüklenebiliyor.
+6. **Android: e-imza takınca yeni pencere ve donma giderildi:** Editör ekranı her USB takılışında yeni bir kopyasını açıyordu (`USB_DEVICE_ATTACHED` filtresi). Kaldırıldı; editör tek örnek çalışıyor.
+7. **Android: USB izin sonucu artık alınıyor:** Android 14'te izin/tak-çıkar alıcısı bayraksız kaydedildiği için sessizce başarısız oluyordu. İzin `PendingIntent`'i de değiştirilemez (immutable) olduğundan sistem sonucu yazamıyordu. İkisi düzeltildi ve izin penceresinin tekrar tekrar açılması önlendi.
+8. **Mobil imza:** UYAP'tan gelen içerik gömülü imza Havelsan gibi ayrılıyor (`detachContent`). İmza belgeyle doğrulanmadan **asla kaydedilmiyor**; eşleşmezse ayrıntılı tanı veriliyor.
 
-Tüm düzeltmeler otomatik tarayıcı testleriyle (masaüstü + mobil dokunmatik) ve **Havelsan UYAP Doküman Editörü 5.4.20** ile karşılaştırılarak doğrulanmıştır.
-
-**Arayüz**
-1. **Menüler artık üst üste binmiyor:** "Dosya > Yeni / Aç / Kaydet" öğeleri biçim çubuğunun ve cetvelin altında kalıp tıklanamıyordu (katman/z-index hatası). Menü çubuğu en üst katmana alındı.
-2. **Alt menüler açılıyor:** "Farklı Kaydet / Paylaş / Yazdır" alt menüleri bir kez tıklandıktan sonra bir daha hiç açılmıyordu. Düzeltildi; dokunmatik ekranda tıklayınca açılır.
-3. **Masaüstü kendini Android sanıyordu:** Masaüstü/Web sürümü sahte bir Android köprüsü yüzünden Android gibi davranıyordu (paylaşım, alt çubuk). Düzeltildi.
-4. **Cetvel rakamları ("8 17 9") üst üste binmiyor**, dar ekranda alt durum çubuğu yüzen düğmenin üstüne çıkmıyor.
-5. **Dosya > Yeni** artık gerçekten yeni belge açar (Ctrl+N); kaydedilmemiş değişiklik varsa sorar. Yeni belgede görünmeyen örnek üst bilgi UDF'ye yazılmıyor.
-
-**Sayfalama ve kaydırma (Word gibi)**
-6. **Yazarken yeni sayfa açılıyor:** Eskiden 1. sayfa dolunca yazılan metin gizleniyor, belge "tek sayfa" kalıyor ve aşağı kaydırılamıyordu. Yeni canlı sayfa akışı taşan paragrafları sonraki sayfaya taşır, gerekirse yeni sayfa açar, silince geri çeker; imleç ve Android klavyesi korunur.
-7. **Sayfalar arası düzenleme:** Sayfa başında Backspace önceki sayfayla birleştirir, sayfa sonunda Delete sonraki sayfayı çeker; ↑ ↓ PageUp PageDown sayfalar arasında geçer.
-
-**Biçimlendirme / kaydetme / dönüştürme**
-8. **Punto ve yazı tipi:** Seçim yokken punto değiştirmek TÜM belgenin puntosunu değiştiriyordu; artık Word gibi imleçten sonra yazılacak metne uygulanır.
-9. **PDF baştan yazıldı:** Ekrandaki sayfanın birebir yerleşiminden **vektör PDF** (seçilebilir/aranabilir Türkçe metin, gömülü Times New Roman/Arial, sekme hizaları, tablo çizgileri, logo ve UYAP karekodu). Dosya boyutu ~8 kat küçüldü.
-10. **TIFF:** Aynı yerleşimden 192 DPI, gri tonlamalı, PackBits sıkıştırmalı çok sayfalı TIFF (eskisi sıkıştırmasız ve ~7 kat büyüktü).
-11. **ODT yazma/okuma yeniden yazıldı:** Sekmeler, sekme durakları, girintiler, satır aralığı, punto/renk, tablolar, görseller, üst/alt bilgi ve kenar boşlukları korunuyor (eskisi hepsini kaybediyordu). DOCX okurken punto/renk/yazı tipi de alınıyor.
-12. **Masaüstünde Kaydet gerçekten kaydediyor:** Tauri (Windows/macOS/Linux) içinde indirme bağlantısı çalışmadığından kaydetme sessizce başarısız oluyordu. Artık yerel "Aç / Kaydet / Farklı Kaydet" pencereleri kullanılır, "Kaydet" açık dosyanın üzerine yazar.
-
-**E-İmza ve Mobil İmza — tüm platformlarda tek motor**
-13. **Mobil imza artık çalışıyor (Android + Windows + macOS + Linux):** UYAP mobil imza servisi (`vatandas.uyap.gov.tr/mimzaclient`) Havelsan editörüyle birebir aynı biçimde çağrılır. Eski Android sürümü telefon numarasının başındaki 0'ı siliyor ve SOAP alan adlarını yanlış gönderiyordu. Termux/yerel sunucu gerekmez.
-14. **Akıllı kart e-imza (masaüstü):** PKCS#11 ile AKİS (Kamu SM, TürkTrust, E-Güven), SafeNet/eToken (E-Tuğra, e-imzaTR), SafeSign, CardOS, Gemalto/Thales, ArkSigner, OpenSC sürücüleri işletim sistemine göre otomatik bulunur. Sürücü yoksa uygulama resmi indirme bağlantılarını gösterir. Özel sürücü yolu için `CANEDITOR_PKCS11` ortam değişkeni kullanılabilir.
-15. **Akıllı kart e-imza (Android):** USB OTG CCID okuyucu ile, Termux olmadan.
-16. **UYAP uyumlu imza:** CAdES-BES (contentType, signingTime, messageDigest, signingCertificateV2), sha256WithRSA / ECDSA; mevcut imzalar korunarak paralel imza eklenir. Üretilen imzalar TÜBİTAK ESYA kütüphanesiyle `TYPE_BES, özet doğrulaması başarılı` olarak doğrulandı; mahkeme imzalı belgelere eklenen imzalarda önceki imzalar geçerli kalır.
-17. **İmzayı Doğrula** her platformda yerel kriptografik doğrulama yapar (özet + imza; RSA ve ECDSA).
-
-> Not: E-imza kartı sürücüleri (AKİS vb.) üreticilerine ait lisanslı yazılımlar olduğundan uygulamanın içine gömülemez; uygulama kurulu sürücüyü otomatik bulur, yoksa resmi indirme adresine yönlendirir. Web (taşınabilir zip) sürümünde tarayıcı güvenlik kısıtları nedeniyle e-imza/mobil imza yapılamaz; masaüstü veya Android uygulamasını kullanın.
-
+> **Bilinen sınırlar:** Android'de USB akıllı kartla (AKİS, ArkSigner) imza, kartın kendine özgü komut setini gerektirir ve henüz gerçek kartla doğrulanmadı; Android'de **mobil imza**, masaüstünde **kart ile e-imza** (PKCS#11) önerilir. Çok sayfalı belgelerde bazı sayfa sonları Havelsan'dan hâlâ ±1 satır farklı olabilir.
 
 ## Paketler
 - Android: `CanEditor-v{VERSION}.apk` / `CanEditor-latest.apk`

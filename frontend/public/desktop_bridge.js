@@ -630,12 +630,27 @@ async function parseUdfArrayBuffer(buffer) {
     const rIndentPt = parseFloat(resolveAttr(p, "RightIndent") || "0") || 0;
     const tabSet = resolveAttr(p, "TabSet");
 
-    let styleStr = `text-align: ${align}; margin-top: ${spaceAbove}pt; margin-bottom: ${spaceBelow}pt;`;
-    if (lineSpacing) {
-      const ls = parseFloat(lineSpacing);
-      if (!isNaN(ls) && ls > 0.01) {
-        styleStr += ` line-height: ${(1.0 + ls).toFixed(2)};`;
-      }
+    let dataAttrsPitch = "";
+    // v3.16 Havelsan/Swing birebir dikey ölçü: Swing konumları tamsayı puntodur → paragraf boşlukları kesilir.
+    let styleStr = `text-align: ${align}; margin-top: ${Math.floor(spaceAbove + 1e-6)}pt; margin-bottom: ${Math.floor(spaceBelow + 1e-6)}pt;`;
+    // Satır aralığı (javax.swing.text.ParagraphView.Row): satır yüksekliği H = satırdaki en büyük yazı tipinin
+    // (yükselme+alçalma+aralık ≈ 1.149 em) tamsayıya yuvarlanmış değeri; alt boşluk = (int)(H × LineSpacing).
+    // Eski formül "line-height: 1+LineSpacing" (em) Havelsan'dan satır başına ~2 pt kısa kalıyor, sayfalar kayıyordu
+    // (ör. 10 sayfalık dilekçe 8–9 sayfa görünüyordu).
+    {
+      const ls = Math.max(0, parseFloat(lineSpacing || "0") || 0);
+      let maxSize = 0;
+      Array.from(p.children).forEach(ch => {
+        const t = ch.tagName ? ch.tagName.toLowerCase() : "";
+        if (t !== "content" && t !== "tab" && t !== "field") return;
+        const sz = parseFloat(ch.getAttribute("size") || resolveAttr(ch, "size") || resolveAttr(p, "size") || "12");
+        if (sz > maxSize) maxSize = sz;
+      });
+      if (!maxSize) maxSize = parseFloat(resolveAttr(p, "size") || "12") || 12;
+      const rowH = Math.ceil(maxSize * 1.149 - 0.01);
+      const pitch = rowH + Math.floor(rowH * ls + 1e-6);
+      styleStr += ` line-height: ${pitch}pt;`;
+      dataAttrsPitch = ` data-udf-pitch="${pitch}"`;
     }
 
     // Havelsan UYAP ParagraphView / RowView birebir matematiksel girinti formülü:
@@ -680,6 +695,7 @@ async function parseUdfArrayBuffer(buffer) {
     }
     if (stops.length > 0) dataAttrs += ` data-tab-stops="${stops.join(",")}"`;
     if (lineSpacing) dataAttrs += ` data-udf-linespacing="${escapeHtmlStr(lineSpacing)}"`;
+    dataAttrs += dataAttrsPitch;
     if (stops.length > 0) dataAttrs += ` data-orig-tab-stops="${stops.join(",")}"`;
     dataAttrs += udfAttrsData(p);
 
@@ -911,7 +927,10 @@ async function parseUdfArrayBuffer(buffer) {
     if (footerElem.hasAttribute("pageNumber-start")) footerPageStart = footerElem.getAttribute("pageNumber-start");
 
     let hasFooterImg = false;
-    const pageLabelText = `${escapeHtmlStr((footerForeStr || "Sayfa:").trim())} {PAGE_NUM}${escapeHtmlStr((footerSep || "/").trim())}{TOTAL_PAGES}`;
+    // Havelsan biçimi: ön ek + numara + ayraç + toplam, boşluksuz ("Sayfa:1/10", ön ek boşsa "1/2"); yazı tipi UDF'den
+    const pnFace = footerElem.getAttribute("pageNumber-fontFace") || "Arial";
+    const pnSize = parseFloat(footerElem.getAttribute("pageNumber-fontSize") || "11") || 11;
+    const pageLabelText = `<span style="font-family:'${escapeHtmlStr(pnFace)}', Arial, sans-serif; font-size:${pnSize}pt;">${escapeHtmlStr(footerForeStr || "")}{PAGE_NUM}${escapeHtmlStr((footerSep || "/").trim())}{TOTAL_PAGES}</span>`;
     Array.from(footerElem.children).forEach(fc => {
       const fTag = (fc.tagName || "").toLowerCase();
       let imgEl = null;
@@ -939,9 +958,10 @@ async function parseUdfArrayBuffer(buffer) {
           const wCm = wStr ? Math.round((parseFloat(wStr) / 28.3465) * 100) / 100 : 0;
           const hCm = hStr ? Math.round((parseFloat(hStr) / 28.3465) * 100) / 100 : 1.76;
           const dimStyle = `max-height:${hCm}cm;${wCm > 0 ? ` max-width:${wCm}cm;` : " max-width:82%;"} width:auto; object-fit:contain;`;
-          const qrPart = verificationCode ? `<div class="udf-footer-qr-container" data-verification-code="${escapeHtmlStr(verificationCode)}" style="width:34px; height:34px;"></div>` : "";
+          const qrPart = verificationCode ? `<div class="udf-footer-qr-container" data-verification-code="${escapeHtmlStr(verificationCode)}" style="width:68px; height:68px; flex:0 0 auto;"></div>` : "";
           if (hasPageNum) {
-            footerHtml += `<div class="udf-footer-layout" style="display:flex; justify-content:space-between; align-items:center; width:100%;"><img class="udf-footer-img" data-udf-width="${escapeHtmlStr(wStr)}" data-udf-height="${escapeHtmlStr(hStr)}" src="data:image/png;base64,${fImgData.trim()}" style="${dimStyle}" /><div class="udf-footer-right" style="display:flex; flex-direction:column; align-items:flex-end; gap:2px;"><span class="udf-footer-page-label">${pageLabelText}</span>${qrPart}</div></div>`;
+            // Havelsan: logo (paragraf hizasıyla, genelde ortada) | "Sayfa:1/10" | karekod — hepsi alta hizalı tek satır
+            footerHtml += `<div class="udf-footer-layout udf-hv-footer" data-has-qr="${qrPart ? 1 : 0}" style="display:flex; align-items:flex-end; width:100%; gap:6px;"><div style="flex:1 1 auto; display:flex; justify-content:center; align-items:flex-end;"><img class="udf-footer-img" data-udf-width="${escapeHtmlStr(wStr)}" data-udf-height="${escapeHtmlStr(hStr)}" src="data:image/png;base64,${fImgData.trim()}" style="${dimStyle} max-height:none;" /></div><span class="udf-footer-page-label" style="align-self:flex-end; margin-bottom:2px;">${pageLabelText}</span>${qrPart}</div>`;
           } else {
             footerHtml += `<div class="udf-footer-layout full-banner" style="justify-content:center; border-top:none;"><img class="udf-footer-img" data-udf-width="${escapeHtmlStr(wStr)}" data-udf-height="${escapeHtmlStr(hStr)}" src="data:image/png;base64,${fImgData.trim()}" style="${dimStyle}" />${qrPart}</div>`;
           }
@@ -954,9 +974,11 @@ async function parseUdfArrayBuffer(buffer) {
       }
     });
     if (!hasFooterImg && hasPageNum) {
-      const qrPart = verificationCode ? `<div class="udf-footer-qr-container" data-verification-code="${escapeHtmlStr(verificationCode)}" style="width:34px; height:34px;"></div>` : "";
-      const textPart = verificationCode ? `<div class="udf-official-footer-text" style="flex:1; max-width:82%; text-align:left; font-family:Arial, sans-serif; font-size:7pt; line-height:1.2; color:#333; word-break:break-all; padding-right:8px;">UYAP Bilişim Sistemindeki bu dokümana http://vatandas.uyap.gov.tr adresinden <strong>${escapeHtmlStr(verificationCode)}</strong> ile erişebilirsiniz.</div>` : "";
-      footerHtml += `<div class="udf-footer-layout" style="display:flex; justify-content:space-between; align-items:flex-end; width:100%; border-top:0.5px solid #CBD5E1; padding-top:4px;">${textPart}<div class="udf-footer-right" style="display:flex; flex-direction:column; align-items:flex-end; gap:2px; margin-left:auto;"><span class="udf-footer-page-label">${pageLabelText}</span>${qrPart}</div></div>`;
+      const qrPart = verificationCode ? `<div class="udf-footer-qr-container" data-verification-code="${escapeHtmlStr(verificationCode)}" style="width:68px; height:68px; flex:0 0 auto;"></div>` : "";
+      // Havelsan mahkeme evrakı altbilgisi: "1/2" sağda; altında ince çizgi, çizginin altında küçük doğrulama metni
+      // (kod daha büyük puntoda), en sağda karekod — tamamı sayfanın en altına yaslı.
+      const textPart = verificationCode ? `<div class="udf-official-footer-text" style="flex:1 1 auto; border-top:0.75pt solid #000; padding-top:2px; text-align:left; font-family:Arial, sans-serif; font-size:5pt; line-height:1.3; color:#000; white-space:nowrap; overflow:hidden;">UYAP Bilişim Sistemindeki bu dokümana http://vatandas.uyap.gov.tr adresinden <span style="font-size:9pt;">${escapeHtmlStr(verificationCode)}</span> ile erişebilirsiniz.</div>` : "";
+      footerHtml += `<div class="udf-footer-layout udf-hv-footer" data-has-qr="${qrPart ? 1 : 0}" style="display:flex; flex-direction:column; align-items:stretch; justify-content:flex-end; width:100%;"><div class="udf-footer-page-label" style="text-align:right; line-height:1.2;">${pageLabelText}</div><div style="display:flex; align-items:flex-end; gap:6px;">${textPart || '<div style="flex:1"></div>'}${qrPart}</div></div>`;
     }
   }
 

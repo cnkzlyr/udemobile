@@ -215,6 +215,22 @@
     );
     return SEQ(OIDv(OID.signedData), tlv(0xa0, sd));
   }
+
+  /** Gömülü içerikli (attached) CMS'i ayrık (detached) yapar — Havelsan: BaseSignedData.detachContent().
+   *  Gömülü içeriği de döndürür (sunucunun gerçekte neyi imzaladığını teşhis için). */
+  function detach(cms) {
+    const p = parseSignedData(cms);
+    const enc = read(p.encap, 0);
+    const parts = kids(p.encap, enc);
+    let eContent = null;
+    if (parts[1] && parts[1].tag === 0xa0) {
+      const inner = kids(p.encap, parts[1])[0];
+      eContent = inner ? inner.body().slice() : null;
+    }
+    p.encap = SEQ(OIDv(OID.data));
+    return { cms: buildSignedDataFrom(p), eContent };
+  }
+
   /** Havelsan combineSignatures ile aynı: önceki imzalar korunur, yeni imzacı paralel eklenir. */
   function combine(existing, added) {
     if (!existing || !existing.length) return added;
@@ -477,8 +493,23 @@
       }
     }
     if (!res) throw lastErr || new Error('Mobil imza onayı zaman aşımına uğradı.');
-    const sgn = src.existingSgn ? combine(src.existingSgn, res.cms) : res.cms;
+    // UYAP mobil imza servisi içerik gömülü CMS döndürür; Havelsan gibi içeriği ayır (sign.sgn ayrık olmalı)
+    const d = detach(res.cms);
+    // Kaydetmeden ÖNCE doğrula: geçersiz imzalı belge asla kaydedilmez (v3.15'te kaydediliyordu)
+    const alone = await verify(src.content, d.cms);
+    if (!alone.isValid) {
+      let why = 'UYAP mobil imza servisinden dönen imza belgenin içeriğiyle eşleşmiyor; belge KAYDEDİLMEDİ.';
+      if (d.eContent && d.eContent.length === src.content.length) {
+        let firstDiff = -1, zeros = 0;
+        for (let i = 0; i < d.eContent.length; i++) { if (d.eContent[i] !== src.content[i]) { if (firstDiff < 0) firstDiff = i; if (d.eContent[i] === 0) zeros++; } }
+        why += ' (Teşhis: sunucunun imzaladığı veri gönderilen veriden ' + (firstDiff >= 0 ? (firstDiff + '. bayttan itibaren ' + zeros + ' bayt sıfırlanmış olarak') : '') + ' farklı.)';
+      }
+      try { window.__lastMimzaDiag = { sent: b64e(src.content), signedCms: b64e(res.cms), signer: res.signerName }; } catch (e) {}
+      throw new Error(why);
+    }
+    const sgn = src.existingSgn ? combine(src.existingSgn, d.cms) : d.cms;
     const check = await verify(src.content, sgn);
+    if (!check.isValid) throw new Error('İmza birleştirildikten sonra doğrulanamadı; belge kaydedilmedi.');
     const bytes = await writeSigned(src, sgn);
     await finish(bytes);
     return { signerName: res.signerName, identityNo: res.identityNo, verification: check };
@@ -612,7 +643,7 @@
 
   window.ESign = {
     // çekirdek
-    parseCert, buildSignedAttrs, assembleCms, combine, verify, verifyUdf, ecdsaRawToDer,
+    parseCert, buildSignedAttrs, assembleCms, combine, detach, verify, verifyUdf, ecdsaRawToDer,
     // akışlar
     mobileSign, smartCardSign, scList, canMobileSign, normalizePhone,
     // test yardımcıları

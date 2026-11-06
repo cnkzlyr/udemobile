@@ -148,10 +148,20 @@ public class CcidDriver {
         return false;
     }
 
+    private volatile boolean permissionPending = false;
+    private volatile long permissionAskedAt = 0;
+    public void onPermissionResult() { permissionPending = false; }
+
     /** Kullanıcıdan Android USB erişim izni iste */
     public void requestPermission(UsbDevice device) {
         if (usbManager == null || device == null) return;
-        int flags = (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) ? PendingIntent.FLAG_IMMUTABLE : 0;
+        // USB izin sonucu sistem tarafından intent'e EKLENİR (EXTRA_DEVICE / EXTRA_PERMISSION_GRANTED):
+        // FLAG_IMMUTABLE ile bu ekstralar yazılamıyor, izin verilse bile sonuç alınamıyordu. Android 12+ için
+        // MUTABLE + açık paket adı (setPackage) gerekir.
+        if (permissionPending && System.currentTimeMillis() - permissionAskedAt < 15000) return; // 2 sn'lik yoklama izin penceresini tekrar tekrar açmasın
+        permissionPending = true;
+        permissionAskedAt = System.currentTimeMillis();
+        int flags = (Build.VERSION.SDK_INT >= 31) ? 0x02000000 /* FLAG_MUTABLE */ : 0;
         Intent intent = new Intent(ACTION_USB_PERMISSION);
         intent.setPackage(context.getPackageName());
         PendingIntent pi = PendingIntent.getBroadcast(context, 0, intent, flags);
