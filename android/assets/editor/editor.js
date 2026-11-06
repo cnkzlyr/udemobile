@@ -921,7 +921,48 @@ function updatePagination() {
       const gap = (currentAccumHeight === 0) ? mt : Math.max(prevMb, mt);
       const h = rawH + gap;
 
-      if ((currentAccumHeight + h > targetCap) && currentPageNodes.length > 0) {
+      const isTableNode = node.tagName && node.tagName.toLowerCase() === 'table';
+      if ((currentAccumHeight + h > targetCap) && (currentPageNodes.length > 0 || (isTableNode && h > targetCap))) {
+        // Havelsan tabloları satır sınırından böler: sığan satırlar bu sayfada kalır.
+        if (isTableNode) {
+          const availT = targetCap - currentAccumHeight - gap;
+          const rows = Array.from(node.rows || []).filter(r => r.parentElement && r.parentElement.closest('table') === node);
+          if (rows.length > 1 && availT >= 24) {
+            const tClone = node.cloneNode(true);
+            measurer.appendChild(tClone);
+            const tTop = tClone.getBoundingClientRect().top;
+            const cRows = Array.from(tClone.rows).filter(r => r.parentElement.closest('table') === tClone);
+            let fit = 0;
+            for (let ri = 0; ri < cRows.length; ri++) {
+              if (cRows[ri].getBoundingClientRect().bottom - tTop <= availT) fit = ri + 1; else break;
+            }
+            measurer.removeChild(tClone);
+            if (fit === 0 && currentPageNodes.length === 0) fit = 1; // tek satır sayfadan büyükse yine de ilerle
+            if (fit > 0 && fit < rows.length) {
+              const contT = node.cloneNode(false);
+              contT.setAttribute('data-split-continuation', 'true');
+              contT.style.marginTop = '0px';
+              const body = document.createElement('tbody');
+              rows.slice(fit).forEach(r => body.appendChild(r));
+              contT.appendChild(body);
+              node.style.marginBottom = '0px';
+              currentPageNodes.push(node);
+              pagesData.push(currentPageNodes);
+              currentPageNodes = [];
+              currentAccumHeight = 0;
+              prevMb = 0;
+              targetCap = getCapacityForPage(pagesData.length + 1);
+              nodeQueue.unshift(contT);
+              continue;
+            }
+          }
+          if (currentPageNodes.length === 0) {
+            currentPageNodes.push(node);
+            currentAccumHeight += h;
+            prevMb = mb;
+            continue;
+          }
+        }
         // Sığmıyor! Havelsan UYAP standardı: Paragrafı satır satır bölmeyi dene
         const availH = targetCap - currentAccumHeight - gap;
         const isSplittable = (node.tagName && node.tagName.toLowerCase() === 'p') &&
@@ -4576,6 +4617,21 @@ function getStructuredDocument() {
     });
   } else {
     for (let node of nodes) {
+      // Sayfa sınırında bölünmüş paragraf/tablo devamı: kayıtta önceki blokla tek blok olarak birleşir
+      if (node.getAttribute && node.getAttribute('data-split-continuation') === 'true' && paragraphs.length > 0) {
+        const prevBlock = paragraphs[paragraphs.length - 1];
+        const tagC = node.tagName ? node.tagName.toLowerCase() : '';
+        if (tagC === 'table' && prevBlock.type === 'table') {
+          prevBlock.rows = prevBlock.rows.concat(extractTableNode(node).rows);
+          continue;
+        }
+        if (tagC !== 'table' && prevBlock.type === 'paragraph') {
+          const contObj = extractParagraphNode(node);
+          prevBlock.runs = (prevBlock.runs || []).concat(contObj.runs || []);
+          prevBlock.text = (prevBlock.text || '') + (contObj.text || '');
+          continue;
+        }
+      }
       if (node.classList && (node.classList.contains('auto-page-break') || node.classList.contains('page-break-desk-gap') || node.classList.contains('page-desk-gap') || node.classList.contains('page-break-header-area') || node.classList.contains('page-break-footer-area'))) {
         continue;
       }

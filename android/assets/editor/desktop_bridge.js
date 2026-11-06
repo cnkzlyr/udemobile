@@ -705,6 +705,11 @@ async function parseUdfArrayBuffer(buffer) {
 
     const pFamily = resolveAttr(p, "family");
     const pSize = resolveAttr(p, "size");
+    // Satır yüksekliği (strut) paragrafın puntosundan hesaplanır: Havelsan'daki gibi
+    // gerçek metin puntosu kullanılsın diye paragrafa ilk koşunun puntosu verilir.
+    const firstSized = Array.from(p.children).find(ch => ch.hasAttribute && ch.hasAttribute("size"));
+    const strutSize = (firstSized && firstSized.getAttribute("size")) || pSize;
+    if (strutSize && !isNaN(parseFloat(strutSize))) styleStr += ` font-size: ${parseFloat(strutSize)}pt;`;
     const pFg = resolveAttr(p, "foreground");
     const pBold = resolveAttr(p, "bold") === "true";
     const pItalic = resolveAttr(p, "italic") === "true";
