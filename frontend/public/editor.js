@@ -1966,61 +1966,57 @@ function realignTabsInParagraph(p) {
     ts.style.display = 'inline-block';
   });
 
-  // Sırayla her sekme boşluğunun genişliğini hedef durağa göre belirle
-  tabSpaces.forEach((ts, tabIdx) => {
-    const tsRect = ts.getBoundingClientRect();
-    const curCm = Math.max(0, (tsRect.left - m.left) / m.ppc);
+  // Havelsan UYAP = Java Swing ParagraphView.nextTabStop kuralı (birebir):
+  //  - Duraklar paragrafın sol kenarına (tabBase) göredir.
+  //  - Her sekme, mevcut x konumundan SONRAKİ ilk durağa gider (sıra numarasına göre değil).
+  //  - left: metin durakta başlar; right/decimal: metin durakta biter; center: durağa ortalanır.
+  //  - Durak kalmadıysa: TabSet tanımlıysa x + 5pt, tanımlı değilse 72pt (1 inç) ızgarası.
+  const scale = m.ppc / 37.795275;
+  const pRect = p.getBoundingClientRect();
+  const pcs = window.getComputedStyle(p);
+  // tabBase = paragrafın sol girintisi: asılı girintide (negatif text-indent) ilk satırın başı
+  const textIndentPx = (parseFloat(pcs.textIndent) || 0) * scale;
+  const baseLeft = pRect.left + (parseFloat(pcs.paddingLeft) || 0) * scale + Math.min(0, textIndentPx);
+  const pRight = pRect.right - (parseFloat(pcs.paddingRight) || 0) * scale;
+  const widthCm = (pRight - baseLeft) / m.ppc;
+  const PT = 1 / 28.3465; // 1pt (cm)
+  const hasTabSet = !!(p.dataset && p.dataset.udfTabset && p.dataset.udfTabset.trim());
 
-    const stopObj = (tabIdx < stops.length) ? stops[tabIdx] : null;
-    const target = stopObj ? (typeof stopObj === 'object' ? stopObj.pos : stopObj) : computeNextTabStop(stops, curCm);
-    const align = stopObj && typeof stopObj === 'object' ? stopObj.align : 'left';
-    let gap = target - curCm;
-
-    // UYAP / Havelsan standardı: Son sekmeden sonra metin geliyorsa ve tanımlı durak kalmadıysa
-    // (örneğin T.C. ... BERAAT başlığı), kalan metni sağ marja yasla
-    const hasTrailingContent = ts.nextSibling && (ts.nextSibling.textContent || '').trim().length > 0;
-    if (tabIdx >= stops.length && hasTrailingContent) {
-      let trailingW = 0;
-      let nextNode = ts.nextSibling;
-      while (nextNode) {
-        if (nextNode.nodeType === Node.TEXT_NODE) {
-          const r = document.createRange();
-          r.selectNodeContents(nextNode);
-          trailingW += r.getBoundingClientRect().width;
-        } else if (nextNode.getBoundingClientRect) {
-          trailingW += nextNode.getBoundingClientRect().width;
-        }
-        nextNode = nextNode.nextSibling;
+  const chunkWidthAfter = (ts) => {
+    let w = 0; let n = ts.nextSibling;
+    while (n && !(n.classList && n.classList.contains('udf-tab-space'))) {
+      if (n.nodeType === Node.TEXT_NODE) {
+        const r = document.createRange(); r.selectNodeContents(n); w += r.getBoundingClientRect().width;
+      } else if (n.getBoundingClientRect) {
+        if (n.querySelector && n.querySelector('.udf-tab-space')) break;
+        w += n.getBoundingClientRect().width;
       }
-      const trailingCm = trailingW / m.ppc;
-      const targetGap = m.widthCm - curCm - trailingCm - 0.08;
-      if (targetGap > 0.3) {
-        gap = targetGap;
-      }
-    } else if (align === 'center' && ts.nextSibling) {
-      // Merkezli sekme durağı: sekmeden sonra gelen kelimenin / parçanın merkezini durağa ortala
-      let chunkW = 0;
-      let nextNode = ts.nextSibling;
-      while (nextNode && !(nextNode.classList && nextNode.classList.contains('udf-tab-space'))) {
-        if (nextNode.nodeType === Node.TEXT_NODE) {
-          const r = document.createRange();
-          r.selectNodeContents(nextNode);
-          chunkW += r.getBoundingClientRect().width;
-        } else if (nextNode.getBoundingClientRect) {
-          chunkW += nextNode.getBoundingClientRect().width;
-        }
-        nextNode = nextNode.nextSibling;
-      }
-      const halfW = (chunkW / 2) / m.ppc;
-      gap = Math.max(0.1, target - curCm - halfW);
+      n = n.nextSibling;
     }
+    return w / m.ppc;
+  };
 
-    // Satır sonuna taşmasın (asla alt satıra düşürme)
-    const room = m.widthCm - curCm;
+  tabSpaces.forEach(ts => {
+    const tsRect = ts.getBoundingClientRect();
+    // Satır kaydırıldıysa x, satırın başlangıcına göre ölçülür
+    const curCm = Math.max(0, (tsRect.left - baseLeft) / m.ppc);
+    const next = stops.find(st => st.pos > curCm + 0.01);
+    let gap;
+    if (next) {
+      const chunk = (next.align === 'left') ? 0 : chunkWidthAfter(ts);
+      if (next.align === 'center') gap = next.pos - curCm - chunk / 2;
+      else if (next.align === 'right' || next.align === 'decimal') gap = next.pos - curCm - chunk;
+      else gap = next.pos - curCm;
+    } else if (hasTabSet) {
+      gap = 5 * PT;
+    } else {
+      const grid = 72 * PT;
+      gap = (Math.floor(curCm / grid + 1e-6) + 1) * grid - curCm;
+    }
+    const room = widthCm - curCm;
     if (room > 0.1 && gap > room) gap = room;
-    gap = Math.max(0.05, gap);
-    const targetWidth = (Math.round(gap * 1000) / 1000) + 'cm';
-    ts.style.width = targetWidth;
+    gap = Math.max(0, gap);
+    ts.style.width = (Math.round(gap * 1000) / 1000) + 'cm';
     ts.dataset.targetStop = String(Math.round((curCm + gap) * 100) / 100);
   });
 }

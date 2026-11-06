@@ -661,7 +661,7 @@ async function parseUdfArrayBuffer(buffer) {
         let alignStr = "left";
         if (alignCode === "1") alignStr = "right";
         else if (alignCode === "2") alignStr = "center";
-        else if (alignCode === "3") alignStr = "decimal";
+        else if (alignCode === "4" || alignCode === "3") alignStr = "decimal"; // Swing TabStop.ALIGN_DECIMAL = 4
 
         if (!isNaN(pt) && pt > 0.5) {
           const cmVal = (Math.round((pt / 28.3465) * 100) / 100).toFixed(2);
@@ -1571,7 +1571,7 @@ async function generateUdfBlob(docData) {
   const PT_PER_CM = 28.3465;
   const near = (a, b, tol) => Math.abs((a || 0) - (b || 0)) <= tol;
   const attrStr = (o) => Object.keys(o).map(k => ` ${k}="${escapeXml(String(o[k]))}"`).join("");
-  const TAB_ALIGN_CODE = { left: "0", right: "1", center: "2", decimal: "3" };
+  const TAB_ALIGN_CODE = { left: "0", right: "1", center: "2", decimal: "4" }; // Swing TabStop sabitleri
 
   /**
    * Paragraf öznitelikleri: orijinal UDF öznitelikleri temel alınır, yalnızca kullanıcının
