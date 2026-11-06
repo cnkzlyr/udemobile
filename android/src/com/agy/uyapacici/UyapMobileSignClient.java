@@ -105,9 +105,10 @@ public class UyapMobileSignClient {
      * Uyanmazsa doğrudan resmi UYAP SOAP ağ geçidini kullanarak işlemi sürdürür.
      */
     public static InitResult initSign(Context context, String phone, int operator, byte[] contentXmlBytes) {
+        // Havelsan UYAP Editörü telefon numarasını 11 hane "05XXXXXXXXX" olarak gönderir (baştaki 0 SİLİNMEZ)
         String cleanPhone = phone.replaceAll("[^0-9]", "");
         if (cleanPhone.startsWith("90") && cleanPhone.length() == 12) cleanPhone = cleanPhone.substring(2);
-        if (cleanPhone.startsWith("0") && cleanPhone.length() == 11) cleanPhone = cleanPhone.substring(1);
+        if (cleanPhone.length() == 10 && cleanPhone.startsWith("5")) cleanPhone = "0" + cleanPhone;
 
         // 1. Yerel sunucuyu kontrol et / uyandır
         if (!isLocalServerHealthy(500)) {
@@ -183,9 +184,9 @@ public class UyapMobileSignClient {
                     + "   <soapenv:Header/>\n"
                     + "   <soapenv:Body>\n"
                     + "      <cli:getHash>\n"
-                    + "         <cli:in0>" + base64Content + "</cli:in0>\n"
-                    + "         <cli:in1>" + phone + "</cli:in1>\n"
-                    + "         <cli:in2>" + operator + "</cli:in2>\n"
+                    + "         <dataToBeSigned>" + base64Content + "</dataToBeSigned>\n"
+                    + "         <telNo>" + phone + "</telNo>\n"
+                    + "         <gsmOperator>" + operator + "</gsmOperator>\n"
                     + "      </cli:getHash>\n"
                     + "   </soapenv:Body>\n"
                     + "</soapenv:Envelope>";
@@ -311,8 +312,8 @@ public class UyapMobileSignClient {
                     + "   <soapenv:Header/>\n"
                     + "   <soapenv:Body>\n"
                     + "      <cli:getSignature>\n"
-                    + "         <cli:in0>Evrak Mobil Imza Talebi</cli:in0>\n"
-                    + "         <cli:in1>" + apTransId + "</cli:in1>\n"
+                    + "         <dataToBeDisplayed>Evrak Mobil Imza Talebi</dataToBeDisplayed>\n"
+                    + "         <apTransId>" + apTransId + "</apTransId>\n"
                     + "      </cli:getSignature>\n"
                     + "   </soapenv:Body>\n"
                     + "</soapenv:Envelope>";

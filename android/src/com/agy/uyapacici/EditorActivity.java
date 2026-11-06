@@ -1873,6 +1873,136 @@ public class EditorActivity extends Activity {
             });
         }
 
+
+
+        /** Uygulama varlığını (ör. editor/fonts/TimesNewRoman.TTF) Base64 olarak döndürür — PDF'e yazı tipi gömmek için.
+         *  (Android WebView'de file:///android_asset için fetch() kullanılamaz.) Yalnızca editor/ altı okunabilir. */
+        @JavascriptInterface
+        public String readAssetBase64(String path) {
+            if (path == null || !path.startsWith("editor/") || path.contains("..")) return "";
+            try (InputStream in = getAssets().open(path)) {
+                ByteArrayOutputStream bo = new ByteArrayOutputStream();
+                byte[] buf = new byte[16384]; int r;
+                while ((r = in.read(buf)) != -1) bo.write(buf, 0, r);
+                return Base64.encodeToString(bo.toByteArray(), Base64.NO_WRAP);
+            } catch (Exception e) { return ""; }
+        }
+
+        // ================================================================================
+        // v3.15.0 — Platformlar arası e-imza motoru (esign.js) için ham işlemler.
+        // CMS/CAdES-BES yapısı JS tarafında üretilir; burada yalnızca ağ, kart ve dosya erişimi yapılır.
+        // Sonuçlar window.__esignCallback(id, ok, payload) ile JS'e döner.
+        // ================================================================================
+        private void esignReply(String cbId, boolean ok, String payload) {
+            final String js = "window.__esignCallback && window.__esignCallback(" + JSONObject.quote(cbId) + "," + ok + "," + JSONObject.quote(payload == null ? "" : payload) + ");";
+            runOnUiThread(() -> editorWebView.evaluateJavascript(js, null));
+        }
+
+        /** UYAP mobil imza SOAP isteği (yalnızca vatandas.uyap.gov.tr) */
+        @JavascriptInterface
+        public void httpPostAsync(String cbId, String url, String contentType, String soapAction, String body) {
+            new Thread(() -> {
+                HttpURLConnection conn = null;
+                try {
+                    if (!(url.startsWith("http://vatandas.uyap.gov.tr/") || url.startsWith("https://vatandas.uyap.gov.tr/"))) {
+                        esignReply(cbId, false, "İzin verilmeyen adres");
+                        return;
+                    }
+                    conn = (HttpURLConnection) new URL(url).openConnection();
+                    conn.setRequestMethod("POST");
+                    conn.setRequestProperty("Content-Type", contentType);
+                    if (soapAction != null && !soapAction.isEmpty()) conn.setRequestProperty("SOAPAction", soapAction);
+                    conn.setDoOutput(true);
+                    conn.setConnectTimeout(20000);
+                    conn.setReadTimeout(200000); // getSignature kullanıcı PIN onayına kadar bekler
+                    try (OutputStream os = conn.getOutputStream()) { os.write(body.getBytes(StandardCharsets.UTF_8)); }
+                    int code = conn.getResponseCode();
+                    InputStream is = (code >= 200 && code < 400) ? conn.getInputStream() : conn.getErrorStream();
+                    ByteArrayOutputStream bo = new ByteArrayOutputStream();
+                    if (is != null) { byte[] buf = new byte[8192]; int r; while ((r = is.read(buf)) != -1) bo.write(buf, 0, r); is.close(); }
+                    esignReply(cbId, true, new String(bo.toByteArray(), StandardCharsets.UTF_8));
+                } catch (Exception e) {
+                    esignReply(cbId, false, "UYAP mobil imza servisine bağlanılamadı: " + e.getMessage());
+                } finally { if (conn != null) conn.disconnect(); }
+            }).start();
+        }
+
+        /** USB OTG CCID okuyucudaki kartın imza sertifikası */
+        @JavascriptInterface
+        public void scardCertAsync(String cbId) {
+            new Thread(() -> {
+                try {
+                    CcidDriver driver = CcidDriver.getInstance(EditorActivity.this);
+                    if (!driver.isConnected()) driver.scanAndConnect();
+                    JSONObject res = new JSONObject();
+                    org.json.JSONArray cards = new org.json.JSONArray();
+                    if (driver.isConnected()) {
+                        CcidDriver.CardCertificateInfo info = driver.getCertificateInfo();
+                        if (info == null || info.derBytes == null) { driver.readCardCertificate(); info = driver.getCertificateInfo(); }
+                        if (info != null && info.derBytes != null && info.derBytes.length > 0) {
+                            JSONObject c = new JSONObject();
+                            c.put("lib", "ccid");
+                            c.put("slot", 0);
+                            c.put("keyId", "");
+                            c.put("label", info.subject);
+                            c.put("tokenLabel", driver.getCardType());
+                            c.put("reader", info.terminal);
+                            c.put("certB64", Base64.encodeToString(info.derBytes, Base64.NO_WRAP));
+                            cards.put(c);
+                        }
+                    }
+                    res.put("cards", cards);
+                    res.put("message", cards.length() > 0 ? "" : (driver.isConnected()
+                        ? "Kart okuyucu bağlı ancak karttan sertifika okunamadı. Kartı çıkarıp yeniden takın."
+                        : "USB e-imza okuyucusu/token bulunamadı. OTG adaptörüyle takın ve USB iznini onaylayın."));
+                    esignReply(cbId, true, res.toString());
+                } catch (Exception e) {
+                    esignReply(cbId, false, "Kart okunamadı: " + e.getMessage());
+                }
+            }).start();
+        }
+
+        /** SHA-256 özetini (imzalı öznitelikler) kartta PIN ile imzalar → ham RSA imzası (Base64) */
+        @JavascriptInterface
+        public void scardSignAsync(String cbId, String pin, String digestB64) {
+            new Thread(() -> {
+                try {
+                    CcidDriver driver = CcidDriver.getInstance(EditorActivity.this);
+                    if (!driver.isConnected() && !driver.scanAndConnect()) { esignReply(cbId, false, "Kart takılı değil."); return; }
+                    byte[] sig = driver.signWithPin(pin, Base64.decode(digestB64, Base64.DEFAULT));
+                    esignReply(cbId, true, Base64.encodeToString(sig, Base64.NO_WRAP));
+                } catch (Exception e) {
+                    esignReply(cbId, false, e.getMessage());
+                }
+            }).start();
+        }
+
+        /** İmzalanmış/oluşturulmuş belgeyi açık belgenin yerine (yoksa İndirilenler/UYAP_Belgelerim) kaydeder */
+        @JavascriptInterface
+        public void saveBytesToCurrent(String fileName, String mimeType, String base64Data) {
+            new Thread(() -> {
+                try {
+                    byte[] bytes = Base64.decode(base64Data, Base64.DEFAULT);
+                    String ext = fileName.contains(".") ? fileName.substring(fileName.lastIndexOf('.')).toLowerCase(Locale.ROOT) : ".udf";
+                    final File target = resolveTargetFile(ext);
+                    try (FileOutputStream fos = new FileOutputStream(target)) { fos.write(bytes); fos.flush(); }
+                    if (originDataUri != null && ".udf".equals(ext)) {
+                        try (OutputStream out = getContentResolver().openOutputStream(originDataUri, "wt")) { if (out != null) { out.write(bytes); out.flush(); } } catch (Exception ignored) {}
+                    }
+                    try { android.media.MediaScannerConnection.scanFile(EditorActivity.this, new String[]{target.getAbsolutePath()}, new String[]{mimeType}, null); } catch (Exception ignored) {}
+                    currentFile = target;
+                    docModified = false;
+                    runOnUiThread(() -> {
+                        etDocTitle.setText(target.getName());
+                        tvSaveStatus.setText("✓ " + target.getName() + " kaydedildi");
+                        Toast.makeText(EditorActivity.this, "✓ Kaydedildi: " + target.getAbsolutePath(), Toast.LENGTH_LONG).show();
+                    });
+                } catch (Exception e) {
+                    runOnUiThread(() -> Toast.makeText(EditorActivity.this, "Kayıt hatası: " + e.getMessage(), Toast.LENGTH_LONG).show());
+                }
+            }).start();
+        }
+
         @JavascriptInterface
         public void saveBlobToDownloads(String fileName, String mimeType, String base64Data) {
             runOnUiThread(() -> {

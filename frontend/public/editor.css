@@ -3056,3 +3056,27 @@ body { background: var(--ce-bg) !important; }
   .ce-select { height: 34px; }
   .ce-sep { margin: 0 3px; }
 }
+
+/* =========================================================================
+   v3.15.0 ARAYÜZ DÜZELTMELERİ
+   ========================================================================= */
+/* 1) Menü çubuğu açılır menüleri araç çubuğu (z:98) ve yapışkan cetvelin (z:90) ALTINDA kalıyordu:
+      "Dosya > Yeni / Aç / Kaydet" tıklanamıyordu. Menü çubuğu üst kabuk içinde en üst katmana alınır. */
+#ce-menubar.ce-menubar { z-index: 400 !important; }
+#ce-menubar .ce-menu-pop { z-index: 410 !important; }
+#ce-menubar .ce-sub-pop { z-index: 420 !important; }
+/* Alt menü: fareyle üzerine gelince VEYA dokunmatikte tıklayınca (.open) açılır */
+.ce-sub.open > .ce-sub-pop { display: block; }
+/* Ekranın sağ kenarına taşan alt menüler sola açılır */
+.ce-menu:nth-last-child(-n+2) .ce-sub-pop { left: auto; right: 100%; margin-left: 0; margin-right: 2px; }
+/* 2) Cetvel: kenar boşluğu ölçeklerindeki ara rakamlar (-1, 17) yanlış kapsayıcıya göre konumlanıp
+      cetvelin ortasında "8 17 9" gibi üst üste biniyordu */
+.ruler-margin-left, .ruler-margin-right { position: relative; }
+/* 3) Üst bar: belge adı / imza rozeti dar ekranda arama kutusunun altına girmesin */
+.ce-appbar-left { overflow: hidden; }
+.ce-appbar-left .ce-title { min-width: 60px; text-overflow: ellipsis; }
+.ruler-ticks > .ruler-number { z-index: 3; }
+/* Dar ekranda (mobil tarayıcı) masaüstü durum çubuğu sıkışıp yüzen düğmenin üstüne biniyordu */
+@media (max-width: 760px) { #desktop-app-footer { display: none !important; } }
+/* Kart penceresindeki uzun sürücü yönergesi satır satır görünsün */
+#cert-display-issuer, #sc-status { white-space: pre-line; word-break: break-word; }

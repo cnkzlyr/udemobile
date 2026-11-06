@@ -38,12 +38,17 @@ var copiedFormat = null;
 window.isFormatPainterActive = isFormatPainterActive;
 
 // Android Native WebView ortam tespiti
-if (typeof window !== 'undefined' && window.AndroidBridge) {
+// Gerçek Android köprüsü mü? (desktop_bridge.js masaüstünde __stub:true işaretli sahte köprü kurar)
+function isRealAndroidBridge() {
+  return !!(window.AndroidBridge && !window.AndroidBridge.__stub);
+}
+window.isRealAndroidBridge = isRealAndroidBridge;
+if (typeof window !== 'undefined' && isRealAndroidBridge()) {
   try { document.body.classList.add('is-android'); } catch (e) {}
 }
 if (typeof window !== 'undefined') {
   window.addEventListener('DOMContentLoaded', () => {
-    if (window.AndroidBridge && document.body) {
+    if (isRealAndroidBridge() && document.body) {
       document.body.classList.add('is-android');
     }
   });
@@ -741,6 +746,9 @@ function updatePagination() {
   // anlarda DOM ağacı (container.innerHTML = '') ASLA yıkılmaz.
   // Bu sayede Android IME odak kaybı ve klavye kapanması %100 engellenir.
   if (isEditorFocused() || isUserTypingActive()) {
+    // Odak korunurken DOM yıkılmaz; bunun yerine yerinde canlı sayfa akışı (flow.js) çalışır:
+    // taşan bloklar sonraki sayfaya geçer, yeni sayfa açılır, imleç ve Android klavyesi korunur.
+    if (typeof window.liveReflow === 'function') { try { window.liveReflow(); } catch (e) {} }
     const container = document.getElementById('pages-container') || document.getElementById('sheet-container');
     if (container) {
       const currentBoxes = Array.from(container.querySelectorAll('.page-body-box'));
@@ -1305,11 +1313,52 @@ function format(cmd, val = null) {
 }
 
 // Yazı Tipi Ailesi (Tüm Sayfalar ve Seçim Uyumlu)
+
+// Seçim yokken (yalnızca imleç) biçim: Word gibi, imleçten sonra YAZILACAK metne uygulanır.
+// Eskiden punto / yazı tipi değişikliği seçim yoksa TÜM belgenin varsayılanını değiştiriyordu.
+// Boş paragrafta paragrafın kendisine, dolu paragrafta görünmez (U+200B) yer tutuculu bir <span>'a uygulanır;
+// U+200B kaydederken zaten temizleniyor.
+function applyInlineStyleAtCaret(prop, value) {
+  const sel = window.getSelection();
+  if (!sel || sel.rangeCount === 0) return false;
+  let r = sel.getRangeAt(0);
+  const host = r.startContainer.nodeType === 1 ? r.startContainer : r.startContainer.parentElement;
+  if (!host || !host.closest || !host.closest('.page-body-box')) {
+    // İmleç başka yerdeyse (araç çubuğu tıklaması) son kaydedilen seçimi kullan
+    if (savedSelectionRange && savedSelectionRange.startContainer && savedSelectionRange.startContainer.isConnected) {
+      r = savedSelectionRange;
+    } else return false;
+  }
+  const h2 = r.startContainer.nodeType === 1 ? r.startContainer : r.startContainer.parentElement;
+  if (!h2 || !h2.closest('.page-body-box')) return false;
+  if (!r.collapsed) return false;
+  const para = h2.closest('p, li, h1, h2, h3, h4, td, div:not(.page-body-box)');
+  if (para && !para.textContent.replace(/​/g, '').trim() && !para.querySelector('img, table')) {
+    para.style[prop] = value;
+    para.querySelectorAll('span, font, b, i, u, strong, em').forEach(e => { e.style[prop] = value; });
+    return true;
+  }
+  // Zaten boş bir yer tutucu span içindeysek onu güncelle
+  if (h2.tagName === 'SPAN' && h2.textContent === '​') { h2.style[prop] = value; return true; }
+  const span = document.createElement('span');
+  span.style[prop] = value;
+  span.textContent = '​';
+  r.insertNode(span);
+  const nr = document.createRange();
+  nr.setStart(span.firstChild, 1);
+  nr.collapse(true);
+  sel.removeAllRanges();
+  sel.addRange(nr);
+  try { span.closest('.page-body-box').focus({ preventScroll: true }); sel.removeAllRanges(); sel.addRange(nr); } catch (e) {}
+  return true;
+}
+window.applyInlineStyleAtCaret = applyInlineStyleAtCaret;
+
 function changeFontFamily(font) {
   const selection = window.getSelection();
   if (selection.rangeCount > 0 && !selection.isCollapsed) {
     document.execCommand('fontName', false, font);
-  } else {
+  } else if (!applyInlineStyleAtCaret('fontFamily', font)) {
     document.querySelectorAll('.page-body-box').forEach(box => {
       box.style.fontFamily = font;
     });
@@ -1342,7 +1391,7 @@ function changeFontSize(val) {
         el.style.fontSize = currentFontSize + 'pt';
       }
     }
-  } else {
+  } else if (!applyInlineStyleAtCaret('fontSize', currentFontSize + 'pt')) {
     document.querySelectorAll('.page-body-box').forEach(box => {
       box.style.fontSize = currentFontSize + 'pt';
     });
@@ -2990,6 +3039,12 @@ window.onMobileSignSuccess = function(hash, sigInfo, signerName, tckn, opName) {
 };
 
 let smartCardPollInterval = null;
+// Platforma göre kart takma yönergesi (masaüstünde "OTG/telefon" ifadesi yanlıştı)
+function cardPlugHint() {
+  return isRealAndroidBridge()
+    ? 'Lütfen akıllı kartınızı veya tokenınızı Type-C OTG adaptörüyle telefonunuza bağlayınız.'
+    : 'Lütfen e-imza kartınızı okuyucuya takın (veya USB token\'ınızı bilgisayara bağlayın). Kart sürücüsü (AKİS, SafeNet vb.) kurulu olmalıdır.';
+}
 let currentSmartCardCerts = [];
 
 function openSmartCardSignModal() {
@@ -3014,7 +3069,7 @@ function openSmartCardSignModal() {
   }
 
   // Varsayılan kart durumu: Takılı değil
-  setCardBadgeState(false, 'E-İmza Kartı Algılanamadı', 'Lütfen akıllı kartınızı veya tokenınızı Type-C OTG adaptörüyle telefonunuza bağlayınız.', 'Takılı cihaz yok', '--');
+  setCardBadgeState(false, 'E-İmza Kartı Algılanamadı', cardPlugHint(), 'Takılı cihaz yok', '--');
 
   openModal('modal-smartcard-sign');
 
@@ -3054,7 +3109,7 @@ function setCardBadgeState(connected, title, desc, reader, validity) {
   if (connected) {
     if (badge) {
       badge.style.backgroundColor = '#2E7D32';
-      badge.textContent = '🟢 KART AKTİF (OTG BAĞLI)';
+      badge.textContent = isRealAndroidBridge() ? '🟢 KART AKTİF (OTG BAĞLI)' : '🟢 KART TAKILI';
     }
     if (cardBox) {
       cardBox.style.background = 'linear-gradient(135deg, #1B5E20, #2E7D32)';
@@ -3106,7 +3161,7 @@ window.onSmartCardStatusUpdated = function(data) {
 
   if (!data || !data.connected || !data.certificates || data.certificates.length === 0) {
     currentSmartCardCerts = [];
-    const msg = data && data.message ? data.message : 'Lütfen akıllı kartınızı veya tokenınızı Type-C OTG adaptörüyle telefonunuza bağlayınız.';
+    const msg = data && data.message ? data.message : cardPlugHint();
     setCardBadgeState(false, 'E-İmza Kartı Algılanamadı', msg, 'Takılı cihaz yok', '--');
     return;
   }
@@ -3502,7 +3557,7 @@ function insertTemplate(type) {
             <div class="seal-medal">⚖️</div>
             <div class="seal-ribbon"></div>
           </div>
-          <div id="doc-header" class="page-header-box" contenteditable="true" spellcheck="false" data-placeholder="Üstbilgi...">T.C. İSTANBUL ANADOLU 1. ASLİYE HUKUK MAHKEMESİ — Dosya No: 2026/.... Esas</div>
+          <div id="doc-header" class="page-header-box" contenteditable="true" spellcheck="false" data-placeholder="Üstbilgi..."></div>
           <div id="editor-content" class="page-body-box" contenteditable="true" spellcheck="true" autocomplete="off" autocapitalize="sentences">${tpl}</div>
           <div id="doc-footer" class="page-footer-box" contenteditable="false">${getDocFooterHtml(1, 1)}</div>
         </div>

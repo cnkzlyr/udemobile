@@ -1,6 +1,6 @@
 # ⚖️ CanEditor (UdeMobile) — Çapraz Platform UYAP & Word Editörü
 
-[![Sürüm](https://img.shields.io/badge/Sürüm-v3.14.0-blue.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v3.14.0)
+[![Sürüm](https://img.shields.io/badge/Sürüm-v3.15.0-blue.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v3.15.0)
 [![Platformlar](https://img.shields.io/badge/Platformlar-Android%20%7C%20Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Web-success.svg)](https://github.com/cnkzlyr/udemobile/releases)
 [![UYAP](https://img.shields.io/badge/Format-UYAP_UDF_v1.8-0D47A1.svg)](https://uyap.gov.tr)
 [![Word](https://img.shields.io/badge/Format-MS_DOCX_OpenXML-2B579A.svg?logo=microsoft-word&logoColor=white)](https://microsoft.com)
@@ -11,20 +11,51 @@
 
 ---
 
-## 🚀 Hızlı İndirme (v3.14.0)
+## 🚀 Hızlı İndirme (v3.15.0)
 
 | Platform | Paket Dosyası | Açıklama |
 | :--- | :--- | :--- |
-| **Android (Telefon & Tablet)** | [**CanEditor-v3.14.0.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.14.0/CanEditor-v3.14.0.apk) | Güncel Android APK paketi (Termux gerektirmez) |
-| **Android (Her Zaman En Son)** | [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.14.0/CanEditor-latest.apk) | Kalıcı son sürüm bağlantısı |
-| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v3.14.0.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v3.14.0/CanEditor-Portable-Web-GUI-v3.14.0.zip) | **Kurulumsuz;** zipten çıkarıp `index.html` açarak tüm işletim sistemlerinde doğrudan çalışır |
-| **Windows / macOS / Linux** | [**GitHub Releases Sayfası**](https://github.com/cnkzlyr/udemobile/releases/tag/v3.14.0) | GitHub Actions CI ile derlenen yerel ikili (.msi, .exe, .dmg, .AppImage, .deb, .rpm) paketleri |
+| **Android (Telefon & Tablet)** | [**CanEditor-v3.15.0.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.15.0/CanEditor-v3.15.0.apk) | Güncel Android APK paketi (Termux gerektirmez) |
+| **Android (Her Zaman En Son)** | [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.15.0/CanEditor-latest.apk) | Kalıcı son sürüm bağlantısı |
+| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v3.15.0.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v3.15.0/CanEditor-Portable-Web-GUI-v3.15.0.zip) | **Kurulumsuz;** zipten çıkarıp `index.html` açarak tüm işletim sistemlerinde doğrudan çalışır |
+| **Windows / macOS / Linux** | [**GitHub Releases Sayfası**](https://github.com/cnkzlyr/udemobile/releases/tag/v3.15.0) | GitHub Actions CI ile derlenen yerel ikili (.msi, .exe, .dmg, .AppImage, .deb, .rpm) paketleri |
 
 ---
 
-## ⚠️ Android: v3.14.0'a geçerken bir kerelik yeniden kurulum
+## ⚠️ Android: v3.15.0'a geçerken bir kerelik yeniden kurulum
 
-v3.14.0 APK'sı yeni bir imza anahtarıyla imzalanmıştır. Telefonunuzda eski CanEditor varsa önce **kaldırın**, sonra yeni APK'yı kurun (aksi halde Android "uygulama yüklenmedi / paket çakışıyor" hatası verir). Bu işlem yalnızca bu sürüme geçişte bir kez gereklidir.
+Önceki sürümler farklı derleme ortamlarında farklı imza anahtarlarıyla imzalanmıştı. v3.15.0'dan itibaren APK **sabit bir proje anahtarıyla** imzalanır; telefonunuzda eski CanEditor varsa bir kez **kaldırıp** yeni APK'yı kurun (aksi halde Android "paket çakışıyor" hatası verir). Sonraki güncellemeler kaldırmadan, üzerine kurulur.
+
+## 🌟 v3.15.0 ile Gelenler (Arayüz Hataları, Canlı Sayfalama, Tüm Platformlarda Gerçek E-İmza / Mobil İmza, Yeni PDF·TIFF·ODT Motoru)
+
+Tüm düzeltmeler otomatik tarayıcı testleriyle (masaüstü + mobil dokunmatik) ve **Havelsan UYAP Doküman Editörü 5.4.20** ile karşılaştırılarak doğrulanmıştır.
+
+**Arayüz**
+1. **Menüler artık üst üste binmiyor:** "Dosya > Yeni / Aç / Kaydet" öğeleri biçim çubuğunun ve cetvelin altında kalıp tıklanamıyordu (katman/z-index hatası). Menü çubuğu en üst katmana alındı.
+2. **Alt menüler açılıyor:** "Farklı Kaydet / Paylaş / Yazdır" alt menüleri bir kez tıklandıktan sonra bir daha hiç açılmıyordu. Düzeltildi; dokunmatik ekranda tıklayınca açılır.
+3. **Masaüstü kendini Android sanıyordu:** Masaüstü/Web sürümü sahte bir Android köprüsü yüzünden Android gibi davranıyordu (paylaşım, alt çubuk). Düzeltildi.
+4. **Cetvel rakamları ("8 17 9") üst üste binmiyor**, dar ekranda alt durum çubuğu yüzen düğmenin üstüne çıkmıyor.
+5. **Dosya > Yeni** artık gerçekten yeni belge açar (Ctrl+N); kaydedilmemiş değişiklik varsa sorar. Yeni belgede görünmeyen örnek üst bilgi UDF'ye yazılmıyor.
+
+**Sayfalama ve kaydırma (Word gibi)**
+6. **Yazarken yeni sayfa açılıyor:** Eskiden 1. sayfa dolunca yazılan metin gizleniyor, belge "tek sayfa" kalıyor ve aşağı kaydırılamıyordu. Yeni canlı sayfa akışı taşan paragrafları sonraki sayfaya taşır, gerekirse yeni sayfa açar, silince geri çeker; imleç ve Android klavyesi korunur.
+7. **Sayfalar arası düzenleme:** Sayfa başında Backspace önceki sayfayla birleştirir, sayfa sonunda Delete sonraki sayfayı çeker; ↑ ↓ PageUp PageDown sayfalar arasında geçer.
+
+**Biçimlendirme / kaydetme / dönüştürme**
+8. **Punto ve yazı tipi:** Seçim yokken punto değiştirmek TÜM belgenin puntosunu değiştiriyordu; artık Word gibi imleçten sonra yazılacak metne uygulanır.
+9. **PDF baştan yazıldı:** Ekrandaki sayfanın birebir yerleşiminden **vektör PDF** (seçilebilir/aranabilir Türkçe metin, gömülü Times New Roman/Arial, sekme hizaları, tablo çizgileri, logo ve UYAP karekodu). Dosya boyutu ~8 kat küçüldü.
+10. **TIFF:** Aynı yerleşimden 192 DPI, gri tonlamalı, PackBits sıkıştırmalı çok sayfalı TIFF (eskisi sıkıştırmasız ve ~7 kat büyüktü).
+11. **ODT yazma/okuma yeniden yazıldı:** Sekmeler, sekme durakları, girintiler, satır aralığı, punto/renk, tablolar, görseller, üst/alt bilgi ve kenar boşlukları korunuyor (eskisi hepsini kaybediyordu). DOCX okurken punto/renk/yazı tipi de alınıyor.
+12. **Masaüstünde Kaydet gerçekten kaydediyor:** Tauri (Windows/macOS/Linux) içinde indirme bağlantısı çalışmadığından kaydetme sessizce başarısız oluyordu. Artık yerel "Aç / Kaydet / Farklı Kaydet" pencereleri kullanılır, "Kaydet" açık dosyanın üzerine yazar.
+
+**E-İmza ve Mobil İmza — tüm platformlarda tek motor**
+13. **Mobil imza artık çalışıyor (Android + Windows + macOS + Linux):** UYAP mobil imza servisi (`vatandas.uyap.gov.tr/mimzaclient`) Havelsan editörüyle birebir aynı biçimde çağrılır. Eski Android sürümü telefon numarasının başındaki 0'ı siliyor ve SOAP alan adlarını yanlış gönderiyordu. Termux/yerel sunucu gerekmez.
+14. **Akıllı kart e-imza (masaüstü):** PKCS#11 ile AKİS (Kamu SM, TürkTrust, E-Güven), SafeNet/eToken (E-Tuğra, e-imzaTR), SafeSign, CardOS, Gemalto/Thales, ArkSigner, OpenSC sürücüleri işletim sistemine göre otomatik bulunur. Sürücü yoksa uygulama resmi indirme bağlantılarını gösterir. Özel sürücü yolu için `CANEDITOR_PKCS11` ortam değişkeni kullanılabilir.
+15. **Akıllı kart e-imza (Android):** USB OTG CCID okuyucu ile, Termux olmadan.
+16. **UYAP uyumlu imza:** CAdES-BES (contentType, signingTime, messageDigest, signingCertificateV2), sha256WithRSA / ECDSA; mevcut imzalar korunarak paralel imza eklenir. Üretilen imzalar TÜBİTAK ESYA kütüphanesiyle `TYPE_BES, özet doğrulaması başarılı` olarak doğrulandı; mahkeme imzalı belgelere eklenen imzalarda önceki imzalar geçerli kalır.
+17. **İmzayı Doğrula** her platformda yerel kriptografik doğrulama yapar (özet + imza; RSA ve ECDSA).
+
+> Not: E-imza kartı sürücüleri (AKİS vb.) üreticilerine ait lisanslı yazılımlar olduğundan uygulamanın içine gömülemez; uygulama kurulu sürücüyü otomatik bulur, yoksa resmi indirme adresine yönlendirir. Web (taşınabilir zip) sürümünde tarayıcı güvenlik kısıtları nedeniyle e-imza/mobil imza yapılamaz; masaüstü veya Android uygulamasını kullanın.
 
 ## 🌟 v3.14.0 ile Gelenler (Havelsan UYAP ile Birebir Uyum, Tek Motor, Yeni Arayüz)
 

@@ -1,3 +1,5 @@
+mod esign;
+
 use std::io::{Cursor, Read, Write};
 use zip::write::SimpleFileOptions;
 use zip::{ZipArchive, ZipWriter};
@@ -200,9 +202,73 @@ fn read_file_binary(path: String) -> Result<Vec<u8>, String> {
     std::fs::read(p).map_err(|e| format!("Dosya okunamadı: {}", e))
 }
 
+
+
+// ---------------------------------------------------------------------------
+// Yerel dosya diyalogları ve yazma (Tauri WebView'lerinde <a download> macOS/Linux'ta çalışmaz)
+// ---------------------------------------------------------------------------
+fn filter_label(ext: &str) -> &'static str {
+    match ext {
+        "udf" => "UYAP Belgesi (.udf)",
+        "pdf" => "PDF Belgesi (.pdf)",
+        "docx" => "Word Belgesi (.docx)",
+        "odt" => "OpenDocument Metni (.odt)",
+        "tiff" | "tif" => "TIFF Görüntüsü (.tiff)",
+        "txt" => "Düz Metin (.txt)",
+        _ => "Belge",
+    }
+}
+
+#[tauri::command]
+async fn save_file_dialog(app: tauri::AppHandle, default_name: String, ext: String) -> Option<String> {
+    use tauri_plugin_dialog::DialogExt;
+    let ext = ext.to_lowercase();
+    let mut b = app.dialog().file().set_file_name(&default_name);
+    if !ext.is_empty() {
+        b = b.add_filter(filter_label(&ext), &[ext.as_str()]);
+    }
+    // Eklenti belgesindeki gibi: async komut ana iş parçacığında çalışmaz, blocking diyalog güvenlidir
+    b.blocking_save_file()
+        .and_then(|p| p.into_path().ok())
+        .map(|p| p.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+async fn open_file_dialog(app: tauri::AppHandle) -> Option<String> {
+    use tauri_plugin_dialog::DialogExt;
+    let b = app
+        .dialog()
+        .file()
+        .add_filter("Desteklenen Belgeler", &["udf", "docx", "doc", "odt", "pdf", "tiff", "tif"])
+        .add_filter("UYAP Belgesi", &["udf"])
+        .add_filter("Tüm Dosyalar", &["*"]);
+    b.blocking_pick_file()
+        .and_then(|p| p.into_path().ok())
+        .map(|p| p.to_string_lossy().to_string())
+}
+
+#[tauri::command(async)]
+fn write_file_base64(path: String, data_b64: String) -> Result<(), String> {
+    use base64::Engine as _;
+    let data = base64::engine::general_purpose::STANDARD
+        .decode(data_b64.as_bytes())
+        .map_err(|e| format!("Geçersiz veri: {}", e))?;
+    let p = std::path::Path::new(&path);
+    // Önce geçici dosyaya yaz, sonra yerine taşı: yazma yarıda kalırsa orijinal belge bozulmaz
+    let tmp = p.with_extension("caneditor-tmp");
+    std::fs::write(&tmp, &data).map_err(|e| format!("Dosya yazılamadı: {}", e))?;
+    if let Err(e) = std::fs::rename(&tmp, p) {
+        // Windows'ta hedef açık/kilitliyse rename başarısız olabilir: doğrudan yazmayı dene
+        let _ = std::fs::remove_file(&tmp);
+        std::fs::write(p, &data).map_err(|e2| format!("Dosya yazılamadı: {} ({})", e2, e))?;
+    }
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             extract_udf,
             package_udf,
@@ -211,7 +277,13 @@ pub fn run() {
             update_download_progress,
             install_update,
             get_startup_file,
-            read_file_binary
+            read_file_binary,
+            save_file_dialog,
+            open_file_dialog,
+            write_file_base64,
+            esign::pkcs11_list,
+            esign::pkcs11_sign,
+            esign::http_post
         ])
         .run(tauri::generate_context!())
         .expect("Tauri motoru başlatılamadı");

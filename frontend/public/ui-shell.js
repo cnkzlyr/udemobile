@@ -7,7 +7,10 @@
   const bar = document.getElementById('ce-menubar');
   if (!bar) return;
   let open = null;
-  const close = () => { if (open) open.classList.remove('open'); open = null; bar.classList.remove('active'); };
+  const close = () => {
+    if (open) { open.classList.remove('open'); open.querySelectorAll('.ce-sub.open').forEach(x => x.classList.remove('open')); }
+    open = null; bar.classList.remove('active');
+  };
   bar.querySelectorAll('.ce-menu').forEach(menu => {
     const title = menu.querySelector('.ce-menu-title');
     // Seçimi kaybetmemek için mousedown varsayılanı engellenir
@@ -18,6 +21,17 @@
     });
     title.addEventListener('mouseenter', () => {
       if (open && open !== menu) { open.classList.remove('open'); open = menu; menu.classList.add('open'); }
+    });
+    // Alt menüler (Farklı Kaydet / Paylaş / Yazdır ...): dokunmatik ekranda hover olmadığından tıklayınca aç/kapat
+    menu.querySelectorAll('.ce-sub > span').forEach(span => {
+      span.addEventListener('mousedown', e => e.preventDefault());
+      span.addEventListener('click', e => {
+        e.stopPropagation();
+        const sub = span.parentElement;
+        const wasOpen = sub.classList.contains('open');
+        menu.querySelectorAll('.ce-sub.open').forEach(x => x.classList.remove('open'));
+        if (!wasOpen) sub.classList.add('open');
+      });
     });
     menu.querySelectorAll('.ce-menu-pop button').forEach(btn => {
       btn.type = 'button';

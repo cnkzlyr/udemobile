@@ -1170,6 +1170,19 @@ async function parseDocxArrayBuffer(buffer) {
         const isItalic = rPr ? isXmlToggleOn(rPr, "w:i", "i") : false;
         const isUnderline = rPr ? isXmlToggleOn(rPr, "w:u", "u") : false;
         const isStrike = rPr ? isXmlToggleOn(rPr, "w:strike", "strike") : false;
+        // v3.15: punto, renk ve yazı tipi de okunur (eskiden tüm metin varsayılan puntoya dönüyordu)
+        let runCss = "";
+        if (rPr) {
+          const szEl = rPr.getElementsByTagName("w:sz")[0];
+          const sz = szEl ? parseFloat(szEl.getAttribute("w:val")) : NaN;
+          if (!isNaN(sz) && sz > 0 && sz !== 24) runCss += `font-size: ${sz / 2}pt;`;
+          const colEl = rPr.getElementsByTagName("w:color")[0];
+          const col = colEl ? (colEl.getAttribute("w:val") || "") : "";
+          if (/^[0-9a-f]{6}$/i.test(col) && col.toLowerCase() !== "000000") runCss += ` color: #${col};`;
+          const fEl = rPr.getElementsByTagName("w:rFonts")[0];
+          const fn = fEl ? (fEl.getAttribute("w:ascii") || fEl.getAttribute("w:hAnsi") || "") : "";
+          if (fn && !/times new roman/i.test(fn)) runCss += ` font-family: '${fn.replace(/['"]/g, "")}';`;
+        }
 
         Array.from(child.children).forEach((rc, rcIdx) => {
           const rcn = rc.nodeName;
@@ -1183,6 +1196,7 @@ async function parseDocxArrayBuffer(buffer) {
               if (isItalic) seg = `<em>${seg}</em>`;
               if (isUnderline) seg = `<u>${seg}</u>`;
               if (isStrike) seg = `<s>${seg}</s>`;
+              if (runCss) seg = `<span style="${runCss.trim()}">${seg}</span>`;
               pHtml += seg;
             }
           } else if (rcn === "w:tab" || rcn === "tab") {
@@ -1518,48 +1532,174 @@ async function parsePdfArrayBuffer(buffer) {
 // 2D. ODT (OpenDocument Text) AYRIŞTIRICI
 // -------------------------------------------------------------
 async function parseOdtArrayBuffer(buffer) {
+  // v3.15: OpenDocument okuyucu yeniden yazıldı. Eski sürüm <text:s/> (boşluk), <text:tab/>, satır sonu,
+  // stiller (kalın/italik/punto/renk/hizalama/girinti), tablolar ve görselleri yok sayıyordu.
   if (!buffer || buffer.byteLength === 0) return buildEmptyResult();
   const zip = await JSZip.loadAsync(buffer);
   const contentFile = zip.file("content.xml");
   if (!contentFile) return buildEmptyResult();
-
-  const xmlText = await contentFile.async("text");
   const parser = new DOMParser();
-  const xmlDoc = parser.parseFromString(xmlText, "application/xml");
+  const contentDoc = parser.parseFromString(stripBomAndLeadingGarbage(await contentFile.async("text")), "application/xml");
+  const stylesFile = zip.file("styles.xml");
+  const stylesDoc = stylesFile ? parser.parseFromString(stripBomAndLeadingGarbage(await stylesFile.async("text")), "application/xml") : null;
 
-  let html = "";
-  const body = xmlDoc.getElementsByTagName("office:text")[0] || xmlDoc.getElementsByTagName("text")[0];
-  if (body) {
-    Array.from(body.children).forEach(node => {
-      const tag = node.tagName.toLowerCase();
-      if (tag.endsWith(":p") || tag.endsWith(":h")) {
-        let pTxt = "";
-        Array.from(node.childNodes).forEach(cn => {
-          if (cn.nodeType === Node.TEXT_NODE) pTxt += escapeHtmlStr(cn.textContent);
-          else if (cn.nodeType === Node.ELEMENT_NODE) {
-            const isBold = cn.getAttribute("fo:font-weight") === "bold" || cn.getAttribute("style:font-weight-complex") === "bold";
-            const isItalic = cn.getAttribute("fo:font-style") === "italic";
-            let s = escapeHtmlStr(cn.textContent || "");
-            if (isBold) s = `<b>${s}</b>`;
-            if (isItalic) s = `<i>${s}</i>`;
-            pTxt += s;
-          }
-        });
-        html += `<p style="text-align: justify; margin: 0; line-height: 1.15;">${pTxt || "<br>"}</p>\n`;
-      }
+  const local = (n) => (n.localName || n.nodeName.split(":").pop());
+  const attr = (el, name) => el ? (el.getAttribute(name) || "") : "";
+  const toCm = (v) => {
+    const m = /^(-?[\d.]+)\s*(cm|mm|in|pt|px)?$/.exec(String(v || "").trim());
+    if (!m) return 0;
+    const n = parseFloat(m[1]);
+    switch (m[2]) { case "mm": return n / 10; case "in": return n * 2.54; case "pt": return n / 72 * 2.54; case "px": return n / 96 * 2.54; default: return n; }
+  };
+  const toPt = (v) => { const c = toCm(v); return Math.round(c / 2.54 * 72 * 10) / 10; };
+
+  // Stil tablosu (parent zinciriyle birleştirilmiş)
+  const styles = {};
+  function collect(doc) {
+    if (!doc) return;
+    Array.from(doc.getElementsByTagName("style:style")).forEach(st => {
+      const name = st.getAttribute("style:name");
+      const pp = st.getElementsByTagName("style:paragraph-properties")[0];
+      const tp = st.getElementsByTagName("style:text-properties")[0];
+      const tabs = pp ? Array.from(pp.getElementsByTagName("style:tab-stop")).map(t => toCm(t.getAttribute("style:position"))) : [];
+      styles[name] = {
+        parent: st.getAttribute("style:parent-style-name") || "",
+        align: attr(pp, "fo:text-align"), ml: attr(pp, "fo:margin-left"), mr: attr(pp, "fo:margin-right"), ti: attr(pp, "fo:text-indent"),
+        mt: attr(pp, "fo:margin-top"), mb: attr(pp, "fo:margin-bottom"), lh: attr(pp, "fo:line-height"),
+        breakBefore: attr(pp, "fo:break-before"), breakAfter: attr(pp, "fo:break-after"), tabs,
+        bold: attr(tp, "fo:font-weight"), italic: attr(tp, "fo:font-style"), size: attr(tp, "fo:font-size"),
+        color: attr(tp, "fo:color"), bg: attr(tp, "fo:background-color"), font: attr(tp, "style:font-name") || attr(tp, "fo:font-family"),
+        underline: attr(tp, "style:text-underline-style"), strike: attr(tp, "style:text-line-through-style"), pos: attr(tp, "style:text-position")
+      };
     });
   }
+  collect(stylesDoc); collect(contentDoc);
+  const resolved = (name, key, depth) => {
+    const st = styles[name]; if (!st || (depth || 0) > 8) return "";
+    return st[key] || (st.parent ? resolved(st.parent, key, (depth || 0) + 1) : "");
+  };
+  const resolvedTabs = (name) => { let n = name, d = 0; while (n && styles[n] && d++ < 8) { if (styles[n].tabs.length) return styles[n].tabs; n = styles[n].parent; } return []; };
 
+  function spanCss(name) {
+    if (!name) return { open: "", close: "" };
+    const css = [];
+    const size = resolved(name, "size"); if (size && /pt$/.test(size)) css.push(`font-size: ${parseFloat(size)}pt`);
+    const color = resolved(name, "color"); if (color && color !== "#000000") css.push(`color: ${color}`);
+    const bg = resolved(name, "bg"); if (bg && bg !== "transparent" && bg !== "#ffffff") css.push(`background-color: ${bg}`);
+    const font = resolved(name, "font"); if (font && !/times new roman/i.test(font)) css.push(`font-family: '${font.replace(/['"]/g, "")}'`);
+    let open = css.length ? `<span style="${css.join("; ")}">` : "", close = css.length ? "</span>" : "";
+    if (resolved(name, "bold") === "bold") { open += "<strong>"; close = "</strong>" + close; }
+    if (resolved(name, "italic") === "italic") { open += "<em>"; close = "</em>" + close; }
+    const u = resolved(name, "underline"); if (u && u !== "none") { open += "<u>"; close = "</u>" + close; }
+    const k = resolved(name, "strike"); if (k && k !== "none") { open += "<s>"; close = "</s>" + close; }
+    const pos = resolved(name, "pos"); if (/^super/.test(pos)) { open += "<sup>"; close = "</sup>" + close; } else if (/^sub/.test(pos)) { open += "<sub>"; close = "</sub>" + close; }
+    return { open, close };
+  }
+
+  async function inline(node) {
+    let out = "";
+    for (const cn of Array.from(node.childNodes)) {
+      if (cn.nodeType === 3) { out += escapeHtmlStr(cn.textContent.replace(/\s+/g, " ")); continue; }
+      if (cn.nodeType !== 1) continue;
+      const ln = local(cn);
+      if (ln === "s") { const c = parseInt(cn.getAttribute("text:c") || "1", 10); out += " " + "&nbsp;".repeat(Math.max(0, c - 1)); }
+      else if (ln === "tab") out += `<span class="udf-tab-space" contenteditable="false">&#8203;</span>`;
+      else if (ln === "line-break") out += "<br>";
+      else if (ln === "span" || ln === "a") { const c = spanCss(cn.getAttribute("text:style-name")); out += c.open + await inline(cn) + c.close; }
+      else if (ln === "frame") {
+        const img = cn.getElementsByTagName("draw:image")[0];
+        const href = img ? img.getAttribute("xlink:href") : "";
+        const f = href && zip.file(href);
+        if (f) {
+          const b64 = await f.async("base64");
+          const mime = /\.jpe?g$/i.test(href) ? "image/jpeg" : /\.gif$/i.test(href) ? "image/gif" : "image/png";
+          const w = toCm(cn.getAttribute("svg:width")), h = toCm(cn.getAttribute("svg:height"));
+          out += `<img src="data:${mime};base64,${b64}" style="${w ? `width:${w}cm;` : ""}${h ? `height:${h}cm;` : ""} vertical-align: middle; max-width: 100%;">`;
+        }
+      }
+      else if (ln === "note" || ln === "annotation" || ln === "bookmark" || ln === "bookmark-start" || ln === "bookmark-end" || ln === "soft-page-break") { /* atla */ }
+      else out += await inline(cn);
+    }
+    return out;
+  }
+  async function para(node) {
+    const sn = node.getAttribute("text:style-name") || "";
+    const alignMap = { start: "left", left: "left", end: "right", right: "right", center: "center", justify: "justify" };
+    const align = alignMap[resolved(sn, "align")] || "left";
+    const ml = toCm(resolved(sn, "ml")), mr = toCm(resolved(sn, "mr")), ti = toCm(resolved(sn, "ti"));
+    const mt = toPt(resolved(sn, "mt")), mb = toPt(resolved(sn, "mb"));
+    const lh = resolved(sn, "lh");
+    let css = `text-align: ${align}; margin-top: ${mt}pt; margin-bottom: ${mb}pt;`;
+    if (Math.abs(ml) > 0.01) css += ` margin-left: ${Math.round(ml * 100) / 100}cm;`;
+    if (Math.abs(mr) > 0.01) css += ` margin-right: ${Math.round(mr * 100) / 100}cm;`;
+    if (Math.abs(ti) > 0.01) css += ` text-indent: ${Math.round(ti * 100) / 100}cm;`;
+    if (/%$/.test(lh)) css += ` line-height: ${Math.round(parseFloat(lh) * 1.15) / 100};`;
+    const tabs = resolvedTabs(sn).map(t => Math.round((t + ml) * 100) / 100).filter(t => t > 0);
+    const tabAttr = tabs.length ? ` data-tab-stops="${tabs.join(",")}"` : "";
+    const c = spanCss(sn);
+    const inner = await inline(node);
+    let html = `<p style="${css}"${tabAttr}>${inner.replace(/(&nbsp;|\s)/g, "").length || /<img|udf-tab-space/.test(inner) ? c.open + inner + c.close : "<br>"}</p>\n`;
+    if (resolved(sn, "breakBefore") === "page") html = `<div class="page-break udf-page-break" data-udf-page-break="true" contenteditable="false"></div>\n` + html;
+    if (resolved(sn, "breakAfter") === "page") html += `<div class="page-break udf-page-break" data-udf-page-break="true" contenteditable="false"></div>\n`;
+    return html;
+  }
+  async function block(node, listDepth) {
+    const ln = local(node);
+    if (ln === "p" || ln === "h") return await para(node);
+    if (ln === "list") {
+      let out = "";
+      for (const item of Array.from(node.children)) for (const ch of Array.from(item.children)) out += await block(ch, (listDepth || 0) + 1);
+      return out;
+    }
+    if (ln === "table") {
+      let t = `<table style="width: 100%; border-collapse: collapse; margin: 6px 0;">\n`;
+      const rows = Array.from(node.getElementsByTagName("table:table-row"));
+      for (const tr of rows) {
+        if (tr.closest && tr.parentElement && local(tr.parentElement) !== "table" && local(tr.parentElement) !== "table-header-rows" && local(tr.parentElement) !== "table-rows") continue;
+        t += "<tr>";
+        for (const tc of Array.from(tr.children)) {
+          if (local(tc) !== "table-cell") continue;
+          const span = parseInt(tc.getAttribute("table:number-columns-spanned") || "1", 10);
+          t += `<td${span > 1 ? ` colspan="${span}"` : ""} style="border: 1px solid #333; padding: 4px 6px; vertical-align: top;">`;
+          for (const ch of Array.from(tc.children)) t += await block(ch, 0);
+          t += "</td>";
+        }
+        t += "</tr>\n";
+      }
+      return t + "</table>\n";
+    }
+    if (ln === "section" || ln === "index-body" || ln === "table-of-content") {
+      let out = ""; for (const ch of Array.from(node.children)) out += await block(ch, listDepth); return out;
+    }
+    return "";
+  }
+
+  let html = "";
+  const body = contentDoc.getElementsByTagName("office:text")[0];
+  if (body) for (const node of Array.from(body.children)) html += await block(node, 0);
+
+  // Sayfa düzeni (kenar boşlukları / yön) ve üst-alt bilgi metni
+  let left = 2.5, right = 2.5, top = 2.5, bottom = 2.5, orientation = "portrait", headerText = "", footerText = "";
+  if (stylesDoc) {
+    const pl = stylesDoc.getElementsByTagName("style:page-layout-properties")[0];
+    if (pl) {
+      left = toCm(pl.getAttribute("fo:margin-left")) || left; right = toCm(pl.getAttribute("fo:margin-right")) || right;
+      top = toCm(pl.getAttribute("fo:margin-top")) || top; bottom = toCm(pl.getAttribute("fo:margin-bottom")) || bottom;
+      if (pl.getAttribute("style:print-orientation") === "landscape") orientation = "landscape";
+    }
+    // textContent <text:s/> boşluklarını kaybettiği için satır içi çözücüden düz metin alınır
+    const plain = (html) => html.replace(/<span class="udf-tab-space"[^>]*>[^<]*<\/span>/g, "\t").replace(/<br>/g, " ").replace(/<[^>]+>/g, "").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/\u200B/g, "").trim();
+    const h = stylesDoc.getElementsByTagName("style:header")[0]; if (h) headerText = plain(await inline(h));
+    const f = stylesDoc.getElementsByTagName("style:footer")[0]; if (f) footerText = plain(await inline(f));
+  }
   return {
-    header: "",
-    headerHtml: "",
-    footer: "",
-    footerHtml: `<div class="udf-footer-layout" style="display:flex; justify-content:flex-end; width:100%;"><span class="udf-footer-page-label">Sayfa: {PAGE_NUM}/{TOTAL_PAGES}</span></div>`,
-    leftMarginCm: 2.5,
-    rightMarginCm: 2.5,
-    topMarginCm: 2.0,
-    bottomMarginCm: 2.5,
-    paperOrientation: "portrait",
+    header: headerText,
+    headerHtml: headerText ? `<div class="udf-header-layout" style="text-align:center;">${escapeHtmlStr(headerText)}</div>` : "",
+    footer: footerText,
+    footerHtml: footerText ? `<div class="udf-footer-layout"><span class="udf-footer-text">${escapeHtmlStr(footerText)}</span></div>` : `<div class="udf-footer-layout" style="display:flex; justify-content:flex-end; width:100%;"><span class="udf-footer-page-label">Sayfa: {PAGE_NUM}/{TOTAL_PAGES}</span></div>`,
+    leftMarginCm: Math.round(left * 100) / 100, rightMarginCm: Math.round(right * 100) / 100,
+    topMarginCm: Math.round(top * 100) / 100, bottomMarginCm: Math.round(bottom * 100) / 100,
+    paperOrientation: orientation,
     html: html || '<p style="text-align: justify;"><br></p>'
   };
 }
@@ -2054,146 +2194,147 @@ async function generateDocxBlob(docData) {
 // 3B. 1:1 STANDART OPENDOCUMENT (ODT) ÜRETİCİ
 // -------------------------------------------------------------
 async function generateOdtBlob(docData) {
-  // 1. Resmi Havelsan UYAP Headless Motoru (Port 5976) üzerinden 1:1 ODT
+  // 1. Resmi Havelsan UYAP Headless Motoru (Port 5976) varsa onu kullan
   try {
     const udfBlob = await generateUdfBlob(docData);
     const serverBlob = await tryHeadlessConvert("odt", udfBlob);
     if (serverBlob) return serverBlob;
-  } catch (netErr) {
-    // Havelsan yerel sunucusu aktif değil, doğrudan yerel JSZip motoru ile üret
+  } catch (netErr) {}
+
+  // 2. Yerel OpenDocument (ODF 1.2) yazıcısı — v3.15'te yeniden yazıldı:
+  //    sekmeler + sekme durakları, girintiler, paragraf boşlukları, satır aralığı, yazı tipi/punto/renk,
+  //    alt/üst simge, üstü çizili, tablo kenarlıkları, görseller, üst/alt bilgi ve UDF sayfa kenar boşlukları.
+  //    (Eski sürüm sekmeleri ve girintileri tamamen kaybediyordu.)
+  const zip = new JSZip();
+  zip.file("mimetype", "application/vnd.oasis.opendocument.text", { compression: "STORE" });
+  const m = docData.margins || {};
+  const cm = (v, d) => (typeof v === "number" && !isNaN(v) ? v : d);
+  const isLandscape = m.orientation === "landscape" || docData.paperOrientation === "2";
+  const pageW = isLandscape ? 29.7 : 21.0, pageH = isLandscape ? 21.0 : 29.7;
+
+  const pStyles = new Map(), tStyles = new Map(), images = [];
+  let autoXml = "";
+  const fontsUsed = new Set(["Times New Roman"]);
+  const fmt = (n) => (Math.round(n * 1000) / 1000) + "cm";
+
+  function paraStyle(p) {
+    const align = p.align === 1 ? "center" : p.align === 2 ? "end" : p.align === 0 ? "start" : "justify";
+    const left = Math.max(0, p.leftIndent || 0), right = Math.max(0, p.rightIndent || 0), first = p.firstLineIndent || 0;
+    const above = Math.max(0, p.spaceAbove || 0), below = Math.max(0, p.spaceBelow || 0);
+    const ls = Math.max(0, p.lineSpacing || 0);
+    const tabs = String(p.tabStops || "").split(",").map(x => parseFloat(x)).filter(n => !isNaN(n) && n > 0);
+    const key = [align, left, right, first, above, below, ls, tabs.join("|"), p.pageBreakBefore ? 1 : 0].join(";");
+    if (pStyles.has(key)) return pStyles.get(key);
+    const name = "P" + (pStyles.size + 1);
+    pStyles.set(key, name);
+    const tabXml = tabs.length ? `<style:tab-stops>${tabs.map(t => `<style:tab-stop style:position="${fmt(Math.max(0, t - left))}"/>`).join("")}</style:tab-stops>` : "";
+    autoXml += `<style:style style:name="${name}" style:family="paragraph" style:parent-style-name="Standard"><style:paragraph-properties fo:text-align="${align}" fo:margin-left="${fmt(left)}" fo:margin-right="${fmt(right)}" fo:text-indent="${fmt(first)}" fo:margin-top="${above}pt" fo:margin-bottom="${below}pt" fo:line-height="${Math.round((1 + ls) * 100)}%"${p.pageBreakBefore ? ' fo:break-before="page"' : ""}>${tabXml}</style:paragraph-properties></style:style>\n`;
+    return name;
+  }
+  function textStyle(r) {
+    const font = String(r.fontFamily || "Times New Roman").replace(/['"]/g, "").split(",")[0].trim() || "Times New Roman";
+    fontsUsed.add(font);
+    const size = r.fontSize > 1 ? r.fontSize : 12;
+    const color = r.color && /^#?[0-9a-f]{6}$/i.test(String(r.color).replace("#", "")) ? "#" + String(r.color).replace("#", "") : "#000000";
+    const pos = r.superscript ? "super 58%" : r.subscript ? "sub 58%" : "";
+    const bg = r.backgroundColor && /^#?[0-9a-f]{6}$/i.test(String(r.backgroundColor).replace("#", "")) ? "#" + String(r.backgroundColor).replace("#", "") : "";
+    const key = [font, size, r.bold ? 1 : 0, r.italic ? 1 : 0, r.underline ? 1 : 0, (r.strikethrough || r.strikeThrough) ? 1 : 0, pos, color, bg].join(";");
+    if (tStyles.has(key)) return tStyles.get(key);
+    const name = "T" + (tStyles.size + 1);
+    tStyles.set(key, name);
+    autoXml += `<style:style style:name="${name}" style:family="text"><style:text-properties style:font-name="${escapeXml(font)}" fo:font-size="${size}pt" style:font-size-complex="${size}pt"${r.bold ? ' fo:font-weight="bold" style:font-weight-complex="bold"' : ""}${r.italic ? ' fo:font-style="italic" style:font-style-complex="italic"' : ""}${r.underline ? ' style:text-underline-style="solid" style:text-underline-width="auto" style:text-underline-color="font-color"' : ""}${(r.strikethrough || r.strikeThrough) ? ' style:text-line-through-style="solid"' : ""}${pos ? ` style:text-position="${pos}"` : ""} fo:color="${color}"${bg ? ` fo:background-color="${bg}"` : ""}/></style:style>\n`;
+    return name;
+  }
+  // Metni ODF'ye çevir: \t → <text:tab/>, \n → <text:line-break/>, ardışık boşluk → <text:s text:c="n"/>
+  function odfText(text) {
+    let out = "";
+    String(text).split("\n").forEach((line, li) => {
+      if (li > 0) out += "<text:line-break/>";
+      line.split("\t").forEach((part, ti) => {
+        if (ti > 0) out += "<text:tab/>";
+        out += escapeXml(part).replace(/ {2,}/g, (sp) => " " + `<text:s text:c="${sp.length - 1}"/>`).replace(/^ /, '<text:s/>');
+      });
+    });
+    return out;
+  }
+  function runsXml(p) {
+    let x = "";
+    (p.runs || [{ text: p.text || "" }]).forEach(r => {
+      if (r.type === "image" && r.imageData) {
+        const idx = images.length + 1;
+        const path = `Pictures/image${idx}.png`;
+        images.push({ path, base64: String(r.imageData).replace(/^data:[^,]+,/, "") });
+        const w = (r.widthPt || 120) / 72 * 2.54, h = (r.heightPt || 60) / 72 * 2.54;
+        x += `<draw:frame draw:name="Resim${idx}" text:anchor-type="as-char" svg:width="${fmt(w)}" svg:height="${fmt(h)}"><draw:image xlink:href="${path}" xlink:type="simple" xlink:show="embed" xlink:actuate="onLoad"/></draw:frame>`;
+        return;
+      }
+      if (!r.text) return;
+      x += `<text:span text:style-name="${textStyle(r)}">${odfText(r.text)}</text:span>`;
+    });
+    return x;
+  }
+  function paraXml(p) {
+    if (p.type === "pageBreak") return `<text:p text:style-name="PBreak"/>\n`;
+    if (p.type === "table") return tableXml(p);
+    return `<text:p text:style-name="${paraStyle(p)}">${runsXml(p)}</text:p>\n`;
+  }
+  let tblN = 0;
+  function tableXml(t) {
+    tblN++;
+    const noBorder = t.border === "borderNone" || t.border === "none";
+    const cellStyle = `TC${tblN}`;
+    autoXml += `<style:style style:name="Tbl${tblN}" style:family="table"><style:table-properties style:width="${fmt(pageW - cm(m.left, 2.5) - cm(m.right, 2.5))}" table:align="margins"/></style:style>\n`;
+    autoXml += `<style:style style:name="${cellStyle}" style:family="table-cell"><style:table-cell-properties fo:padding="0.05cm" fo:border="${noBorder ? "none" : "0.5pt solid #333333"}"/></style:style>\n`;
+    const rows = t.rows || [];
+    let maxCols = 1;
+    rows.forEach(r => { const n = (r.cells || []).reduce((a, c) => a + (c.colSpan || 1), 0); if (n > maxCols) maxCols = n; });
+    let x = `<table:table table:name="Tablo${tblN}" table:style-name="Tbl${tblN}"><table:table-column table:number-columns-repeated="${maxCols}"/>\n`;
+    rows.forEach(r => {
+      x += `<table:table-row>`;
+      (r.cells || []).forEach(c => {
+        const span = c.colSpan > 1 ? ` table:number-columns-spanned="${c.colSpan}"` : "";
+        x += `<table:table-cell table:style-name="${cellStyle}" office:value-type="string"${span}>`;
+        const cp = c.paragraphs || [];
+        x += cp.length ? cp.map(paraXml).join("") : `<text:p/>`;
+        x += `</table:table-cell>`;
+        for (let k = 1; k < (c.colSpan || 1); k++) x += `<table:covered-table-cell/>`;
+      });
+      x += `</table:table-row>\n`;
+    });
+    return x + `</table:table>\n`;
   }
 
-  const zip = new JSZip();
+  let bodyXml = "";
+  (docData.paragraphs || []).forEach(p => { bodyXml += paraXml(p); });
+  const headerXml = (docData.headerParagraphs || []).map(paraXml).join("");
+  const footerXml = (docData.footerParagraphs || []).map(paraXml).join("");
 
-  // 1. mimetype (STORED)
-  zip.file("mimetype", "application/vnd.oasis.opendocument.text", { compression: "STORE" });
+  const NS = 'xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0" xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0" xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:meta="urn:oasis:names:tc:opendocument:xmlns:meta:1.0" office:version="1.2"';
+  const fontDecls = `<office:font-face-decls>${[...fontsUsed].map(f => `<style:font-face style:name="${escapeXml(f)}" svg:font-family="'${escapeXml(f)}'" style:font-pitch="variable"/>`).join("")}</office:font-face-decls>`;
 
-  // 2. META-INF/manifest.xml
-  const manifestXml = `<?xml version="1.0" encoding="UTF-8"?>
-<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.2">
-  <manifest:file-entry manifest:full-path="/" manifest:version="1.2" manifest:media-type="application/vnd.oasis.opendocument.text"/>
-  <manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/>
-  <manifest:file-entry manifest:full-path="styles.xml" manifest:media-type="text/xml"/>
-  <manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>
-</manifest:manifest>`;
-  zip.file("META-INF/manifest.xml", manifestXml);
-
-  // 3. meta.xml
-  const metaXml = `<?xml version="1.0" encoding="UTF-8"?>
-<office:document-meta xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:meta="urn:oasis:names:tc:opendocument:xmlns:meta:1.0" xmlns:dc="http://purl.org/dc/elements/1.1/">
-  <office:meta>
-    <meta:generator>CanEditor v3.7.1</meta:generator>
-    <dc:title>${escapeXml(currentDocFileName || "Dilekçe")}</dc:title>
-    <dc:date>${new Date().toISOString()}</dc:date>
-  </office:meta>
-</office:document-meta>`;
-  zip.file("meta.xml", metaXml);
-
-  // 4. styles.xml
-  const stylesXml = `<?xml version="1.0" encoding="UTF-8"?>
-<office:document-styles xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0" xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0">
-  <office:master-styles>
-    <style:master-page style:name="Standard" style:page-layout-name="pm1"/>
-  </office:master-styles>
-  <office:automatic-styles>
-    <style:page-layout style:name="pm1">
-      <style:page-layout-properties fo:page-width="21.0cm" fo:page-height="29.7cm" fo:margin-top="2.0cm" fo:margin-bottom="2.5cm" fo:margin-left="2.5cm" fo:margin-right="2.5cm"/>
-    </style:page-layout>
-  </office:automatic-styles>
-</office:document-styles>`;
-  zip.file("styles.xml", stylesXml);
-
-  // 5. content.xml
-  let pXml = "";
-  const paragraphs = docData?.paragraphs || [];
-  paragraphs.forEach(p => {
-    if (p.type === "pageBreak") {
-      pXml += `      <text:p text:style-name="P_break"/>\n`;
-      return;
-    }
-    if (p.type === "table") {
-      const rows = p.rows || [];
-      pXml += `      <table:table table:name="Table_${Math.random().toString(36).substr(2, 6)}">\n`;
-      let maxCols = 1;
-      rows.forEach(r => { if (r.cells && r.cells.length > maxCols) maxCols = r.cells.length; });
-      pXml += `        <table:table-column table:number-columns-repeated="${maxCols}"/>\n`;
-      rows.forEach(r => {
-        pXml += `        <table:table-row>\n`;
-        (r.cells || []).forEach(c => {
-          pXml += `          <table:table-cell office:value-type="string">\n`;
-          const cellParas = c.paragraphs || [];
-          if (cellParas.length > 0) {
-            cellParas.forEach(cp => {
-              const runs = cp.runs || [{ text: cp.text || "" }];
-              let cSpans = "";
-              runs.forEach(r => {
-                let t = escapeXml(r.text || "");
-                if (r.bold && r.italic) t = `<text:span text:style-name="T_bold_italic">${t}</text:span>`;
-                else if (r.bold) t = `<text:span text:style-name="T_bold">${t}</text:span>`;
-                else if (r.italic) t = `<text:span text:style-name="T_italic">${t}</text:span>`;
-                if (r.underline) t = `<text:span text:style-name="T_underline">${t}</text:span>`;
-                cSpans += t;
-              });
-              pXml += `            <text:p text:style-name="P_left">${cSpans || "<text:s/>"}</text:p>\n`;
-            });
-          } else {
-            pXml += `            <text:p text:style-name="P_left"><text:s/></text:p>\n`;
-          }
-          pXml += `          </table:table-cell>\n`;
-        });
-        pXml += `        </table:table-row>\n`;
-      });
-      pXml += `      </table:table>\n`;
-      return;
-    }
-    let alignStyle = "P_justify";
-    if (p.align === 1) alignStyle = "P_center";
-    else if (p.align === 2) alignStyle = "P_right";
-    else if (p.align === 0) alignStyle = "P_left";
-
-    let spansXml = "";
-    const runs = p.runs || [{ text: p.text || "" }];
-    runs.forEach(r => {
-      let t = escapeXml(r.text || "");
-      if (r.bold && r.italic) t = `<text:span text:style-name="T_bold_italic">${t}</text:span>`;
-      else if (r.bold) t = `<text:span text:style-name="T_bold">${t}</text:span>`;
-      else if (r.italic) t = `<text:span text:style-name="T_italic">${t}</text:span>`;
-      if (r.underline) t = `<text:span text:style-name="T_underline">${t}</text:span>`;
-      spansXml += t;
-    });
-    pXml += `      <text:p text:style-name="${alignStyle}">${spansXml || "<text:s/>"}</text:p>\n`;
-  });
-
-  const contentXml = `<?xml version="1.0" encoding="UTF-8"?>
-<office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0" xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0" xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0">
-  <office:font-face-decls>
-    <style:font-face style:name="Times New Roman" svg:font-family="'Times New Roman'" style:font-family-generic="roman" style:font-pitch="variable"/>
-  </office:font-face-decls>
-  <office:automatic-styles>
-    <style:style style:name="P_justify" style:family="paragraph"><style:paragraph-properties fo:text-align="justify"/><style:text-properties fo:font-family="'Times New Roman'" fo:font-size="12pt" fo:color="#000000"/></style:style>
-    <style:style style:name="P_center" style:family="paragraph"><style:paragraph-properties fo:text-align="center"/><style:text-properties fo:font-family="'Times New Roman'" fo:font-size="12pt" fo:color="#000000"/></style:style>
-    <style:style style:name="P_right" style:family="paragraph"><style:paragraph-properties fo:text-align="right"/><style:text-properties fo:font-family="'Times New Roman'" fo:font-size="12pt" fo:color="#000000"/></style:style>
-    <style:style style:name="P_left" style:family="paragraph"><style:paragraph-properties fo:text-align="left"/><style:text-properties fo:font-family="'Times New Roman'" fo:font-size="12pt" fo:color="#000000"/></style:style>
-    <style:style style:name="P_break" style:family="paragraph"><style:paragraph-properties fo:break-after="page"/></style:style>
-    <style:style style:name="T_bold" style:family="text"><style:text-properties fo:font-weight="bold" fo:font-family="'Times New Roman'" fo:color="#000000"/></style:style>
-    <style:style style:name="T_italic" style:family="text"><style:text-properties fo:font-style="italic" fo:font-family="'Times New Roman'" fo:color="#000000"/></style:style>
-    <style:style style:name="T_bold_italic" style:family="text"><style:text-properties fo:font-weight="bold" fo:font-style="italic" fo:font-family="'Times New Roman'" fo:color="#000000"/></style:style>
-    <style:style style:name="T_underline" style:family="text"><style:text-properties style:text-underline-style="solid" fo:font-family="'Times New Roman'" fo:color="#000000"/></style:style>
-  </office:automatic-styles>
-  <office:body>
-    <office:text>
-${pXml}    </office:text>
-  </office:body>
-</office:document-content>`;
+  const contentXml = `<?xml version="1.0" encoding="UTF-8"?>\n<office:document-content ${NS}>${fontDecls}<office:automatic-styles>${autoXml}<style:style style:name="PBreak" style:family="paragraph"><style:paragraph-properties fo:break-before="page"/></style:style></office:automatic-styles><office:body><office:text>\n${bodyXml}</office:text></office:body></office:document-content>`;
+  const stylesXml = `<?xml version="1.0" encoding="UTF-8"?>\n<office:document-styles ${NS}>${fontDecls}<office:styles><style:default-style style:family="paragraph"><style:paragraph-properties style:tab-stop-distance="1.25cm"/><style:text-properties style:font-name="Times New Roman" fo:font-size="12pt" fo:language="tr" fo:country="TR"/></style:default-style><style:style style:name="Standard" style:family="paragraph" style:class="text"/></office:styles><office:automatic-styles><style:page-layout style:name="pm1"><style:page-layout-properties fo:page-width="${pageW}cm" fo:page-height="${pageH}cm" style:print-orientation="${isLandscape ? "landscape" : "portrait"}" fo:margin-top="${fmt(cm(m.header, 0) > 0 && headerXml ? cm(m.header, 0.5) : cm(m.top, 2.5))}" fo:margin-bottom="${fmt(footerXml ? Math.max(0.3, cm(m.bottom, 2.5)) : cm(m.bottom, 2.5))}" fo:margin-left="${fmt(cm(m.left, 2.5))}" fo:margin-right="${fmt(cm(m.right, 2.5))}"/>${headerXml ? `<style:header-style><style:header-footer-properties fo:min-height="0cm" fo:margin-bottom="${fmt(Math.max(0.1, cm(m.top, 2.5) - cm(m.header, 0.5) - 0.6))}"/></style:header-style>` : ""}${footerXml ? `<style:footer-style><style:header-footer-properties fo:min-height="0cm" fo:margin-top="0.2cm"/></style:footer-style>` : ""}</style:page-layout></office:automatic-styles><office:master-styles><style:master-page style:name="Standard" style:page-layout-name="pm1">${headerXml ? `<style:header>${headerXml}</style:header>${(docData.headerStartPage || 1) > 1 ? "<style:header-first/>" : ""}` : ""}${footerXml ? `<style:footer>${footerXml}</style:footer>` : ""}</style:master-page></office:master-styles></office:document-styles>`;
+  // Not: üst/alt bilgi paragraflarının otomatik stilleri content.xml'de; styles.xml içinde de geçerli olmaları için kopyalanır
+  const stylesWithAuto = stylesXml.replace("<office:automatic-styles>", "<office:automatic-styles>" + autoXml);
+  const metaXml = `<?xml version="1.0" encoding="UTF-8"?>\n<office:document-meta ${NS}><office:meta><meta:generator>CanEditor</meta:generator><dc:title>${escapeXml(currentDocFileName || "Belge")}</dc:title><dc:date>${new Date().toISOString().slice(0, 19)}</dc:date></office:meta></office:document-meta>`;
+  const manifestXml = `<?xml version="1.0" encoding="UTF-8"?>\n<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.2"><manifest:file-entry manifest:full-path="/" manifest:version="1.2" manifest:media-type="application/vnd.oasis.opendocument.text"/><manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/><manifest:file-entry manifest:full-path="styles.xml" manifest:media-type="text/xml"/><manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>${images.map(i => `<manifest:file-entry manifest:full-path="${i.path}" manifest:media-type="image/png"/>`).join("")}</manifest:manifest>`;
   zip.file("content.xml", contentXml);
-
-  return await zip.generateAsync({ type: "blob", compression: "DEFLATE" });
+  zip.file("styles.xml", stylesWithAuto);
+  zip.file("meta.xml", metaXml);
+  zip.file("META-INF/manifest.xml", manifestXml);
+  images.forEach(i => zip.file(i.path, i.base64, { base64: true }));
+  return await zip.generateAsync({ type: "blob", compression: "DEFLATE", mimeType: "application/vnd.oasis.opendocument.text" });
 }
 
 // -------------------------------------------------------------
 // 3C. ÇOK SAYFALI ADLİ TIFF EVRAKI ÜRETİCİ (UTIF.js & IFD Motoru)
 // -------------------------------------------------------------
 async function generateTiffBlob(docData) {
+  // v3.15: ekrandaki yerleşimden 192 DPI gri, PackBits sıkıştırmalı çok sayfalı TIFF
+  if (window.CanExport && window.CanExport.buildTiff) {
+    try { return await window.CanExport.buildTiff(); }
+    catch (e) { console.warn("Yeni TIFF motoru başarısız, yedek motora geçiliyor:", e); }
+  }
   let pageSheets = Array.from(document.querySelectorAll(".a4-sheet-page"));
   if (pageSheets.length === 0) {
     const single = document.getElementById("sheet-container") || document.getElementById("page-wrapper") || document.getElementById("editor-content");
@@ -2680,6 +2821,18 @@ async function generatePdfBlob(docData) {
   const statusEl = document.getElementById("desktopStatusMsg");
   if (statusEl) statusEl.innerText = "PDF hazırlanıyor...";
 
+  // 0. v3.15: Ekrandaki sayfanın birebir yerleşiminden vektör PDF (seçilebilir/aranabilir metin, gömülü yazı tipi)
+  if (window.CanExport && window.CanExport.buildPdf) {
+    try {
+      const title = (document.getElementById("desktopDocTitle")?.value || "Belge").replace(/\.[^.]+$/, "");
+      const blob = await window.CanExport.buildPdf(title);
+      if (statusEl) statusEl.innerText = "✓ PDF hazır";
+      return blob;
+    } catch (e) {
+      console.warn("Vektör PDF motoru başarısız, yedek motora geçiliyor:", e);
+    }
+  }
+
   // 1. Resmi Havelsan UYAP Headless Motoru (Port 5976) üzerinden 1:1 Vektör PDF
   try {
     const udfBlob = await generateUdfBlob(docData);
@@ -2754,6 +2907,70 @@ function downloadBlob(blob, filename) {
     URL.revokeObjectURL(url);
   }, 200);
 }
+
+
+// =============================================================
+// PLATFORM BAĞIMSIZ DOSYA KAYDETME / AÇMA (Android · Tauri masaüstü · Web)
+// -------------------------------------------------------------
+// Tauri (WebView2 / WKWebView / WebKitGTK) içinde <a download> ile indirme macOS ve Linux'ta
+// sessizce başarısız oluyordu → "Kaydet" hiçbir şey yapmıyordu. Artık yerel diyalog + dosyaya yazma
+// kullanılır; "Kaydet" açık dosyanın ÜZERİNE yazar (Word/UYAP davranışı), "Farklı Kaydet" diyalog açar.
+// =============================================================
+function tauriCore() {
+  return (window.__TAURI__ && window.__TAURI__.core) ? window.__TAURI__.core : null;
+}
+function isRealAndroidEnv() {
+  return !!(window.AndroidBridge && !window.AndroidBridge.__stub);
+}
+function u8ToB64(u8) {
+  let s = '';
+  for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000));
+  return btoa(s);
+}
+window.currentDocPath = window.currentDocPath || null;
+
+async function saveBytesSmart(data, fileName, mimeType, opts) {
+  opts = opts || {};
+  const u8 = (data instanceof Blob) ? new Uint8Array(await data.arrayBuffer()) : (data instanceof Uint8Array ? data : new Uint8Array(data));
+  const ext = (fileName.split('.').pop() || '').toLowerCase();
+  // 1) Android
+  if (isRealAndroidEnv()) {
+    if (opts.overwriteCurrent && window.AndroidBridge.saveBytesToCurrent) {
+      window.AndroidBridge.saveBytesToCurrent(fileName, mimeType || 'application/octet-stream', u8ToB64(u8));
+      return true;
+    }
+    if (window.AndroidBridge.saveBlobToDownloads) {
+      window.AndroidBridge.saveBlobToDownloads(fileName, mimeType || 'application/octet-stream', u8ToB64(u8));
+      return true;
+    }
+  }
+  // 2) Masaüstü (Tauri)
+  const t = tauriCore();
+  if (t) {
+    let path = null;
+    const cur = window.currentDocPath;
+    if (opts.overwriteCurrent && cur && cur.toLowerCase().endsWith('.' + ext)) path = cur;
+    if (!path) {
+      path = await t.invoke('save_file_dialog', { defaultName: fileName, ext });
+      if (!path) return false; // kullanıcı vazgeçti
+      if (!path.toLowerCase().endsWith('.' + ext)) path += '.' + ext;
+    }
+    await t.invoke('write_file_base64', { path, dataB64: u8ToB64(u8) });
+    if (ext === 'udf') {
+      window.currentDocPath = path;
+      const nm = path.split(/[\\/]/).pop();
+      try { currentDocFileName = nm; } catch (e) {}
+      const el = document.getElementById('desktopDocTitle'); if (el) el.value = nm;
+      document.title = nm + ' - CanEditor';
+    }
+    const st = document.getElementById('desktopStatusMsg'); if (st) st.innerText = '✓ Kaydedildi: ' + path.split(/[\\/]/).pop();
+    return path;
+  }
+  // 3) Web
+  downloadBlob(new Blob([u8], { type: mimeType || 'application/octet-stream' }), fileName);
+  return true;
+}
+window.saveBytesSmart = saveBytesSmart;
 
 // =============================================================
 // DAHİLİ ADLİ PDF GÖRÜNTÜLEYİCİ MOTORU (PDF.js)
@@ -2864,19 +3081,11 @@ function resetPdfZoom() {
 }
 window.resetPdfZoom = resetPdfZoom;
 
-function downloadCurrentPdf() {
+async function downloadCurrentPdf() {
+  const __saveOpts = {};
   if (!currentPdfBuffer) return;
   const blob = new Blob([currentPdfBuffer], { type: "application/pdf" });
-  if (window.AndroidBridge && window.AndroidBridge.saveBlobToDownloads) {
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const b64 = reader.result.split(",")[1];
-      window.AndroidBridge.saveBlobToDownloads(currentPdfFileName, "application/pdf", b64);
-    };
-    reader.readAsDataURL(blob);
-  } else {
-    downloadBlob(blob, currentPdfFileName);
-  }
+  if (!(await saveBytesSmart(blob, currentPdfFileName, "application/pdf", __saveOpts))) return;
 }
 window.downloadCurrentPdf = downloadCurrentPdf;
 
@@ -3016,19 +3225,11 @@ function resetTiffZoom() {
 }
 window.resetTiffZoom = resetTiffZoom;
 
-function downloadCurrentTiff() {
+async function downloadCurrentTiff() {
+  const __saveOpts = {};
   if (!currentTiffBuffer) return;
   const blob = new Blob([currentTiffBuffer], { type: "image/tiff" });
-  if (window.AndroidBridge && window.AndroidBridge.saveBlobToDownloads) {
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const b64 = reader.result.split(",")[1];
-      window.AndroidBridge.saveBlobToDownloads(currentTiffFileName, "image/tiff", b64);
-    };
-    reader.readAsDataURL(blob);
-  } else {
-    downloadBlob(blob, currentTiffFileName);
-  }
+  if (!(await saveBytesSmart(blob, currentTiffFileName, "image/tiff", __saveOpts))) return;
 }
 window.downloadCurrentTiff = downloadCurrentTiff;
 
@@ -3058,6 +3259,8 @@ async function openDocumentFromBytes(buffer, name, path) {
   if (!buffer) return;
   const fileName = name || (path ? path.split(/[/\\]/).pop() : "Belge.udf");
   currentDocFileName = fileName;
+  // Masaüstünde gerçek dosya yolu (Kaydet bu dosyanın üzerine yazar); web'de yol bilinmez
+  window.currentDocPath = (tauriCore() && path && /[\\/]/.test(path)) ? path : null;
   updateDocTitleDisplay(fileName);
 
   const statusEl = document.getElementById("desktopStatusMsg");
@@ -3179,6 +3382,18 @@ function updateSignatureBadge(sig) {
 // 7. DESKTOP EYLEMLERİ (AÇ, HIZLI KAYDET, FARKLIKAYDET, PAYLAŞ, YAZDIR)
 // -------------------------------------------------------------
 async function triggerOpenDocument() {
+  const t = tauriCore();
+  if (t) {
+    // Masaüstü: yerel "Aç" penceresi → dosya yolu bilinir, "Kaydet" aynı dosyanın üzerine yazar
+    try {
+      const path = await t.invoke('open_file_dialog');
+      if (!path) return;
+      const data = await t.invoke('read_file_binary', { path });
+      const u8 = new Uint8Array(data);
+      await openDocumentFromBytes(u8.buffer, path.split(/[\\/]/).pop(), path);
+      return;
+    } catch (e) { console.warn('Tauri açma diyaloğu kullanılamadı, tarayıcı seçicisine geçiliyor:', e); }
+  }
   const fileInput = document.getElementById("desktopFileInput");
   if (fileInput) fileInput.click();
 }
@@ -3209,7 +3424,9 @@ async function triggerQuickSave() {
 }
 window.triggerQuickSave = triggerQuickSave;
 
-async function triggerSaveUdf() {
+async function triggerSaveUdf(forceDialog) {
+  // Kaydet: açık .udf dosyasının üzerine yazar; Farklı Kaydet (forceDialog): her zaman konum sorar
+  const __saveOpts = { overwriteCurrent: !forceDialog };
   let name = (document.getElementById("desktopDocTitle")?.value || currentDocFileName).trim();
   name = name.replace(/\.(docx|pdf|tiff|tif|odt)$/i, "") + ".udf";
 
@@ -3217,16 +3434,7 @@ async function triggerSaveUdf() {
   const isModified = window.isDocumentModified ? window.isDocumentModified() : true;
   if (!isModified && hasSig && currentDocOriginalBuffer && currentDocFileName.toLowerCase().endsWith(".udf")) {
     const blob = new Blob([currentDocOriginalBuffer], { type: "application/octet-stream" });
-    if (window.AndroidBridge && window.AndroidBridge.saveBlobToDownloads) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const b64 = reader.result.split(",")[1];
-        window.AndroidBridge.saveBlobToDownloads(name, "application/octet-stream", b64);
-      };
-      reader.readAsDataURL(blob);
-    } else {
-      downloadBlob(blob, name);
-    }
+    if (!(await saveBytesSmart(blob, name, "application/octet-stream", __saveOpts))) return;
     const statusEl = document.getElementById("desktopStatusMsg");
     if (statusEl) statusEl.innerText = "✓ UDF Korunarak Kaydedildi";
     if (typeof showEditorToast === "function") showEditorToast("✓ UDF Belgesi (İmza Korundu) Kaydedildi");
@@ -3238,16 +3446,7 @@ async function triggerSaveUdf() {
   const docData = getDocFn();
   const blob = await generateUdfBlob(docData);
 
-  if (window.AndroidBridge && window.AndroidBridge.saveBlobToDownloads) {
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const b64 = reader.result.split(",")[1];
-      window.AndroidBridge.saveBlobToDownloads(name, "application/octet-stream", b64);
-    };
-    reader.readAsDataURL(blob);
-  } else {
-    downloadBlob(blob, name);
-  }
+  if (!(await saveBytesSmart(blob, name, "application/octet-stream", __saveOpts))) return;
   if (window.markDocumentPristine) window.markDocumentPristine();
   const statusEl = document.getElementById("desktopStatusMsg");
   if (statusEl) statusEl.innerText = "✓ UDF Kaydedildi";
@@ -3255,6 +3454,7 @@ async function triggerSaveUdf() {
 }
 
 async function triggerSaveDocx() {
+  const __saveOpts = {};
   const getDocFn = window.getStructuredDocument || (typeof getStructuredDocument === 'function' ? getStructuredDocument : null);
   if (!getDocFn) return;
   const docData = getDocFn();
@@ -3262,22 +3462,14 @@ async function triggerSaveDocx() {
   name = name.replace(/\.(udf|pdf|tiff|tif|odt)$/i, "") + ".docx";
   const blob = await generateDocxBlob(docData);
 
-  if (window.AndroidBridge && window.AndroidBridge.saveBlobToDownloads) {
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const b64 = reader.result.split(",")[1];
-      window.AndroidBridge.saveBlobToDownloads(name, "application/vnd.openxmlformats-officedocument.wordprocessingml.document", b64);
-    };
-    reader.readAsDataURL(blob);
-  } else {
-    downloadBlob(blob, name);
-  }
+  if (!(await saveBytesSmart(blob, name, "application/vnd.openxmlformats-officedocument.wordprocessingml.document", __saveOpts))) return;
   const statusEl = document.getElementById("desktopStatusMsg");
   if (statusEl) statusEl.innerText = "✓ Word (DOCX) Kaydedildi";
   if (typeof showEditorToast === "function") showEditorToast("✓ Word (DOCX) Kaydedildi");
 }
 
 async function triggerSaveAs(format) {
+  const __saveOpts = {};
   let base = (document.getElementById("desktopDocTitle")?.value || window.currentDocFileName || (typeof currentDocFileName !== 'undefined' ? currentDocFileName : '') || "Dilekce").trim();
   base = base.replace(/\.(udf|docx|pdf|tiff|tif|odt)$/i, "");
   if (!base) base = "Dilekce";
@@ -3287,7 +3479,7 @@ async function triggerSaveAs(format) {
   const statusEl = document.getElementById("desktopStatusMsg");
 
   if (format === "udf") {
-    await triggerSaveUdf();
+    await triggerSaveUdf(true);
   } else if (format === "docx") {
     await triggerSaveDocx();
   } else if (format === "pdf") {
@@ -3295,16 +3487,7 @@ async function triggerSaveAs(format) {
     try {
       const blob = await generatePdfBlob(docData);
       const fileName = base + ".pdf";
-      if (window.AndroidBridge && window.AndroidBridge.saveBlobToDownloads) {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          const b64 = reader.result.split(",")[1];
-          window.AndroidBridge.saveBlobToDownloads(fileName, "application/pdf", b64);
-        };
-        reader.readAsDataURL(blob);
-      } else {
-        downloadBlob(blob, fileName);
-      }
+      if (!(await saveBytesSmart(blob, fileName, "application/pdf", __saveOpts))) return;
       if (statusEl) statusEl.innerText = "✓ Adobe PDF (.pdf) Kaydedildi";
       if (typeof showEditorToast === "function") showEditorToast("✓ Adobe PDF Kaydedildi");
     } catch (err) {
@@ -3316,32 +3499,14 @@ async function triggerSaveAs(format) {
     if (statusEl) statusEl.innerText = "TIFF hazırlanıyor...";
     const blob = await generateTiffBlob(docData);
     const fileName = base + ".tiff";
-    if (window.AndroidBridge && window.AndroidBridge.saveBlobToDownloads) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const b64 = reader.result.split(",")[1];
-        window.AndroidBridge.saveBlobToDownloads(fileName, "image/tiff", b64);
-      };
-      reader.readAsDataURL(blob);
-    } else {
-      downloadBlob(blob, fileName);
-    }
+    if (!(await saveBytesSmart(blob, fileName, "image/tiff", __saveOpts))) return;
     if (statusEl) statusEl.innerText = "✓ TIFF Kaydedildi";
     if (typeof showEditorToast === "function") showEditorToast("✓ Çok Sayfalı TIFF Kaydedildi");
   } else if (format === "odt") {
     if (statusEl) statusEl.innerText = "ODT hazırlanıyor...";
     const blob = await generateOdtBlob(docData);
     const fileName = base + ".odt";
-    if (window.AndroidBridge && window.AndroidBridge.saveBlobToDownloads) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const b64 = reader.result.split(",")[1];
-        window.AndroidBridge.saveBlobToDownloads(fileName, "application/vnd.oasis.opendocument.text", b64);
-      };
-      reader.readAsDataURL(blob);
-    } else {
-      downloadBlob(blob, fileName);
-    }
+    if (!(await saveBytesSmart(blob, fileName, "application/vnd.oasis.opendocument.text", __saveOpts))) return;
     if (statusEl) statusEl.innerText = "✓ ODT Kaydedildi";
     if (typeof showEditorToast === "function") showEditorToast("✓ OpenDocument (ODT) Kaydedildi");
   }
@@ -3376,8 +3541,8 @@ async function triggerShareFormat(format) {
   const docData = getDocFn ? getDocFn() : null;
   const statusEl = document.getElementById("desktopStatusMsg");
 
-  // Android köprüsü varsa doğrudan yerel paylaşım diyaloğunu aç:
-  if (window.AndroidBridge) {
+  // Gerçek Android köprüsü varsa doğrudan yerel paylaşım diyaloğunu aç:
+  if (window.isRealAndroidBridge ? window.isRealAndroidBridge() : (window.AndroidBridge && !window.AndroidBridge.__stub)) {
     if (format === "pdf") {
       if (statusEl) statusEl.innerText = "PDF hazırlanıyor...";
       try {
@@ -3657,27 +3822,30 @@ function toggleSaveMenu(e) {
   if (e) e.stopPropagation();
   const d = document.getElementById("saveAsDropdown");
   closeDropdowns(d);
-  if (d) d.style.display = (d.style.display === "block") ? "none" : "block";
+  if (d) d.classList.toggle("show");
 }
 
 function toggleShareMenu(e) {
   if (e) e.stopPropagation();
   const d = document.getElementById("shareDropdown");
   closeDropdowns(d);
-  if (d) d.style.display = (d.style.display === "block") ? "none" : "block";
+  if (d) d.classList.toggle("show");
 }
 
 function togglePrintMenu(e) {
   if (e) e.stopPropagation();
   const d = document.getElementById("printDropdown");
   closeDropdowns(d);
-  if (d) d.style.display = (d.style.display === "block") ? "none" : "block";
+  if (d) d.classList.toggle("show");
 }
 
 function closeDropdowns(except) {
+  // Bu alt menüler artık menü çubuğunun içinde (.ce-sub-pop) ve CSS :hover / .open ile açılır.
+  // Eskiden burada inline "display:none" yazılıyordu; bu, her tıklamadan sonra alt menülerin
+  // (Farklı Kaydet / Paylaş / Yazdır) bir daha HİÇ açılmamasına neden oluyordu. Inline stil temizlenir.
   ["saveAsDropdown", "shareDropdown", "printDropdown"].forEach(id => {
     const el = document.getElementById(id);
-    if (el && el !== except) el.style.display = "none";
+    if (el && el !== except) { el.style.display = ""; el.classList.remove("show"); }
   });
 }
 
@@ -3688,7 +3856,10 @@ document.addEventListener("click", () => closeDropdowns());
 // -------------------------------------------------------------
 window.addEventListener("DOMContentLoaded", () => {
   if (!window.AndroidBridge) {
+    // Masaüstü/Web için yedek köprü. __stub işareti sayesinde editor.js bunu gerçek Android
+    // WebView köprüsü sanıp gövdeye 'is-android' sınıfı EKLEMEZ (eskiden masaüstü Android gibi davranıyordu).
     window.AndroidBridge = {
+      __stub: true,
       onContentChanged: (words, chars) => {
         const wEl = document.getElementById("desktopWordCount");
         if (wEl) wEl.innerText = `${words} kelime, ${chars} karakter`;
@@ -3757,4 +3928,36 @@ window.addEventListener("DOMContentLoaded", () => {
     }
   };
   setTimeout(checkTauriStartupFile, 200);
+});
+
+// -------------------------------------------------------------
+// YENİ BELGE (Dosya > Yeni / Ctrl+N)
+// Eskiden tanımsızdı: menü sayfayı yeniden yüklüyor, kaydedilmemiş değişiklikler uyarısız kayboluyordu.
+// -------------------------------------------------------------
+function newDocument() {
+  const modified = window.isDocumentModified ? window.isDocumentModified() : false;
+  if (modified && !window.confirm("Kaydedilmemiş değişiklikler var. Yeni belge açılırsa bu değişiklikler kaybolacak.\n\nDevam edilsin mi?")) return;
+  const empty = buildEmptyResult('<p style="text-align: justify;"><br></p>');
+  // Havelsan UYAP Doküman Editörü yeni belge varsayılanı: A4, 2,5 cm kenar boşlukları
+  empty.leftMarginCm = empty.rightMarginCm = empty.topMarginCm = empty.bottomMarginCm = 2.5;
+  currentDocFileName = "Yeni_Dilekce.udf";
+  currentDocOriginalBuffer = null;
+  window.currentDocPath = null;
+  window.__udfSource = null;
+  window.__currentDocSignature = null;
+  updateDocTitleDisplay(currentDocFileName);
+  if (window.setHtmlContent) window.setHtmlContent(JSON.stringify(empty));
+  updateSignatureBadge({ hasSignature: false, isValid: false });
+  if (typeof updateSignatureBanner === "function") updateSignatureBanner({ hasSignature: false, isValid: false });
+  if (window.markDocumentPristine) window.markDocumentPristine();
+  if (window.CanHistory) window.CanHistory.reset();
+  const st = document.getElementById("desktopStatusMsg"); if (st) st.innerText = "Yeni belge";
+  setTimeout(() => { const ed = document.getElementById("editor-content"); if (ed) ed.focus(); }, 100);
+}
+window.newDocument = newDocument;
+document.addEventListener("keydown", (e) => {
+  if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && (e.key === "n" || e.key === "N")) {
+    e.preventDefault();
+    newDocument();
+  }
 });
