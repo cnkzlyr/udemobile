@@ -848,7 +848,12 @@ function updatePagination() {
     // Havelsan UYAP ar.s() ve ar.u() formülü:
     const topInsetPx = Math.round(hasHeaderTemplate ? Math.max(topMarginPx, headerOffsetPx + headerHeightPx) : topMarginPx);
     // UYAP standardı: Gövde metni alt marj sınırına (bottomMargin) kadar iner. Altbilgi bu marj alanı içine çizilir.
-    const bottomInsetPx = Math.round(Math.max(bottomMarginPx, footerHeightPx > Math.round(bottomMarginPx) ? (footerHeightPx + 4) : bottomMarginPx));
+    // Havelsan (referans PDF ölçümüyle doğrulandı): altbilgi varsa gövde alt sınırı
+    // = sayfa yüksekliği - bottomMargin - footerFOffset. Altbilgi bu payın içine çizilir.
+    const hasFooterArea = !!((currentDocFooterTemplate && currentDocFooterTemplate.trim()) || currentDocVerificationCode);
+    const bottomInsetPx = Math.round(hasFooterArea
+      ? Math.max(bottomMarginPx + footerOffsetPx, footerHeightPx + 4)
+      : Math.max(bottomMarginPx, footerHeightPx + 4));
     const printableH = Math.max(350, pageH - topInsetPx - bottomInsetPx);
 
     // Konteyner CSS değişkenlerini ayarla
