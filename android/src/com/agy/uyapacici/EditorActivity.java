@@ -91,6 +91,7 @@ public class EditorActivity extends Activity {
     private String pendingHeader = null;
     private String pendingFooter = null;
     private String pendingHtmlToLoad = null;
+    private String pendingJsToRun = null;
     private String pendingSigJson = null;
     /** Belge açıldıktan / son kayıttan sonra kullanıcı içeriği değiştirdi mi? (JS tarafından bildirilir) */
     private volatile boolean docModified = false;
@@ -207,6 +208,10 @@ public class EditorActivity extends Activity {
                 super.onPageFinished(view, url);
                 isPageLoaded = true;
                 editorWebView.evaluateJavascript("document.body.classList.add('in-android');", null);
+                if (pendingJsToRun != null) {
+                    editorWebView.evaluateJavascript(pendingJsToRun, null);
+                    pendingJsToRun = null;
+                }
                 if (pendingHtmlToLoad != null) {
                     if (pendingHtmlToLoad.startsWith("BYTES:")) {
                         String[] parts = pendingHtmlToLoad.substring(6).split(":", 2);
@@ -328,7 +333,30 @@ public class EditorActivity extends Activity {
 
                         if (isDocx) {
                             payload = DocxEngine.readDocxToHtml(currentFile);
-                        } else if (isPdf || isTiff || isOdt) {
+                        } else {
+                            // Tek motor: UDF masaüstündeki ile AYNI JS motoruyla (desktop_bridge.js) açılır.
+                            // Gerçek e-imza doğrulaması Java (UdfEngine.verifySignature) ile yapılır.
+                            byte[] bytes = java.nio.file.Files.readAllBytes(currentFile.toPath());
+                            final String fBase64 = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP);
+                            final String fName = JSONObject.quote(currentFile.getName());
+                            String sj = null;
+                            if (!isPdf && !isTiff && !isOdt) {
+                                try { sj = UdfEngine.verifySignature(currentFile).toJson().toString(); } catch (Exception ignored) {}
+                            }
+                            final String fSig = sj;
+                            runOnUiThread(() -> {
+                                String js = "openDocumentFromBytes('" + fBase64 + "', " + fName + ")" +
+                                        (fSig != null ? ".then(function(){onDocumentSignatureChecked(" + fSig + ");})" : "") + ";";
+                                if (isPageLoaded) {
+                                    editorWebView.evaluateJavascript(js, null);
+                                    tvSaveStatus.setText("✓ Yüklendi");
+                                } else {
+                                    pendingJsToRun = js;
+                                }
+                            });
+                            return;
+                        }
+                        if (false) {
                             byte[] bytes = java.nio.file.Files.readAllBytes(currentFile.toPath());
                             String base64 = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP);
                             final String fBase64 = base64;
@@ -532,11 +560,30 @@ public class EditorActivity extends Activity {
         });
     }
 
+    /** JS motorunun ürettiği UDF baytlarını bekleyen kayıt işlemi (tek seferlik). */
+    private volatile java.util.function.Consumer<byte[]> pendingUdfBytesConsumer = null;
+
     private void doSaveDocument(String finalJson, File targetFile, boolean isDocx, boolean andOpenInDesktop) {
+        if (!isDocx) {
+            // UDF: masaüstü ile birebir aynı kayıpsız JS yazıcısı (generateUdfBlob) kullanılır.
+            pendingUdfBytesConsumer = bytes -> doSaveDocumentBytes(bytes, finalJson, targetFile, andOpenInDesktop);
+            editorWebView.evaluateJavascript(
+                "(async function(){try{const b=await generateUdfBlob(getStructuredDocument());" +
+                "const a=new Uint8Array(await b.arrayBuffer());let s='';for(let i=0;i<a.length;i+=8192)s+=String.fromCharCode.apply(null,a.subarray(i,i+8192));" +
+                "AndroidBridge.deliverUdfBytes(btoa(s));}catch(e){AndroidBridge.deliverUdfBytes('');}})();", null);
+            return;
+        }
+        doSaveDocumentBytes(null, finalJson, targetFile, andOpenInDesktop);
+    }
+
+    private void doSaveDocumentBytes(byte[] udfBytes, String finalJson, File targetFile, boolean andOpenInDesktop) {
+        final boolean isDocx = udfBytes == null;
         new Thread(() -> {
             try {
                 if (isDocx) {
                     DocxEngine.saveStructuredToDocx(finalJson, targetFile);
+                } else if (udfBytes.length > 0) {
+                    java.nio.file.Files.write(targetFile.toPath(), udfBytes);
                 } else {
                     if (currentFile != null && currentFile.exists() && currentFile.getName().toLowerCase(Locale.ROOT).endsWith(".udf")) {
                         byte[] contentBytes = UdfEngine.generateContentXmlBytes(finalJson);
@@ -1554,6 +1601,18 @@ public class EditorActivity extends Activity {
     }
 
     private class EditorBridge {
+        /** JS generateUdfBlob çıktısını (base64) kayıt iş parçacığına iletir. */
+        @JavascriptInterface
+        public void deliverUdfBytes(String b64) {
+            java.util.function.Consumer<byte[]> c = pendingUdfBytesConsumer;
+            pendingUdfBytesConsumer = null;
+            if (c == null) return;
+            byte[] bytes = new byte[0];
+            try { if (b64 != null && !b64.isEmpty()) bytes = android.util.Base64.decode(b64, android.util.Base64.DEFAULT); } catch (Exception ignored) {}
+            final byte[] fb = bytes;
+            runOnUiThread(() -> c.accept(fb));
+        }
+
         @JavascriptInterface
         public void setDocModified(boolean modified) {
             docModified = modified;
