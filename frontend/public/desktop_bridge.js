@@ -313,6 +313,134 @@ function parseOle2WordDocBuffer(buffer) {
 // -------------------------------------------------------------
 // 1. UDF DOSYASI AYRIŞTIRMA (1:1 HAVELSAN UYAP PARSER)
 // -------------------------------------------------------------
+/**
+ * UYAP şablon çözücü (Havelsan template resolver birebir kuralları).
+ *
+ * - <data> içindeki eleman adlarında rakamlar XML-güvenli biçimde kodlanır: her rakam d,
+ *   "X" + ('a'+d) olur (ör. row40 -> rowXeXa, Group5PGrp -> GroupXfPGrp).
+ * - fieldGroupName / paragraf GroupName verisi yoksa o öğeler gösterilmez; varsa kapsam olur.
+ * - Özel alanlar: auto -> "", eol -> satır sonu, ceol -> veri "true" ise satır sonu.
+ * - rowType="dataRow" satırları, tablo verisindeki her satır kaydı için çoğaltılır.
+ * Sonuçta tüm <field> öğeleri düz <content> koşusuna dönüştürülür ve yeni ham metin döner.
+ * Şablon değilse null döner (belge olduğu gibi işlenir).
+ */
+function resolveUdfTemplateDom(xmlDoc, rawText) {
+  const root = xmlDoc.documentElement;
+  if (!root) return null;
+  const dataEl = Array.from(root.children).find(e => e.tagName === "data");
+  if (!dataEl || dataEl.children.length === 0) return null;
+  if (xmlDoc.getElementsByTagName("field").length === 0) return null;
+
+  const enc = (s) => String(s || "").replace(/\d/g, d => "X" + String.fromCharCode(97 + Number(d)));
+  const find = (scope, name) => {
+    if (!scope || !name) return null;
+    const target = enc(name);
+    const queue = Array.from(scope.children);
+    while (queue.length) {
+      const n = queue.shift();
+      if (n.tagName === target || n.tagName === name) return n;
+      queue.push(...n.children);
+    }
+    return null;
+  };
+  const STRIP = ["fieldName", "fieldType", "fieldGroupName", "isList", "isErasable"];
+  let out = "";
+
+  function emit(c, text) {
+    if (!text) { c.remove(); return; }
+    c.setAttribute("startOffset", String(out.length));
+    c.setAttribute("length", String(text.length));
+    out += text;
+  }
+
+  function processParagraph(p, scope) {
+    const gn = p.getAttribute("GroupName");
+    if (gn) {
+      const g = find(scope, gn);
+      if (!g) { p.remove(); return; }
+      scope = g;
+    }
+    Array.from(p.children).forEach(c => {
+      const tag = c.tagName;
+      if (!c.hasAttribute("startOffset") && tag !== "field") return;
+      let sc = scope;
+      const fg = c.getAttribute("fieldGroupName");
+      if (fg) {
+        sc = find(scope, fg);
+        if (!sc) { c.remove(); return; }
+      }
+      const s = parseInt(c.getAttribute("startOffset") || "0", 10) || 0;
+      const l = parseInt(c.getAttribute("length") || "0", 10) || 0;
+      let text = rawText.substring(s, s + l);
+      if (tag === "field") {
+        const fn = c.getAttribute("fieldName") || "";
+        if (fn === "auto") text = "";
+        else if (fn === "eol") text = "\n";
+        else if (fn === "ceol") { const v = find(sc, "ceol"); text = v && v.textContent.trim() === "true" ? "\n" : ""; }
+        else { const v = find(sc, fn); text = v ? v.textContent : ""; }
+        const nc = xmlDoc.createElement("content");
+        for (const a of Array.from(c.attributes)) if (!STRIP.includes(a.name)) nc.setAttribute(a.name, a.value);
+        c.replaceWith(nc);
+        emit(nc, text);
+      } else if (tag === "image") {
+        emit(c, text || "￼");
+      } else {
+        emit(c, text);
+      }
+    });
+  }
+
+  function processRow(row, scope) {
+    Array.from(row.children).forEach(cell => processContainer(cell, scope));
+  }
+
+  function processTable(t, scope) {
+    const tName = t.getAttribute("tableName");
+    Array.from(t.children).forEach(row => {
+      if (row.tagName !== "row") return;
+      if (row.getAttribute("rowType") === "dataRow") {
+        const dataTbl = tName ? find(scope, tName) : null;
+        const rName = enc(row.getAttribute("rowName") || "");
+        const instances = dataTbl ? Array.from(dataTbl.children).filter(r => r.tagName === rName || r.getAttribute("rowType") === "dataRow") : [];
+        instances.forEach(inst => {
+          const clone = row.cloneNode(true);
+          clone.setAttribute("rowType", "headerRow");
+          row.parentNode.insertBefore(clone, row);
+          processRow(clone, inst);
+        });
+        row.remove();
+      } else {
+        processRow(row, scope);
+      }
+    });
+  }
+
+  function processContainer(el, scope) {
+    Array.from(el.children).forEach(ch => {
+      if (ch.tagName === "paragraph") processParagraph(ch, scope);
+      else if (ch.tagName === "table") processTable(ch, scope);
+    });
+  }
+
+  ["header", "elements", "footer"].forEach(tag => {
+    Array.from(root.children).filter(e => e.tagName === tag).forEach(e => processContainer(e, dataEl));
+  });
+  // Şablon verisi artık metne gömüldü; tekrar uygulanmasın.
+  dataEl.remove();
+  return out;
+}
+
+/** Bir XML öğesinin tüm özniteliklerini HTML data- özniteliği olarak saklar (kayıpsız geri yazım için).
+ *  Serialises every original XML attribute so the writer can round-trip unknown attributes losslessly. */
+function udfAttrsData(elem, skip) {
+  const o = {};
+  for (const a of Array.from(elem.attributes || [])) {
+    if (skip && skip.includes(a.name)) continue;
+    o[a.name] = a.value;
+  }
+  return ` data-udf-attrs="${escapeHtmlStr(JSON.stringify(o))}"`;
+}
+
 async function parseUdfArrayBuffer(buffer) {
   if (!buffer || buffer.byteLength === 0) {
     return buildEmptyResult();
@@ -369,6 +497,24 @@ async function parseUdfArrayBuffer(buffer) {
   const parser = new DOMParser();
   const xmlDoc = parser.parseFromString(contentXml, "application/xml");
 
+  // Kayıpsız geri yazım için orijinal stiller ve sayfa biçimi saklanır.
+  try {
+    const ser = new XMLSerializer();
+    const stylesEl = xmlDoc.querySelector("template > styles");
+    const pfEl = xmlDoc.querySelector("properties > pageFormat");
+    const pfAttrs = {};
+    if (pfEl) for (const a of Array.from(pfEl.attributes)) pfAttrs[a.name] = a.value;
+    window.__udfSource = {
+      stylesXml: stylesEl ? ser.serializeToString(stylesEl) : "",
+      elementsAttrs: (() => { const e = xmlDoc.querySelector("template > elements"); const o = {}; if (e) for (const a of Array.from(e.attributes)) o[a.name] = a.value; return o; })(),
+      pageFormat: pfAttrs,
+      headerAttrs: (() => { const e = xmlDoc.querySelector("template > header"); const o = {}; if (e) for (const a of Array.from(e.attributes)) o[a.name] = a.value; return o; })(),
+      footerAttrs: (() => { const e = xmlDoc.querySelector("template > footer"); const o = {}; if (e) for (const a of Array.from(e.attributes)) o[a.name] = a.value; return o; })(),
+      webIdXml: (() => { const w = xmlDoc.querySelector("webID"); return w ? ser.serializeToString(w) : ""; })(),
+      docPropsXml: docPropsXml || ""
+    };
+  } catch (e) { window.__udfSource = null; }
+
   // <styles> haritası
   const styleMap = {};
   xmlDoc.querySelectorAll("style").forEach(sEl => {
@@ -411,6 +557,11 @@ async function parseUdfArrayBuffer(buffer) {
       break;
     }
   }
+  // UYAP şablon (Takip Talebi, Portal evrakı vb.) alanlarını Havelsan kurallarıyla çöz.
+  // Resolve UYAP template fields/groups/data rows exactly like Havelsan's renderer and
+  // flatten them into plain <content> runs so display AND re-save match the original.
+  const resolvedTemplateText = resolveUdfTemplateDom(xmlDoc, rawText);
+  if (resolvedTemplateText !== null) rawText = resolvedTemplateText;
   const textLen = rawText.length;
 
   // <data> şablon haritası
@@ -529,6 +680,8 @@ async function parseUdfArrayBuffer(buffer) {
     }
     if (stops.length > 0) dataAttrs += ` data-tab-stops="${stops.join(",")}"`;
     if (lineSpacing) dataAttrs += ` data-udf-linespacing="${escapeHtmlStr(lineSpacing)}"`;
+    if (stops.length > 0) dataAttrs += ` data-orig-tab-stops="${stops.join(",")}"`;
+    dataAttrs += udfAttrsData(p);
 
     let pHtml = "";
     const isNumbered = p.getAttribute("Numbered") === "true" || p.getAttribute("Numbered") === "1";
@@ -594,8 +747,16 @@ async function parseUdfArrayBuffer(buffer) {
           }
         }
 
-        if (chunk.endsWith("\r\n")) chunk = chunk.substring(0, chunk.length - 2);
-        else if (chunk.endsWith("\n") || chunk.endsWith("\r")) chunk = chunk.substring(0, chunk.length - 1);
+        // Paragraf sonu satır karakteri yalnızca SON koşuda atılır; şablon `eol` alanlarının
+        // ürettiği ara satır sonları <br> olarak korunur (Havelsan ile aynı).
+        const isLastRun = !c.nextElementSibling;
+        if (isLastRun || /^[\r\n]+$/.test(chunk) === false) {
+          if (isLastRun) {
+            if (chunk.endsWith("\r\n")) chunk = chunk.substring(0, chunk.length - 2);
+            else if (chunk.endsWith("\n") || chunk.endsWith("\r")) chunk = chunk.substring(0, chunk.length - 1);
+          }
+        }
+        chunk = chunk.replace(/\r\n?/g, "\n");
 
         if (chunk) {
           hasContent = true;
@@ -624,8 +785,10 @@ async function parseUdfArrayBuffer(buffer) {
           if (strike) seg = `<s>${seg}</s>`;
 
           let spanStyle = "";
-          if (rFamily && rFamily !== "Dialog" && rFamily !== "Times New Roman") spanStyle += `font-family:'${escapeHtmlStr(rFamily)}';`;
-          if (rSize && rSize !== "12" && rSize !== "12.0") spanStyle += `font-size:${escapeHtmlStr(rSize)}pt;`;
+          // Yazı tipi ve punto her zaman açıkça yazılır: belge stili (ör. 11pt Arial) editör
+          // varsayılanından farklı olsa bile hem ekranda hem kayıtta birebir korunur.
+          if (rFamily && rFamily !== "Dialog") spanStyle += `font-family:'${escapeHtmlStr(rFamily)}';`;
+          if (rSize) spanStyle += `font-size:${escapeHtmlStr(rSize)}pt;`;
           const fgHex = parseSignedRgbToHexJs(rFg, true);
           if (fgHex) spanStyle += `color:${fgHex};`;
           const bgHex = parseSignedRgbToHexJs(rBg, false);
@@ -654,14 +817,22 @@ async function parseUdfArrayBuffer(buffer) {
       ? "width:100%; border-collapse:collapse; margin:6px 0; border:none;"
       : "width:100%; border-collapse:collapse; margin:6px 0; border:1px solid #333;";
 
-    let tblHtml = `<table style="${tableStyle}"${border ? ` data-udf-border="${escapeHtmlStr(border)}"` : ""}${colSpans ? ` data-udf-col-spans="${escapeHtmlStr(colSpans)}"` : ""}>\n`;
+    let tblHtml = `<table style="${tableStyle}"${border ? ` data-udf-border="${escapeHtmlStr(border)}"` : ""}${colSpans ? ` data-udf-col-spans="${escapeHtmlStr(colSpans)}"` : ""}${udfAttrsData(tableElem)}>\n`;
     Array.from(tableElem.children).forEach(r => {
       if ((r.tagName || "").toLowerCase() !== "row") return;
-      tblHtml += `  <tr style="border:none;">\n`;
+      tblHtml += `  <tr style="border:none;"${udfAttrsData(r)}>\n`;
       const cells = Array.from(r.children).filter(c => (c.tagName || "").toLowerCase() === "cell");
+      // Havelsan satır bazlı sütun genişlikleri (row columnSpans) tablo genelinden önceliklidir.
+      const rowSpansAttr = r.getAttribute("columnSpans");
+      let rowWidthsPct = null;
+      if (rowSpansAttr && rowSpansAttr.trim()) {
+        const nums = rowSpansAttr.split(",").map(s => Math.max(1, parseFloat(s.trim()) || 1));
+        const sum = nums.reduce((a, b) => a + b, 0);
+        if (nums.length === cells.length && sum > 0) rowWidthsPct = nums.map(n => (n / sum) * 100);
+      }
       const defaultW = cells.length > 0 ? 100 / cells.length : 100;
       cells.forEach((cell, cIdx) => {
-        const wPct = (colWidthsPct && cIdx < colWidthsPct.length) ? colWidthsPct[cIdx] : defaultW;
+        const wPct = rowWidthsPct ? rowWidthsPct[cIdx] : ((colWidthsPct && cIdx < colWidthsPct.length && colWidthsPct.length === cells.length) ? colWidthsPct[cIdx] : defaultW);
         const cBorder = cell.getAttribute("border") || "";
         const cellNone = isNone || cBorder === "borderNone" || cBorder === "none";
         const cellStyle = cellNone
@@ -669,7 +840,7 @@ async function parseUdfArrayBuffer(buffer) {
           : `vertical-align:top; border:1px solid #333; padding:3px 6px; width:${wPct.toFixed(1)}%;`;
         const colSpan = cell.getAttribute("colSpan");
         const rowSpan = cell.getAttribute("rowSpan");
-        tblHtml += `    <td style="${cellStyle}"${colSpan ? ` colspan="${escapeHtmlStr(colSpan)}"` : ""}${rowSpan ? ` rowspan="${escapeHtmlStr(rowSpan)}"` : ""}>\n`;
+        tblHtml += `    <td style="${cellStyle}"${colSpan ? ` colspan="${escapeHtmlStr(colSpan)}"` : ""}${rowSpan ? ` rowspan="${escapeHtmlStr(rowSpan)}"` : ""}${udfAttrsData(cell)}>\n`;
         let hasChild = false;
         Array.from(cell.children).forEach(cc => {
           const ccTag = (cc.tagName || "").toLowerCase();
@@ -1397,123 +1568,151 @@ async function generateUdfBlob(docData) {
   let elementsXml = "";
   let currentOffset = 0;
 
-  function appendParagraphXmlJs(p, indent) {
+  const PT_PER_CM = 28.3465;
+  const near = (a, b, tol) => Math.abs((a || 0) - (b || 0)) <= tol;
+  const attrStr = (o) => Object.keys(o).map(k => ` ${k}="${escapeXml(String(o[k]))}"`).join("");
+  const TAB_ALIGN_CODE = { left: "0", right: "1", center: "2", decimal: "3" };
+
+  /**
+   * Paragraf öznitelikleri: orijinal UDF öznitelikleri temel alınır, yalnızca kullanıcının
+   * editörde değiştirdiği değerler yeniden hesaplanır. Böylece resolver, TabSet hizaları,
+   * Havelsan'a özgü bilinmeyen öznitelikler kaybolmaz (kayıpsız round-trip).
+   */
+  function buildParagraphAttrs(p) {
+    const orig = p.origAttrs ? { ...p.origAttrs } : null;
+    const o = orig ? { ...orig } : {};
+    delete o.startOffset; delete o.length;
+    const num = (k) => parseFloat(o[k] || "0") || 0;
+
     const align = p.align !== undefined ? p.align : 3;
-    const spaceAbove = p.spaceAbove || 0;
-    const spaceBelow = p.spaceBelow || 0;
-    const lineSpacing = p.lineSpacing || 0;
     const firstLineCm = p.firstLineIndent || 0;
     const leftIndentCm = p.leftIndent || 0;
     const rightIndentCm = p.rightIndent || 0;
 
-    let udfLeftPt = 0, udfFirstPt = 0, udfHangPt = 0;
-    if (firstLineCm < -0.01) {
-      const firstPosCm = Math.max(0, leftIndentCm + firstLineCm);
-      udfLeftPt = firstPosCm * 28.3465;
-      udfFirstPt = 0;
-      udfHangPt = Math.max(0, leftIndentCm - firstPosCm) * 28.3465;
-    } else {
-      udfLeftPt = Math.max(0, leftIndentCm) * 28.3465;
-      udfFirstPt = Math.max(0, firstLineCm) * 28.3465;
-      udfHangPt = 0;
+    // Orijinal değerlerden editörün göreceği cm değerleri (parser formülünün aynısı)
+    const origLeftCm = (num("LeftIndent") + num("Hanging")) / PT_PER_CM;
+    const origFirstCm = (num("FirstLineIndent") - num("Hanging")) / PT_PER_CM;
+    const origRightCm = num("RightIndent") / PT_PER_CM;
+
+    if (!orig || !near(leftIndentCm, origLeftCm, 0.03) || !near(firstLineCm, origFirstCm, 0.03)) {
+      let udfLeftPt, udfFirstPt, udfHangPt;
+      if (firstLineCm < -0.01) {
+        const firstPosCm = Math.max(0, leftIndentCm + firstLineCm);
+        udfLeftPt = firstPosCm * PT_PER_CM; udfFirstPt = 0;
+        udfHangPt = Math.max(0, leftIndentCm - firstPosCm) * PT_PER_CM;
+      } else {
+        udfLeftPt = Math.max(0, leftIndentCm) * PT_PER_CM;
+        udfFirstPt = Math.max(0, firstLineCm) * PT_PER_CM; udfHangPt = 0;
+      }
+      delete o.LeftIndent; delete o.FirstLineIndent; delete o.Hanging;
+      if (udfLeftPt > 0.05) o.LeftIndent = udfLeftPt.toFixed(1);
+      if (udfFirstPt > 0.05) o.FirstLineIndent = udfFirstPt.toFixed(1);
+      if (udfHangPt > 0.05) o.Hanging = udfHangPt.toFixed(1);
     }
-    const udfRightPt = Math.max(0, rightIndentCm) * 28.3465;
+    if (!orig || !near(rightIndentCm, origRightCm, 0.03)) {
+      delete o.RightIndent;
+      if (rightIndentCm > 0.01) o.RightIndent = (rightIndentCm * PT_PER_CM).toFixed(1);
+    }
+    if (!orig || !near(p.spaceAbove, num("SpaceAbove"), 0.05)) { delete o.SpaceAbove; if ((p.spaceAbove || 0) > 0.05) o.SpaceAbove = p.spaceAbove.toFixed(1); }
+    if (!orig || !near(p.spaceBelow, num("SpaceBelow"), 0.05)) { delete o.SpaceBelow; if ((p.spaceBelow || 0) > 0.05) o.SpaceBelow = p.spaceBelow.toFixed(1); }
+    if (!orig || !near(p.lineSpacing, num("LineSpacing"), 0.005)) { delete o.LineSpacing; if ((p.lineSpacing || 0) > 0.01) o.LineSpacing = p.lineSpacing.toFixed(2); }
 
-    let tabSetStr = "";
-    if (p.tabStops) {
-      const stops = String(p.tabStops).split(",").map(s => parseFloat(s.trim())).filter(n => !isNaN(n) && n > 0);
-      if (stops.length > 0) {
-        tabSetStr = stops.map(cm => `${(cm * 28.3465).toFixed(1)}:0:0`).join(",");
-      }
-    } else if (p.udfTabSet) {
-      tabSetStr = p.udfTabSet;
+    // Sekme durakları: değişmediyse orijinal TabSet (hizalama kodlarıyla) aynen korunur.
+    if (p.udfTabSet && (!p.tabStops || p.tabStops === p.origTabStops)) {
+      o.TabSet = p.udfTabSet;
+    } else if (p.tabStops) {
+      const stops = String(p.tabStops).split(",").map(s => s.trim()).filter(Boolean).map(s => {
+        const [cmStr, al] = s.split(":");
+        const cm = parseFloat(cmStr);
+        return isNaN(cm) || cm <= 0 ? null : `${(cm * PT_PER_CM).toFixed(1)}:${TAB_ALIGN_CODE[al] || "0"}:0`;
+      }).filter(Boolean);
+      if (stops.length) o.TabSet = stops.join(","); else delete o.TabSet;
+    } else if (!p.udfTabSet) {
+      delete o.TabSet;
     }
 
-    elementsXml += `${indent}<paragraph`;
-    if (tabSetStr) elementsXml += ` TabSet="${escapeXml(tabSetStr)}"`;
-    if (udfLeftPt > 0.05) elementsXml += ` LeftIndent="${udfLeftPt.toFixed(1)}"`;
-    if (udfFirstPt > 0.05) elementsXml += ` FirstLineIndent="${udfFirstPt.toFixed(1)}"`;
-    if (udfHangPt > 0.05) elementsXml += ` Hanging="${udfHangPt.toFixed(1)}"`;
-    if (udfRightPt > 0.05) elementsXml += ` RightIndent="${udfRightPt.toFixed(1)}"`;
-    if (spaceAbove > 0.05) elementsXml += ` SpaceAbove="${spaceAbove.toFixed(1)}"`;
-    if (spaceBelow > 0.05) elementsXml += ` SpaceBelow="${spaceBelow.toFixed(1)}"`;
-    if (lineSpacing > 0.01) elementsXml += ` LineSpacing="${lineSpacing.toFixed(2)}"`;
-    if (p.numbered) elementsXml += ` Numbered="true" NumberType="${escapeXml(p.numberType || 'NUMBER_TYPE_NUMBER_TRE')}"`;
-    else if (p.bulleted) elementsXml += ` Bulleted="true"`;
-    elementsXml += ` Alignment="${align}">\n`;
+    if (p.numbered) { o.Numbered = "true"; o.NumberType = p.numberType || o.NumberType || "NUMBER_TYPE_NUMBER_TRE"; delete o.Bulleted; }
+    else if (p.bulleted) { o.Bulleted = "true"; delete o.Numbered; }
+    else { delete o.Numbered; delete o.Bulleted; }
 
-    (p.runs || []).forEach(r => {
-      if (r.type === "image" && r.imageData) {
-        const wPt = (r.widthPt || 100).toFixed(4);
-        const hPt = (r.heightPt || 50).toFixed(4);
-        rawContent += "\u00b8";
-        elementsXml += `${indent}    <image width="${wPt}" height="${hPt}" resolver="hvl-default" imageData="${escapeXml(r.imageData)}" startOffset="${currentOffset}" length="1" />\n`;
-        currentOffset += 1;
-        return;
-      }
+    const origAlign = o.Alignment;
+    if (origAlign === undefined || String(align) !== String(origAlign)) {
+      // Orijinalde Alignment stil üzerinden geliyorsa ve değer aynıysa yazmaya gerek yok
+      o.Alignment = String(align);
+    }
+    return o;
+  }
 
-      const text = r.text || "";
-      if (!text) return;
+  function runStyleAttrs(r) {
+    let styleAttrs = "";
+    if (r.fontFamily) {
+      const cleanF = r.fontFamily.replace(/['"]/g, "").split(",")[0].trim();
+      if (cleanF) styleAttrs += ` family="${escapeXml(cleanF)}"`;
+    }
+    if (r.fontSize && r.fontSize > 1) {
+      styleAttrs += ` size="${Number.isInteger(r.fontSize) ? r.fontSize : r.fontSize.toFixed(1)}"`;
+    }
+    const fgInt = parseCssColorToSignedIntJs(r.color);
+    if (fgInt !== 0 && (fgInt & 0xFFFFFF) !== 0x000000 && (fgInt & 0xFFFFFF) !== 0x333333) styleAttrs += ` foreground="${fgInt}"`;
+    const bgInt = parseCssColorToSignedIntJs(r.backgroundColor);
+    if (bgInt !== 0 && (bgInt & 0xFFFFFF) !== 0xFFFFFF) styleAttrs += ` background="${bgInt}"`;
+    if (r.bold) styleAttrs += ` bold="true"`;
+    if (r.italic) styleAttrs += ` italic="true"`;
+    if (r.underline) styleAttrs += ` underline="true"`;
+    if (r.subscript) styleAttrs += ` Subscript="true"`;
+    if (r.superscript) styleAttrs += ` Superscript="true"`;
+    if (r.strikethrough || r.strikeThrough) styleAttrs += ` strikethrough="true"`;
+    return styleAttrs;
+  }
 
-      let styleAttrs = "";
-      if (r.fontFamily) {
-        const cleanF = r.fontFamily.replace(/['"]/g, "").split(",")[0].trim();
-        if (cleanF && cleanF.toLowerCase() !== "times new roman") styleAttrs += ` family="${escapeXml(cleanF)}"`;
-      }
-      if (r.fontSize && r.fontSize > 1 && Math.abs(r.fontSize - 12) > 0.1) {
-        styleAttrs += ` size="${Number.isInteger(r.fontSize) ? r.fontSize : r.fontSize.toFixed(1)}"`;
-      }
-      const fgInt = parseCssColorToSignedIntJs(r.color);
-      if (fgInt !== 0 && (fgInt & 0xFFFFFF) !== 0x000000 && (fgInt & 0xFFFFFF) !== 0x333333) {
-        styleAttrs += ` foreground="${fgInt}"`;
-      }
-      const bgInt = parseCssColorToSignedIntJs(r.backgroundColor);
-      if (bgInt !== 0 && (bgInt & 0xFFFFFF) !== 0xFFFFFF) {
-        styleAttrs += ` background="${bgInt}"`;
-      }
-      if (r.bold) styleAttrs += ` bold="true"`;
-      if (r.italic) styleAttrs += ` italic="true"`;
-      if (r.underline) styleAttrs += ` underline="true"`;
-      if (r.subscript) styleAttrs += ` Subscript="true"`;
-      if (r.superscript) styleAttrs += ` Superscript="true"`;
-      if (r.strikethrough || r.strikeThrough) styleAttrs += ` strikethrough="true"`;
+  // Java String (UTF-16) uzunluğu kullanılır: Havelsan offsetleri String.substring ile çözer.
+  function pushText(text, tag, styleAttrs, indent) {
+    if (!text) return;
+    rawContent += text;
+    elementsXml += `${indent}    <${tag} startOffset="${currentOffset}" length="${text.length}"${styleAttrs} />\n`;
+    currentOffset += text.length;
+  }
 
-      let idx = 0;
-      const tLen = text.length;
-      while (idx < tLen) {
-        const tabPos = text.indexOf("\t", idx);
-        if (tabPos === -1) {
-          const sub = text.substring(idx);
-          if (sub.length > 0) {
-            const rCount = Array.from(sub).length;
-            rawContent += sub;
-            elementsXml += `${indent}    <content startOffset="${currentOffset}" length="${rCount}"${styleAttrs} />\n`;
-            currentOffset += rCount;
-          }
-          break;
-        } else {
-          if (tabPos > idx) {
-            const sub = text.substring(idx, tabPos);
-            const rCount = Array.from(sub).length;
-            rawContent += sub;
-            elementsXml += `${indent}    <content startOffset="${currentOffset}" length="${rCount}"${styleAttrs} />\n`;
-            currentOffset += rCount;
-          }
-          let tabEnd = tabPos + 1;
-          while (tabEnd < tLen && text.charAt(tabEnd) === "\t") tabEnd++;
-          const tabCount = tabEnd - tabPos;
-          rawContent += "\t".repeat(tabCount);
-          elementsXml += `${indent}    <tab startOffset="${currentOffset}" length="${tabCount}"${styleAttrs} />\n`;
-          currentOffset += tabCount;
-          idx = tabEnd;
-        }
-      }
+  function appendParagraphXmlJs(p, indent) {
+    const attrs = buildParagraphAttrs(p);
+    // Satır içi <br> (Shift+Enter / şablon eol) Havelsan'da ayrı paragraf demektir:
+    // runs "\n" noktalarından bölünür, her parça aynı özniteliklerle ayrı paragraf olur.
+    const runs = (p.runs || []).slice();
+    while (runs.length && runs[runs.length - 1].type !== "image" && runs[runs.length - 1].text === "\n") runs.pop();
+    const pieces = [[]];
+    runs.forEach(r => {
+      if (r.type === "image") { pieces[pieces.length - 1].push(r); return; }
+      const parts = String(r.text || "").split("\n");
+      parts.forEach((part, i) => {
+        if (i > 0) pieces.push([]);
+        if (part) pieces[pieces.length - 1].push({ ...r, text: part });
+      });
     });
 
-    rawContent += "\n";
-    elementsXml += `${indent}    <content startOffset="${currentOffset}" length="1" />\n`;
-    currentOffset += 1;
-    elementsXml += `${indent}</paragraph>\n`;
+    pieces.forEach(pieceRuns => {
+      elementsXml += `${indent}<paragraph${attrStr(attrs)}>\n`;
+      pieceRuns.forEach(r => {
+        if (r.type === "image" && r.imageData) {
+          const wPt = (r.widthPt || 100).toFixed(4);
+          const hPt = (r.heightPt || 50).toFixed(4);
+          rawContent += "¸";
+          elementsXml += `${indent}    <image width="${wPt}" height="${hPt}" resolver="hvl-default" imageData="${escapeXml(r.imageData)}" startOffset="${currentOffset}" length="1" />\n`;
+          currentOffset += 1;
+          return;
+        }
+        const text = r.text || "";
+        const styleAttrs = runStyleAttrs(r);
+        // Sekmeler ayrı <tab> öğesi olarak yazılır
+        text.split(/(\t+)/).forEach(seg => {
+          if (!seg) return;
+          pushText(seg, seg[0] === "\t" ? "tab" : "content", styleAttrs, indent);
+        });
+      });
+      // Paragraf sonu: son koşunun biçimi ile satır sonu karakteri
+      const last = pieceRuns.filter(r => r.type !== "image").pop();
+      pushText("\n", "content", last ? runStyleAttrs(last) : "", indent);
+      elementsXml += `${indent}</paragraph>\n`;
+    });
   }
 
   function appendTableXmlJs(tbl, indent) {
@@ -1522,13 +1721,22 @@ async function generateUdfBlob(docData) {
     if (rows.length === 0) return;
     let maxCols = 1;
     rows.forEach(r => { if (r.cells && r.cells.length > maxCols) maxCols = r.cells.length; });
-    const colSpans = tbl.colSpans || Array(maxCols).fill(Math.max(20, Math.floor(480 / maxCols))).join(",");
+    const tA = tbl.origAttrs ? { ...tbl.origAttrs } : {};
+    if (!tA.tableName) tA.tableName = "Sabit";
+    if (!tA.columnCount) tA.columnCount = String(maxCols);
+    if (tbl.colSpans) tA.columnSpans = tbl.colSpans;
+    else if (!tA.columnSpans) tA.columnSpans = Array(maxCols).fill(Math.max(20, Math.floor(480 / maxCols))).join(",");
+    tA.border = tA.border || border;
 
-    elementsXml += `${indent}<table tableName="Sabit" columnCount="${maxCols}" columnSpans="${escapeXml(colSpans)}" border="${escapeXml(border)}">\n`;
+    elementsXml += `${indent}<table${attrStr(tA)}>\n`;
     rows.forEach((r, rIdx) => {
-      elementsXml += `${indent}    <row rowName="row${rIdx + 1}" rowType="dataRow" border="${escapeXml(border)}">\n`;
+      const rA = r.origAttrs ? { ...r.origAttrs } : { rowName: `row${rIdx + 1}`, rowType: "dataRow", border: border };
+      elementsXml += `${indent}    <row${attrStr(rA)}>\n`;
       (r.cells || []).forEach(c => {
-        elementsXml += `${indent}        <cell${c.colSpan > 1 ? ` colSpan="${c.colSpan}"` : ""}${c.rowSpan > 1 ? ` rowSpan="${c.rowSpan}"` : ""} border="${escapeXml(border)}">\n`;
+        const cA = c.origAttrs ? { ...c.origAttrs } : { border: border };
+        if (c.colSpan > 1) cA.colSpan = String(c.colSpan); else delete cA.colSpan;
+        if (c.rowSpan > 1) cA.rowSpan = String(c.rowSpan); else delete cA.rowSpan;
+        elementsXml += `${indent}        <cell${attrStr(cA)}>\n`;
         const cellParas = c.paragraphs || [];
         if (cellParas.length > 0) {
           cellParas.forEach(cp => {
@@ -1610,21 +1818,34 @@ async function generateUdfBlob(docData) {
   }
 
   const m = docData.margins || {};
-  const leftPt = ((m.left || docData.leftMarginCm || 1.5) * 28.3465).toFixed(4);
-  const rightPt = ((m.right || docData.rightMarginCm || 1.5) * 28.3465).toFixed(4);
-  const topPt = ((m.top || docData.topMarginCm || 1.5) * 28.3465).toFixed(4);
-  const bottomPt = ((m.bottom || docData.bottomMarginCm || 1.5) * 28.3465).toFixed(4);
-  const orient = (m.orientation === "landscape" || docData.paperOrientation === "2") ? "2" : "1";
+  const src = window.__udfSource || null;
+  const cmToPt = (cm) => (cm * PT_PER_CM).toFixed(4);
+  // Sayfa biçimi: orijinal öznitelikler korunur, kenar boşlukları yalnızca değiştiyse güncellenir.
+  const pf = src && src.pageFormat ? { ...src.pageFormat } : { mediaSizeName: "1", headerFOffset: "20.0", footerFOffset: "20.0" };
+  const setMargin = (key, cm) => {
+    if (!cm && cm !== 0) return;
+    const origCm = pf[key] !== undefined ? Math.round((parseFloat(pf[key]) / PT_PER_CM) * 100) / 100 : null;
+    if (origCm === null || Math.abs(origCm - cm) > 0.011) pf[key] = cmToPt(cm);
+  };
+  setMargin("leftMargin", m.left || docData.leftMarginCm || 1.5);
+  setMargin("rightMargin", m.right || docData.rightMarginCm || 1.5);
+  setMargin("topMargin", m.top || docData.topMarginCm || 1.5);
+  setMargin("bottomMargin", m.bottom || docData.bottomMarginCm || 1.5);
+  pf.paperOrientation = (m.orientation === "landscape" || docData.paperOrientation === "2") ? "2" : "1";
+  const defaultStyles = `<styles><style name="default" description="Geçerli" family="Dialog" size="12" bold="false" italic="false" foreground="-13421773" FONT_ATTRIBUTE_KEY="javax.swing.plaf.FontUIResource[family=Dialog,name=Dialog,style=plain,size=12]" /><style name="hvl-default" family="Times New Roman" size="12" description="Gövde" /></styles>`;
+  const elAttrs = src && src.elementsAttrs && Object.keys(src.elementsAttrs).length ? src.elementsAttrs : { resolver: "hvl-default" };
 
   const finalXml = `<?xml version="1.0" encoding="UTF-8"?>\n` +
     `<template format_id="1.8">\n` +
-    `<content><![CDATA[${rawContent}]]></content>\n` +
-    `<properties><pageFormat mediaSizeName="1" leftMargin="${leftPt}" rightMargin="${rightPt}" topMargin="${topPt}" bottomMargin="${bottomPt}" paperOrientation="${orient}" headerFOffset="20.0" footerFOffset="20.0" /></properties>\n` +
-    `<elements resolver="hvl-default">\n${elementsXml}</elements>\n` +
-    `<styles><style name="default" description="Geçerli" family="Dialog" size="12" bold="false" italic="false" foreground="-13421773" FONT_ATTRIBUTE_KEY="javax.swing.plaf.FontUIResource[family=Dialog,name=Dialog,style=plain,size=12]" /><style name="hvl-default" family="Times New Roman" size="12" description="Gövde" /></styles>\n` +
+    `<content><![CDATA[${rawContent.replace(/]]>/g, "]]]]><![CDATA[>")}]]></content>\n` +
+    `<properties><pageFormat${attrStr(pf)} /></properties>\n` +
+    `<elements${attrStr(elAttrs)}>\n${elementsXml}</elements>\n` +
+    `${(src && src.stylesXml) || defaultStyles}\n` +
+    `${(src && src.webIdXml) || ""}` +
     `</template>`;
 
   zip.file("content.xml", finalXml);
+  if (src && src.docPropsXml) zip.file("documentproperties.xml", src.docPropsXml);
   return await zip.generateAsync({ type: "blob", compression: "DEFLATE" });
 }
 
@@ -2851,6 +3072,7 @@ async function openDocumentFromBytes(buffer, name, path) {
       arrayBuffer = new Uint8Array(buffer || 0).buffer;
     }
     currentDocOriginalBuffer = arrayBuffer.slice(0);
+    window.__udfSource = null; // yeni belge: önceki UDF kaynak bilgisi temizlenir
     const lowerName = fileName.toLowerCase();
 
     const u8 = new Uint8Array(arrayBuffer.slice(0, 16));

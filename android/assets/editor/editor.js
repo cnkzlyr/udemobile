@@ -4362,6 +4362,14 @@ function getPlainText() {
 window.getPlainText = getPlainText;
 
 // Belgeyi Java/Web UDF & DOCX Üreticileri için Üstbilgi, Altbilgi, Tablo, Görsel ve Paragraflar Olarak Çıkar
+/** data-udf-attrs (orijinal UDF XML öznitelikleri) okunur; yoksa null. */
+function readUdfAttrs(node) {
+  try {
+    const raw = node && node.getAttribute && node.getAttribute('data-udf-attrs');
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) { return null; }
+}
+
 function extractParagraphNode(node) {
   let align = 3;
   const textAlign = node.style ? node.style.textAlign : '';
@@ -4419,6 +4427,8 @@ function extractParagraphNode(node) {
     rightIndent: rightIndent,
     tabStops: (node.dataset && node.dataset.tabStops) ? node.dataset.tabStops : '',
     udfTabSet: (node.dataset && node.dataset.udfTabset) ? node.dataset.udfTabset : '',
+    origTabStops: (node.dataset && node.dataset.origTabStops) ? node.dataset.origTabStops : '',
+    origAttrs: readUdfAttrs(node),
     runs: runs
   };
   if (node.dataset && node.dataset.udfNumbered === 'true') {
@@ -4474,13 +4484,14 @@ function extractTableNode(tableNode) {
         cellParagraphs.push(extractParagraphNode(td));
       }
       cells.push({
+        origAttrs: readUdfAttrs(td),
         colSpan: parseInt(td.getAttribute('colspan') || '1', 10) || 1,
         rowSpan: parseInt(td.getAttribute('rowspan') || '1', 10) || 1,
         paragraphs: cellParagraphs
       });
     }
     if (cells.length > 0) {
-      rows.push({ cells: cells });
+      rows.push({ cells: cells, origAttrs: readUdfAttrs(tr) });
     }
   }
 
@@ -4488,6 +4499,7 @@ function extractTableNode(tableNode) {
     type: 'table',
     border: border,
     colSpans: colSpans,
+    origAttrs: readUdfAttrs(tableNode),
     rows: rows
   };
 }
