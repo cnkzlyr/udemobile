@@ -4716,7 +4716,7 @@ function parseInlineRuns(element, runs, state) {
         continue;
       }
       if (child.classList && child.classList.contains('udf-tab-space')) {
-        runs.push({
+        const tabRun = {
           text: '\t',
           bold: !!st.bold,
           italic: !!st.italic,
@@ -4724,7 +4724,10 @@ function parseInlineRuns(element, runs, state) {
           subscript: !!st.subscript,
           superscript: !!st.superscript,
           strikethrough: !!st.strikethrough
-        });
+        };
+        if (st.fontFamily) tabRun.fontFamily = st.fontFamily;
+        if (st.fontSize > 0) tabRun.fontSize = st.fontSize;
+        runs.push(tabRun);
         continue;
       }
       const tag = child.tagName ? child.tagName.toLowerCase() : '';

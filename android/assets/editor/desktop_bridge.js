@@ -300,7 +300,7 @@ function parseOle2WordDocBuffer(buffer) {
       if (!clean) {
         html += '<p style="text-align: justify;"><br></p>\n';
       } else {
-        const escaped = escapeHtmlStr(clean).replace(/\t+/g, '<span class="udf-tab-space" contenteditable="false">&#8203;</span>');
+        const escaped = escapeHtmlStr(clean).replace(/\t/g, '<span class="udf-tab-space" contenteditable="false">&#8203;</span>');
         html += `<p style="text-align: justify; margin-top: 2pt; margin-bottom: 2pt;">${escaped}</p>\n`;
       }
     }
@@ -775,7 +775,7 @@ async function parseUdfArrayBuffer(buffer) {
           const rBg = c.getAttribute("background") || "";
 
           let seg = escapeHtmlStr(chunk)
-            .replace(/\t+/g, '<span class="udf-tab-space" contenteditable="false">&#8203;</span>')
+            .replace(/\t/g, '<span class="udf-tab-space" contenteditable="false">&#8203;</span>')
             .replace(/\n/g, "<br>");
           if (bold) seg = `<strong>${seg}</strong>`;
           if (italic) seg = `<em>${seg}</em>`;
@@ -1753,11 +1753,14 @@ async function generateUdfBlob(docData) {
     elementsXml += `${indent}</table>\n`;
   }
 
+  const src0 = window.__udfSource || null;
   // 1. Üstbilgi (<header>)
   const hParas = docData.headerParagraphs || [];
   if (hParas.length > 0 || (docData.header && docData.header.trim())) {
     const startP = docData.headerStartPage || 1;
-    elementsXml += `<header${startP > 1 ? ` startPage="${startP}"` : ""}>\n`;
+    const hA = src0 && src0.headerAttrs ? { ...src0.headerAttrs } : {};
+    if (startP > 1) hA.startPage = String(startP); else delete hA.startPage;
+    elementsXml += `<header${attrStr(hA)}>\n`;
     if (hParas.length > 0) {
       hParas.forEach(hp => {
         if (hp.type === "image" && hp.imageData) {
@@ -1798,7 +1801,9 @@ async function generateUdfBlob(docData) {
     const foreStr = docData.footerForeStr || "Sayfa:";
     const sep = docData.footerSep || "/";
     const pStart = docData.footerPageStart || "1";
-    elementsXml += `<footer pageNumber-spec="${escapeXml(spec)}" pageNumber-foreStr="${escapeXml(foreStr)}" pageNumber-seperator="${escapeXml(sep)}" pageNumber-start="${escapeXml(pStart)}">\n`;
+    const fA = src0 && src0.footerAttrs && Object.keys(src0.footerAttrs).length ? { ...src0.footerAttrs } : {
+      "pageNumber-spec": spec, "pageNumber-foreStr": foreStr, "pageNumber-seperator": sep, "pageNumber-start": pStart };
+    elementsXml += `<footer${attrStr(fA)}>\n`;
     if (fParas.length > 0) {
       fParas.forEach(fp => {
         if (fp.type === "image" && fp.imageData) {
@@ -1833,7 +1838,7 @@ async function generateUdfBlob(docData) {
   setMargin("bottomMargin", m.bottom || docData.bottomMarginCm || 1.5);
   pf.paperOrientation = (m.orientation === "landscape" || docData.paperOrientation === "2") ? "2" : "1";
   const defaultStyles = `<styles><style name="default" description="Geçerli" family="Dialog" size="12" bold="false" italic="false" foreground="-13421773" FONT_ATTRIBUTE_KEY="javax.swing.plaf.FontUIResource[family=Dialog,name=Dialog,style=plain,size=12]" /><style name="hvl-default" family="Times New Roman" size="12" description="Gövde" /></styles>`;
-  const elAttrs = src && src.elementsAttrs && Object.keys(src.elementsAttrs).length ? src.elementsAttrs : { resolver: "hvl-default" };
+  const elAttrs = src && src.elementsAttrs ? src.elementsAttrs : { resolver: "hvl-default" };
 
   const finalXml = `<?xml version="1.0" encoding="UTF-8"?>\n` +
     `<template format_id="1.8">\n` +
