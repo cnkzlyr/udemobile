@@ -25,6 +25,14 @@
   let scheduled = 0;
   let observer = null;
 
+  // v3.17.0 — KAYDIRMADA GERİ SEKME DÜZELTMESİ / scroll bounce-back fix
+  // Kullanıcı en son ne yaptı? Yazdıysa imleç görünür tutulur; kaydırdıysa ASLA imlece geri çekilmez.
+  // (Önceki sürümde kendi kendini tetikleyen yeniden sayfalama döngüsü her ~80 ms'de keepCaretVisible()
+  //  çağırıp kaydırmayı imlecin olduğu sayfaya geri atıyordu.)
+  let lastEditTs = 0;     // son klavye/IME girişi (keydown, beforeinput, compositionend)
+  let lastScrollTs = 0;   // son kullanıcı kaydırma hareketi (dokunma sürükleme, tekerlek, kaydırma çubuğu)
+  const CARET_FOLLOW_MS = 1500;
+
   const container = () => document.getElementById('pages-container') || document.getElementById('sheet-container');
   const isMobileFlow = () => {
     const w = document.getElementById('page-wrapper');
@@ -297,6 +305,13 @@
   }
 
   // ---------------------------------------------------------------- ana akış
+  // Sayfa düzeninin parmak izi: her sayfadaki blok sayısı + karakter sayısı.
+  // Böl-birleştir turları (3. adım) DOM düğümlerini değiştirse de sonuç aynıysa düzen DEĞİŞMEMİŞTİR.
+  // Layout fingerprint: a merge-then-resplit round touches the DOM but yields the same pages.
+  function layoutSignature() {
+    return bodies().map(b => contentChildren(b).length + ':' + (b.textContent || '').length).join('|');
+  }
+
   function reflow() {
     if (busy || isMobileFlow()) return false;
     const c = container();
@@ -304,6 +319,7 @@
     let all = bodies();
     if (!all.length) return false;
     busy = true;
+    const sigBefore = layoutSignature();
     normalizeBoxes();
     const emptyCaretBlock = caretEmptyBlock();
     const saved = saveCaret();
@@ -407,9 +423,13 @@
       }
       // Boş gövde kutusu bırakma
       bodies().forEach(b => { if (!contentChildren(b).length) b.innerHTML = '<p style="text-align: justify;"><br></p>'; });
-      if (changed) renumber();
+      // Düğümler taşındı ama sayfa düzeni aynı kaldıysa (böl→birleştir→böl) gerçek değişiklik yok:
+      // yeniden numaralandırma ve imlece kaydırma yapılmaz.
+      if (changed && layoutSignature() === sigBefore) changed = 'nodes-only';
+      if (changed === true) renumber();
     } finally {
       if (changed) {
+        // Düğümler yeniden oluşmuş olabilir: imleç her durumda yerine konur
         if (emptyCaretBlock && emptyCaretBlock.isConnected) {
           const box = emptyCaretBlock.closest('.page-body-box');
           if (saved && saved.hadFocus && document.activeElement !== box) { try { box.focus({ preventScroll: true }); } catch (e) {} }
@@ -418,11 +438,20 @@
           restoreCaret(saved);
         }
         if (dbg) { const s2 = window.getSelection(); dbg('restored -> ' + (s2.anchorNode && (s2.anchorNode.textContent || '').slice(0, 24)) + '@' + s2.anchorOffset); }
-        keepCaretVisible();
+        // Yalnızca kullanıcı az önce YAZDIYSA ve o zamandan beri kaydırmadıysa imleci görünür tut
+        if (changed === true && userIsTyping()) keepCaretVisible();
       }
+      // Bu turun kendi DOM değişikliklerinin kayıtlarını at: aksi halde gözlemci (busy=false olduktan sonra
+      // çalışınca) bunları kullanıcı düzenlemesi sanıp yeni bir reflow planlıyor → sonsuz döngü.
+      // Drop the records produced by this reflow so the MutationObserver doesn't re-trigger it forever.
+      if (observer) observer.takeRecords();
       busy = false;
     }
-    return changed;
+    return changed === true;
+  }
+
+  function userIsTyping() {
+    return lastEditTs > lastScrollTs && (Date.now() - lastEditTs) < CARET_FOLLOW_MS;
   }
 
   function keepCaretVisible() {
@@ -608,6 +637,19 @@
     });
     observer.observe(c, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['style', 'class'] });
     document.addEventListener('keydown', onKeyDown, true);
+    // Kullanıcı niyeti: yazma mı kaydırma mı? (keepCaretVisible yalnızca yazarken)
+    const yazdi = () => { lastEditTs = Date.now(); };
+    const kaydirdi = () => { lastScrollTs = Date.now(); };
+    document.addEventListener('keydown', yazdi, true);
+    document.addEventListener('beforeinput', yazdi, true);
+    document.addEventListener('compositionend', yazdi, true);
+    const wrap = document.getElementById('page-wrapper');
+    if (wrap) {
+      wrap.addEventListener('touchmove', kaydirdi, { passive: true });
+      wrap.addEventListener('wheel', kaydirdi, { passive: true });
+      // kaydırma çubuğunu fareyle sürükleme: olayın hedefi sarmalayıcının kendisi
+      wrap.addEventListener('mousedown', (e) => { if (e.target === wrap) kaydirdi(); }, { passive: true });
+    }
     window.addEventListener('resize', () => schedule(200));
     if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => schedule(0));
   }
