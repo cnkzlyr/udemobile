@@ -1,6 +1,6 @@
 # ⚖️ CanEditor (UdeMobile) — Çapraz Platform UYAP & Word Editörü
 
-[![Sürüm](https://img.shields.io/badge/Sürüm-v3.16.0-blue.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v3.16.0)
+[![Sürüm](https://img.shields.io/badge/Sürüm-v3.17.0-blue.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v3.17.0)
 [![Platformlar](https://img.shields.io/badge/Platformlar-Android%20%7C%20Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Web-success.svg)](https://github.com/cnkzlyr/udemobile/releases)
 [![UYAP](https://img.shields.io/badge/Format-UYAP_UDF_v1.8-0D47A1.svg)](https://uyap.gov.tr)
 [![Word](https://img.shields.io/badge/Format-MS_DOCX_OpenXML-2B579A.svg?logo=microsoft-word&logoColor=white)](https://microsoft.com)
@@ -11,20 +11,43 @@
 
 ---
 
-## 🚀 Hızlı İndirme (v3.16.0)
+## 🚀 Hızlı İndirme (v3.17.0)
 
 | Platform | Paket Dosyası | Açıklama |
 | :--- | :--- | :--- |
-| **Android (Telefon & Tablet)** | [**CanEditor-v3.16.0.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.16.0/CanEditor-v3.16.0.apk) | Güncel Android APK paketi (Termux gerektirmez) |
-| **Android (Her Zaman En Son)** | [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.16.0/CanEditor-latest.apk) | Kalıcı son sürüm bağlantısı |
-| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v3.16.0.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v3.16.0/CanEditor-Portable-Web-GUI-v3.16.0.zip) | **Kurulumsuz;** zipten çıkarıp `index.html` açarak tüm işletim sistemlerinde doğrudan çalışır |
-| **Windows / macOS / Linux** | [**GitHub Releases Sayfası**](https://github.com/cnkzlyr/udemobile/releases/tag/v3.16.0) | GitHub Actions CI ile derlenen yerel ikili (.msi, .exe, .dmg, .AppImage, .deb, .rpm) paketleri |
+| **Android (Telefon & Tablet)** | [**CanEditor-v3.17.0.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.17.0/CanEditor-v3.17.0.apk) | Güncel Android APK paketi (Termux gerektirmez) |
+| **Android (Her Zaman En Son)** | [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.17.0/CanEditor-latest.apk) | Kalıcı son sürüm bağlantısı |
+| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v3.17.0.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v3.17.0/CanEditor-Portable-Web-GUI-v3.17.0.zip) | **Kurulumsuz;** zipten çıkarıp `index.html` açarak tüm işletim sistemlerinde doğrudan çalışır |
+| **Windows / macOS / Linux** | [**GitHub Releases Sayfası**](https://github.com/cnkzlyr/udemobile/releases/tag/v3.17.0) | GitHub Actions CI ile derlenen yerel ikili (.msi, .exe, .dmg, .AppImage, .deb, .rpm) paketleri |
 
 ---
 
 ## ⚠️ Android: v3.16.0'a geçerken bir kerelik yeniden kurulum
 
 Önceki sürümler farklı derleme ortamlarında farklı imza anahtarlarıyla imzalanmıştı. v3.16.0'dan itibaren APK **sabit bir proje anahtarıyla** imzalanır; telefonunuzda eski CanEditor varsa bir kez **kaldırıp** yeni APK'yı kurun (aksi halde Android "paket çakışıyor" hatası verir). Sonraki güncellemeler kaldırmadan, üzerine kurulur.
+
+## 🌟 v3.17.0 ile Gelenler (Kaydırırken Geri Sekme, Gerçek UYAP ile Sayfa Uyumu, Tutarı Yazıyla)
+
+Bu sürümdeki sayfalama düzeltmeleri, 9 gerçek UDF'nin **gerçek UYAP Editör** (durum çubuğundaki "Sayfa : x / N"
+ve paragraf ölçüleri) ve Havelsan PDF çıktılarıyla birebir karşılaştırılmasıyla bulundu.
+
+| Belge | UYAP | v3.16.0 | v3.17.0 |
+|---|---|---|---|
+| Fezleke (uzun, karekodlu) | 143 | 179 | 142 |
+| Fezleke (uzun, karekodlu) | 145 | 181 | 145 |
+| İtirazın iptali dilekçesi | 5 | 6 | 5 |
+| Diğer 6 belge | 1, 2, 5, 12, 18 … | aynı | aynı |
+
+- **Kaydırırken imlece geri sekme düzeltildi:** Belge açıkken kendi kendini tetikleyen yeniden sayfalama döngüsü
+  her ~80 ms'de imleci görünür yapmaya çalışıyor, tablette kaydırınca sayfa imlecin olduğu yere geri sıçrıyordu.
+  Artık imleç yalnızca **yazarken** takip edilir; boşta sayfalama 0 kez çalışır.
+- **Sayfa altlarında boş kalan alan:** Bölünen paragrafın devamı birleşince arada kalan boş sayfa, sonraki tüm
+  sayfaların toparlanmasını durduruyordu (uzun belgelerde 30+ fazla sayfa).
+- **Satır yükseklikleri:** paragraf sonundaki büyük puntolu satır sonu artık yalnızca son satırı büyütür;
+  sekmeli satırlar 1.5 pt uzamaz; karekodlu altbilgide gövde Havelsan gibi 51 satır alır;
+  "Dialog" yazı tipi Windows'taki UYAP gibi Arial ile çizilir.
+- **Yeni: Tutarı Yazıyla** (Ekle menüsü ve mobil menü): seçili ya da girilen tutarı
+  `1.250.000,50 TL (Birmilyonikiyüzellibin Türk Lirası Elli Kuruş)` biçiminde yazar.
 
 ## 🌟 v3.16.0 ile Gelenler (Havelsan ile Sayfa Uyumu, Cetvel, E-İmza Takınca Donma, Mobil İmza Doğrulaması)
 

@@ -119,6 +119,7 @@
         <button onclick="triggerImagePicker()">Resim…</button>
         <button onclick="insertPageBreak()">Sayfa Sonu <kbd>Ctrl+Enter</kbd></button>
         <button onclick="insertOfficialDate()">Tarih</button>
+        <button onclick="insertAmountInWords()" title="Seçili tutarı (ör. 1.250,50) rakam + yazıyla yazar">Tutarı Yazıyla</button>
         <hr>
         <div class="ce-sub"><span>Sayfa Numarası</span>
           <div class="ce-menu-pop ce-sub-pop">
@@ -996,6 +997,7 @@
         <div class="drawer-divider"></div>
         <div class="drawer-section-label">HUKUK &amp; E-İMZA ARAÇLARI</div>
         <button type="button" class="drawer-item" onclick="closeModal('modal-mobile-menu'); openFindReplaceModal();">🔍 Bul ve Değiştir</button>
+        <button type="button" class="drawer-item" onclick="closeModal('modal-mobile-menu'); insertAmountInWords();">💰 Tutarı Yazıyla Ekle</button>
         <button type="button" class="drawer-item" onclick="closeModal('modal-mobile-menu'); openAiFormatModal();">🤖 AI Dilekçe Formatlama</button>
         <button type="button" class="drawer-item" onclick="closeModal('modal-mobile-menu'); openMobileSignModal();">📱 Mobil İmza (GSM M-İmza)</button>
         <button type="button" class="drawer-item" onclick="closeModal('modal-mobile-menu'); openSmartCardSignModal();">✍️ Nitelikli E-İmza (USB Token)</button>
