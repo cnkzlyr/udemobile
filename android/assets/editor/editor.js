@@ -878,10 +878,16 @@ function updatePagination() {
     footerHeightPx = measuredFooterH;
     window.__footerHasQr = footerHasQr;
     const FOOTER_BOTTOM_PAD = 5;   // karekodlu altbilginin sayfa kenarına uzaklığı (≈4 pt)
-    const FOOTER_GAP = 4;          // gövde ile altbilgi arası en az boşluk (Havelsan ölçümü)
+    // gövde ile altbilgi arası en az boşluk. 4 px'ten 2 px'e: UYAP PDF'inde (karekodlu fezleke) gövde 56.7→770.7 pt
+    // arasında 51 satır (14 pt) taşıyor; 4 px ile gövde 712.5 pt kalıp 50 satır sığıyor, belge 2 sayfa uzuyordu.
+    // Body/footer gap: UYAP's QR-footer pages hold 51 rows of 14pt (714pt); a 4px gap left room for only 50.
+    const FOOTER_GAP = 2;
     const bottomInsetPx = Math.round(!hasFooterArea
       ? bottomMarginPx
-      : (footerHasQr
+      : ((footerHasQr || currentDocVerificationCode)
+          // Doğrulama kodlu (karekodsuz) resmi altbilgi de Havelsan'da sayfanın en altına yaslanır (UYAP PDF: metin
+          // y≈831–838 pt); footerFOffset'e göre hesaplanınca gövde 1.5 pt kısa kalıp sayfa 51 yerine 50 satır alıyordu
+          // (143 sayfalık fezleke UdeMobile'da 145). Verification-code footers are bottom-anchored like QR footers.
           ? Math.max(bottomMarginPx, FOOTER_BOTTOM_PAD + footerHeightPx + FOOTER_GAP)
           : Math.max(bottomMarginPx, footerOffsetPx + footerHeightPx)));
     const printableH = Math.max(350, pageH - topInsetPx - bottomInsetPx);

@@ -32,6 +32,7 @@
   let lastEditTs = 0;     // son klavye/IME girişi (keydown, beforeinput, compositionend)
   let lastScrollTs = 0;   // son kullanıcı kaydırma hareketi (dokunma sürükleme, tekerlek, kaydırma çubuğu)
   const CARET_FOLLOW_MS = 1500;
+  let reflowTurlari = 0;   // art arda "düzen değişti" turları (sabit noktaya yakınsama sınırı)
 
   const container = () => document.getElementById('pages-container') || document.getElementById('sheet-container');
   const isMobileFlow = () => {
@@ -261,6 +262,7 @@
     }
     const cont = p.cloneNode(false);
     cont.removeAttribute('id');
+    if (p.hasAttribute('data-orig-pb')) { cont.style.paddingBottom = p.getAttribute('data-orig-pb'); cont.removeAttribute('data-orig-pb'); }
     cont.appendChild(frag);
     cont.setAttribute('data-split-continuation', 'true');
     cont.style.textIndent = '0cm';
@@ -268,6 +270,8 @@
     cont.style.paddingTop = '0px';
     if (!p.hasAttribute('data-orig-mb')) p.setAttribute('data-orig-mb', p.style.marginBottom || '');
     p.style.marginBottom = '0px';
+    // son satır dolgusu (büyük puntolu paragraf sonu) yalnızca devam parçasında kalır
+    if (p.style.paddingBottom) { if (!p.hasAttribute('data-orig-pb')) p.setAttribute('data-orig-pb', p.style.paddingBottom); p.style.paddingBottom = '0px'; }
     return cont;
   }
   function mergeContinuation(head, cont) {
@@ -276,6 +280,10 @@
     if (head.hasAttribute('data-orig-mb')) {
       head.style.marginBottom = head.getAttribute('data-orig-mb');
       head.removeAttribute('data-orig-mb');
+    }
+    if (head.hasAttribute('data-orig-pb')) {
+      head.style.paddingBottom = head.getAttribute('data-orig-pb');
+      head.removeAttribute('data-orig-pb');
     }
     head.normalize();
   }
@@ -365,7 +373,14 @@
         while (i + 1 < all.length && pullGuard++ < 500) {
           const cur = contentChildren(box);
           if (cur.length && isHardBreak(cur[cur.length - 1])) break;
-          const next = all[i + 1];
+          // Sonraki DOLU sayfadan çek. Bir devam parçası tamamen birleştirilince arada boş sayfa kalabiliyor;
+          // eskiden döngü orada duruyor ve sonraki tüm sayfalar bu turda hiç toparlanmıyordu (ÇUBUK FEZLEKE:
+          // UYAP 143 sayfa, UdeMobile 179 — sayfa altlarında 500+ pt boşluk).
+          // Pull from the next NON-EMPTY page: a fully merged continuation can leave an empty page behind.
+          let ni = i + 1;
+          while (ni < all.length && !contentChildren(all[ni]).length) ni++;
+          if (ni >= all.length) break;
+          const next = all[ni];
           const first = contentChildren(next)[0];
           if (!first) break;
           const lastHere = cur[cur.length - 1];
@@ -446,6 +461,16 @@
       // Drop the records produced by this reflow so the MutationObserver doesn't re-trigger it forever.
       if (observer) observer.takeRecords();
       busy = false;
+    }
+    // Düzen gerçekten değiştiyse bir tur daha: bir geçişte geri çekilemeyen içerik sonraki turda yerine oturur.
+    // Parmak izi aynı kalınca durur (sonsuz döngü olmaz). Eski sürümde bu tekrarları kendi kendini tetikleyen
+    // gözlemci sağlıyordu; gözlemci döngüsü kesilince sabit noktaya kadar burada yineleniyor.
+    // Iterate to a fixed point: stop as soon as a pass leaves the layout fingerprint unchanged.
+    if (changed === true) {
+      reflowTurlari = (reflowTurlari || 0) + 1;
+      if (reflowTurlari < 12) schedule(0); else reflowTurlari = 0;
+    } else {
+      reflowTurlari = 0;
     }
     return changed === true;
   }

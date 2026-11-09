@@ -639,17 +639,28 @@ async function parseUdfArrayBuffer(buffer) {
     // (ör. 10 sayfalık dilekçe 8–9 sayfa görünüyordu).
     {
       const ls = Math.max(0, parseFloat(lineSpacing || "0") || 0);
-      let maxSize = 0;
-      Array.from(p.children).forEach(ch => {
-        const t = ch.tagName ? ch.tagName.toLowerCase() : "";
-        if (t !== "content" && t !== "tab" && t !== "field") return;
+      // Paragrafı bitiren yalnız-satır-sonu parçası (ör. 16 pt "\n") Swing'de yalnızca SON satırı büyütür;
+      // eskiden tüm satırların aralığına katılıyordu (12 satırlık paragraf 168 yerine 228 pt → sayfa kayması).
+      // A trailing newline-only run only enlarges the LAST row in Swing: keep it out of the pitch, pad the bottom.
+      let maxSize = 0, tailSize = 0;
+      const runs = Array.from(p.children).filter(ch => /^(content|tab|field)$/i.test(ch.tagName || ""));
+      runs.forEach((ch, idx) => {
         const sz = parseFloat(ch.getAttribute("size") || resolveAttr(ch, "size") || resolveAttr(p, "size") || "12");
+        const so = parseInt(ch.getAttribute("startOffset"), 10), ln = parseInt(ch.getAttribute("length"), 10);
+        const onlyNl = idx === runs.length - 1 && idx > 0 && ch.tagName.toLowerCase() === "content" && Number.isFinite(so) && Number.isFinite(ln)
+          && ln > 0 && /^[\r\n]+$/.test(rawText.substr(so, ln));
+        if (onlyNl) { tailSize = sz; return; }
         if (sz > maxSize) maxSize = sz;
       });
-      if (!maxSize) maxSize = parseFloat(resolveAttr(p, "size") || "12") || 12;
+      if (!maxSize) maxSize = tailSize || parseFloat(resolveAttr(p, "size") || "12") || 12;
       const rowH = Math.ceil(maxSize * 1.149 - 0.01);
       const pitch = rowH + Math.floor(rowH * ls + 1e-6);
       styleStr += ` line-height: ${pitch}pt;`;
+      if (tailSize > maxSize) {
+        const tailH = Math.ceil(tailSize * 1.149 - 0.01);
+        const extra = (tailH + Math.floor(tailH * ls + 1e-6)) - pitch;
+        if (extra > 0) styleStr += ` padding-bottom: ${extra}pt;`;
+      }
       dataAttrsPitch = ` data-udf-pitch="${pitch}"`;
     }
 
@@ -814,7 +825,11 @@ async function parseUdfArrayBuffer(buffer) {
           if (fgHex) spanStyle += `color:${fgHex};`;
           const bgHex = parseSignedRgbToHexJs(rBg, false);
           if (bgHex) spanStyle += `background-color:${bgHex};`;
-          if (spanStyle) seg = `<span style="${spanStyle}">${seg}</span>`;
+          // "Dialog" Java'nın mantıksal yazı tipidir: Windows'taki UYAP onu Arial ile çizer (Linux'ta DejaVu Sans).
+          // Satır içi font-family yazılmaz (kayıtta family="Dialog"/eksik hali korunur); görünüm .udf-dialog sınıfından gelir.
+          // Java maps the logical "Dialog" font to Arial on Windows; a class keeps export unchanged.
+          const dialogCls = rFamily === "Dialog" ? ' class="udf-dialog"' : "";
+          if (spanStyle || dialogCls) seg = `<span${dialogCls}${spanStyle ? ` style="${spanStyle}"` : ""}>${seg}</span>`;
           pHtml += seg;
         }
       }
