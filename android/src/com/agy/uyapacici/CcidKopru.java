@@ -124,7 +124,7 @@ public class CcidKopru {
                 return;
             }
             yaz(out, "OK");
-            synchronized (kilit) { istemci++; }
+            synchronized (kilit) { istemci++; kapatmaNesli++; }
             try {
                 String satir;
                 while ((satir = in.readLine()) != null) {
@@ -136,16 +136,38 @@ public class CcidKopru {
             } finally {
                 synchronized (kilit) {
                     istemci--;
-                    if (istemci <= 0 && okuyucu != null && okuyucu.powered) {
-                        // son istemci gitti: kartta açık PIN oturumu bırakma
-                        try { okuyucu.powerOff(); } catch (Exception ignored) { }
-                    }
+                    Tani.yaz("köprü", "istemci ayrıldı (kalan " + istemci + ")");
+                    if (istemci <= 0) gecikmeliKapat();
                 }
             }
         } catch (IOException ignored) {
         } finally {
             try { s.close(); } catch (IOException ignored) { }
         }
+    }
+
+    /** Her yeni istemci bu sayacı artırır: bekleyen "kartı kapat" işi eskiyse iptal olur. */
+    private long kapatmaNesli = 0;
+
+    /**
+     * Son istemci gidince kartın gücünü 3 sn SONRA keser (Termux'ta çalışan ccid_bridge.py ile aynı davranış).
+     * Adalet E-İmza kartı ayrı bir "probe" Java sürecinde tarar ve hemen ardından ana süreç bağlanır; anında
+     * güç kesmek kartı sıfırlıyor, PIN doğrulanmış oturumu düşürüyordu. 3 sn içinde yeni istemci gelirse kart açık kalır.
+     */
+    private void gecikmeliKapat() {
+        final long nesil = kapatmaNesli;
+        Thread t = new Thread(new Runnable() {
+            @Override public void run() {
+                try { Thread.sleep(3000); } catch (InterruptedException e) { return; }
+                synchronized (kilit) {
+                    if (nesil != kapatmaNesli || istemci > 0 || okuyucu == null || !okuyucu.powered) return;
+                    Tani.yaz("köprü", "istemci yok → kart gücü kesildi (PIN oturumu kapatıldı)");
+                    try { okuyucu.powerOff(); } catch (Exception ignored) { }
+                }
+            }
+        }, "ccid-bosta-kapat");
+        t.setDaemon(true);
+        t.start();
     }
 
     private static void yaz(OutputStream out, String s) throws IOException {

@@ -257,11 +257,18 @@ public class AdaletServisi extends Service implements CcidKopru.PinSaglayici {
         env.put("FONTCONFIG_FILE", fc.getAbsolutePath());
         env.remove("DISPLAY");
         // Ajan ve AWT yaması JAVA_TOOL_OPTIONS ile verilir: uygulamanın kart tarayan ALT Java süreçlerine de geçer.
+        // Adalet 1.0.17 kartı "java -jar ..." diye başlattığı bir probe sürecinde tarar; bu süreç komut satırımızdaki
+        // -D ayarlarını almaz. Termux Java'sının varsayılan geçici klasörü (/data/data/com.termux/...) bu uygulamaya
+        // kapalı olduğundan ev/geçici klasör, bellek sınırı ve günlük ayarları da buradan verilir (ana süreçte
+        // komut satırındaki değerler bunları ezer).
         env.put("JAVA_TOOL_OPTIONS", "-javaagent:" + new File(kok, "eimza-agent.jar").getAbsolutePath()
                 + " -Deimza.dir=" + eimza.getAbsolutePath()
                 + " --patch-module=java.desktop=" + new File(kok, "awt-patch.jar").getAbsolutePath()
                 + " --add-opens=java.desktop/java.awt=ALL-UNNAMED -Djava.awt.headless=false"
-                + " -Djdk.lang.Process.launchMechanism=FORK");
+                + " -Djdk.lang.Process.launchMechanism=FORK"
+                + " -Duser.home=" + ev.getAbsolutePath() + " -Djava.io.tmpdir=" + tmp.getAbsolutePath()
+                + " -Dfile.encoding=UTF-8 -Xmx256m -XX:+UseSerialGC -XX:-UsePerfData"
+                + (Tani.acik() ? " -Dlogging.level.tr.gov=DEBUG" : ""));
         if (Tani.acik()) env.put("EIMZA_TANI", "1");
         Tani.yaz("servis", "Java başlatılıyor: " + k);
         Tani.yaz("servis", "JAVA_TOOL_OPTIONS=" + env.get("JAVA_TOOL_OPTIONS"));

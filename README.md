@@ -1,6 +1,6 @@
 # ⚖️ CanEditor (UdeMobile) — Çapraz Platform UYAP & Word Editörü
 
-[![Sürüm](https://img.shields.io/badge/Sürüm-v3.18.3-blue.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v3.18.3)
+[![Sürüm](https://img.shields.io/badge/Sürüm-v3.18.4-blue.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v3.18.4)
 [![Platformlar](https://img.shields.io/badge/Platformlar-Android%20%7C%20Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Web-success.svg)](https://github.com/cnkzlyr/udemobile/releases)
 [![UYAP](https://img.shields.io/badge/Format-UYAP_UDF_v1.8-0D47A1.svg)](https://uyap.gov.tr)
 [![Word](https://img.shields.io/badge/Format-MS_DOCX_OpenXML-2B579A.svg?logo=microsoft-word&logoColor=white)](https://microsoft.com)
@@ -11,14 +11,14 @@
 
 ---
 
-## 🚀 Hızlı İndirme (v3.18.3)
+## 🚀 Hızlı İndirme (v3.18.4)
 
 | Platform | Paket Dosyası | Açıklama |
 | :--- | :--- | :--- |
-| **Android (Telefon & Tablet)** | [**CanEditor-v3.18.3.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.18.3/CanEditor-v3.18.3.apk) | Güncel Android APK paketi (Termux gerektirmez) |
-| **Android (Her Zaman En Son)** | [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.18.3/CanEditor-latest.apk) | Kalıcı son sürüm bağlantısı |
-| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v3.18.3.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v3.18.3/CanEditor-Portable-Web-GUI-v3.18.3.zip) | **Kurulumsuz;** zipten çıkarıp `index.html` açarak tüm işletim sistemlerinde doğrudan çalışır |
-| **Windows / macOS / Linux** | [**GitHub Releases Sayfası**](https://github.com/cnkzlyr/udemobile/releases/tag/v3.18.3) | GitHub Actions CI ile derlenen yerel ikili (.msi, .exe, .dmg, .AppImage, .deb, .rpm) paketleri |
+| **Android (Telefon & Tablet)** | [**CanEditor-v3.18.4.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.18.4/CanEditor-v3.18.4.apk) | Güncel Android APK paketi (Termux gerektirmez) |
+| **Android (Her Zaman En Son)** | [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.18.4/CanEditor-latest.apk) | Kalıcı son sürüm bağlantısı |
+| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v3.18.4.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v3.18.4/CanEditor-Portable-Web-GUI-v3.18.4.zip) | **Kurulumsuz;** zipten çıkarıp `index.html` açarak tüm işletim sistemlerinde doğrudan çalışır |
+| **Windows / macOS / Linux** | [**GitHub Releases Sayfası**](https://github.com/cnkzlyr/udemobile/releases/tag/v3.18.4) | GitHub Actions CI ile derlenen yerel ikili (.msi, .exe, .dmg, .AppImage, .deb, .rpm) paketleri |
 
 ---
 
@@ -28,6 +28,18 @@ v3.17.0'dan itibaren APK yeni ve kalıcı bir proje anahtarıyla imzalanır (ser
 `BA:80:78:89:12:28:35:C0:58:3B:C9:72:3B:C0:90:5C:C8:6F:49:A8:1A:92:BA:F9:D0:96:33:77:71:BB:D4:F0`). Telefonunuzda
 v3.16.0 ya da öncesi kuruluysa bir kez **kaldırıp** yeni APK'yı kurun (aksi halde Android "paket çakışıyor" hatası
 verir). Sonraki güncellemeler kaldırmadan, üzerine kurulur.
+
+## 🌟 v3.18.4: Termux'ta çalışan e-imza köprüsüyle birebir davranış
+
+Termux v3 kitindeki (ACR39 ve ArkSigner ile çalışan) `ccid_bridge.py` ile Android köprüsü satır satır karşılaştırıldı:
+- **Kart gücü 3 sn gecikmeli kesilir:** Adalet E-İmza 1.0.17 kartı ayrı bir "probe" Java sürecinde tarar, hemen ardından
+  ana süreç bağlanır. Köprü son bağlantı kapanır kapanmaz kartın gücünü kesiyordu; kart sıfırlanıyor, PIN doğrulanmış
+  oturum düşüyordu. Artık Termux köprüsü gibi 3 sn beklenir; bu sürede yeni bağlantı gelirse kart açık kalır.
+- **Kart tarayan alt Java süreci:** ev/geçici klasör, bellek sınırı ve (tanı açıkken) DEBUG günlüğü `JAVA_TOOL_OPTIONS`
+  ile alt sürece de geçer (Termux Java'sının varsayılan geçici klasörü bu uygulamaya kapalıdır).
+- Tanı günlüğüne köprü istemcilerinin bağlanma/ayrılma ve kart gücünün kesilme anları eklendi.
+- Doğrulama: Termux kitinin donanımsız kart simülatörü (`ccid_bridge.py --sim`) ile resmi Adalet E-İmza 1.0.17 +
+  UdeMobile ajanı uçtan uca denendi: okuyucu listelendi, kart bağlandı, APDU yolu çalıştı.
 
 ## 🌟 v3.18.3: 🐞 E-imza tanı günlüğü
 
