@@ -93,6 +93,8 @@ public class AdaletServisi extends Service implements CcidKopru.PinSaglayici {
     @Override
     public void onCreate() {
         super.onCreate();
+        Tani.baglam(this);
+        Tani.yaz("servis", "oluşturuldu");
         ornek = this;
     }
 
@@ -144,6 +146,7 @@ public class AdaletServisi extends Service implements CcidKopru.PinSaglayici {
                     while (calis && canli(java) && !portAcik() && System.currentTimeMillis() < son) Thread.sleep(700);
                     if (!canli(java)) {
                         hata++;
+                        Tani.yaz("servis", "Java süreci kapandı, çıkış kodu=" + java.exitValue() + " (deneme " + hata + ")");
                         durumYaz("Adalet E-İmza kapandı (günlük: Adalet E-İmza > Günlük). Yeniden deneniyor…");
                         Thread.sleep(Math.min(60000, 3000L * hata));
                         java = null;
@@ -160,6 +163,7 @@ public class AdaletServisi extends Service implements CcidKopru.PinSaglayici {
                 return;
             } catch (Exception e) {
                 Log.e(TAG, "hata", e);
+                Tani.hata("servis", "döngü hatası", e);
                 durumYaz("Hata: " + e.getMessage());
                 try { Thread.sleep(5000); } catch (InterruptedException ie) { return; }
             }
@@ -188,6 +192,7 @@ public class AdaletServisi extends Service implements CcidKopru.PinSaglayici {
         File jre = new File(kok, "jre");
         if (damga.exists() && surum.equals(okuMetin(damga).trim()) && new File(jre, "bin/java").exists()) return jre;
         durumYaz("Java hazırlanıyor (ilk açılış, ~1 dk)…");
+        long t0 = System.currentTimeMillis();
         silOzyinelemeli(kok);
         jre.mkdirs();
         try (ZipInputStream z = new ZipInputStream(getAssets().open("eimza/jre-arm64.zip"))) {
@@ -211,6 +216,8 @@ public class AdaletServisi extends Service implements CcidKopru.PinSaglayici {
         assetKopyala("eimza/eimza-agent.jar", new File(kok, "eimza-agent.jar"));
         assetKopyala("eimza/awt-patch.jar", new File(kok, "awt-patch.jar"));
         try (OutputStream o = new FileOutputStream(damga)) { o.write(surum.getBytes("UTF-8")); }
+        Tani.yaz("servis", "Java çıkarıldı (" + (System.currentTimeMillis() - t0) + " ms) · java çalıştırılabilir=" + new File(jre, "bin/java").canExecute()
+                + " · boş alan=" + (getFilesDir().getUsableSpace() >> 20) + " MB");
         return jre;
     }
 
@@ -233,6 +240,10 @@ public class AdaletServisi extends Service implements CcidKopru.PinSaglayici {
         k.add("-Djava.io.tmpdir=" + tmp.getAbsolutePath());
         k.add("--add-opens=java.smartcardio/sun.security.smartcardio=ALL-UNNAMED");
         k.add("--add-exports=jdk.crypto.cryptoki/sun.security.pkcs11.wrapper=ALL-UNNAMED");
+        if (Tani.acik()) {   // ayrıntılı günlük: resmi uygulama da DEBUG düzeyinde yazar
+            k.add("-Dlogging.level.tr.gov=DEBUG");
+            k.add("-Ddebuglog.level=DEBUG");
+        }
         k.add("-jar"); k.add(jar.getAbsolutePath());
         ProcessBuilder pb = new ProcessBuilder(k);
         pb.directory(ev);
@@ -251,6 +262,9 @@ public class AdaletServisi extends Service implements CcidKopru.PinSaglayici {
                 + " --patch-module=java.desktop=" + new File(kok, "awt-patch.jar").getAbsolutePath()
                 + " --add-opens=java.desktop/java.awt=ALL-UNNAMED -Djava.awt.headless=false"
                 + " -Djdk.lang.Process.launchMechanism=FORK");
+        if (Tani.acik()) env.put("EIMZA_TANI", "1");
+        Tani.yaz("servis", "Java başlatılıyor: " + k);
+        Tani.yaz("servis", "JAVA_TOOL_OPTIONS=" + env.get("JAVA_TOOL_OPTIONS"));
         File log = gunluk(this);
         if (log.length() > 3_000_000) log.delete();
         pb.redirectErrorStream(true);
@@ -259,9 +273,13 @@ public class AdaletServisi extends Service implements CcidKopru.PinSaglayici {
         Thread t = new Thread(new Runnable() {      // çıktı günlüğe (ProcessBuilder.Redirect Android 8 öncesinde yok)
             @Override public void run() {
                 try (InputStream in = p.getInputStream(); OutputStream o = new FileOutputStream(gunlukDosyasi, true)) {
-                    byte[] b = new byte[8192];
-                    int n;
-                    while ((n = in.read(b)) > 0) { o.write(b, 0, n); o.flush(); }
+                    java.io.BufferedReader r = new java.io.BufferedReader(new java.io.InputStreamReader(in, "UTF-8"));
+                    String satir;
+                    while ((satir = r.readLine()) != null) {
+                        o.write((satir + "\n").getBytes("UTF-8"));
+                        o.flush();
+                        if (Tani.acik()) Tani.yaz("java", satir);
+                    }
                 } catch (IOException ignored) { }
             }
         }, "adalet-gunluk");
@@ -277,6 +295,7 @@ public class AdaletServisi extends Service implements CcidKopru.PinSaglayici {
     /** Köprüden gelen PIN isteği: Android penceresi açılır, 120 sn beklenir. */
     @Override
     public String pinIste(String baslik) {
+        Tani.yaz("pin", "resmi uygulama PIN istedi (pencere açılıyor; üzerinde gösterme izni=" + (Build.VERSION.SDK_INT < 23 || Settings.canDrawOverlays(this)) + ")");
         synchronized (this) {
             pinSonuc = null;
             pinBekle = new CountDownLatch(1);
@@ -294,6 +313,7 @@ public class AdaletServisi extends Service implements CcidKopru.PinSaglayici {
             if (nm != null) nm.cancel(BILDIRIM + 1);
             String s = pinSonuc;
             pinSonuc = null;
+            Tani.yaz("pin", s == null ? "PIN girilmedi (iptal/zaman aşımı)" : "PIN girildi (" + s.length() + " hane)");
             return s;
         }
     }
@@ -323,6 +343,7 @@ public class AdaletServisi extends Service implements CcidKopru.PinSaglayici {
         if (s.equals(durum)) return;
         durum = s;
         Log.i(TAG, s);
+        Tani.yaz("servis", s);
         NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
         if (nm != null && calis) nm.notify(BILDIRIM, bildirim(s));
     }

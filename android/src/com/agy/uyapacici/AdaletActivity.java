@@ -35,6 +35,7 @@ public class AdaletActivity extends Activity {
     @Override
     protected void onCreate(Bundle b) {
         super.onCreate(b);
+        Tani.baglam(this);
         float d = getResources().getDisplayMetrics().density;
         ScrollView sv = new ScrollView(this);
         LinearLayout k = new LinearLayout(this);
@@ -55,6 +56,14 @@ public class AdaletActivity extends Activity {
                 + "(cdn.uyap.gov.tr) indirilir.");
         aciklama.setPadding(0, (int) (8 * d), 0, (int) (12 * d));
         k.addView(aciklama);
+
+        // 🐞 Ayrıntılı tanı günlüğü: en üstte (sorun bildirmek için önce bunu başlatın)
+        btnTani = dugme("", v -> taniDegistir());
+        k.addView(btnTani);
+        tvTani = new TextView(this);
+        tvTani.setTextSize(12);
+        k.addView(tvTani);
+        taniGoster();
 
         tvKurulum = new TextView(this);
         tvKurulum.setTextSize(15);
@@ -90,6 +99,30 @@ public class AdaletActivity extends Activity {
         k.addView(not);
         setContentView(sv);
         if (Build.VERSION.SDK_INT >= 33) requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, 1);
+    }
+
+    private Button btnTani;
+    private TextView tvTani;
+
+    private void taniGoster() {
+        java.io.File f = Tani.dosya();
+        btnTani.setText(f == null ? "🔴 Ayrıntılı tanı günlüğünü BAŞLAT" : "⏹ Günlüğü DURDUR ve gönder");
+        tvTani.setText(f == null ? "Sorun bildirmek için: başlatın → sorunu yaşayın (kart takma, imza, Chrome girişi) → durdurup gönderin."
+                : "Kayıt sürüyor: " + f.getAbsolutePath() + "\nPIN ve belge içerikleri yazılmaz.");
+    }
+
+    private void taniDegistir() {
+        if (Tani.dosya() == null) {
+            java.io.File f = Tani.baslat(this);
+            Toast.makeText(this, "Tanı günlüğü başladı: " + f.getName(), Toast.LENGTH_LONG).show();
+            // Resmi uygulama DEBUG düzeyinde yeniden başlasın
+            if (AdaletKurulum.jarDosyasi(this).exists()) { AdaletServisi.durdur(this); AdaletServisi.baslat(this); }
+        } else {
+            Tani.ozet(this);
+            java.io.File f = Tani.durdur(this);
+            Tani.paylas(this, f);
+        }
+        taniGoster();
     }
 
     private Button dugme(String metin, View.OnClickListener l) {

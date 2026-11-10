@@ -74,6 +74,7 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         CrashReporter.install(this);
+        Tani.baglam(this);
         setContentView(R.layout.activity_main);
 
         prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
@@ -508,6 +509,22 @@ public class MainActivity extends Activity {
             b.setAllCaps(false);
             b.setOnClickListener(v -> startActivity(new Intent(this, AdaletActivity.class)));
             ebeveyn.addView(b, ebeveyn.indexOfChild(btnPickFile) + 1);
+            final Button tani = new Button(this);
+            tani.setAllCaps(false);
+            final Runnable yaz = () -> tani.setText(Tani.dosya() == null ? "🐞 E-imza tanı günlüğünü başlat" : "⏹ Tanı günlüğünü durdur ve gönder");
+            yaz.run();
+            tani.setOnClickListener(v -> {
+                if (Tani.dosya() == null) {
+                    java.io.File f = Tani.baslat(this);
+                    Toast.makeText(this, "Tanı günlüğü başladı. Sorunu yaşayın, sonra buradan durdurup gönderin.\n" + f.getName(), Toast.LENGTH_LONG).show();
+                    if (AdaletKurulum.jarDosyasi(this).exists()) { AdaletServisi.durdur(this); AdaletServisi.baslat(this); }
+                } else {
+                    Tani.ozet(this);
+                    Tani.paylas(this, Tani.durdur(this));
+                }
+                yaz.run();
+            });
+            ebeveyn.addView(tani, ebeveyn.indexOfChild(b) + 1);
             // Kuruluysa servis uygulamayla birlikte açılır (Chrome'da portal hazır olsun)
             if (AdaletKurulum.jarDosyasi(this).exists() && !AdaletServisi.calisiyor()) AdaletServisi.baslat(this);
         } catch (Exception ignored) { }

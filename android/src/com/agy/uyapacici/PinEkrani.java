@@ -22,6 +22,8 @@ public class PinEkrani extends Activity {
     @Override
     protected void onCreate(Bundle b) {
         super.onCreate(b);
+        Tani.baglam(this);
+        Tani.yaz("pin", "PIN penceresi açıldı");
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE            // ekran görüntüsü/kayıt alınmaz
                 | WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED | WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON);
         setFinishOnTouchOutside(false);

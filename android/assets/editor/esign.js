@@ -335,6 +335,12 @@
     const c = cbs[id]; if (!c) return; delete cbs[id];
     ok ? c.resolve(payload) : c.reject(new Error(payload || 'İşlem başarısız'));
   };
+  /** Tanı günlüğüne (Android: Adalet E-İmza ekranı > tanı günlüğü) adım yazar. PIN/belge içeriği YAZILMAZ. */
+  function tlog(m) {
+    try { if (window.AndroidBridge && window.AndroidBridge.taniYaz) window.AndroidBridge.taniYaz(String(m).slice(0, 1500)); } catch (e) {}
+  }
+  window.__esignTlog = tlog;
+
   function androidCall(method, ...args) {
     return new Promise((resolve, reject) => {
       const id = 'e' + (++cbSeq) + '_' + Date.now();
@@ -418,6 +424,7 @@
     if (realAndroid() && window.AndroidBridge.adaletDurum) {
       const durum = () => { try { return JSON.parse(window.AndroidBridge.adaletDurum()); } catch (e) { return {}; } };
       let d = durum();
+      tlog('kart listesi istendi · adaletDurum=' + JSON.stringify(d));
       if (!d.kurulu) {
         return { cards: [], kurulumGerekli: true, message: 'Kartla e-imza için resmi Adalet E-İmza gerekir (Termux gerekmez). '
           + 'Ana ekran > 🏛️ Adalet E-İmza > "Resmi uygulamayı indir" ile bir kez kurun.' };
@@ -437,6 +444,8 @@
         notAfter: c.notAfter || '', subjectSerial: c.subjectSerial || '', reader: (rd.terminal || 'Okuyucu') + ' · Adalet E-İmza',
         keyType: c.pubKeyAlgorithm === 'EC' ? 'EC' : 'RSA' })));
       d = durum();
+      tlog('getCertificates → ' + (r ? (r.metadata && r.metadata.STATUS) + ' ' + ((r.metadata && r.metadata.MESSAGE) || '') : 'cevap yok')
+        + ' · okuyucu sayısı=' + ((r && r.data) || []).length + ' · sertifika=' + kartlar.length + ' · durum=' + JSON.stringify(d));
       if (kartlar.length) return { cards: kartlar };
       const hata = r && r.metadata && r.metadata.STATUS !== 'SUCCESS' ? (' (' + r.metadata.MESSAGE + ')') : '';
       return { cards: [], message: d.okuyucu
@@ -579,6 +588,7 @@
     z.file('content.xml', src.content, { compression: 'DEFLATE' });
     if (src.existingSgn) z.file('sign.sgn', src.existingSgn, { compression: 'DEFLATE' }); else z.remove('sign.sgn');
     const udf = await z.generateAsync({ type: 'uint8array', compression: 'DEFLATE' });
+    tlog('signUdf gönderiliyor · sertifika=' + card.certificateId + ' · UDF ' + udf.length + ' bayt · PIN ' + (pin ? 'sayfadan' : 'boş (Android penceresi)') + ' · önceki imza=' + !!src.existingSgn);
     const r = JSON.parse(await androidCall('adaletIstekAsync', 'POST', '/api/v1/docsignature/signUdf',
       JSON.stringify({ certificateId: card.certificateId, pin: pin || '', content: b64e(udf) })));
     if (!r || !r.metadata || r.metadata.STATUS !== 'SUCCESS' || !r.data || !r.data.content) {
@@ -589,6 +599,7 @@
     if (!sgnF) throw new Error('Adalet E-İmza imza dosyası (sign.sgn) döndürmedi.');
     const sgn = await sgnF.async('uint8array');
     const check = await verify(src.content, sgn);
+    tlog('signUdf imza doğrulama: geçerli=' + check.isValid + ' imzacı sayısı=' + (check.signers || []).length);
     if (!check.isValid) throw new Error('Adalet E-İmza imzası belgeyle doğrulanamadı; belge kaydedilmedi.');
     const bytes = await writeSigned(src, sgn);
     await finish(bytes);
@@ -681,6 +692,7 @@
       });
       if (window.onSmartCardStatusUpdated) window.onSmartCardStatusUpdated({ connected: certs.length > 0, certificates: certs, message: certs.length ? '' : ((list && list.message) || 'Takılı e-imza kartı bulunamadı. Kartı/token\'ı takın ve sürücüsünün kurulu olduğundan emin olun.') });
     } catch (e) {
+      tlog('kart durumu HATASI: ' + (e.message || String(e)));
       scCards = [];
       if (window.onSmartCardStatusUpdated) window.onSmartCardStatusUpdated({ connected: false, certificates: [], message: e.message || String(e) });
     } finally { scBusy = false; }
@@ -701,6 +713,7 @@
       if (window.onRealSignSuccess) window.onRealSignSuccess('NES-' + Date.now().toString(16).toUpperCase(), r.verification);
       if (typeof showEditorToast === 'function') showEditorToast('✓ E-imza eklendi: ' + ((r.cert && r.cert.subjectCN) || ''));
     } catch (e) {
+      tlog('kartla imza HATASI: ' + (e.message || String(e)));
       if (window.onRealSignFailed) window.onRealSignFailed(e.message || String(e));
     } finally { if (btn) btn.disabled = false; }
   };

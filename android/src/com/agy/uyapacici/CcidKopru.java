@@ -78,6 +78,7 @@ public class CcidKopru {
         tmp.setReadable(false, false);
         tmp.setReadable(true, true);
         if (!tmp.renameTo(f)) throw new IOException("bridge.json yazılamadı");
+        Tani.yaz("köprü", "başladı 127.0.0.1:" + sunucu.getLocalPort() + " (" + f.getAbsolutePath() + ")");
         calisiyor = true;
         Thread t = new Thread(new Runnable() {
             @Override public void run() { dinle(); }
@@ -115,6 +116,7 @@ public class CcidKopru {
             BufferedReader in = new BufferedReader(new InputStreamReader(s.getInputStream(), StandardCharsets.UTF_8));
             OutputStream out = s.getOutputStream();
             String ilk = in.readLine();
+            Tani.yaz("köprü", "istemci bağlandı (Adalet E-İmza / kart tarama süreci)");
             if (ilk == null || !ilk.startsWith("AUTH ") || !MessageDigest.isEqual(ilk.substring(5).trim().getBytes(StandardCharsets.UTF_8),
                     jeton.getBytes(StandardCharsets.UTF_8))) {
                 yaz(out, "ERR AUTH yetkisiz");
@@ -155,6 +157,23 @@ public class CcidKopru {
         String op = satir, arg = "";
         int bos = satir.indexOf(' ');
         if (bos > 0) { op = satir.substring(0, bos); arg = satir.substring(bos + 1).trim(); }
+        long t0 = System.currentTimeMillis();
+        String sonuc = isleIc(op, arg);
+        if (Tani.acik()) {
+            // APDU/PIN içeriği yazılmaz: yalnızca başlık (CLA INS P1 P2), uzunluk ve durum kelimesi (SW)
+            String ayr = "";
+            if (op.equals("TRANSMIT")) {
+                ayr = " apdu=" + (arg.length() >= 8 ? arg.substring(0, 8) : arg) + "… (" + arg.length() / 2 + " bayt)";
+                if (sonuc.startsWith("OK ") && sonuc.length() >= 7) ayr += " cevap=" + (sonuc.length() - 3) / 2 + " bayt SW=" + sonuc.substring(sonuc.length() - 4);
+            }
+            String kisa = op.equals("TRANSMIT") || op.equals("PIN") ? sonuc.substring(0, Math.min(sonuc.length(), sonuc.startsWith("OK") ? 2 : 160))
+                    : sonuc.substring(0, Math.min(sonuc.length(), 200));
+            Tani.yaz("köprü", op + ayr + " → " + kisa + " (" + (System.currentTimeMillis() - t0) + " ms)");
+        }
+        return sonuc;
+    }
+
+    private String isleIc(String op, String arg) {
         if (op.equals("PIN")) {              // kart kilidi tutulmaz: kullanıcı PIN yazarken kart işlemleri bekletilmez
             String baslik = new String(unhex(arg), StandardCharsets.UTF_8);
             String p = pin != null ? pin.pinIste(baslik) : null;
@@ -182,6 +201,7 @@ public class CcidKopru {
             } catch (ProtoHata e) {
                 return "ERR PROTO " + e.getMessage();
             } catch (Exception e) {
+                Tani.hata("köprü", op + " USB hatası", e);
                 okuyucuKapat();                 // USB koptu: bir sonraki komutta yeniden açılır
                 return "ERR USB " + e.getMessage();
             }
@@ -203,14 +223,22 @@ public class CcidKopru {
             if (!um.hasPermission(d)) {
                 // Sistem izin penceresi: her takılışta BİR kez (Adalet uygulaması sık yokladığı için tekrar açılmasın)
                 String anahtar = d.getDeviceName() + "/" + d.getDeviceId();
-                if (izinIstenen.add(anahtar)) CcidDriver.getInstance(ctx).requestPermission(d);
+                if (izinIstenen.add(anahtar)) {
+                    Tani.yaz("köprü", "USB izni isteniyor: " + d.getDeviceName() + String.format(" VID=%04X PID=%04X", d.getVendorId(), d.getProductId()));
+                    CcidDriver.getInstance(ctx).requestPermission(d);
+                }
                 continue;
             }
             UsbDeviceConnection c = um.openDevice(d);
-            if (c == null) continue;
-            if (!c.claimInterface(ifc, true)) { c.close(); continue; }
+            if (c == null) { Tani.yaz("köprü", "openDevice BAŞARISIZ: " + d.getDeviceName()); continue; }
+            if (!c.claimInterface(ifc, true)) { Tani.yaz("köprü", "claimInterface BAŞARISIZ (başka uygulama tutuyor olabilir): " + d.getDeviceName()); c.close(); continue; }
             okuyucu = new Okuyucu(d, c, ifc);
-            Log.i(TAG, "okuyucu: " + okuyucu.name + " seviye=" + Integer.toHexString(okuyucu.level));
+            String bilgi = "okuyucu açıldı: " + okuyucu.name + " arayüz=" + ifc.getId() + " sınıf=" + Integer.toHexString(ifc.getInterfaceClass())
+                    + " özellik=0x" + Integer.toHexString(okuyucu.features) + " seviye=" + (okuyucu.level == LEVEL_TPDU ? "TPDU" : okuyucu.level == LEVEL_SHORT ? "kısa-APDU" : "uzun-APDU")
+                    + " maxMesaj=" + okuyucu.maxMsg + " maxIFSD=" + okuyucu.maxIfsd + " voltaj=0x" + Integer.toHexString(okuyucu.voltage)
+                    + " uçlar=" + (okuyucu.epIn != null ? Integer.toHexString(okuyucu.epIn.getAddress()) : "yok") + "/" + (okuyucu.epOut != null ? Integer.toHexString(okuyucu.epOut.getAddress()) : "yok");
+            Log.i(TAG, bilgi);
+            Tani.yaz("köprü", bilgi);
             return okuyucu;
         }
         return null;
@@ -398,7 +426,10 @@ public class CcidKopru {
             byte[][] r = recv(timeoutMs);
             int st = r[0][1] & 0xFF;
             if ((st & 3) == 2 && !kartsizOlur) { powered = false; throw new KartYok("kart yok/çıkarıldı"); }
-            if ((st >> 6) == 1) throw new CcidHata(String.format("CCID komut hatası (bError=0x%02X)", r[0][2] & 0xFF), r[0][2] & 0xFF);
+            if ((st >> 6) == 1) {
+                Tani.yaz("köprü", String.format("CCID 0x%02X hatası: bStatus=0x%02X bError=0x%02X", mtype, st, r[0][2] & 0xFF));
+                throw new CcidHata(String.format("CCID komut hatası (bError=0x%02X)", r[0][2] & 0xFF), r[0][2] & 0xFF);
+            }
             return r;
         }
 
@@ -440,6 +471,7 @@ public class CcidKopru {
             }
             if (!oldu) throw son != null ? son : new CcidHata("ATR alınamadı", 0);
             atrInfo = new AtrInfo(atr);
+            Tani.yaz("köprü", "kart güç verildi: ATR=" + hex(atr) + " protokol=T" + atrInfo.proto + " IFSC=" + atrInfo.ifsc + " CRC=" + atrInfo.crc);
             powered = true;
             t1 = null;
             if (level == LEVEL_TPDU) {

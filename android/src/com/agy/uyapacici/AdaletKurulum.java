@@ -54,13 +54,17 @@ public final class AdaletKurulum {
     }
 
     /** İnternetten (Adalet'in sunucusu) indirip kurar. */
-    public static String indirKur(Context c, Ilerleme ilerleme) throws Exception {
+    public static String indirKur(Context c, Ilerleme ilerleme0) throws Exception {
+        Tani.baglam(c);
+        final Ilerleme ilerleme = m -> { Tani.yaz("kurulum", m); ilerleme0.yaz(m); };
         String[] s = sonSurum();
+        Tani.yaz("kurulum", "son sürüm " + s[0] + " · " + s[1]);
         ilerleme.yaz("Adalet E-İmza " + s[0] + " indiriliyor (cdn.uyap.gov.tr, ~80 MB)…");
         HttpURLConnection h = (HttpURLConnection) new URL(s[1]).openConnection();
         h.setConnectTimeout(20000);
         h.setReadTimeout(60000);
         h.setInstanceFollowRedirects(false);
+        Tani.yaz("kurulum", "HTTP " + h.getResponseCode() + " · boyut=" + h.getContentLength());
         if (h.getResponseCode() != 200) throw new IOException("İndirme başarısız: HTTP " + h.getResponseCode());
         long toplam = h.getContentLength();
         try (InputStream in = new SayacliAkis(h.getInputStream(), toplam, ilerleme)) {
@@ -112,6 +116,7 @@ public final class AdaletKurulum {
                 throw new IOException("Seçilen dosya resmi Adalet E-İmza uygulaması değil.");
             }
             surum = m.getMainAttributes().getValue("Implementation-Version");
+            Tani.yaz("kurulum", "jar doğrulandı: " + bas + " sürüm " + surum + " (" + gecici.length() + " bayt)");
         }
         File hedef = jarDosyasi(c);
         if (hedef.exists() && !hedef.delete()) throw new IOException("Eski sürüm silinemedi");

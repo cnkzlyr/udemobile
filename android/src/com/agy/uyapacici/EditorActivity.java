@@ -99,6 +99,8 @@ public class EditorActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        Tani.baglam(this);
+        Tani.yaz("editör", "açıldı");
         CrashReporter.install(this);
 
         try {
@@ -1789,6 +1791,13 @@ public class EditorActivity extends Activity {
             runOnUiThread(() -> editorWebView.evaluateJavascript(js, null));
         }
 
+        /** esign.js adımlarını tanı günlüğüne yazar (PIN/belge içeriği gönderilmez). */
+        @JavascriptInterface
+        public void taniYaz(String mesaj) { Tani.yaz("editör", mesaj == null ? "" : mesaj); }
+
+        @JavascriptInterface
+        public boolean taniAcik() { return Tani.acik(); }
+
         /** Adalet E-İmza durumu: {"kurulu","calisiyor","port","durum","okuyucu"} (anlık, engellemez). */
         @JavascriptInterface
         public String adaletDurum() {
@@ -1844,8 +1853,16 @@ public class EditorActivity extends Activity {
                         esignReply(cbId, false, "Adalet E-İmza servisi çalışmıyor");
                         return;
                     }
-                    esignReply(cbId, true, AdaletServisi.istek(yontem, yol, govde == null || govde.isEmpty() ? null : govde));
+                    long t0 = System.currentTimeMillis();
+                    Tani.yaz("editör→adalet", yontem + " " + yol + " (gövde " + (govde == null ? 0 : govde.length()) + " karakter)");
+                    String cevap = AdaletServisi.istek(yontem, yol, govde == null || govde.isEmpty() ? null : govde);
+                    if (Tani.acik()) {
+                        String ozet = cevap.replaceAll("\"content\":\"[^\"]{40,}\"", "\"content\":\"<UDF içeriği>\"");
+                        Tani.yaz("adalet→editör", (System.currentTimeMillis() - t0) + " ms · " + ozet.substring(0, Math.min(ozet.length(), 1500)));
+                    }
+                    esignReply(cbId, true, cevap);
                 } catch (Exception e) {
+                    Tani.hata("editör→adalet", "istek hatası " + yol, e);
                     esignReply(cbId, false, "Adalet E-İmza: " + e.getMessage());
                 }
             }).start();
