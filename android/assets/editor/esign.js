@@ -361,8 +361,15 @@
 
   // ------------------------------------------------------------------ UYAP mobil imza (SOAP)
   function xmlEsc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+  // İstek, Havelsan Doküman Editörü'nün (Apache Axis 1.3 istemcisi) gönderdiğiyle BAYT BAYT aynı kurulur
+  // (istek sahte sunucuyla yakalanıp karşılaştırıldı): varsayılan ad alanı, xmlns="" alt öğeler,
+  // xsd/xsi bildirimleri ve SOAPAction: "getHash" / "getSignature". Eskiden SOAPAction boş ("") ve
+  // ad alanı önekli (cli:) gidiyordu; sunucu bu istekte imzalanan verinin ilk 100 baytını sıfırlıyordu.
   function soapEnv(op, inner) {
-    return '<?xml version="1.0" encoding="UTF-8"?><soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:cli="http://client.mimza.uyap.gov.tr"><soapenv:Body><cli:' + op + '>' + inner + '</cli:' + op + '></soapenv:Body></soapenv:Envelope>';
+    return '<?xml version="1.0" encoding="UTF-8"?><soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><soapenv:Body><' + op + ' xmlns="http://client.mimza.uyap.gov.tr">' + inner + '</' + op + '></soapenv:Body></soapenv:Envelope>';
+  }
+  function soapHeaders(op) {
+    return { 'Content-Type': 'text/xml; charset=utf-8', SOAPAction: '"' + op + '"' };
   }
   function tag(xml, name) {
     const m = new RegExp('<(?:[\\w-]+:)?' + name + '(?:\\s[^>]*)?>([\\s\\S]*?)</(?:[\\w-]+:)?' + name + '>').exec(xml);
@@ -383,7 +390,7 @@
     return msg || 'Mobil imza tamamlanamadı.';
   }
   async function mimzaGetHash(contentBytes, phone, operator) {
-    const xml = await httpPost(MIMZA_URL, soapEnv('getHash', '<dataToBeSigned>' + b64e(contentBytes) + '</dataToBeSigned><telNo>' + xmlEsc(phone) + '</telNo><gsmOperator>' + (operator | 0) + '</gsmOperator>'), { 'Content-Type': 'text/xml; charset=utf-8', SOAPAction: '""' });
+    const xml = await httpPost(MIMZA_URL, soapEnv('getHash', '<dataToBeSigned xmlns="">' + b64e(contentBytes) + '</dataToBeSigned><telNo xmlns="">' + xmlEsc(phone) + '</telNo><gsmOperator xmlns="">' + (operator | 0) + '</gsmOperator>'), soapHeaders('getHash'));
     const fault = soapFault(xml); if (fault) throw new Error(fault);
     const code = parseInt(tag(xml, 'resultCode'), 10);
     const res = { apTransId: tag(xml, 'apTransId'), fingerPrint: tag(xml, 'fingerPrint'), message: tag(xml, 'message'), resultCode: code };
@@ -391,7 +398,7 @@
     return res;
   }
   async function mimzaGetSignature(apTransId) {
-    const xml = await httpPost(MIMZA_URL, soapEnv('getSignature', '<dataToBeDisplayed>Evrak Mobil Imza Talebi</dataToBeDisplayed><apTransId>' + xmlEsc(apTransId) + '</apTransId>'), { 'Content-Type': 'text/xml; charset=utf-8', SOAPAction: '""' });
+    const xml = await httpPost(MIMZA_URL, soapEnv('getSignature', '<dataToBeDisplayed xmlns="">Evrak Mobil Imza Talebi</dataToBeDisplayed><apTransId xmlns="">' + xmlEsc(apTransId) + '</apTransId>'), soapHeaders('getSignature'));
     const fault = soapFault(xml); if (fault) throw new Error(fault);
     const code = parseInt(tag(xml, 'resultCode'), 10);
     const data = tag(xml, 'data');
@@ -499,12 +506,29 @@
     const alone = await verify(src.content, d.cms);
     if (!alone.isValid) {
       let why = 'UYAP mobil imza servisinden dönen imza belgenin içeriğiyle eşleşmiyor; belge KAYDEDİLMEDİ.';
-      if (d.eContent && d.eContent.length === src.content.length) {
-        let firstDiff = -1, zeros = 0;
-        for (let i = 0; i < d.eContent.length; i++) { if (d.eContent[i] !== src.content[i]) { if (firstDiff < 0) firstDiff = i; if (d.eContent[i] === 0) zeros++; } }
-        why += ' (Teşhis: sunucunun imzaladığı veri gönderilen veriden ' + (firstDiff >= 0 ? (firstDiff + '. bayttan itibaren ' + zeros + ' bayt sıfırlanmış olarak') : '') + ' farklı.)';
+      const tani = { zaman: new Date().toISOString(), surum: (window.APP_VERSION || ''), operator: opts.operator | 0,
+                     gonderilenUzunluk: src.content.length, gonderilenSha256: hex(await sha256(src.content)),
+                     imzaci: res.signerName || '', dogrulama: alone.signers, gomuluIcerikVar: !!d.eContent };
+      if (d.eContent) {
+        tani.gomuluUzunluk = d.eContent.length;
+        tani.gomuluSha256 = hex(await sha256(d.eContent));
+        let firstDiff = -1, farkli = 0, sifir = 0, sonFark = -1;
+        const n = Math.min(d.eContent.length, src.content.length);
+        for (let i = 0; i < n; i++) if (d.eContent[i] !== src.content[i]) { if (firstDiff < 0) firstDiff = i; sonFark = i; farkli++; if (d.eContent[i] === 0) sifir++; }
+        Object.assign(tani, { ilkFark: firstDiff, sonFark, farkliBayt: farkli, sifirBayt: sifir });
+        // Sunucu gömülü içeriğe göre mi imzalamış? (imza gömülü içerikle doğrulanıyorsa veri sunucuda bozulmuş demektir)
+        try { tani.gomuluIleGecerli = (await verify(d.eContent, d.cms)).isValid; } catch (e) {}
+        if (firstDiff >= 0) why += ' (Teşhis: sunucunun imzaladığı veri gönderilenden ' + firstDiff + '. bayttan itibaren ' + farkli + ' baytta farklı' + (sifir === farkli ? ', hepsi sıfırlanmış' : '') + '.)';
       }
-      try { window.__lastMimzaDiag = { sent: b64e(src.content), signedCms: b64e(res.cms), signer: res.signerName }; } catch (e) {}
+      tani.gonderilen = b64e(src.content);
+      tani.donenCms = b64e(res.cms);
+      try { window.__lastMimzaDiag = tani; } catch (e) {}
+      // Teşhis dosyası: İndirilenler'e kaydedilir (geliştiriciye gönderilebilir; belge metni ve imza sertifikanız içerir)
+      try {
+        const ad = 'mobil_imza_tani_' + new Date().toISOString().replace(/[-:]/g, '').slice(0, 13) + '.json';
+        const baytlar = new TextEncoder().encode(JSON.stringify(tani, null, 1));
+        if (typeof window.saveBytesSmart === 'function') { await window.saveBytesSmart(baytlar, ad, 'application/json', { overwriteCurrent: false }); why += ' Teşhis dosyası kaydedildi: ' + ad; }
+      } catch (e) {}
       throw new Error(why);
     }
     const sgn = src.existingSgn ? combine(src.existingSgn, d.cms) : d.cms;

@@ -1916,6 +1916,12 @@ public class EditorActivity extends Activity {
                     conn.setRequestMethod("POST");
                     conn.setRequestProperty("Content-Type", contentType);
                     if (soapAction != null && !soapAction.isEmpty()) conn.setRequestProperty("SOAPAction", soapAction);
+                    // Havelsan Doküman Editörü (Apache Axis 1.3) ile aynı başlıklar
+                    conn.setRequestProperty("Accept", "application/soap+xml, application/dime, multipart/related, text/*");
+                    conn.setRequestProperty("User-Agent", "Axis/1.3");
+                    conn.setRequestProperty("Cache-Control", "no-cache");
+                    conn.setRequestProperty("Pragma", "no-cache");
+                    conn.setUseCaches(false);
                     conn.setDoOutput(true);
                     conn.setConnectTimeout(20000);
                     conn.setReadTimeout(200000); // getSignature kullanıcı PIN onayına kadar bekler

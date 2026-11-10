@@ -334,7 +334,14 @@ pub fn http_post(url: String, body: String, content_type: String, soap_action: S
         .timeout_connect(Duration::from_secs(20))
         .timeout_read(Duration::from_secs(200))
         .build();
-    let mut req = agent.post(&url).set("Content-Type", &content_type);
+    // Havelsan Doküman Editörü (Apache Axis 1.3) ile aynı başlıklar
+    let mut req = agent
+        .post(&url)
+        .set("Content-Type", &content_type)
+        .set("Accept", "application/soap+xml, application/dime, multipart/related, text/*")
+        .set("User-Agent", "Axis/1.3")
+        .set("Cache-Control", "no-cache")
+        .set("Pragma", "no-cache");
     if !soap_action.is_empty() {
         req = req.set("SOAPAction", &soap_action);
     }
