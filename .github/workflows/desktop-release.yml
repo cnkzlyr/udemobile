@@ -9,7 +9,9 @@ name: CanEditor Cross-Platform Desktop GUI Release
 #   ANDROID_KEYSTORE_PASS  : (istege bagli) varsayilan "android"
 #   ANDROID_KEY_ALIAS      : (istege bagli) varsayilan "androiddebugkey"
 #   ANDROID_KEY_PASS       : (istege bagli) varsayilan ANDROID_KEYSTORE_PASS
-# Gizli yoksa APK yayimlanmaz, yalnizca Portable Web zip eklenir.
+# Gizli yoksa CI APK derlemez; depodaki, yerelde ayni anahtarla imzalanmis release/CanEditor-vX.apk yayimlanir.
+# 3.17.0'dan itibaren anahtar: "CN=CanEditor, O=CanEditor, C=TR", SHA-256 BA:80:78:89:...:BB:D4:F0
+# (3.16.0 ve oncesi farkli anahtarla imzaliydi; bir kez kaldirip kurmak gerekir).
 
 on:
   push:
@@ -20,6 +22,10 @@ on:
       tag:
         description: 'Surum etiketi (or. v3.17.0); yoksa calistirilan commit uzerinde olusturulur'
         required: true
+      masaustu:
+        description: 'Masaustu paketleri de derlensin mi? (yalniz APK eklemek icin false)'
+        required: false
+        default: 'true'
 
 env:
   TAG: ${{ github.event.inputs.tag || github.ref_name }}
@@ -72,17 +78,22 @@ jobs:
           kod=$?
           set -e
           if [ $kod -eq 2 ] && [ -z "$ANDROID_KEYSTORE" ]; then
-            echo "APK atlandi (imza anahtari yok)."
+            echo "APK CI'da derlenmedi (imza anahtari gizlisi yok); depodaki imzali APK kullanilacak (varsa)."
           elif [ $kod -ne 0 ]; then
             exit $kod
           fi
           V="${TAG#v}"
           mkdir -p out
           cp "release/CanEditor-Portable-Web-GUI-v$V.zip" out/
-          if [ -n "$ANDROID_KEYSTORE" ]; then
+          # Anahtar gizlisi yoksa: depoya konmus, yerelde ayni anahtarla imzalanmis APK (release/CanEditor-vX.apk)
+          # yayimlanir. git checkout, derleme betiginin uzerine yazdigi dosyayi depodaki haline dondurur.
+          if [ -z "$ANDROID_KEYSTORE" ]; then git checkout -- release/ 2>/dev/null || true; fi
+          if [ -f "release/CanEditor-v$V.apk" ]; then
             cp "release/CanEditor-v$V.apk" out/
-            cp release/CanEditor-latest.apk out/
+            cp "release/CanEditor-v$V.apk" out/CanEditor-latest.apk
             "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs "out/CanEditor-v$V.apk" | grep -i 'SHA-256'
+          else
+            echo "::warning::release/CanEditor-v$V.apk yok: APK yayimlanmadi."
           fi
           ls -l out
 
@@ -98,7 +109,7 @@ jobs:
   build-desktop:
     # Surumu Android isi olusturur (etiket yoksa github.sha uzerinde); masaustu ayni surume ekler.
     needs: build-android
-    if: ${{ always() }}
+    if: ${{ always() && github.event.inputs.masaustu != 'false' }}
     permissions:
       contents: write
     strategy:

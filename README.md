@@ -22,9 +22,12 @@
 
 ---
 
-## ⚠️ Android: v3.16.0'a geçerken bir kerelik yeniden kurulum
+## ⚠️ Android: v3.17.0'a geçerken bir kerelik yeniden kurulum
 
-Önceki sürümler farklı derleme ortamlarında farklı imza anahtarlarıyla imzalanmıştı. v3.16.0'dan itibaren APK **sabit bir proje anahtarıyla** imzalanır; telefonunuzda eski CanEditor varsa bir kez **kaldırıp** yeni APK'yı kurun (aksi halde Android "paket çakışıyor" hatası verir). Sonraki güncellemeler kaldırmadan, üzerine kurulur.
+v3.17.0'dan itibaren APK yeni ve kalıcı bir proje anahtarıyla imzalanır (sertifika `CN=CanEditor`, SHA-256
+`BA:80:78:89:12:28:35:C0:58:3B:C9:72:3B:C0:90:5C:C8:6F:49:A8:1A:92:BA:F9:D0:96:33:77:71:BB:D4:F0`). Telefonunuzda
+v3.16.0 ya da öncesi kuruluysa bir kez **kaldırıp** yeni APK'yı kurun (aksi halde Android "paket çakışıyor" hatası
+verir). Sonraki güncellemeler kaldırmadan, üzerine kurulur.
 
 ## 🌟 v3.17.0 ile Gelenler (Kaydırırken Geri Sekme, Gerçek UYAP ile Sayfa Uyumu, Tutarı Yazıyla)
 
