@@ -104,12 +104,23 @@ public class AdaletActivity extends Activity {
 
     @Override protected void onPause() { h.removeCallbacks(yenile); super.onPause(); }
 
+    private volatile boolean denetimSuruyor = false;
+
     private void durumuGoster() {
         String s = AdaletKurulum.kuruluSurum(this);
         tvKurulum.setText(s == null ? "📦 Resmi uygulama: kurulu değil" : "📦 Resmi uygulama: Adalet E-İmza " + s + " (kurulu)");
-        String dur = AdaletServisi.durum();
-        boolean acik = AdaletServisi.portAcik();
-        tvDurum.setText((acik ? "🟢 " : AdaletServisi.calisiyor() ? "🟡 " : "⚪ ") + dur);
+        // Port denetimi ağ işlemidir: ana iş parçacığında yapılırsa Android uygulamayı kapatır (NetworkOnMainThread).
+        if (denetimSuruyor) return;
+        denetimSuruyor = true;
+        new Thread(() -> {
+            final boolean acik = AdaletServisi.portAcik();
+            final String dur = AdaletServisi.durum();
+            final boolean calisiyor = AdaletServisi.calisiyor();
+            runOnUiThread(() -> {
+                denetimSuruyor = false;
+                if (!isFinishing()) tvDurum.setText((acik ? "🟢 " : calisiyor ? "🟡 " : "⚪ ") + dur);
+            });
+        }, "adalet-durum").start();
     }
 
     private void indir() {

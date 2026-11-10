@@ -1811,6 +1811,19 @@ public class EditorActivity extends Activity {
             if (AdaletKurulum.jarDosyasi(EditorActivity.this).exists() && !AdaletServisi.calisiyor()) AdaletServisi.baslat(EditorActivity.this);
         }
 
+        /** Adalet E-İmza kurulu değilse yerel (Android) soru penceresi; Evet -> kurulum ekranı. */
+        @JavascriptInterface
+        public void adaletKurulumSor() {
+            runOnUiThread(() -> new android.app.AlertDialog.Builder(EditorActivity.this)
+                    .setTitle("🏛️ Adalet E-İmza gerekli")
+                    .setMessage("Kartla e-imza için resmi Adalet E-İmza uygulaması bir kez kurulmalı.\n\n"
+                            + "• Termux gerekmez\n• ~80 MB, Adalet Bakanlığı'nın sunucusundan (cdn.uyap.gov.tr) indirilir\n\n"
+                            + "Kurulum ekranı açılsın mı?")
+                    .setPositiveButton("Kurulum ekranını aç", (d, w) -> startActivity(new Intent(EditorActivity.this, AdaletActivity.class)))
+                    .setNegativeButton("Şimdi değil", null)
+                    .show());
+        }
+
         @JavascriptInterface
         public void adaletEkraniAc() {
             runOnUiThread(() -> startActivity(new Intent(EditorActivity.this, AdaletActivity.class)));

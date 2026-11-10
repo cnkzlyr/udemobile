@@ -5,7 +5,7 @@ import shutil
 import zipfile
 import subprocess
 
-VERSION = "3.18.1"
+VERSION = "3.18.2"
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 IS_WINDOWS = os.name == "nt"
 

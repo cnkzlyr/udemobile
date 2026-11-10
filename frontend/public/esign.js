@@ -668,9 +668,10 @@
     try {
       const list = await scList();
       scCards = (list && list.cards) || list || [];
-      if (list && list.kurulumGerekli && !window.__adaletKurulumSoruldu && window.AndroidBridge && window.AndroidBridge.adaletEkraniAc) {
+      if (list && list.kurulumGerekli && !window.__adaletKurulumSoruldu && window.AndroidBridge) {
         window.__adaletKurulumSoruldu = true;
-        setTimeout(() => { if (confirm('Kartla e-imza için resmi Adalet E-İmza bir kez kurulmalı (Termux gerekmez, ~80 MB, Adalet\'in sunucusundan). Kurulum ekranı açılsın mı?')) window.AndroidBridge.adaletEkraniAc(); }, 50);
+        if (window.AndroidBridge.adaletKurulumSor) window.AndroidBridge.adaletKurulumSor();       // yerel Android penceresi
+        else if (window.AndroidBridge.adaletEkraniAc) window.AndroidBridge.adaletEkraniAc();
       }
       const certs = scCards.map((c, i) => {
         if (c.adalet) return { id: String(i), subject: 'CN=' + c.label, issuer: 'CN=' + c.issuer, validUntil: c.notAfter, terminal: c.reader, serial: c.subjectSerial };
