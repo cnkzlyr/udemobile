@@ -201,7 +201,9 @@ public class CcidKopru {
             UsbInterface ifc = ccidArayuzu(d);
             if (ifc == null) continue;
             if (!um.hasPermission(d)) {
-                CcidDriver.getInstance(ctx).requestPermission(d);   // sistem izin penceresi
+                // Sistem izin penceresi: her takılışta BİR kez (Adalet uygulaması sık yokladığı için tekrar açılmasın)
+                String anahtar = d.getDeviceName() + "/" + d.getDeviceId();
+                if (izinIstenen.add(anahtar)) CcidDriver.getInstance(ctx).requestPermission(d);
                 continue;
             }
             UsbDeviceConnection c = um.openDevice(d);
@@ -233,13 +235,33 @@ public class CcidKopru {
         }
     }
 
+    /** Bilinen e-imza okuyucu/token üreticileri (bazı tokenlar CCID'yi üreticiye özel sınıfla, 0xFF, bildirir). */
+    static final int[] BILINEN_URETICI = {0x072F /* ACS ACR38/39 */, 0x2CE3 /* ArkSigner */, 0x0529 /* SafeNet */,
+            0x08E6 /* Gemalto */, 0x04E6 /* Identiv/SCM */, 0x076B /* Omnikey */, 0x096E /* Feitian */, 0x058F /* Alcor */};
+
     static UsbInterface ccidArayuzu(UsbDevice d) {
         for (int i = 0; i < d.getInterfaceCount(); i++) {
             UsbInterface f = d.getInterface(i);
             if (f.getInterfaceClass() == 0x0B) return f;
         }
+        boolean bilinen = false;
+        for (int v : BILINEN_URETICI) if (d.getVendorId() == v) bilinen = true;
+        if (!bilinen) return null;
+        for (int i = 0; i < d.getInterfaceCount(); i++) {           // üreticiye özel sınıf + bulk giriş/çıkış
+            UsbInterface f = d.getInterface(i);
+            if (f.getInterfaceClass() != 0xFF) continue;
+            boolean in = false, out = false;
+            for (int k = 0; k < f.getEndpointCount(); k++) {
+                UsbEndpoint e = f.getEndpoint(k);
+                if (e.getType() != UsbConstants.USB_ENDPOINT_XFER_BULK) continue;
+                if (e.getDirection() == UsbConstants.USB_DIR_IN) in = true; else out = true;
+            }
+            if (in && out) return f;
+        }
         return null;
     }
+
+    private final java.util.Set<String> izinIstenen = new java.util.HashSet<>();
 
     // ------------------------------------------------------------------------------------ istisnalar
     static class KartYok extends IOException { KartYok(String m) { super(m); } }

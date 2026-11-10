@@ -117,7 +117,9 @@ public class EditorActivity extends Activity {
         // çalışıyorsa okuyucu onun köprüsünde: editör aynı USB arayüzünü ayrıca tutmaz.
         try {
             setupUsbReceiver();
-            if (!AdaletServisi.calisiyor()) CcidDriver.getInstance(this).scanAndConnect();
+            // Kart artık yalnızca resmi Adalet E-İmza (AdaletServisi + USB köprüsü) üzerinden okunur. Eski tahmini
+            // sürücü (CcidDriver) kartı okuyamayınca uydurma sertifika gösteriyor ve USB'yi ana iş parçacığında
+            // kullanıp uygulamayı donduruyordu; editör açılışında bağlanmaz.
         } catch (Exception ignored) {}
 
         new Thread(this::ensureEimzaServiceRunning).start();
@@ -128,25 +130,12 @@ public class EditorActivity extends Activity {
     private final BroadcastReceiver usbReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
-            String action = intent.getAction();
-            if (CcidDriver.ACTION_USB_PERMISSION.equals(action)) {
-                synchronized (this) {
-                    CcidDriver.getInstance(context).onPermissionResult();
-                    UsbDevice device = intent.getParcelableExtra(UsbManager.EXTRA_DEVICE);
-                    if (intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false)) {
-                        if (device != null) {
-                            CcidDriver.getInstance(context).scanAndConnect();
-                            queryRealSmartCardStatus();
-                        }
-                    }
-                }
-            } else if (UsbManager.ACTION_USB_DEVICE_ATTACHED.equals(action)) {
-                CcidDriver.getInstance(context).scanAndConnect();
-                queryRealSmartCardStatus();
-            } else if (UsbManager.ACTION_USB_DEVICE_DETACHED.equals(action)) {
-                CcidDriver.getInstance(context).disconnect();
-                queryRealSmartCardStatus();
+            // Ana iş parçacığında USB işlemi YAPILMAZ (eskiden "CanEditor yanıt vermiyor" donmasına yol açıyordu).
+            // Okuyucu Adalet E-İmza köprüsündedir; burada yalnızca editördeki kart durumu yenilenir.
+            if (CcidDriver.ACTION_USB_PERMISSION.equals(intent.getAction())) {
+                CcidDriver.getInstance(context).onPermissionResult();
             }
+            queryRealSmartCardStatus();
         }
     };
 
@@ -1085,132 +1074,23 @@ public class EditorActivity extends Activity {
     }
 
     private void queryRealSmartCardStatus() {
-        new Thread(() -> {
-            JSONObject responseToJs = new JSONObject();
-            try {
-                // 1. Katman: Doğrudan Android Yerel USB Host CCID Sürücüsü (Sıfır Termux, Bağımsız)
-                CcidDriver driver = CcidDriver.getInstance(this);
-                if (!driver.isConnected()) {
-                    driver.scanAndConnect();
-                }
-                if (driver.isConnected()) {
-                    CcidDriver.CardCertificateInfo cert = driver.getCertificateInfo();
-                    JSONArray certsArray = new JSONArray();
-                    JSONObject item = new JSONObject();
-                    item.put("id", cert != null ? cert.certificateId : "CERT_0");
-                    item.put("subject", cert != null && !cert.subject.isEmpty() ? cert.subject : "Nitelikli Elektronik Sertifika");
-                    item.put("issuer", cert != null && !cert.issuer.isEmpty() ? cert.issuer : driver.getCardType());
-                    item.put("serial", cert != null && !cert.serial.isEmpty() ? cert.serial : "NES-1");
-                    item.put("validUntil", cert != null && !cert.notAfter.isEmpty() ? cert.notAfter : "31.12.2028");
-                    item.put("terminal", driver.getReaderName());
-                    certsArray.put(item);
-
-                    responseToJs.put("connected", true);
-                    responseToJs.put("terminal", driver.getReaderName());
-                    responseToJs.put("certificates", certsArray);
-
-                    final String jsonStr = responseToJs.toString();
-                    runOnUiThread(() -> editorWebView.evaluateJavascript("onSmartCardStatusUpdated(" + jsonStr + ");", null));
-                    return;
-                }
-
-                // 2. Katman: Dahili/Harici Adalet E-İmza Servisi (Port 5975)
-                File adaletScript = new File("/data/data/com.termux/files/home/eimza/adalet_baslat.sh");
-                if (adaletScript.exists()) {
-                    ensureEimzaServiceRunning();
-                }
-
-                URL url = new URL("http://127.0.0.1:5975/api/v1/signature/getCertificates");
-                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-                conn.setRequestMethod("GET");
-                conn.setConnectTimeout(1500);
-                conn.setReadTimeout(2500);
-
-                int code = conn.getResponseCode();
-                if (code == 200) {
-                    BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8));
-                    StringBuilder sb = new StringBuilder();
-                    String line;
-                    while ((line = reader.readLine()) != null) {
-                        sb.append(line);
-                    }
-                    reader.close();
-
-                    JSONObject res = new JSONObject(sb.toString());
-                    JSONArray data = res.optJSONArray("data");
-                    if (data != null && data.length() > 0) {
-                        JSONArray certsArray = new JSONArray();
-                        String mainTerminal = "";
-
-                        for (int i = 0; i < data.length(); i++) {
-                            JSONObject readerObj = data.getJSONObject(i);
-                            String terminalName = readerObj.optString("terminal", "Akıllı Kart Okuyucu");
-                            if (mainTerminal.isEmpty()) mainTerminal = terminalName;
-                            JSONArray certs = readerObj.optJSONArray("certificates");
-                            if (certs != null) {
-                                for (int j = 0; j < certs.length(); j++) {
-                                    JSONObject c = certs.getJSONObject(j);
-                                    JSONObject item = new JSONObject();
-                                    item.put("id", c.optString("certificateId", ""));
-                                    item.put("subject", c.optString("subject", ""));
-                                    item.put("issuer", c.optString("issuer", ""));
-                                    item.put("serial", c.optString("certSerial", ""));
-                                    item.put("validUntil", c.optString("notAfter", ""));
-                                    item.put("terminal", terminalName);
-                                    certsArray.put(item);
-                                }
-                            }
-                        }
-
-                        if (certsArray.length() > 0) {
-                            responseToJs.put("connected", true);
-                            responseToJs.put("terminal", mainTerminal);
-                            responseToJs.put("certificates", certsArray);
-                        } else {
-                            responseToJs.put("connected", false);
-                            responseToJs.put("message", "Okuyucu algılandı ancak içinde takılı akıllı kart (çip) bulunamadı.");
-                        }
-                    } else {
-                        responseToJs.put("connected", false);
-                        responseToJs.put("message", "Takılı e-imza kartı bulunamadı. Lütfen kartınızı OTG ile bağlayınız.");
-                    }
-                } else {
-                    responseToJs.put("connected", false);
-                    responseToJs.put("message", "E-imza servisi yanıt vermedi (HTTP " + code + ").");
-                }
-            } catch (Exception e) {
-                try {
-                    responseToJs.put("connected", false);
-                    responseToJs.put("message", "Takılı e-imza kartı bulunamadı (OTG bağlantısını kontrol ediniz).");
-                } catch (Exception ignored) {}
-            }
-
-            final String jsonStr = responseToJs.toString();
-            runOnUiThread(() -> {
-                editorWebView.evaluateJavascript("onSmartCardStatusUpdated(" + jsonStr + ");", null);
-            });
-        }).start();
+        // Kart durumu esign.js tarafından resmi Adalet E-İmza servisinden okunur (gerçek sertifika ya da açık hata).
+        // Eskiden burada kart okunamasa bile "Nitelikli Elektronik Sertifika / NES-... / 31.12.2028" gibi UYDURMA
+        // değerlerle "kart aktif" gösteriliyordu.
+        if (Thread.currentThread() != getMainLooper().getThread()) {
+            runOnUiThread(this::queryRealSmartCardStatus);
+            return;
+        }
+        if (editorWebView != null) {
+            editorWebView.evaluateJavascript("window.refreshSmartCardStatus && window.refreshSmartCardStatus();", null);
+        }
     }
 
     private void ensureEimzaServiceRunning() {
-        // Termux'suz: resmi Adalet E-İmza kuruluysa UdeMobile'ın kendi servisi başlatılır.
+        // Termux'suz: resmi Adalet E-İmza kuruluysa UdeMobile'ın kendi servisi başlatılır (Termux çağrılmaz).
         if (AdaletKurulum.jarDosyasi(this).exists()) {
             try { if (!AdaletServisi.calisiyor()) AdaletServisi.baslat(this); } catch (Exception ignored) { }
-            return;
         }
-        // Eski kurulum (uyap-termux-pro) yalnızca Termux yüklüyse denenir.
-        try { getPackageManager().getPackageInfo("com.termux", 0); } catch (Exception e) { return; }
-        try {
-            Intent intent = new Intent();
-            intent.setClassName("com.termux", "com.termux.app.RunCommandService");
-            intent.setAction("com.termux.RUN_COMMAND");
-            intent.putExtra("com.termux.RUN_COMMAND_PATH", "/data/data/com.termux/files/usr/bin/bash");
-            intent.putExtra("com.termux.RUN_COMMAND_ARGUMENTS", new String[]{"-c", "bash ~/eimza/eimza_baslat.sh ensure >/dev/null 2>&1; bash ~/eimza/adalet_baslat.sh ensure >/dev/null 2>&1; bash ~/eimza/udemobile_baslat.sh ensure >/dev/null 2>&1"});
-            intent.putExtra("com.termux.RUN_COMMAND_WORKDIR", "/data/data/com.termux/files/home");
-            intent.putExtra("com.termux.RUN_COMMAND_BACKGROUND", true);
-            intent.putExtra("com.termux.RUN_COMMAND_SESSION_ACTION", "0");
-            startService(intent);
-        } catch (Exception ignored) {}
     }
 
     /** İmzalanacak içerik kaynağı */
@@ -1907,6 +1787,33 @@ public class EditorActivity extends Activity {
         private void esignReply(String cbId, boolean ok, String payload) {
             final String js = "window.__esignCallback && window.__esignCallback(" + JSONObject.quote(cbId) + "," + ok + "," + JSONObject.quote(payload == null ? "" : payload) + ");";
             runOnUiThread(() -> editorWebView.evaluateJavascript(js, null));
+        }
+
+        /** Adalet E-İmza durumu: {"kurulu","calisiyor","port","durum","okuyucu"} (anlık, engellemez). */
+        @JavascriptInterface
+        public String adaletDurum() {
+            try {
+                JSONObject j = new JSONObject();
+                j.put("kurulu", AdaletKurulum.jarDosyasi(EditorActivity.this).exists());
+                j.put("calisiyor", AdaletServisi.calisiyor());
+                j.put("port", AdaletServisi.portAcik());
+                j.put("durum", AdaletServisi.durum());
+                String o = AdaletServisi.sonOkuyucu();
+                if (o != null) j.put("okuyucu", o);
+                return j.toString();
+            } catch (Exception e) {
+                return "{}";
+            }
+        }
+
+        @JavascriptInterface
+        public void adaletBaslat() {
+            if (AdaletKurulum.jarDosyasi(EditorActivity.this).exists() && !AdaletServisi.calisiyor()) AdaletServisi.baslat(EditorActivity.this);
+        }
+
+        @JavascriptInterface
+        public void adaletEkraniAc() {
+            runOnUiThread(() -> startActivity(new Intent(EditorActivity.this, AdaletActivity.class)));
         }
 
         /** Resmi Adalet E-İmza servisine (127.0.0.1:5975, UdeMobile içinde) istek: kart listesi, UDF imzası. */

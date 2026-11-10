@@ -48,6 +48,10 @@ public class AdaletServisi extends Service implements CcidKopru.PinSaglayici {
     private static final int BILDIRIM = 5975;
 
     private static volatile String durum = "Kapalı";
+    private static volatile String okuyucuAdi = null;
+
+    /** Köprünün son gördüğü USB okuyucu (yoksa null). */
+    public static String sonOkuyucu() { return okuyucuAdi; }
     private static volatile AdaletServisi ornek;
 
     private CcidKopru kopru;
@@ -148,6 +152,7 @@ public class AdaletServisi extends Service implements CcidKopru.PinSaglayici {
                     hata = 0;
                 }
                 String okuyucu = kopru.okuyucuAdi();
+                okuyucuAdi = okuyucu;
                 durumYaz(portAcik() ? "Çalışıyor · 127.0.0.1:" + PORT + (okuyucu != null ? " · " + okuyucu : " · e-imza okuyucusu takılı değil")
                         : "Adalet E-İmza yanıt vermiyor, bekleniyor…");
                 Thread.sleep(4000);
