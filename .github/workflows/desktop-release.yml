@@ -1,13 +1,104 @@
 name: CanEditor Cross-Platform Desktop GUI Release
 
+# Tek workflow, tum platformlar: Android APK + Portable Web zip (build-android) ve
+# Windows/macOS/Linux (build-desktop). v* etiketinde ya da elle (tag girdisiyle) calisir.
+#
+# APK HER ZAMAN ayni anahtarla imzalanmali (telefondaki kurulum guncellenebilsin). Depo gizlileri
+# (Settings > Secrets and variables > Actions):
+#   ANDROID_KEYSTORE_B64   : debug.keystore dosyasinin base64 hali  (base64 -w0 debug.keystore)
+#   ANDROID_KEYSTORE_PASS  : (istege bagli) varsayilan "android"
+#   ANDROID_KEY_ALIAS      : (istege bagli) varsayilan "androiddebugkey"
+#   ANDROID_KEY_PASS       : (istege bagli) varsayilan ANDROID_KEYSTORE_PASS
+# Gizli yoksa APK yayimlanmaz, yalnizca Portable Web zip eklenir.
+
 on:
   push:
     tags:
       - 'v*'
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Surum etiketi (or. v3.17.0); yoksa calistirilan commit uzerinde olusturulur'
+        required: true
+
+env:
+  TAG: ${{ github.event.inputs.tag || github.ref_name }}
 
 jobs:
+  build-android:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platforms;android-34 build-tools;35.0.0'
+
+      - name: Restore signing key
+        env:
+          KS_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+        run: |
+          if [ -n "$KS_B64" ]; then
+            echo "$KS_B64" | base64 -d > "$RUNNER_TEMP/release.keystore"
+            echo "ANDROID_KEYSTORE=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
+            echo "Imza anahtari yuklendi."
+          else
+            echo "::warning::ANDROID_KEYSTORE_B64 gizlisi yok: APK imzalanamaz, yalnizca Portable Web zip yayimlanacak."
+          fi
+
+      - name: Build Portable zip + APK
+        env:
+          CANEDITOR_IMZA_ZORUNLU: '1'
+          ANDROID_KEYSTORE_PASS: ${{ secrets.ANDROID_KEYSTORE_PASS }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASS: ${{ secrets.ANDROID_KEY_PASS }}
+        run: |
+          # Boş gizliler betiğin varsayılanlarını ezmesin
+          [ -n "$ANDROID_KEYSTORE_PASS" ] || unset ANDROID_KEYSTORE_PASS
+          [ -n "$ANDROID_KEY_ALIAS" ] || unset ANDROID_KEY_ALIAS
+          [ -n "$ANDROID_KEY_PASS" ] || unset ANDROID_KEY_PASS
+          set +e
+          python3 scripts/pack_release.py
+          kod=$?
+          set -e
+          if [ $kod -eq 2 ] && [ -z "$ANDROID_KEYSTORE" ]; then
+            echo "APK atlandi (imza anahtari yok)."
+          elif [ $kod -ne 0 ]; then
+            exit $kod
+          fi
+          V="${TAG#v}"
+          mkdir -p out
+          cp "release/CanEditor-Portable-Web-GUI-v$V.zip" out/
+          if [ -n "$ANDROID_KEYSTORE" ]; then
+            cp "release/CanEditor-v$V.apk" out/
+            cp release/CanEditor-latest.apk out/
+            "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs "out/CanEditor-v$V.apk" | grep -i 'SHA-256'
+          fi
+          ls -l out
+
+      - name: Upload to GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.TAG }}
+          name: CanEditor ${{ env.TAG }}
+          target_commitish: ${{ github.sha }}
+          files: out/*
+          fail_on_unmatched_files: false
+
   build-desktop:
+    # Surumu Android isi olusturur (etiket yoksa github.sha uzerinde); masaustu ayni surume ekler.
+    needs: build-android
+    if: ${{ always() }}
     permissions:
       contents: write
     strategy:
@@ -56,8 +147,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: 'CanEditor ${{ github.ref_name }}'
+          tagName: ${{ env.TAG }}
+          releaseName: 'CanEditor ${{ env.TAG }}'
+          releaseCommitish: ${{ github.sha }}
           releaseBody: 'CanEditor Cross-Platform Desktop GUI Release (Windows .exe/.msi, macOS .dmg, Linux .AppImage/.deb)'
           releaseDraft: false
           prerelease: false
