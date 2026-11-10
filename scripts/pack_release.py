@@ -5,7 +5,7 @@ import shutil
 import zipfile
 import subprocess
 
-VERSION = "3.17.1"
+VERSION = "3.18.0"
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 IS_WINDOWS = os.name == "nt"
 
@@ -205,6 +205,22 @@ def main():
     with zipfile.ZipFile(unaligned_apk, "a", zipfile.ZIP_DEFLATED) as zf:
         zf.write(dex_file, arcname="classes.dex")
     print("classes.dex added to APK.")
+
+    # 5b. Adalet E-İmza (Termux'suz): gömülü Java 21 + köprü ajanı + AWT yaması (scripts/jre_hazirla.py üretir)
+    step("5b. Adding embedded Java 21 for Adalet E-Imza")
+    eimza_dir = os.path.join(PROJECT_ROOT, "build", "eimza")
+    gerekli = ["jre-arm64.zip", "eimza-agent.jar", "awt-patch.jar", "surum.txt"]
+    if not all(os.path.exists(os.path.join(eimza_dir, g)) for g in gerekli) or os.environ.get("CANEDITOR_JRE_YENIDEN") == "1":
+        r = subprocess.run([sys.executable, os.path.join(PROJECT_ROOT, "scripts", "jre_hazirla.py")])
+        if r.returncode != 0:
+            print("jre_hazirla.py başarısız (Adalet E-İmza gömülü Java'sı hazırlanamadı).")
+            sys.exit(1)
+    with zipfile.ZipFile(unaligned_apk, "a") as zf:
+        for g in gerekli:
+            # jre-arm64.zip zaten sıkıştırılmış: tekrar sıkıştırılmaz (STORED), kurulumda hızlı açılır
+            zf.write(os.path.join(eimza_dir, g), arcname="assets/eimza/" + g,
+                     compress_type=zipfile.ZIP_STORED if g.endswith(".zip") else zipfile.ZIP_DEFLATED)
+    print("assets/eimza/* added to APK.")
 
     # 6. Zipalign
     step("6. Aligning APK with zipalign")

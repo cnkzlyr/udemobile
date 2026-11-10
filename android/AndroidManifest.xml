@@ -1,12 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.agy.uyapacici"
-    android:versionCode="50"
-    android:versionName="3.17.1">
+    android:versionCode="51"
+    android:versionName="3.18.0">
 
     <uses-sdk
         android:minSdkVersion="21"
-        android:targetSdkVersion="34" />
+        android:targetSdkVersion="28" />
+    <!-- 28: gömülü Java (Adalet E-İmza) uygulama klasöründen çalıştırılabilsin (Android 10+ W^X kuralı 29+ hedefte
+         uygulama klasöründeki programları engeller; Termux da 28 hedefler). Uygulama dışarıdan kurulur (Play yok). -->
 
     <!-- USB Host Desteği (OTG E-İmza Akıllı Kart Okuyucular & Tokenlar) -->
     <uses-feature android:name="android.hardware.usb.host" android:required="false" />
@@ -21,6 +23,12 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
+    <!-- Adalet E-İmza servisi (ön plan) ve PIN penceresi -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <queries>
         <package android:name="com.termux" />
@@ -225,6 +233,23 @@
                  yeni bir kopyasını açıyor ve uygulama donuyordu. Kart artık açık editör içinden
                  dinamik alıcı + UsbManager.requestPermission ile algılanır. -->
         </activity>
+
+        <!-- 🏛️ Adalet E-İmza (Termux'suz): yönetim ekranı, ön plan servisi, PIN penceresi -->
+        <activity
+            android:name=".AdaletActivity"
+            android:label="Adalet E-İmza"
+            android:exported="false" />
+        <activity
+            android:name=".PinEkrani"
+            android:theme="@android:style/Theme.DeviceDefault.Light.Dialog"
+            android:excludeFromRecents="true"
+            android:taskAffinity="com.agy.uyapacici.pin"
+            android:launchMode="singleTop"
+            android:windowSoftInputMode="stateVisible"
+            android:exported="false" />
+        <service
+            android:name=".AdaletServisi"
+            android:exported="false" />
 
     </application>
 </manifest>

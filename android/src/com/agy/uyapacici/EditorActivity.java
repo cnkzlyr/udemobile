@@ -112,11 +112,12 @@ public class EditorActivity extends Activity {
         setupWebView();
         setupListeners();
 
-        // Dahili Yerel Adalet E-İmza Sunucusu (Port 5975) & USB CCID Sürücüsü
+        // USB CCID sürücüsü. 127.0.0.1:5975'i artık RESMİ Adalet E-İmza (AdaletServisi, gömülü Java) dinler;
+        // eski tahmini dahili sunucu (EmbeddedAdaletServer) portu işgal ediyordu, başlatılmaz. Adalet servisi
+        // çalışıyorsa okuyucu onun köprüsünde: editör aynı USB arayüzünü ayrıca tutmaz.
         try {
-            EmbeddedAdaletServer.getInstance(this).start();
             setupUsbReceiver();
-            CcidDriver.getInstance(this).scanAndConnect();
+            if (!AdaletServisi.calisiyor()) CcidDriver.getInstance(this).scanAndConnect();
         } catch (Exception ignored) {}
 
         new Thread(this::ensureEimzaServiceRunning).start();
@@ -166,7 +167,6 @@ public class EditorActivity extends Activity {
     protected void onDestroy() {
         super.onDestroy();
         try { unregisterReceiver(usbReceiver); } catch (Exception ignored) {}
-        try { EmbeddedAdaletServer.getInstance(this).stop(); } catch (Exception ignored) {}
         try { CcidDriver.getInstance(this).disconnect(); } catch (Exception ignored) {}
     }
 
@@ -1193,6 +1193,13 @@ public class EditorActivity extends Activity {
     }
 
     private void ensureEimzaServiceRunning() {
+        // Termux'suz: resmi Adalet E-İmza kuruluysa UdeMobile'ın kendi servisi başlatılır.
+        if (AdaletKurulum.jarDosyasi(this).exists()) {
+            try { if (!AdaletServisi.calisiyor()) AdaletServisi.baslat(this); } catch (Exception ignored) { }
+            return;
+        }
+        // Eski kurulum (uyap-termux-pro) yalnızca Termux yüklüyse denenir.
+        try { getPackageManager().getPackageInfo("com.termux", 0); } catch (Exception e) { return; }
         try {
             Intent intent = new Intent();
             intent.setClassName("com.termux", "com.termux.app.RunCommandService");
@@ -1900,6 +1907,28 @@ public class EditorActivity extends Activity {
         private void esignReply(String cbId, boolean ok, String payload) {
             final String js = "window.__esignCallback && window.__esignCallback(" + JSONObject.quote(cbId) + "," + ok + "," + JSONObject.quote(payload == null ? "" : payload) + ");";
             runOnUiThread(() -> editorWebView.evaluateJavascript(js, null));
+        }
+
+        /** Resmi Adalet E-İmza servisine (127.0.0.1:5975, UdeMobile içinde) istek: kart listesi, UDF imzası. */
+        @JavascriptInterface
+        public void adaletIstekAsync(String cbId, String yontem, String yol, String govde) {
+            new Thread(() -> {
+                try {
+                    if (yol == null || !(yol.startsWith("/api/v1/signature/getCertificates") || yol.startsWith("/api/v1/docsignature/")
+                            || yol.startsWith("/client/info"))) {
+                        esignReply(cbId, false, "İzin verilmeyen istek");
+                        return;
+                    }
+                    if (!AdaletServisi.portAcik()) {
+                        if (AdaletKurulum.jarDosyasi(EditorActivity.this).exists()) AdaletServisi.baslat(EditorActivity.this);
+                        esignReply(cbId, false, "Adalet E-İmza servisi çalışmıyor");
+                        return;
+                    }
+                    esignReply(cbId, true, AdaletServisi.istek(yontem, yol, govde == null || govde.isEmpty() ? null : govde));
+                } catch (Exception e) {
+                    esignReply(cbId, false, "Adalet E-İmza: " + e.getMessage());
+                }
+            }).start();
         }
 
         /** UYAP mobil imza SOAP isteği (yalnızca vatandas.uyap.gov.tr) */

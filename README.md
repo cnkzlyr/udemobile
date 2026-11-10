@@ -1,6 +1,6 @@
 # ⚖️ CanEditor (UdeMobile) — Çapraz Platform UYAP & Word Editörü
 
-[![Sürüm](https://img.shields.io/badge/Sürüm-v3.17.1-blue.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v3.17.1)
+[![Sürüm](https://img.shields.io/badge/Sürüm-v3.18.0-blue.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v3.18.0)
 [![Platformlar](https://img.shields.io/badge/Platformlar-Android%20%7C%20Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Web-success.svg)](https://github.com/cnkzlyr/udemobile/releases)
 [![UYAP](https://img.shields.io/badge/Format-UYAP_UDF_v1.8-0D47A1.svg)](https://uyap.gov.tr)
 [![Word](https://img.shields.io/badge/Format-MS_DOCX_OpenXML-2B579A.svg?logo=microsoft-word&logoColor=white)](https://microsoft.com)
@@ -11,14 +11,14 @@
 
 ---
 
-## 🚀 Hızlı İndirme (v3.17.1)
+## 🚀 Hızlı İndirme (v3.18.0)
 
 | Platform | Paket Dosyası | Açıklama |
 | :--- | :--- | :--- |
-| **Android (Telefon & Tablet)** | [**CanEditor-v3.17.1.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.17.1/CanEditor-v3.17.1.apk) | Güncel Android APK paketi (Termux gerektirmez) |
-| **Android (Her Zaman En Son)** | [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.17.1/CanEditor-latest.apk) | Kalıcı son sürüm bağlantısı |
-| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v3.17.1.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v3.17.1/CanEditor-Portable-Web-GUI-v3.17.1.zip) | **Kurulumsuz;** zipten çıkarıp `index.html` açarak tüm işletim sistemlerinde doğrudan çalışır |
-| **Windows / macOS / Linux** | [**GitHub Releases Sayfası**](https://github.com/cnkzlyr/udemobile/releases/tag/v3.17.1) | GitHub Actions CI ile derlenen yerel ikili (.msi, .exe, .dmg, .AppImage, .deb, .rpm) paketleri |
+| **Android (Telefon & Tablet)** | [**CanEditor-v3.18.0.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.18.0/CanEditor-v3.18.0.apk) | Güncel Android APK paketi (Termux gerektirmez) |
+| **Android (Her Zaman En Son)** | [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.18.0/CanEditor-latest.apk) | Kalıcı son sürüm bağlantısı |
+| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v3.18.0.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v3.18.0/CanEditor-Portable-Web-GUI-v3.18.0.zip) | **Kurulumsuz;** zipten çıkarıp `index.html` açarak tüm işletim sistemlerinde doğrudan çalışır |
+| **Windows / macOS / Linux** | [**GitHub Releases Sayfası**](https://github.com/cnkzlyr/udemobile/releases/tag/v3.18.0) | GitHub Actions CI ile derlenen yerel ikili (.msi, .exe, .dmg, .AppImage, .deb, .rpm) paketleri |
 
 ---
 
@@ -28,6 +28,25 @@ v3.17.0'dan itibaren APK yeni ve kalıcı bir proje anahtarıyla imzalanır (ser
 `BA:80:78:89:12:28:35:C0:58:3B:C9:72:3B:C0:90:5C:C8:6F:49:A8:1A:92:BA:F9:D0:96:33:77:71:BB:D4:F0`). Telefonunuzda
 v3.16.0 ya da öncesi kuruluysa bir kez **kaldırıp** yeni APK'yı kurun (aksi halde Android "paket çakışıyor" hatası
 verir). Sonraki güncellemeler kaldırmadan, üzerine kurulur.
+
+## 🌟 v3.18.0 ile Gelenler (Termux'suz Adalet E-İmza)
+
+1. **Adalet E-İmza artık UdeMobile'ın içinde (Android, Termux gerekmez):** Chrome'dan UYAP Avukat Portalı'na
+   e-imza ile giriş ve imzalama için gereken **resmi Adalet E-İmza** uygulaması, APK'nın içindeki **Java 21** ile
+   telefonda çalışır (`127.0.0.1:5975`, resmi uygulamadakiyle aynı adres). Ana ekran > **🏛️ Adalet E-İmza** >
+   **Resmi uygulamayı indir** (Adalet'in sunucusundan, cdn.uyap.gov.tr; UdeMobile resmi uygulamayı dağıtmaz).
+2. **USB e-imza okuyucu köprüsü (Termux'suz):** Okuyucu OTG ile takılır; kart, resmi uygulamaya UdeMobile'ın USB CCID
+   köprüsünden görünür (APDU ve TPDU/T=1 okuyucular). Kart komutlarını resmi uygulamanın TÜBİTAK kütüphanesi gönderir.
+3. **PIN penceresi:** Sayfa PIN'i sormazsa Android penceresi açılır (ekran görüntüsü alınamaz, PIN kaydedilmez).
+4. **Editörde kartla imza** Android'de önce resmi Adalet E-İmza servisiyle (signUdf) yapılır; dönen imza belgeyle
+   doğrulanmadan kaydedilmez. Servis kapalıysa eski doğrudan USB yolu kullanılır.
+5. Ekran yok: resmi uygulamanın Swing pencereleri Caciocavallo ile bellekte çizilir; Android sistem kök sertifikaları
+   Java güven deposuna eklenir (Adalet sunucularına HTTPS).
+6. Android hedef SDK 28 (gömülü Java uygulama klasöründen çalışabilsin; Termux da 28 hedefler). APK ~44 MB.
+
+> **Bilinen sınırlar:** Gerçek telefon + gerçek kartla uçtan uca henüz denenmedi (x86 Linux'ta resmi uygulama aynı
+> ajan ve yamayla açılıp 5975'te yanıt verdi). AKİS (Kamu SM) kartları beklenir; üretici PKCS#11 sürücüsü isteyen
+> bazı SafeNet/ArkSigner tokenlar Android'de çalışmayabilir.
 
 ## 🌟 v3.17.1 ile Gelenler (Mobil İmza Düzeltmesi)
 

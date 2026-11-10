@@ -412,6 +412,21 @@
     // Özel sürücü yolu: localStorage 'caneditor_pkcs11_lib' (veya ortam değişkeni CANEDITOR_PKCS11)
     if (!libPath) { try { libPath = localStorage.getItem('caneditor_pkcs11_lib') || null; } catch (e) {} }
     if (t) return await t.invoke('pkcs11_list', { libPath: libPath || null });
+    // Android: önce resmi Adalet E-İmza servisi (UdeMobile içinde gömülü Java'da, 127.0.0.1:5975) — kartı TÜBİTAK
+    // MA3 kütüphanesiyle okur ve imzalar (UYAP ile birebir). Servis kapalıysa doğrudan USB CCID sürücüsüne düşülür.
+    if (realAndroid() && window.AndroidBridge.adaletIstekAsync) {
+      try {
+        const r = JSON.parse(await androidCall('adaletIstekAsync', 'GET', '/api/v1/signature/getCertificates', ''));
+        if (r && r.metadata && r.metadata.STATUS === 'SUCCESS') {
+          const kartlar = [];
+          (r.data || []).forEach(rd => (rd.certificates || []).forEach(c => kartlar.push({
+            adalet: true, certificateId: c.certificateId, label: c.subject || 'Sertifika', issuer: c.issuer || '',
+            notAfter: c.notAfter || '', subjectSerial: c.subjectSerial || '', reader: (rd.terminal || 'Okuyucu') + ' · Adalet E-İmza',
+            keyType: c.pubKeyAlgorithm === 'EC' ? 'EC' : 'RSA' })));
+          if (kartlar.length) return kartlar;
+        }
+      } catch (e) {}
+    }
     if (realAndroid() && window.AndroidBridge.scardCertAsync) {
       const r = await androidCall('scardCertAsync');
       return JSON.parse(r);
@@ -539,8 +554,34 @@
     return { signerName: res.signerName, identityNo: res.identityNo, verification: check };
   }
 
+  /** Android: resmi Adalet E-İmza servisiyle UDF imzası (signUdf). Sunucu content.xml'i imzalar ve önceki imzalarla
+   *  birleştirir; dönen sign.sgn burada belgeyle doğrulanmadan kaydedilmez. */
+  async function adaletUdfSign(card, pin, ui) {
+    const src = await prepareSource();
+    ui.status && ui.status('Adalet E-İmza ile imzalanıyor (kart ve PIN doğrulanıyor)…');
+    const z = src.zip;
+    z.file('content.xml', src.content, { compression: 'DEFLATE' });
+    if (src.existingSgn) z.file('sign.sgn', src.existingSgn, { compression: 'DEFLATE' }); else z.remove('sign.sgn');
+    const udf = await z.generateAsync({ type: 'uint8array', compression: 'DEFLATE' });
+    const r = JSON.parse(await androidCall('adaletIstekAsync', 'POST', '/api/v1/docsignature/signUdf',
+      JSON.stringify({ certificateId: card.certificateId, pin: pin || '', content: b64e(udf) })));
+    if (!r || !r.metadata || r.metadata.STATUS !== 'SUCCESS' || !r.data || !r.data.content) {
+      throw new Error((r && r.metadata && r.metadata.MESSAGE) || 'Adalet E-İmza imzalayamadı.');
+    }
+    const imzali = await JSZip.loadAsync(b64d(r.data.content));
+    const sgnF = imzali.file('sign.sgn');
+    if (!sgnF) throw new Error('Adalet E-İmza imza dosyası (sign.sgn) döndürmedi.');
+    const sgn = await sgnF.async('uint8array');
+    const check = await verify(src.content, sgn);
+    if (!check.isValid) throw new Error('Adalet E-İmza imzası belgeyle doğrulanamadı; belge kaydedilmedi.');
+    const bytes = await writeSigned(src, sgn);
+    await finish(bytes);
+    return { verification: check, cert: { subjectCN: card.label } };
+  }
+
   async function smartCardSign(card, pin, ui) {
     ui = ui || {};
+    if (card && card.adalet) return adaletUdfSign(card, pin, ui);     // PIN boşsa servis kendi penceresini açar
     if (!pin || pin.length < 4) throw new Error('E-imza PIN en az 4 karakter olmalıdır.');
     const src = await prepareSource();
     ui.status && ui.status('İmza öznitelikleri hazırlanıyor…');
@@ -603,7 +644,7 @@
   // --- Akıllı kart: sertifika listesi (masaüstü PKCS#11 / Android USB CCID)
   let scCards = [];
   let scBusy = false;
-  const usesNewCardPath = () => !!(tauri() || (realAndroid() && window.AndroidBridge.scardCertAsync));
+  const usesNewCardPath = () => !!(tauri() || (realAndroid() && (window.AndroidBridge.scardCertAsync || window.AndroidBridge.adaletIstekAsync)));
   window.refreshSmartCardStatus = async function () {
     if (!usesNewCardPath()) return legacyRefresh ? legacyRefresh() : undefined;
     if (scBusy) return;
@@ -612,6 +653,7 @@
       const list = await scList();
       scCards = (list && list.cards) || list || [];
       const certs = scCards.map((c, i) => {
+        if (c.adalet) return { id: String(i), subject: 'CN=' + c.label, issuer: 'CN=' + c.issuer, validUntil: c.notAfter, terminal: c.reader, serial: c.subjectSerial };
         let pc = null; try { pc = parseCert(b64d(c.certB64)); } catch (e) {}
         c.keyType = c.keyType || (pc && pc.keyType) || 'RSA';
         return { id: String(i), subject: 'CN=' + ((pc && pc.subjectCN) || c.label || 'Sertifika'), issuer: 'CN=' + ((pc && pc.issuerCN) || ''), validUntil: pc ? pc.notAfter : '', terminal: c.reader || c.tokenLabel || 'Akıllı kart okuyucu', serial: pc ? pc.subjectSerial : '' };
