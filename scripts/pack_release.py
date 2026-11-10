@@ -21,6 +21,23 @@ if IS_WINDOWS:
     ZIPALIGN = os.path.join(BUILD_TOOLS, "zipalign.exe")
     D8_CMD = [JAVA, "-cp", os.path.join(BUILD_TOOLS, "lib", "d8.jar"), "com.android.tools.r8.D8"]
     APKSIGNER_CMD = [JAVA, "-jar", os.path.join(BUILD_TOOLS, "lib", "apksigner.jar")]
+elif os.environ.get("ANDROID_HOME") or os.environ.get("ANDROID_SDK_ROOT"):
+    # CI (GitHub Actions) / standart Android SDK kurulumu: araçlar ANDROID_HOME altından bulunur
+    SDK = os.environ.get("ANDROID_HOME") or os.environ.get("ANDROID_SDK_ROOT")
+    _bt = sorted(glob.glob(os.path.join(SDK, "build-tools", "*")))
+    BUILD_TOOLS = _bt[-1] if _bt else ""
+    _pl = sorted(glob.glob(os.path.join(SDK, "platforms", "android-34", "android.jar"))) or \
+          sorted(glob.glob(os.path.join(SDK, "platforms", "android-*", "android.jar")))
+    PLATFORM_JAR = _pl[-1] if _pl else ""
+    JAVAC = shutil.which("javac") or "javac"
+    JAVA = shutil.which("java") or "java"
+    KEYTOOL = shutil.which("keytool") or "keytool"
+    _arac = lambda ad: os.path.join(BUILD_TOOLS, ad) if os.path.exists(os.path.join(BUILD_TOOLS, ad)) else shutil.which(ad)
+    AAPT = _arac("aapt")
+    AAPT2 = _arac("aapt2")
+    ZIPALIGN = _arac("zipalign") or "zipalign"
+    D8_CMD = [_arac("d8") or "d8"]
+    APKSIGNER_CMD = [_arac("apksigner") or "apksigner"]
 else:
     alt_sdk_jar = os.path.expanduser("~/.android-sdk/android-34/android.jar")
     if os.path.exists(alt_sdk_jar):
@@ -192,7 +209,7 @@ def main():
     # 6. Zipalign
     step("6. Aligning APK with zipalign")
     aligned_apk = os.path.join(temp_dir, "aligned.apk")
-    if shutil.which("zipalign"):
+    if ZIPALIGN and (os.path.exists(ZIPALIGN) or shutil.which(ZIPALIGN)):
         cmd = [ZIPALIGN, "-f", "-p", "4", unaligned_apk, aligned_apk]
         res = subprocess.run(cmd, capture_output=True, text=True)
         if res.returncode != 0:
@@ -204,12 +221,24 @@ def main():
         print("zipalign bulunamadı, APK doğrudan apksigner ile imzalanacak.")
         shutil.copy2(unaligned_apk, aligned_apk)
 
-    # 7. Check or create debug.keystore
+    # 7. İmza anahtarı. Telefona GÜNCELLEME olarak kurulabilmesi için HER sürüm AYNI anahtarla imzalanmalı.
+    #    Öncelik: ANDROID_KEYSTORE ortam değişkeni (CI'da GitHub secret'tan) > ~/.android-sdk > proje kökü.
+    #    CANEDITOR_IMZA_ZORUNLU=1 iken anahtar yoksa YENİSİ ÜRETİLMEZ, derleme durur (CI: yanlış anahtarla
+    #    "paket çakışıyor" hatası veren APK yayınlanmasın).
+    ks_sifre = os.environ.get("ANDROID_KEYSTORE_PASS", "android")
+    ks_alias = os.environ.get("ANDROID_KEY_ALIAS", "androiddebugkey")
+    ks_key_sifre = os.environ.get("ANDROID_KEY_PASS", ks_sifre)
     alt_ks = os.path.expanduser("~/.android-sdk/debug.keystore")
-    if os.path.exists(alt_ks):
+    if os.environ.get("ANDROID_KEYSTORE"):
+        keystore_path = os.environ["ANDROID_KEYSTORE"]
+    elif os.path.exists(alt_ks):
         keystore_path = alt_ks
     else:
         keystore_path = os.path.join(PROJECT_ROOT, "debug.keystore")
+    if not os.path.exists(keystore_path) and os.environ.get("CANEDITOR_IMZA_ZORUNLU") == "1":
+        print("❌ İmza anahtarı bulunamadı ve CANEDITOR_IMZA_ZORUNLU=1: yeni anahtar üretilmedi.")
+        print("   Önceki sürümlerle aynı anahtar (debug.keystore) olmadan üretilen APK telefona güncelleme olarak kurulamaz.")
+        sys.exit(2)
     if not os.path.exists(keystore_path):
         print("Creating debug.keystore")
         cmd = [
@@ -235,9 +264,9 @@ def main():
     cmd = APKSIGNER_CMD + [
         "sign",
         "--ks", keystore_path,
-        "--ks-pass", "pass:android",
-        "--ks-key-alias", "androiddebugkey",
-        "--key-pass", "pass:android",
+        "--ks-pass", f"pass:{ks_sifre}",
+        "--ks-key-alias", ks_alias,
+        "--key-pass", f"pass:{ks_key_sifre}",
         "--v1-signing-enabled", "true",
         "--v2-signing-enabled", "true",
         "--v3-signing-enabled", "true",
