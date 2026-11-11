@@ -151,12 +151,39 @@ final class Mobil {
         Kopru.bildir("MKARET " + m.getCaret().getMark() + " " + m.getCaret().getDot() + konum(m, m.getCaret().getDot()));
     }
 
-    /** İmlecin motor koordinatları: " x y yükseklik" (kağıt görünümünde imleç buraya çizilir). */
+    /*
+     * Editörün kendi yakınlaştırması (UYAP Editör 5.4.20'de %98): bileşen koordinatları (modelToView/viewToModel)
+     * yerleşim (View) koordinatlarının z katıdır. Kağıt görünümü yerleşim koordinatlarıyla çizildiği için dokunma ve
+     * imleç z ile dönüştürülür; aksi hâlde sapma belgenin sonuna doğru büyüyordu (sayfa 4'te ~80 nokta).
+     */
+    private static double zoom = 1;
+
+    @SuppressWarnings("deprecation")
+    private static void zoomOlc(JTextComponent m) {
+        try {
+            javax.swing.text.View sec = m.getUI().getRootView(m).getView(0);
+            java.awt.Rectangle alan = new java.awt.Rectangle(0, 0, m.getWidth(), m.getHeight());
+            java.util.List<Double> o = new java.util.ArrayList<>();
+            for (int i = sec.getViewCount() - 1; i >= 0 && o.size() < 9; i -= Math.max(1, sec.getViewCount() / 12)) {
+                java.awt.Rectangle r = sec.getChildAllocation(i, alan).getBounds();
+                if (r.y < 300) continue;
+                java.awt.Rectangle mv = m.modelToView(sec.getView(i).getStartOffset());
+                if (mv != null) o.add(mv.y / (double) r.y);
+            }
+            if (!o.isEmpty()) {
+                java.util.Collections.sort(o);
+                double z = o.get(o.size() / 2);
+                if (z > 0.2 && z < 5) zoom = Math.round(z * 100) / 100.0;
+            }
+        } catch (Throwable ignored) { }
+    }
+
+    /** İmlecin yerleşim koordinatları: " x y yükseklik" (kağıt görünümünde imleç buraya çizilir). */
     @SuppressWarnings("deprecation")
     private static String konum(JTextComponent m, int o) {
         try {
             java.awt.Rectangle r = m.modelToView(o);
-            if (r != null) return " " + r.x + " " + r.y + " " + Math.max(10, r.height);
+            if (r != null) return " " + Math.round(r.x / zoom) + " " + Math.round(r.y / zoom) + " " + Math.max(10, Math.round(r.height / zoom));
         } catch (Exception ignored) { }
         return "";
     }
@@ -166,10 +193,10 @@ final class Mobil {
     static void nokta(int x, int y, int x2, int y2) {
         JTextComponent m = bagli != null ? bagli : onMetin();
         if (m == null) return;
-        int a = m.viewToModel(new java.awt.Point(x, y));
+        int a = m.viewToModel(new java.awt.Point((int) Math.round(x * zoom), (int) Math.round(y * zoom)));
         if (a < 0) return;
         if (x2 >= 0) {
-            int b = m.viewToModel(new java.awt.Point(x2, y2));
+            int b = m.viewToModel(new java.awt.Point((int) Math.round(x2 * zoom), (int) Math.round(y2 * zoom)));
             m.setCaretPosition(a);
             if (b >= 0) m.moveCaretPosition(b);
         } else m.setCaretPosition(a);
@@ -278,6 +305,7 @@ final class Mobil {
         javax.swing.text.View sec = kok.getViewCount() > 0 ? kok.getView(0) : kok;
         java.awt.Rectangle alan = new java.awt.Rectangle(0, 0, m.getWidth(), m.getHeight());
         Sayfa s = sayfaBul(sec);
+        zoomOlc(m);
         Document d = m.getDocument();
         StringBuilder B = new StringBuilder();
         int solX = Integer.MAX_VALUE, enAlt = 0;

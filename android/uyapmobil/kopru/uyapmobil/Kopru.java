@@ -970,6 +970,22 @@ public final class Kopru {
                     alanTara("kökView", k.getView(0), 0, new java.util.IdentityHashMap<>());
                 });
                 break;
+            case "ZD":  // tanı: model→ekran ile yerleşim karşılaştırması
+                EventQueue.invokeLater(() -> {
+                    javax.swing.text.JTextComponent m = null;
+                    for (Window w : Window.getWindows()) if (w.isShowing() && w instanceof java.awt.Frame) { javax.swing.text.JTextComponent x = metinBilesen(w); if (x != null) m = x; }
+                    if (m == null) return;
+                    javax.swing.text.View kok = m.getUI().getRootView(m), sec = kok.getView(0);
+                    java.awt.Rectangle alan = new java.awt.Rectangle(0, 0, m.getWidth(), m.getHeight());
+                    for (int i = 0; i < sec.getViewCount(); i += Math.max(1, sec.getViewCount() / 8)) {
+                        try {
+                            java.awt.Rectangle r = sec.getChildAllocation(i, alan).getBounds();
+                            @SuppressWarnings("deprecation") java.awt.Rectangle mv = m.modelToView(sec.getView(i).getStartOffset());
+                            LOG.println("[zoom] i=" + i + " görünüm=" + r.x + "," + r.y + " modelToView=" + mv.x + "," + mv.y + " oran=" + (r.y == 0 ? 0 : mv.y / (double) r.y));
+                        } catch (Exception ex) { LOG.println("[zoom] " + ex); }
+                    }
+                });
+                break;
             case "BD":  // tanı: ana penceredeki bileşen ağacı (düğmeler, etiketler, sekmeler)
                 EventQueue.invokeLater(() -> { for (Window w : Window.getWindows()) if (w.isShowing() && w instanceof java.awt.Frame) agacDok(w, 0); });
                 break;

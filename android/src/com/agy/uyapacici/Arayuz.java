@@ -544,7 +544,7 @@ final class Arayuz {
     /** Editör bağlandı: şerit tercihini uygula, menüyü iste. */
     void hazir() {
         UyapMobilServisi.gonder("SG " + (seritGizli() ? "0" : "1"));
-        if (gorunum < 0) gorunumSec(ayar.getInt("gorunum", KAGIT));
+        if (gorunum < 0) gorunumSec(KAGIT);      // her açılış kağıt görünümüyle (belge sayfa olarak görünsün)
         else if (gorunum != ORIJINAL) UyapMobilServisi.gonder("MM " + gorunum);
         iste(800);
     }
