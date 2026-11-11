@@ -187,6 +187,37 @@ public class EkranView extends View implements Choreographer.FrameCallback {
         m.postTranslate(ox, oy);
         c.drawBitmap(bmp, m, boya);
         for (View a : aynalar) a.invalidate();
+        if (olcek != sonBildirilen && olcekDinleyici != null) { sonBildirilen = olcek; post(olcekDinleyici); }
+    }
+
+    // ------------------------------------------------------------------------------------ yakınlaştırma (alt kapsül)
+    /** Ölçek değişince (yakınlaştırma kapsülündeki yüzde için). */
+    Runnable olcekDinleyici;
+    private float sonBildirilen = -1;
+
+    /** Genişliğe sığdırmaya göre yüzde (CanEditor'daki "%100 Sığdır" gibi). */
+    int yuzde() { return Math.round(olcek / sigdirOlcegi() * 100f); }
+
+    void yakinlastir(float f) {
+        float yeni = Math.max(sigdirOlcegi() * 0.5f, Math.min(olcek * f, sigdirOlcegi() * 5f));
+        float cx = getWidth() / 2f, cy = getHeight() / 2f, k = yeni / olcek;
+        ox = cx - (cx - ox) * k;
+        oy = cy - (cy - oy) * k;
+        olcek = yeni;
+        kullaniciYakinlasti = true;
+        sinirla();
+        invalidate();
+    }
+
+    /** Ekranın tamamını göster (tüm sayfa, CanEditor'daki "↕ Sayfa"). */
+    void sayfaSigdir() {
+        if (W == 0 || H == 0 || getWidth() == 0) return;
+        olcek = Math.min(getWidth() / (float) W, getHeight() / (float) H);
+        kullaniciYakinlasti = true;
+        ox = 0;
+        oy = 0;
+        sinirla();
+        invalidate();
     }
 
     /** Bulanık üst/alt çubuklar ekranın kendi altında kalan parçasını çizer (Arayuz.BulanikZemin). */

@@ -210,7 +210,7 @@ public class UyapMobilActivity extends Activity implements UyapMobilServisi.Dinl
         if (!f.isFile()) { Toast.makeText(this, "Belge dosyası bulunamadı: " + yol, Toast.LENGTH_LONG).show(); return; }
         mobilYol = yol;
         mobilZaman = f.lastModified();
-        Intent i = new Intent(this, EditorActivity.class).putExtra(EditorActivity.EXTRA_FILE_PATH, yol);
+        Intent i = new Intent(this, EditorActivity.class).putExtra(EditorActivity.EXTRA_FILE_PATH, yol).putExtra(EditorActivity.EXTRA_UYAP_SAYFA, true);
         try {
             startActivityForResult(i, MOBIL_GORUNUM);
             overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out);
@@ -227,7 +227,7 @@ public class UyapMobilActivity extends Activity implements UyapMobilServisi.Dinl
         if (f.isFile() && f.lastModified() != mobilZaman) {
             UyapMobilServisi.gonder("YB " + android.util.Base64.encodeToString(y.getBytes(StandardCharsets.UTF_8), android.util.Base64.NO_WRAP));
             ui.belgeAciliyor(f.getName());
-        }
+        } else if (ui != null) ui.gecisRozeti("🏛  Orijinal Sayfa Görünümü");
     }
 
     // ------------------------------------------------------------------------------------ gelen belge

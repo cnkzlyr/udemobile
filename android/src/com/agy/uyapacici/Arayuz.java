@@ -45,13 +45,14 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * UYAP Editör — dokunmatik arayüz (3.22.0), Google Dokümanlar mobil düzenine benzer.
+ * UYAP Editör — dokunmatik arayüz (3.23.0): CanEditor (UdeMobile) düzeni, içinde ORİJİNAL UYAP Editör.
  *
- *  ┌──────────────────────────────┐  üst çubuk (bulanık cam): ☰ · belge adı · geri al · yinele · mobil görünüm · ⋮
- *  │   resmi editörün ekranı       │  belge çubukların ALTINDAN kayar; çubuklar arkasındakini bulanıklaştırır (Android 12+)
- *  │   (Java 14, köprü ile)        │
- *  ├──────────────────────────────┤  ek tuşlar (Esc, Tab, Ctrl, Alt, oklar…; açılır/kapanır, animasyonlu)
- *  └──────────────────────────────┘  biçim çubuğu: ⌨ · A (biçim sayfası) · K T A · renk · hizalama · liste · girinti · tuşlar
+ *  ┌──────────────────────────────┐  üst çubuk: 🏛 · belge adı · [💾 Kaydet] · [📱 Mobil ⇄ 🖥 Sayfa] · ☰
+ *  │ ↶ ↷ │ Times New R… ▾ │ 12 ▾ │ K T A S │ renk vurgu │ hizalama │ liste girinti │ ⌨
+ *  │   SAYFA GÖRÜNÜMÜ: resmi editör (Java 14, köprü ile), başlık çubuğu gizli, üstte cetvel
+ *  │                                 │  MOBİL GÖRÜNÜM: aynı belge CanEditor'ın akış editöründe (EditorActivity)
+ *  │ [− %100 Sığdır + ↔ ↕]      (✏)  │  yakınlaştırma kapsülü (bulanık cam) · klavye düğmesi
+ *  └──────────────────────────────┘  ☰: CanEditor menüsü (Kaydet, Aç, Farklı kaydet, Yazdır, E-imza) + tüm UYAP menüleri
  *
  * Komutlar editörün kendi menü öğelerine/araç düğmelerine tıklanarak çalışır (köprü: MN → MENU, MC/MS/MT),
  * yani davranış resmi editörle birebir aynıdır. Şerit menü varsayılan olarak gizlidir (SG).
@@ -71,7 +72,9 @@ final class Arayuz {
     private final Map<String, Bitmap> simgeler = new HashMap<>();
     private final Set<String> acikBolumler = new HashSet<>();
 
+    static final int UST_YUKSEKLIK = 56 + 52;
     private FrameLayout ustKap, altKap;
+    private TextView yuzdeTv, fontTv, boyutTv;
     private LinearLayout tusSatiri;
     private TextView baslikTv, altBaslikTv;
     private LinearLayout durumKart;
@@ -103,12 +106,14 @@ final class Arayuz {
         kok.setBackgroundColor(Color.rgb(232, 234, 237));
         ekran = new EkranView(a);
         ekran.setBackgroundColor(Color.rgb(232, 234, 237));
-        kok.addView(ekran, tam());
+        FrameLayout.LayoutParams el = tam();
+        el.topMargin = dp(UST_YUKSEKLIK);     // belge üst çubuğun altından başlar (cetvel görünür)
+        kok.addView(ekran, el);
         ekran.degistiriciDinleyici = y -> a.runOnUiThread(this::degistiricileriGoster);
 
         ustKap = cubuk(true);
         kok.addView(ustKap, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP));
-        altKap = cubuk(false);
+        altKap = new FrameLayout(a);          // yüzen öğeler: tuş satırı, yakınlaştırma kapsülü, klavye düğmesi
         kok.addView(altKap, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM));
         ustDoldur();
         altDoldur();
@@ -141,6 +146,12 @@ final class Arayuz {
             }
         }
 
+        /** Kendi boyutunu dayatmasın: View varsayılanı AT_MOST'ta tüm yüksekliği alıyordu (3.22.0'da çubuk bütün ekranı kapladı). */
+        @Override protected void onMeasure(int w, int h) {
+            setMeasuredDimension(View.MeasureSpec.getMode(w) == View.MeasureSpec.EXACTLY ? View.MeasureSpec.getSize(w) : 0,
+                    View.MeasureSpec.getMode(h) == View.MeasureSpec.EXACTLY ? View.MeasureSpec.getSize(h) : 0);
+        }
+
         @Override protected void onDraw(Canvas c) {
             if (bulanik) {
                 getLocationInWindow(ben);
@@ -169,40 +180,123 @@ final class Arayuz {
     private LinearLayout ic(FrameLayout f) { return (LinearLayout) f.getChildAt(2); }
 
     private void ustDoldur() {
+        // 1. satır: 🏛 · belge adı · Kaydet · Mobil/Sayfa · ☰  (CanEditor üst çubuğu)
         LinearLayout s = new LinearLayout(a);
         s.setOrientation(LinearLayout.HORIZONTAL);
         s.setGravity(Gravity.CENTER_VERTICAL);
-        s.setPadding(dp(4), 0, dp(4), 0);
-        s.addView(ikonDugme(Tasarim.S.MENU, "Menü", v -> cekmeceAc()));
+        s.setPadding(dp(8), 0, dp(4), 0);
+        TextView logo = metin("🏛️", 20, Tasarim.VURGU, false);
+        logo.setPadding(dp(8), dp(8), dp(8), dp(8));
+        logo.setBackground(Tasarim.dalga(null, dp(20)));
+        logo.setOnClickListener(v -> cekmeceAc());
+        s.addView(logo);
         LinearLayout yazi = new LinearLayout(a);
         yazi.setOrientation(LinearLayout.VERTICAL);
-        yazi.setPadding(dp(6), 0, dp(4), 0);
-        baslikTv = metin(belgeAdi, 17, Tasarim.METIN, true);
+        yazi.setPadding(dp(4), 0, dp(4), 0);
+        baslikTv = metin(belgeAdi, 15, Tasarim.METIN, true);
         baslikTv.setSingleLine(true);
         baslikTv.setEllipsize(TextUtils.TruncateAt.MIDDLE);
-        altBaslikTv = metin("Resmi UYAP Doküman Editörü", 12, Tasarim.IKINCIL, false);
+        altBaslikTv = metin("Orijinal UYAP Editör · Sayfa görünümü", 11, Tasarim.IKINCIL, false);
         altBaslikTv.setSingleLine(true);
         altBaslikTv.setEllipsize(TextUtils.TruncateAt.END);
         yazi.addView(baslikTv);
         yazi.addView(altBaslikTv);
         yazi.setOnClickListener(v -> cekmeceAc());
         s.addView(yazi, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        s.addView(ikonDugme(Tasarim.S.GERI_AL, "Geri al", v -> ekran.tus('Z', EkranView.CTRL)));
-        s.addView(ikonDugme(Tasarim.S.YINELE, "Yinele", v -> ekran.tus('Y', EkranView.CTRL)));
-        s.addView(ikonDugme(Tasarim.S.MOBIL, "Mobil görünüm", v -> mobilGorunum()));
-        s.addView(ikonDugme(Tasarim.S.DAHA, "Diğer", v -> digerSayfasi()));
+        // mavi Kaydet
+        ImageView kaydet = new ImageView(a);
+        kaydet.setImageDrawable(Tasarim.simge(a, Tasarim.S.KAYDET, Color.WHITE));
+        kaydet.setPadding(dp(10), dp(8), dp(10), dp(8));
+        kaydet.setBackground(Tasarim.dalga(Tasarim.yuvarlak(Tasarim.VURGU, dp(10)), dp(10)));
+        if (Build.VERSION.SDK_INT >= 21) kaydet.setElevation(dp(2));
+        kaydet.setContentDescription("Kaydet");
+        kaydet.setOnClickListener(v -> { pulse(v); kaydet(); });
+        LinearLayout.LayoutParams kl = new LinearLayout.LayoutParams(dp(52), dp(40));
+        kl.setMargins(dp(4), 0, dp(6), 0);
+        s.addView(kaydet, kl);
+        // Mobil ⇄ Sayfa
+        TextView mobil = metin("📱", 19, Tasarim.METIN, false);
+        mobil.setGravity(Gravity.CENTER);
+        mobil.setBackground(Tasarim.dalga(Tasarim.yuvarlak(Color.rgb(241, 243, 244), dp(10)), dp(10)));
+        mobil.setOnClickListener(v -> { pulse(v); mobilGorunum(); });
+        mobil.setOnLongClickListener(v -> { Toast.makeText(a, "Mobil akış görünümü (CanEditor)", Toast.LENGTH_SHORT).show(); return true; });
+        LinearLayout.LayoutParams ml = new LinearLayout.LayoutParams(dp(46), dp(40));
+        ml.setMargins(0, 0, dp(2), 0);
+        s.addView(mobil, ml);
+        s.addView(ikonDugme(Tasarim.S.MENU, "Menü", v -> cekmeceAc()));
         ic(ustKap).addView(s, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(56)));
+
+        // 2. satır: araç çubuğu (CanEditor gibi): ↶ ↷ │ yazı tipi │ boyut │ K T A S │ renk vurgu │ hizalama │ liste │ ⌨
+        HorizontalScrollView bh = new HorizontalScrollView(a);
+        bh.setHorizontalScrollBarEnabled(false);
+        LinearLayout b = new LinearLayout(a);
+        b.setOrientation(LinearLayout.HORIZONTAL);
+        b.setGravity(Gravity.CENTER_VERTICAL);
+        b.setPadding(dp(4), 0, dp(8), 0);
+        bh.addView(b);
+        b.addView(ikonDugme(Tasarim.S.GERI_AL, "Geri al", v -> ekran.tus('Z', EkranView.CTRL)));
+        b.addView(ikonDugme(Tasarim.S.YINELE, "Yinele", v -> ekran.tus('Y', EkranView.CTRL)));
+        b.addView(ayrac());
+        fontTv = secimKutusu("Times New Roman", dp(128), v -> { if (combolar.size() > 1) listeSec("Yazı tipi", combolar.get(1)); else hazirlaniyor(); });
+        b.addView(fontTv);
+        boyutTv = secimKutusu("12", dp(58), v -> { if (combolar.size() > 2) listeSec("Boyut", combolar.get(2)); else hazirlaniyor(); });
+        b.addView(boyutTv);
+        b.addView(ayrac());
+        bicimDugmesi(b, "kalin", Tasarim.S.KALIN, "Kalın");
+        bicimDugmesi(b, "italik", Tasarim.S.ITALIK, "İtalik");
+        bicimDugmesi(b, "alti", Tasarim.S.ALTI, "Altı çizili");
+        bicimDugmesi(b, "ustu", Tasarim.S.USTU_CIZILI, "Üstü çizili");
+        bicimDugmesi(b, "renk", Tasarim.S.RENK, "Metin rengi");
+        bicimDugmesi(b, "vurgu", Tasarim.S.VURGULA, "Vurgu");
+        b.addView(ayrac());
+        bicimDugmesi(b, "sol", Tasarim.S.SOL, "Sola hizala");
+        bicimDugmesi(b, "orta", Tasarim.S.ORTA, "Ortala");
+        bicimDugmesi(b, "sag", Tasarim.S.SAG, "Sağa hizala");
+        bicimDugmesi(b, "iki", Tasarim.S.IKI_YANA, "İki yana yasla");
+        b.addView(ayrac());
+        bicimDugmesi(b, "madde", Tasarim.S.MADDE, "Madde işaretli liste");
+        bicimDugmesi(b, "numara", Tasarim.S.NUMARA, "Numaralı liste");
+        bicimDugmesi(b, "girinti_az", Tasarim.S.GIRINTI_AZ, "Girintiyi azalt");
+        bicimDugmesi(b, "girinti_cok", Tasarim.S.GIRINTI_COK, "Girintiyi artır");
+        b.addView(ayrac());
+        b.addView(ikonDugme(Tasarim.S.BICIM, "Tüm biçim seçenekleri", v -> bicimSayfasi(0)));
+        b.addView(ikonDugme(Tasarim.S.TUSLAR, "Ek tuşlar (Esc, Ctrl, oklar…)", v -> tuslariAcKapa()));
+        ic(ustKap).addView(bh, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(52)));
+    }
+
+    private void hazirlaniyor() {
+        Toast.makeText(a, "Editör menüsü hazırlanıyor…", Toast.LENGTH_SHORT).show();
+        iste(0);
+    }
+
+    private TextView secimKutusu(String m, int genislik, View.OnClickListener l) {
+        TextView t = metin(m + "  ▾", 14, Tasarim.METIN, false);
+        t.setSingleLine(true);
+        t.setEllipsize(TextUtils.TruncateAt.END);
+        t.setGravity(Gravity.CENTER_VERTICAL);
+        t.setPadding(dp(10), 0, dp(8), 0);
+        android.graphics.drawable.GradientDrawable g = Tasarim.yuvarlak(Color.WHITE, dp(8));
+        g.setStroke(Math.max(1, dp(1)), Tasarim.CIZGI);
+        t.setBackground(Tasarim.dalga(g, dp(8)));
+        t.setOnClickListener(v -> { pulse(v); l.onClick(v); });
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(genislik, dp(38));
+        lp.setMargins(dp(3), 0, dp(3), 0);
+        t.setLayoutParams(lp);
+        return t;
     }
 
     private void altDoldur() {
-        // ek tuş satırı (açılır/kapanır)
+        // ek tuş satırı (bulanık cam, açılır/kapanır)
+        FrameLayout tk = new FrameLayout(a);
+        tk.addView(new BulanikZemin(a), tam());
         HorizontalScrollView th = new HorizontalScrollView(a);
         th.setHorizontalScrollBarEnabled(false);
         tusSatiri = new LinearLayout(a);
         tusSatiri.setOrientation(LinearLayout.HORIZONTAL);
         tusSatiri.setGravity(Gravity.CENTER_VERTICAL);
-        tusSatiri.setPadding(dp(6), dp(6), dp(6), 0);
+        tusSatiri.setPadding(dp(6), dp(6), dp(6), dp(6));
         th.addView(tusSatiri);
+        tk.addView(th, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         tusSatiri.addView(tusCipi("Esc", v -> ekran.tus(27, 0)));
         tusSatiri.addView(tusCipi("Tab", v -> ekran.tus(9, 0)));
         ctrlTv = tusCipi("Ctrl", v -> yapiskan(EkranView.CTRL));
@@ -221,40 +315,78 @@ final class Arayuz {
         tusSatiri.addView(tusCipi("Yapıştır", v -> yapistir()));
         kipTv = tusCipi("", v -> { ekran.kaydirKipi = !ekran.kaydirKipi; kipGoster(true); });
         tusSatiri.addView(kipTv);
-        tusSatiri.addView(tusCipi("Sığdır", v -> ekran.sigdir()));
         kipGoster(false);
-        th.setVisibility(ayar.getBoolean("tuslar", false) ? View.VISIBLE : View.GONE);
-        ic(altKap).addView(th, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        tusKutusu = tk;
+        tk.setVisibility(ayar.getBoolean("tuslar", false) ? View.VISIBLE : View.GONE);
+        FrameLayout.LayoutParams tl = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM);
+        tl.bottomMargin = dp(72);
+        altKap.addView(tk, tl);
 
-        // biçim çubuğu
-        HorizontalScrollView bh = new HorizontalScrollView(a);
-        bh.setHorizontalScrollBarEnabled(false);
-        LinearLayout b = new LinearLayout(a);
-        b.setOrientation(LinearLayout.HORIZONTAL);
-        b.setGravity(Gravity.CENTER_VERTICAL);
-        b.setPadding(dp(4), 0, dp(4), 0);
-        bh.addView(b);
-        b.addView(ikonDugme(Tasarim.S.KLAVYE, "Klavye", v -> ekran.klavyeAcKapa()));
-        b.addView(ayrac());
-        b.addView(ikonDugme(Tasarim.S.BICIM, "Biçim", v -> bicimSayfasi(0)));
-        bicimDugmesi(b, "kalin", Tasarim.S.KALIN, "Kalın");
-        bicimDugmesi(b, "italik", Tasarim.S.ITALIK, "İtalik");
-        bicimDugmesi(b, "alti", Tasarim.S.ALTI, "Altı çizili");
-        bicimDugmesi(b, "renk", Tasarim.S.RENK, "Metin rengi");
-        bicimDugmesi(b, "vurgu", Tasarim.S.VURGULA, "Vurgu");
-        b.addView(ayrac());
-        bicimDugmesi(b, "sol", Tasarim.S.SOL, "Sola hizala");
-        bicimDugmesi(b, "orta", Tasarim.S.ORTA, "Ortala");
-        bicimDugmesi(b, "sag", Tasarim.S.SAG, "Sağa hizala");
-        bicimDugmesi(b, "iki", Tasarim.S.IKI_YANA, "İki yana yasla");
-        b.addView(ayrac());
-        bicimDugmesi(b, "madde", Tasarim.S.MADDE, "Madde işaretli liste");
-        bicimDugmesi(b, "numara", Tasarim.S.NUMARA, "Numaralı liste");
-        bicimDugmesi(b, "girinti_az", Tasarim.S.GIRINTI_AZ, "Girintiyi azalt");
-        bicimDugmesi(b, "girinti_cok", Tasarim.S.GIRINTI_COK, "Girintiyi artır");
-        b.addView(ayrac());
-        b.addView(ikonDugme(Tasarim.S.TUSLAR, "Ek tuşlar", v -> tuslariAcKapa(th)));
-        ic(altKap).addView(bh, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(54)));
+        // yakınlaştırma kapsülü (CanEditor: − %50 Sığdır + ↔ Sığdır ↕ Sayfa) — bulanık cam
+        FrameLayout kap = new FrameLayout(a);
+        kap.setBackground(Tasarim.yuvarlak(0x00FFFFFF, dp(26)));
+        if (Build.VERSION.SDK_INT >= 21) {
+            kap.setClipToOutline(true);
+            kap.setElevation(dp(6));
+        }
+        kap.addView(new BulanikZemin(a), tam());
+        LinearLayout z = new LinearLayout(a);
+        z.setOrientation(LinearLayout.HORIZONTAL);
+        z.setGravity(Gravity.CENTER_VERTICAL);
+        z.setPadding(dp(6), 0, dp(10), 0);
+        z.addView(kucukIkon(Tasarim.S.EKSI, v -> ekran.yakinlastir(1 / 1.2f)));
+        yuzdeTv = metin("%100 Sığdır", 14, Tasarim.VURGU, true);
+        yuzdeTv.setPadding(dp(6), dp(10), dp(6), dp(10));
+        yuzdeTv.setOnClickListener(v -> { pulse(v); ekran.sigdir(); });
+        z.addView(yuzdeTv);
+        z.addView(kucukIkon(Tasarim.S.ARTI, v -> ekran.yakinlastir(1.2f)));
+        z.addView(kucukMetin("↔", "Sığdır", v -> ekran.sigdir()));
+        z.addView(kucukMetin("↕", "Sayfa", v -> ekran.sayfaSigdir()));
+        kap.addView(z, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(52)));
+        FrameLayout.LayoutParams kpl = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(52), Gravity.BOTTOM | Gravity.START);
+        kpl.setMargins(dp(14), 0, 0, dp(14));
+        altKap.addView(kap, kpl);
+        ekran.olcekDinleyici = () -> yuzdeTv.setText("%" + ekran.yuzde() + (ekran.yuzde() == 100 ? " Sığdır" : ""));
+
+        // ✏ klavye düğmesi (yüzen, mavi)
+        ImageView fab = new ImageView(a);
+        fab.setImageDrawable(Tasarim.simge(a, Tasarim.S.KLAVYE, Color.WHITE));
+        fab.setPadding(dp(16), dp(16), dp(16), dp(16));
+        fab.setBackground(Tasarim.dalga(Tasarim.yuvarlak(Tasarim.VURGU, dp(30)), dp(30)));
+        if (Build.VERSION.SDK_INT >= 21) fab.setElevation(dp(8));
+        fab.setContentDescription("Klavye");
+        fab.setOnClickListener(v -> { pulse(v); ekran.klavyeAcKapa(); });
+        fab.setOnLongClickListener(v -> { tuslariAcKapa(); return true; });
+        FrameLayout.LayoutParams fl = new FrameLayout.LayoutParams(dp(60), dp(60), Gravity.BOTTOM | Gravity.END);
+        fl.setMargins(0, 0, dp(16), dp(10));
+        altKap.addView(fab, fl);
+    }
+
+    private View tusKutusu;
+
+    private ImageView kucukIkon(Tasarim.S s, View.OnClickListener l) {
+        ImageView iv = new ImageView(a);
+        iv.setImageDrawable(Tasarim.simge(a, s, Tasarim.METIN));
+        iv.setPadding(dp(10), dp(10), dp(10), dp(10));
+        iv.setBackground(Tasarim.dalga(null, dp(20)));
+        iv.setOnClickListener(v -> { pulse(v); l.onClick(v); });
+        iv.setLayoutParams(new LinearLayout.LayoutParams(dp(40), dp(40)));
+        return iv;
+    }
+
+    private View kucukMetin(String ust, String alt, View.OnClickListener l) {
+        LinearLayout k = new LinearLayout(a);
+        k.setOrientation(LinearLayout.VERTICAL);
+        k.setGravity(Gravity.CENTER);
+        k.setPadding(dp(8), dp(2), dp(8), dp(2));
+        TextView u = metin(ust, 14, Tasarim.METIN, true);
+        u.setGravity(Gravity.CENTER);
+        TextView t = metin(alt, 11, Tasarim.METIN, true);
+        k.addView(u);
+        k.addView(t);
+        k.setBackground(Tasarim.dalga(null, dp(16)));
+        k.setOnClickListener(v -> { pulse(v); l.onClick(v); });
+        return k;
     }
 
     private void bicimDugmesi(LinearLayout b, String ad, Tasarim.S s, String ipucu) {
@@ -263,16 +395,17 @@ final class Arayuz {
         b.addView(iv);
     }
 
-    private void tuslariAcKapa(final View th) {
+    private void tuslariAcKapa() {
+        final View th = tusKutusu;
         boolean ac = th.getVisibility() != View.VISIBLE;
         ayar.edit().putBoolean("tuslar", ac).apply();
         if (ac) {
             th.setVisibility(View.VISIBLE);
             th.setAlpha(0f);
-            th.setTranslationY(dp(20));
-            th.animate().alpha(1f).translationY(0).setDuration(220).setInterpolator(new DecelerateInterpolator()).start();
+            th.setTranslationY(dp(24));
+            th.animate().alpha(1f).translationY(0).setDuration(240).setInterpolator(hareket()).start();
         } else {
-            th.animate().alpha(0f).translationY(dp(20)).setDuration(160).withEndAction(() -> th.setVisibility(View.GONE)).start();
+            th.animate().alpha(0f).translationY(dp(24)).setDuration(180).withEndAction(() -> th.setVisibility(View.GONE)).start();
         }
     }
 
@@ -341,7 +474,8 @@ final class Arayuz {
         belgeAdi = ad.trim().isEmpty() ? "UYAP Editör" : ad.trim();
         belgeYolu = yol != null && yol.contains("/.uki/") ? null : yol;   // .uki: kaydedilmemiş yeni belge
         baslikTv.setText(belgeAdi);
-        altBaslikTv.setText(ek.isEmpty() ? (belgeYolu == null ? "Kaydedilmemiş belge" : "UYAP Doküman Editörü") : ek.replace("(", "").replace(")", ""));
+        altBaslikTv.setText((belgeYolu == null ? "Kaydedilmemiş belge" : "Orijinal UYAP Editör · Sayfa görünümü")
+                + (ek.isEmpty() ? "" : " · " + ek.replace("(", "").replace(")", "")));
         if (acilisBekleme > 0 && !belgeAdi.toLowerCase(java.util.Locale.ROOT).startsWith("isimsiz")) { acilisBekleme = 0; durumGizle(); }
         iste(300);
     }
@@ -392,6 +526,8 @@ final class Arayuz {
                 n++;
             }
         }
+        if (combolar.size() > 1) fontTv.setText(combolar.get(1).optString("t") + "  ▾");
+        if (combolar.size() > 2) boyutTv.setText(combolar.get(2).optString("t") + "  ▾");
         for (Map.Entry<String, ImageView> e : bicimDugmeleri.entrySet()) {
             int[] k = komut.get(e.getKey());
             secili(e.getValue(), k != null && k[2] == 1);
@@ -419,12 +555,76 @@ final class Arayuz {
         UyapMobilServisi.gonder("SG " + (gizle ? "0" : "1"));
     }
 
+    /** Menüde etkin bir öğenin kimliği (yoksa -1). */
+    private int ogeKimligi(String menu, String ad) {
+        if (son == null) return -1;
+        JSONArray m = son.optJSONArray("m");
+        for (int i = 0; i < m.length(); i++) {
+            JSONObject b = m.optJSONObject(i);
+            if (!menu.equals(b.optString("t"))) continue;
+            JSONArray o = b.optJSONArray("o");
+            for (int j = 0; o != null && j < o.length(); j++) {
+                JSONObject e = o.optJSONObject(j);
+                if ("i".equals(e.optString("k")) && ad.equals(e.optString("t"))) return e.optInt("e") == 1 ? e.optInt("id") : -1;
+            }
+        }
+        return -1;
+    }
+
+    /** 💾: kayıtlı belgeyse Kaydet, yeni belgeyse Farklı kaydet (telefonun seçicisi açılır). */
+    void kaydet() {
+        if (son == null) { hazirlaniyor(); return; }
+        int k = ogeKimligi("Dosya", "Kaydet");
+        if (k >= 0) { UyapMobilServisi.gonder("MC " + k); kayitBildir(); return; }
+        if (belgeYolu != null) { Toast.makeText(a, "✓ Belgede kaydedilmemiş değişiklik yok", Toast.LENGTH_SHORT).show(); return; }
+        int f = ogeKimligi("Dosya", "Farklı Kaydet");
+        if (f >= 0) UyapMobilServisi.gonder("MC " + f);
+    }
+
+    private void kayitBildir() {
+        altBaslikTv.setText("Kaydediliyor…");
+        kok.postDelayed(() -> { altBaslikTv.setText("✓ Kaydedildi · Orijinal UYAP Editör"); iste(0); }, 1500);
+    }
+
+    /**
+     * 📱 Mobil akış görünümü: değişiklik varsa önce resmi editörde kaydedilir (dosya yazılana kadar beklenir), sonra
+     * aynı belge CanEditor'ın akış editöründe açılır. Oradan "Sayfa görünümü" ile dönülünce belge yeniden yüklenir.
+     */
     private void mobilGorunum() {
         if (belgeYolu == null) {
-            Toast.makeText(a, "Mobil görünüm için önce belgeyi kaydedin (Kaydet ya da Farklı kaydet)", Toast.LENGTH_LONG).show();
+            Toast.makeText(a, "Mobil görünüm için önce belgeyi kaydedin (💾)", Toast.LENGTH_LONG).show();
+            int f = ogeKimligi("Dosya", "Farklı Kaydet");
+            if (f >= 0) UyapMobilServisi.gonder("MC " + f);
             return;
         }
-        uyg.mobilGorunum(belgeYolu);
+        gecisRozeti("📱  Mobil Akış Görünümü");
+        final java.io.File dosya = new java.io.File(belgeYolu);
+        final long once = dosya.lastModified();
+        int k = ogeKimligi("Dosya", "Kaydet");
+        if (k < 0) { kok.postDelayed(() -> uyg.mobilGorunum(belgeYolu), 350); return; }
+        UyapMobilServisi.gonder("MC " + k);
+        final long son = System.currentTimeMillis() + 8000;
+        kok.postDelayed(new Runnable() {
+            @Override public void run() {
+                if (dosya.lastModified() != once || System.currentTimeMillis() > son) kok.postDelayed(() -> uyg.mobilGorunum(belgeYolu), 400);
+                else kok.postDelayed(this, 250);
+            }
+        }, 400);
+    }
+
+    /** Ortada kısa süre görünen geçiş rozeti (CanEditor'daki "Mobil Akış Görünümü" bildirimi gibi). */
+    void gecisRozeti(String m) {
+        final TextView t = metin(m, 15, Color.WHITE, true);
+        t.setPadding(dp(20), dp(12), dp(20), dp(12));
+        t.setBackground(Tasarim.yuvarlak(0xE6202124, dp(24)));
+        if (Build.VERSION.SDK_INT >= 21) t.setElevation(dp(10));
+        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
+        lp.bottomMargin = dp(96);
+        kok.addView(t, lp);
+        t.setAlpha(0f);
+        t.setTranslationY(dp(16));
+        t.animate().alpha(1f).translationY(0).setDuration(220).setInterpolator(hareket()).start();
+        kok.postDelayed(() -> t.animate().alpha(0f).setDuration(250).withEndAction(() -> kok.removeView(t)).start(), 1600);
     }
 
     // ==================================================================================== çekmece (☰)
@@ -470,32 +670,53 @@ final class Arayuz {
     private void cekmeceCiz() {
         LinearLayout ic = cekmeceIcerik;
         ic.removeAllViews();
-        // başlık kartı
+        // başlık: ⚖️ UYAP Editör Menü  ✕
         LinearLayout bas = new LinearLayout(a);
-        bas.setOrientation(LinearLayout.VERTICAL);
-        bas.setPadding(dp(20), dp(22), dp(20), dp(18));
-        bas.setBackgroundColor(Tasarim.VURGU_ACIK);
-        TextView uy = metin("UYAP Editör", 22, Tasarim.VURGU, true);
-        bas.addView(uy);
-        TextView bt = metin(belgeAdi, 14, Tasarim.IKINCIL, false);
-        bt.setPadding(0, dp(4), 0, 0);
+        bas.setOrientation(LinearLayout.HORIZONTAL);
+        bas.setGravity(Gravity.CENTER_VERTICAL);
+        bas.setPadding(dp(18), dp(16), dp(8), dp(12));
+        TextView uy = metin("⚖️ UYAP Editör Menü", 19, Tasarim.METIN, true);
+        bas.addView(uy, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        bas.addView(kucukIkon(Tasarim.S.KAPAT, v -> cekmeceKapat()));
+        ic.addView(bas);
+        TextView bt = metin(belgeAdi, 13, Tasarim.IKINCIL, false);
+        bt.setPadding(dp(18), 0, dp(18), dp(10));
         bt.setSingleLine(true);
         bt.setEllipsize(TextUtils.TruncateAt.MIDDLE);
-        bas.addView(bt);
-        ic.addView(bas);
-        // hızlı işlemler
-        LinearLayout hiz = new LinearLayout(a);
-        hiz.setOrientation(LinearLayout.HORIZONTAL);
-        hiz.setPadding(dp(12), dp(12), dp(12), dp(8));
-        hiz.addView(hizliKart(Tasarim.S.AC, "Aç", () -> menuKomutu("Dosya", "Aç")), agirlik());
-        hiz.addView(hizliKart(Tasarim.S.KAYDET, "Kaydet", () -> menuKomutu("Dosya", "Kaydet", "Farklı Kaydet")), agirlik());
-        hiz.addView(hizliKart(Tasarim.S.ARA, "Bul", () -> menuKomutu("Giriş", "Bul")), agirlik());
-        hiz.addView(hizliKart(Tasarim.S.MOBIL, "Mobil", this::mobilGorunum), agirlik());
-        ic.addView(hiz);
+        ic.addView(bt);
+        View c0 = new View(a);
+        c0.setBackgroundColor(Tasarim.CIZGI);
+        ic.addView(c0, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 1));
+        // CanEditor'daki büyük düğmeler
+        ic.addView(buyukDugme("💾  Açık Olan Belgeyi Kaydet (1-Tık)", Color.rgb(30, 142, 62), () -> { cekmeceKapat(); kaydet(); }));
+        ic.addView(satir(null, null, "📂  Belge Aç (UDF, USF)", true, -1, () -> menuKomutu("Dosya", "Aç")));
+        ic.addView(satir(null, null, "📄  Yeni Belge", true, -1, () -> menuKomutu("Dosya", "Yeni")));
+        ic.addView(buyukDugme("📱  Mobil Akış Görünümünde Aç (CanEditor)", Color.rgb(121, 59, 34), () -> { cekmeceKapat(); mobilGorunum(); }));
+
+        baslikEtiketi(ic, "FARKLI KAYDET");
+        ic.addView(satir(null, null, "📄  Havelsan UDF (.udf)", true, -1, () -> menuKomutu("Dosya", "Farklı Kaydet")));
+        ic.addView(satir(null, null, "📕  Adobe A4 PDF (.pdf)", true, -1, () -> menuKomutu("Dosya", "PDF Olarak Kaydet")));
+        ic.addView(satir(null, null, "📗  OpenDocument (.odt)", true, -1, () -> menuKomutu("Dosya", "ODT Olarak Kaydet")));
+        ic.addView(satir(null, null, "🗂️  Tümünü Farklı Kaydet", true, -1, () -> menuKomutu("Dosya", "Tümünü Farklı Kaydet")));
+
+        baslikEtiketi(ic, "YAZDIR & GÖNDER");
+        ic.addView(satir(null, null, "🖨️  Yazdır", true, -1, () -> menuKomutu("Dosya", "Yazdır")));
+        ic.addView(satir(null, null, "👁️  Yazdırma Önizlemesi", true, -1, () -> menuKomutu("Dosya", "Yazdırma Önizlemesi")));
+        ic.addView(satir(null, null, "📤  Dışa Aktar", true, -1, () -> menuKomutu("Dosya", "Dışa Aktar")));
+
+        baslikEtiketi(ic, "HUKUK & E-İMZA ARAÇLARI");
+        ic.addView(satir(null, null, "✍️  İmzala", true, -1, () -> menuKomutu("Araçlar", "İmzala")));
+        ic.addView(satir(null, null, "📲  Dokümanı Mobil İmzala", true, -1, () -> menuKomutu("Araçlar", "Dokümanı Mobil İmzala")));
+        ic.addView(satir(null, null, "🔏  İmzalar", true, -1, () -> menuKomutu("Araçlar", "İmzalar")));
+        ic.addView(satir(null, null, "🪪  Sertifikalar", true, -1, () -> menuKomutu("Araçlar", "Sertifikalar")));
+        ic.addView(satir(null, null, "🔍  Bul ve Değiştir", true, -1, () -> menuKomutu("Giriş", "Bul")));
+        ic.addView(satir(null, null, "📑  Sayfa Düzenle", true, -1, () -> menuKomutu("Düzenle", "Sayfa Düzenle")));
+
+        baslikEtiketi(ic, "TÜM UYAP EDİTÖR MENÜLERİ");
         if (son == null) {
             LinearLayout y = new LinearLayout(a);
             y.setGravity(Gravity.CENTER_VERTICAL);
-            y.setPadding(dp(20), dp(16), dp(20), dp(16));
+            y.setPadding(dp(20), dp(12), dp(20), dp(12));
             y.addView(new ProgressBar(a), new LinearLayout.LayoutParams(dp(22), dp(22)));
             TextView t = metin("Editör menüsü yükleniyor…", 15, Tasarim.IKINCIL, false);
             t.setPadding(dp(12), 0, 0, 0);
@@ -508,16 +729,34 @@ final class Arayuz {
                 bolum(ic, b.optString("t"), b.optJSONArray("o"), 0);
             }
         }
-        LinearLayout ub = bolumBasligi(ic, "Uygulama", 0);
-        if (ub != null) {
-            String[] k = uyg.uygulamaKomutlari();
-            for (int i = 0; i < k.length; i++) {
-                final int s = i;
-                ub.addView(satir(null, null, k[i], true, -1, () -> { cekmeceKapat(); uyg.uygulamaKomutu(s); }));
-            }
+        baslikEtiketi(ic, "UYGULAMA");
+        ic.addView(satir(null, null, seritGizli() ? "🎀  Resmi şerit menüyü göster" : "🎀  Resmi şerit menüyü gizle", true, -1, () -> { cekmeceKapat(); seritDegistir(); }));
+        String[] k = uyg.uygulamaKomutlari();
+        for (int i = 0; i < k.length; i++) {
+            final int s = i;
+            ic.addView(satir(null, null, k[i], true, -1, () -> { cekmeceKapat(); uyg.uygulamaKomutu(s); }));
         }
         View bos = new View(a);
         ic.addView(bos, new LinearLayout.LayoutParams(1, dp(48)));
+    }
+
+    private View buyukDugme(String m, int renk, Runnable r) {
+        TextView t = metin(m, 15, Color.WHITE, true);
+        t.setPadding(dp(16), dp(14), dp(16), dp(14));
+        t.setBackground(Tasarim.dalga(Tasarim.yuvarlak(renk, dp(12)), dp(12)));
+        if (Build.VERSION.SDK_INT >= 21) t.setElevation(dp(2));
+        t.setOnClickListener(v -> { pulse(v); r.run(); });
+        LinearLayout k = new LinearLayout(a);
+        k.setPadding(dp(12), dp(8), dp(12), dp(4));
+        k.addView(t, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        return k;
+    }
+
+    private void baslikEtiketi(LinearLayout ic, String m) {
+        TextView t = metin(m, 12, Tasarim.IKINCIL, true);
+        t.setLetterSpacing(0.06f);
+        t.setPadding(dp(20), dp(18), dp(20), dp(6));
+        ic.addView(t);
     }
 
     /** Menüde metniyle bir komutu bul ve çalıştır (ilk etkin olanı). */
@@ -785,23 +1024,32 @@ final class Arayuz {
     }
 
     private View listeSatiri(final String ad, final JSONObject combo) {
+        return satir(null, combo.optString("t"), ad, true, -1, () -> listeSec(ad, combo));
+    }
+
+    /** Açılır liste (yazı tipi / boyut / stil) alttan kayan sayfada; yazı tipleri kendi görünümleriyle. */
+    private void listeSec(final String ad, final JSONObject combo) {
         final int id = combo.optInt("id");
-        return satir(null, combo.optString("t"), ad, true, -1, () -> {
-            final JSONArray l = combo.optJSONArray("l");
-            final LinearLayout ic = sayfaAc(ad);
-            String simdiki = combo.optString("t");
-            for (int i = 0; l != null && i < l.length(); i++) {
-                final int s = i;
-                String deger = l.optString(i);
-                TextView t = metin(deger, 17, Tasarim.METIN, deger.equals(simdiki));
-                if ("Yazı tipi".equals(ad)) t.setTypeface(Typeface.create(deger, deger.equals(simdiki) ? Typeface.BOLD : Typeface.NORMAL));
-                t.setPadding(dp(24), dp(14), dp(24), dp(14));
-                if (deger.equals(simdiki)) t.setBackground(Tasarim.yuvarlak(Tasarim.VURGU_ACIK, 0));
-                else t.setBackground(Tasarim.dalga(null, 0));
-                t.setOnClickListener(v -> { sayfaKapat(); UyapMobilServisi.gonder("MS " + id + " " + s); iste(350); });
-                ic.addView(t);
-            }
-        });
+        final JSONArray l = combo.optJSONArray("l");
+        final LinearLayout ic = sayfaAc(ad);
+        String simdiki = combo.optString("t");
+        View secili = null;
+        for (int i = 0; l != null && i < l.length(); i++) {
+            final int s = i;
+            String deger = l.optString(i);
+            boolean bu = deger.equals(simdiki);
+            TextView t = metin((bu ? "✓  " : "     ") + deger, 17, bu ? Tasarim.VURGU : Tasarim.METIN, bu);
+            if ("Yazı tipi".equals(ad)) t.setTypeface(Typeface.create(deger, bu ? Typeface.BOLD : Typeface.NORMAL));
+            t.setPadding(dp(20), dp(14), dp(24), dp(14));
+            t.setBackground(bu ? Tasarim.yuvarlak(Tasarim.VURGU_ACIK, 0) : Tasarim.dalga(null, 0));
+            t.setOnClickListener(v -> { sayfaKapat(); UyapMobilServisi.gonder("MS " + id + " " + s); iste(350); });
+            ic.addView(t);
+            if (bu) secili = t;
+        }
+        if ("Boyut".equals(ad) && combo.optInt("ed") == 1)
+            ic.addView(satir(null, null, "Başka bir boyut yaz…", true, -1, () -> { sayfaKapat(); boyutYaz(id, combo.optString("t")); }));
+        final View sc = secili;
+        if (sc != null) ic.post(() -> { View p = (View) ic.getParent(); if (p instanceof ScrollView) ((ScrollView) p).smoothScrollTo(0, Math.max(0, sc.getTop() - dp(120))); });
     }
 
     private View boyutSatiri(final JSONObject combo) {

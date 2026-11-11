@@ -151,7 +151,11 @@ public final class Kopru {
             Window win = (Window) src;
             java.awt.Rectangle b = win.getBounds();
             if (win instanceof java.awt.Frame) {
-                if (b.x != 0 || b.y != 0 || b.width != w || b.height != h) EventQueue.invokeLater(() -> { win.setBounds(0, 0, w, h); yenidenCiz(win); });
+                // Cacio'nun çizdiği pencere başlığı (noktalı çubuk) ekranın üstüne itilir: telefonda yer kaplamasın,
+                // üstte doğrudan cetvel ve sayfa görünsün (CanEditor gibi).
+                int ust = baslikYuksekligi(win);
+                if (b.x != 0 || b.y != -ust || b.width != w || b.height != h + ust)
+                    EventQueue.invokeLater(() -> { win.setBounds(0, -ust, w, h + ust); yenidenCiz(win); });
             } else if (b.width > w || b.height > h || b.x < 0 || b.y < 0 || b.x + b.width > w || b.y + b.height > h) {
                 int nw = Math.min(b.width, w), nh = Math.min(b.height, h);
                 EventQueue.invokeLater(() -> { win.setBounds((w - nw) / 2, (h - nh) / 2, nw, nh); yenidenCiz(win); });
@@ -165,7 +169,8 @@ public final class Kopru {
                 EventQueue.invokeLater(() -> seritGoster(false));   // yeni belge penceresinde de şerit gizli kalsın
         }, AWTEvent.WINDOW_EVENT_MASK);
         EventQueue.invokeLater(() -> {
-            for (Window win : Window.getWindows()) if (win.isShowing() && win instanceof java.awt.Frame) { win.setBounds(0, 0, w, h); yenidenCiz(win); }
+            for (Window win : Window.getWindows())
+                if (win.isShowing() && win instanceof java.awt.Frame) { int ust = baslikYuksekligi(win); win.setBounds(0, -ust, w, h + ust); yenidenCiz(win); }
         });
         panoIzle();
     }
@@ -457,6 +462,13 @@ public final class Kopru {
                 if (f != null) return f;
             }
         return null;
+    }
+
+    /** Pencere başlığı yüksekliği (Cacio dekorasyonu); "uyapmobil.baslik=1" ile görünür bırakılabilir. */
+    static int baslikYuksekligi(Window w) {
+        if ("1".equals(System.getProperty("uyapmobil.baslik"))) return 0;
+        java.awt.Insets i = w.getInsets();
+        return i == null ? 0 : Math.max(0, Math.min(40, i.top));
     }
 
     /**
