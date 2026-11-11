@@ -61,28 +61,26 @@ final class MobilGorunum extends WebView {
         }
     }
 
-    /** Köprüden gelen satır: "MOBIL <b64> a b" · "MKARET a b" · "MRESIM no png". */
+    /** Köprüden gelen satır: "MOBIL <b64> a b" · "MKAGIT <b64> a b [x y h]" · "MKARET a b [x y h]" · "MRESIM no png". */
     void satir(String s) {
-        if (s.startsWith("MKAGIT ")) {
-            String[] p = s.split(" ");
+        String[] p = s.split(" ");
+        if (s.startsWith("MKAGIT ") || s.startsWith("MOBIL ")) {
             if (p.length < 4) return;
             String im = p.length >= 7 ? "," + p[4] + "," + p[5] + "," + p[6] : "";
-            calistir("kagitCiz(decodeURIComponent(escape(atob('" + p[1] + "')))," + p[2] + "," + p[3] + im + ")");
-        } else if (s.startsWith("MOBIL ")) {
-            String[] p = s.split(" ");
-            if (p.length < 4) return;
-            // base64 → UTF-8 JS içinde çözülür (büyük dizeyi Java'da kaçışlamaktan hızlı)
-            calistir("icerik(decodeURIComponent(escape(atob('" + p[1] + "')))," + p[2] + "," + p[3] + ")");
+            calistir((s.startsWith("MKAGIT ") ? "kagitCiz(" : "mobilCiz(") + "b64('" + p[1] + "')," + p[2] + "," + p[3] + im + ")");
         } else if (s.startsWith("MKARET ")) {
-            String[] p = s.split(" ");
-            if (p.length >= 3) {
-                String im = p.length >= 6 ? "," + p[3] + "," + p[4] + "," + p[5] : ",null,null,null";
-                calistir("(document.body.classList.contains('kagit')?kimlec(" + p[1] + "," + p[2] + im + ",false):imlec(" + p[1] + "," + p[2] + ",false))");
-            }
+            if (p.length >= 3) calistir("imlec(" + p[1] + "," + p[2] + (p.length >= 6 ? "," + p[3] + "," + p[4] + "," + p[5] : "") + ")");
         } else if (s.startsWith("MRESIM ")) {
-            String[] p = s.split(" ", 3);
-            if (p.length == 3) calistir("resim('" + p[1] + "','" + p[2] + "')");
+            String[] q = s.split(" ", 3);
+            if (q.length == 3) calistir("resim('" + q[1] + "','" + q[2] + "')");
         }
+    }
+
+    /** Klavyeden yazılan metni motor yanıtını beklemeden göster. */
+    void yerel(String t) {
+        if (!hazir || t == null || t.isEmpty()) return;
+        String k = t.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "");
+        if (!k.isEmpty()) js("yerel('" + k + "')");
     }
 
     void yakinlastir(float k) {
@@ -96,7 +94,7 @@ final class MobilGorunum extends WebView {
 
     private void calistir(String j) {
         if (hazir) js(j); else {
-            if (j.startsWith("icerik(") || j.startsWith("kagitCiz(")) bekleyen.removeIf(x -> x.startsWith("icerik(") || x.startsWith("kagitCiz("));
+            if (j.startsWith("mobilCiz(") || j.startsWith("kagitCiz(")) bekleyen.removeIf(x -> x.startsWith("mobilCiz(") || x.startsWith("kagitCiz("));
             bekleyen.add(j);
         }
     }
@@ -116,17 +114,29 @@ final class MobilGorunum extends WebView {
                 if (f.isFile()) css.append("@font-face{font-family:'").append(e[0]).append("';src:url('file://").append(f.getAbsolutePath())
                         .append("');font-weight:").append(s[1]).append(";font-style:").append(s[2]).append(";}");
             }
-        // kullanıcının eklediği gerçek yazı tipleri (ör. times.ttf) öncelikli
+        // Windows yazı tipleri (YaziTipleri: corefonts) ve kullanıcının eklediği TTF'ler — dosya adı → aile/biçim
+        String[][] dosyalar = {
+                {"times", "Times New Roman", "n", "n"}, {"timesbd", "Times New Roman", "b", "n"}, {"timesi", "Times New Roman", "n", "i"}, {"timesbi", "Times New Roman", "b", "i"},
+                {"arial", "Arial", "n", "n"}, {"arialbd", "Arial", "b", "n"}, {"ariali", "Arial", "n", "i"}, {"arialbi", "Arial", "b", "i"}, {"ariblk", "Arial Black", "n", "n"},
+                {"cour", "Courier New", "n", "n"}, {"courbd", "Courier New", "b", "n"}, {"couri", "Courier New", "n", "i"}, {"courbi", "Courier New", "b", "i"},
+                {"georgia", "Georgia", "n", "n"}, {"georgiab", "Georgia", "b", "n"}, {"georgiai", "Georgia", "n", "i"}, {"georgiaz", "Georgia", "b", "i"},
+                {"verdana", "Verdana", "n", "n"}, {"verdanab", "Verdana", "b", "n"}, {"verdanai", "Verdana", "n", "i"}, {"verdanaz", "Verdana", "b", "i"},
+                {"trebuc", "Trebuchet MS", "n", "n"}, {"trebucbd", "Trebuchet MS", "b", "n"}, {"trebucit", "Trebuchet MS", "n", "i"}, {"trebucbi", "Trebuchet MS", "b", "i"},
+                {"comic", "Comic Sans MS", "n", "n"}, {"comicbd", "Comic Sans MS", "b", "n"}, {"impact", "Impact", "n", "n"},
+                {"andalemo", "Andale Mono", "n", "n"}, {"webdings", "Webdings", "n", "n"},
+                {"tahoma", "Tahoma", "n", "n"}, {"tahomabd", "Tahoma", "b", "n"}, {"calibri", "Calibri", "n", "n"}, {"calibrib", "Calibri", "b", "n"},
+                {"calibrii", "Calibri", "n", "i"}, {"calibriz", "Calibri", "b", "i"}, {"cambria", "Cambria", "n", "n"}, {"segoeui", "Segoe UI", "n", "n"},
+        };
+        java.util.Map<String, String[]> esle = new java.util.HashMap<>();
+        for (String[] d : dosyalar) esle.put(d[0], d);
         File[] ek = UyapMobil.yaziTipleri(c).listFiles();
         if (ek != null) for (File f : ek) {
             String ad = f.getName().toLowerCase(java.util.Locale.ROOT);
             if (!ad.endsWith(".ttf") && !ad.endsWith(".otf")) continue;
-            String aile = ad.startsWith("times") ? "Times New Roman" : ad.startsWith("arial") ? "Arial" : ad.startsWith("cour") ? "Courier New"
-                    : ad.startsWith("georgia") ? "Georgia" : ad.startsWith("verdana") ? "Verdana" : ad.startsWith("tahoma") ? "Tahoma" : null;
-            if (aile == null) continue;
-            boolean kalin = ad.contains("bd") || ad.contains("bold"), egik = ad.contains("i.") || ad.contains("italic") || ad.contains("bi.");
-            css.append("@font-face{font-family:'").append(aile).append("';src:url('file://").append(f.getAbsolutePath())
-                    .append("');font-weight:").append(kalin ? "bold" : "normal").append(";font-style:").append(egik ? "italic" : "normal").append(";}");
+            String[] d = esle.get(ad.substring(0, ad.length() - 4));
+            if (d == null) continue;
+            css.append("@font-face{font-family:'").append(d[1]).append("';src:url('file://").append(f.getAbsolutePath())
+                    .append("');font-weight:").append("b".equals(d[2]) ? "bold" : "normal").append(";font-style:").append("i".equals(d[3]) ? "italic" : "normal").append(";}");
         }
         String k = css.toString().replace("\\", "\\\\").replace("'", "\\'");
         return "(function(){var s=document.createElement('style');s.textContent='" + k + "';document.head.appendChild(s);})()";

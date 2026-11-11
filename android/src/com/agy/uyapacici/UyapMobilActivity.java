@@ -126,8 +126,33 @@ public class UyapMobilActivity extends Activity implements UyapMobilServisi.Dinl
         return new int[]{Math.round(vw / s), Math.round(vh / s)};
     }
 
+    /** Windows yazı tipleri yoksa arka planda bir kez kur (YaziTipleri); bitince editörün yeniden açılmasını öner. */
+    private static boolean yaziTipiKuruluyor;
+
+    private void yaziTipleriniKur() {
+        final File d = UyapMobil.yaziTipleri(this);
+        if (yaziTipiKuruluyor || YaziTipleri.kurulu(d)) return;
+        long son = ayar().getLong("yazitipi_deneme", 0);
+        if (System.currentTimeMillis() - son < 6 * 3600_000L) return;
+        ayar().edit().putLong("yazitipi_deneme", System.currentTimeMillis()).apply();
+        yaziTipiKuruluyor = true;
+        new Thread(() -> {
+            try {
+                // çalışma ortamı (cabextract) hazır olsun
+                UyapMobil.hazirla(this, m -> { });
+                int n = YaziTipleri.kur(this, d, null);
+                Tani.yaz("uyapmobil", "Windows yazı tipleri kuruldu: " + n + " paket");
+                runOnUiThread(() -> ui.sor("✓ Windows yazı tipleri kuruldu (Times New Roman, Arial, Courier New, Georgia, Verdana…).\nListede görünmeleri için editör yeniden açılmalı.",
+                        "Şimdi yeniden aç", this::yenidenBaslat));
+            } catch (Exception e) {
+                Tani.hata("uyapmobil", "Windows yazı tipleri", e);
+            } finally { yaziTipiKuruluyor = false; }
+        }, "uyapmobil-yazitipi").start();
+    }
+
     private void basla() {
         if (!UyapMobil.editorKurulu(this)) { kurulumSor(); return; }
+        yaziTipleriniKur();
         if (UyapMobilServisi.calisiyor()) {
             if (bekleyenDosya != null) { UyapMobilServisi.ac(this, bekleyenDosya, 0, 0); bekleyenDosya = null; }
             int[] e = UyapMobilServisi.ekranBoyutu();

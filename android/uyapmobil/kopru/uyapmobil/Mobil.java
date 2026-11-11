@@ -39,10 +39,53 @@ final class Mobil {
     private static final javax.swing.Timer gecikme = new javax.swing.Timer(250, e -> gonder());
     private static final Map<Object, String> resimler = new IdentityHashMap<>();
     private static final javax.swing.event.DocumentListener dl = new javax.swing.event.DocumentListener() {
-        @Override public void insertUpdate(javax.swing.event.DocumentEvent e) { degisti(); }
-        @Override public void removeUpdate(javax.swing.event.DocumentEvent e) { degisti(); }
-        @Override public void changedUpdate(javax.swing.event.DocumentEvent e) { degisti(); }
+        @Override public void insertUpdate(javax.swing.event.DocumentEvent e) { kirlet(e, e.getOffset(), e.getOffset() + e.getLength()); degisti(); }
+        @Override public void removeUpdate(javax.swing.event.DocumentEvent e) { kirlet(e, e.getOffset(), e.getOffset()); degisti(); }
+        @Override public void changedUpdate(javax.swing.event.DocumentEvent e) { kirlet(e, e.getOffset(), e.getOffset() + e.getLength()); degisti(); }
     };
+
+    // ------------------------------------------------------------------------------------ artımlı güncelleme
+    /*
+     * Her tuşta bütün belgeyi baştan üretmek telefonda 1–2 sn (büyük belgede çok daha fazla) sürüyordu. Belge üst düzey
+     * öğelere (üst bilgi, paragraf, tablo, alt bilgi) bölünür; her öğenin HTML'i / kağıt satırları önbellekte tutulur.
+     * Ofsetler öğenin başına GÖRELİ yazılır (data-o), öğenin başlangıcı ayrıca gönderilir (taban): öğe yalnızca kaydıysa
+     * yeniden üretilmez. Belge olayları yalnızca etkilenen öğeleri geçersiz kılar; yeni/silinen öğeler kimlikten anlaşılır.
+     */
+    private static final Map<Element, String> mobilOnb = new IdentityHashMap<>();
+    private static final Map<Element, Object[]> kagitOnb = new IdentityHashMap<>();   // {y, h, json}
+    private static final Map<Element, Integer> kimlik = new IdentityHashMap<>();
+    private static int sonKimlik;
+
+    private static int kimlikVer(Element e) {
+        Integer k = kimlik.get(e);
+        if (k == null) { k = ++sonKimlik; kimlik.put(e, k); }
+        return k;
+    }
+
+    private static void kirlet(javax.swing.event.DocumentEvent ev, int a, int b) {
+        try {
+            Element kok = ev.getDocument().getDefaultRootElement();
+            int i0 = kok.getElementIndex(Math.max(0, a)), i1 = kok.getElementIndex(Math.max(a, b));
+            for (int i = Math.max(0, i0 - 1); i <= Math.min(kok.getElementCount() - 1, i1 + 1); i++) {
+                Element e = kok.getElement(i);
+                mobilOnb.remove(e);
+                kagitOnb.remove(e);
+            }
+        } catch (Throwable ignored) { }
+    }
+
+    /** Önbellek her sıfırlandığında artar: görünüm eski düğümleri atar (kimlikler baştan başlar). */
+    private static int nesil;
+
+    private static void onbellekSifirla() {
+        nesil++;
+        stiller.clear();
+        stilIndeks.clear();
+        stilGonderilen = 0;
+        mobilOnb.clear();
+        kagitOnb.clear();
+        kimlik.clear();
+    }
     private static final javax.swing.event.CaretListener cl = e -> { if (acik && !gecikme.isRunning()) imlecGonder(); };
 
     static {
@@ -55,9 +98,9 @@ final class Mobil {
 
     static void kip(int t) {
         boolean ac = t > 0;
-        if (ac && (!acik || t != tur)) resimleriUnut();
+        if (ac && (!acik || t != tur)) { resimleriUnut(); onbellekSifirla(); }
         if (ac) tur = t;
-        gecikme.setInitialDelay(tur == 2 ? 350 : 250);
+        gecikme.setInitialDelay(tur == 2 ? 140 : 110);
         acik = ac;
         if (ac) { bagla(); gonder(); }
     }
@@ -81,6 +124,7 @@ final class Mobil {
             if (bagli != null) { bagli.removeCaretListener(cl); if (bagliBelge != null) bagliBelge.removeDocumentListener(dl); }
             bagli = m;
             bagliBelge = m.getDocument();
+            onbellekSifirla();
             m.addCaretListener(cl);
             bagliBelge.addDocumentListener(dl);
             gonder();
@@ -136,20 +180,43 @@ final class Mobil {
     private static void gonder() {
         JTextComponent m = bagli;
         if (!acik || m == null) return;
+        long t0 = System.nanoTime();
         try {
-            if (tur == 2) {
-                String j = kagit(m);
-                Kopru.bildir("MKAGIT " + Base64.getEncoder().encodeToString(j.getBytes(java.nio.charset.StandardCharsets.UTF_8))
-                        + " " + m.getCaret().getMark() + " " + m.getCaret().getDot() + konum(m, m.getCaret().getDot()));
-                return;
-            }
-            String h = html(m.getDocument());
-            Kopru.bildir("MOBIL " + Base64.getEncoder().encodeToString(h.getBytes(java.nio.charset.StandardCharsets.UTF_8))
-                    + " " + m.getCaret().getMark() + " " + m.getCaret().getDot());
+            String son = " " + m.getCaret().getMark() + " " + m.getCaret().getDot() + konum(m, m.getCaret().getDot());
+            String j = tur == 2 ? kagit(m) : mobilBloklar(m.getDocument());
+            Kopru.bildir((tur == 2 ? "MKAGIT " : "MOBIL ") + Base64.getEncoder().encodeToString(j.getBytes(java.nio.charset.StandardCharsets.UTF_8)) + son);
+            long ms = (System.nanoTime() - t0) / 1000000;
+            if (ms > 150) Kopru.LOG.println("[süre] " + (tur == 2 ? "kağıt " : "mobil ") + ms + " ms, " + j.length() + " bayt");
         } catch (Throwable e) {
             Kopru.LOG.println("[uyapmobil] mobil görünüm: " + e);
+            e.printStackTrace(Kopru.LOG);
         }
     }
+
+    /** Mobil: [[kimlik, taban, "html" | 0]...] — 0: önceki HTML'i kullan. */
+    private static String mobilBloklar(Document d) {
+        Element kok = d.getDefaultRootElement();
+        StringBuilder sb = new StringBuilder("{\"g\":" + nesil + ",\"B\":[");
+        for (int i = 0; i < kok.getElementCount(); i++) {
+            Element e = kok.getElement(i);
+            if (i > 0) sb.append(',');
+            sb.append('[').append(kimlikVer(e)).append(',').append(e.getStartOffset()).append(',');
+            String h = mobilOnb.get(e);
+            if (h != null) { sb.append("0]"); continue; }
+            StringBuilder b = new StringBuilder();
+            taban = e.getStartOffset();
+            sonStil = null;
+            oge(b, d, e);
+            h = b.toString();
+            mobilOnb.put(e, h);
+            jsonDize(sb, h);
+            sb.append(']');
+        }
+        return sb.append("]}").toString();
+    }
+
+    /** Göreli ofset tabanı (yazılan öğenin başlangıcı). */
+    private static int taban;
 
     // ------------------------------------------------------------------------------------ kağıt görünümü
     /*
@@ -211,32 +278,73 @@ final class Mobil {
         javax.swing.text.View sec = kok.getViewCount() > 0 ? kok.getView(0) : kok;
         java.awt.Rectangle alan = new java.awt.Rectangle(0, 0, m.getWidth(), m.getHeight());
         Sayfa s = sayfaBul(sec);
-        StringBuilder L = new StringBuilder(), I = new StringBuilder();
-        int[] solX = {Integer.MAX_VALUE};
-        gez(m.getDocument(), sec, alan, 0, L, I, solX, 0);
-        double px = solX[0] == Integer.MAX_VALUE ? 0 : solX[0] - s.ml;
-        int n = Math.max(1, (int) Math.ceil(m.getHeight() / (double) s.pitch));
-        return "{\"pw\":" + s.pw + ",\"ph\":" + s.ph + ",\"px\":" + px + ",\"pitch\":" + s.pitch + ",\"n\":" + n
-                + ",\"L\":[" + L + "],\"I\":[" + I + "]}";
+        Document d = m.getDocument();
+        StringBuilder B = new StringBuilder();
+        int solX = Integer.MAX_VALUE, enAlt = 0;
+        for (int i = 0; i < sec.getViewCount(); i++) {
+            javax.swing.text.View v = sec.getView(i);
+            java.awt.Shape a;
+            try { a = sec.getChildAllocation(i, alan); } catch (Exception ex) { continue; }
+            if (a == null) continue;
+            java.awt.Rectangle r = a.getBounds();
+            Element e = v.getElement();
+            String ad = e == null ? "" : e.getName();
+            int bolge = "header".equals(ad) ? 1 : "footer".equals(ad) ? 2 : 0;
+            if (bolge == 0) {
+                if ("paragraph".equals(ad) && r.width > 100 && r.x < solX) solX = r.x;
+                enAlt = Math.max(enAlt, r.y + r.height);
+            }
+            Object[] o = kagitOnb.get(e);
+            // önbellek geçerli: öğe değişmedi, yüksekliği aynı ve (eski/yeni) bir sayfa sınırını aşmıyor
+            // önbellek geçerli: öğe değişmedi ve ya hiç kaymadı ya da (eski/yeni konumda) sayfa sınırını aşmıyor
+            boolean gecerli = o != null && (int) o[1] == r.height
+                    && ((int) o[0] == r.y || (bolge == 0 && tekSayfa((int) o[0], r.height, s.pitch) && tekSayfa(r.y, r.height, s.pitch)));
+            if (B.length() > 0) B.append(',');
+            B.append('[').append(kimlikVer(e)).append(',').append(r.y).append(',').append(r.height).append(',').append(bolge)
+                    .append(',').append(e.getStartOffset()).append(',');
+            if (gecerli) { B.append("0]"); continue; }
+            StringBuilder L = new StringBuilder(), I = new StringBuilder();
+            taban = e.getStartOffset();
+            gez(d, v, a, r.y, L, I, 0);
+            String j = "{\"L\":[" + L + "],\"I\":[" + I + "]}";
+            kagitOnb.put(e, new Object[]{r.y, r.height, j});
+            B.append(j).append(']');
+        }
+        double px = solX == Integer.MAX_VALUE ? 0 : solX - s.ml;
+        int n = Math.max(1, (enAlt - 1) / s.pitch + 1);
+        StringBuilder S = new StringBuilder();
+        for (int i = stilGonderilen; i < stiller.size(); i++) { if (S.length() > 0) S.append(','); jsonDize(S, stiller.get(i)); }
+        int s0 = stilGonderilen;
+        stilGonderilen = stiller.size();
+        return "{\"g\":" + nesil + ",\"S0\":" + s0 + ",\"S\":[" + S + "],\"pw\":" + s.pw + ",\"ph\":" + s.ph + ",\"px\":" + px + ",\"pitch\":" + s.pitch + ",\"n\":" + n + ",\"B\":[" + B + "]}";
     }
 
-    private static void gez(Document d, javax.swing.text.View v, java.awt.Shape a, int bolge, StringBuilder L, StringBuilder I, int[] solX, int derinlik) {
+    /** Kağıt: biçim tablosu (her kelimede tekrarlanmasın); yalnızca yeni biçimler gönderilir. */
+    private static final java.util.List<String> stiller = new java.util.ArrayList<>();
+    private static final Map<String, Integer> stilIndeks = new java.util.HashMap<>();
+    private static int stilGonderilen;
+
+    private static int stilNo(String st) {
+        Integer i = stilIndeks.get(st);
+        if (i == null) { i = stiller.size(); stiller.add(st); stilIndeks.put(st, i); }
+        return i;
+    }
+
+    private static boolean tekSayfa(int y, int h, int pitch) { return y / pitch == (y + Math.max(0, h - 1)) / pitch; }
+
+    /** Satırları topla: y öğenin üstüne göre (oy), ofsetler tabana göre göreli. */
+    private static void gez(Document d, javax.swing.text.View v, java.awt.Shape a, int oy, StringBuilder L, StringBuilder I, int derinlik) {
         if (v == null || a == null || derinlik > 30) return;
-        Element el = v.getElement();
-        String ad = el == null ? "" : el.getName();
-        if ("header".equals(ad)) bolge = 1;
-        else if ("footer".equals(ad)) bolge = 2;
         int n = v.getViewCount();
         if (n == 0) return;
         boolean satir = true;
         for (int i = 0; i < n; i++) if (v.getView(i).getViewCount() > 0) { satir = false; break; }
         java.awt.Rectangle r = a.getBounds();
         if (!satir) {
-            if ("paragraph".equals(ad) && bolge == 0 && r.x < solX[0] && r.width > 100) solX[0] = r.x;
             for (int i = 0; i < n; i++) {
                 java.awt.Shape c;
                 try { c = v.getChildAllocation(i, a); } catch (Exception e) { continue; }
-                gez(d, v.getView(i), c, bolge, L, I, solX, derinlik + 1);
+                gez(d, v.getView(i), c, oy, L, I, derinlik + 1);
             }
             return;
         }
@@ -254,8 +362,8 @@ final class Mobil {
             if ("image".equals(en) || StyleConstants.getIcon(at) != null) {
                 if (resim == null) resim = StyleConstants.getIcon(at);
                 if (I.length() > 0) I.append(',');
-                I.append('[').append(q.x).append(',').append(q.y).append(',').append(q.width).append(',').append(q.height)
-                        .append(",\"").append(resimNo(resim)).append("\",").append(bolge).append(']');
+                I.append('[').append(q.x).append(',').append(q.y - oy).append(',').append(q.width).append(',').append(q.height)
+                        .append(",\"").append(resimNo(resim)).append("\"]");
                 continue;
             }
             int s0 = y.getStartOffset(), s1 = y.getEndOffset();
@@ -264,14 +372,14 @@ final class Mobil {
             t = t.replace("\n", "").replace("\t", "");
             if (t.isEmpty()) continue;
             if (P.length() > 0) P.append(',');
-            P.append('[').append(q.x).append(',').append(q.width).append(',').append(s0).append(',');
+            P.append('[').append(q.x).append(',').append(q.width).append(',').append(s0 - taban).append(',');
             jsonDize(P, t);
             P.append(',');
-            jsonDize(P, stil(at, "field".equals(en)).replaceAll("font-size:[^;]*;", ""));
+            P.append(stilNo(stil(at, "field".equals(en)).replaceAll("font-size:[^;]*;", "")));
             P.append(',').append(Math.max(1, StyleConstants.getFontSize(at))).append(']');
         }
         if (L.length() > 0) L.append(',');
-        L.append('[').append(r.y).append(',').append(r.height).append(',').append(bolge).append(",[").append(P).append("]]");
+        L.append('[').append(r.y - oy).append(',').append(r.height).append(",[").append(P).append("]]");
     }
 
     private static void jsonDize(StringBuilder sb, String t) {
@@ -335,7 +443,7 @@ final class Mobil {
         float ust = StyleConstants.getSpaceAbove(a), alt = StyleConstants.getSpaceBelow(a);
         float asili = sayi(ozellik(a, "Hanging"));
         float satir = StyleConstants.getLineSpacing(a);
-        sb.append("<p data-o=\"").append(e.getStartOffset()).append("\" style=\"");
+        sb.append("<p data-o=\"").append(e.getStartOffset() - taban).append("\" style=\"");
         sb.append("text-align:").append(hiza == 1 ? "center" : hiza == 2 ? "right" : hiza == 3 ? "justify" : "left").append(';');
         // girintiler telefonda ölçeklenir (--g); asılı girinti: ilk satır sola, diğerleri içeride
         float solToplam = sol + asili;
@@ -361,7 +469,7 @@ final class Mobil {
         if (resim != null && "image".equals(e.getName()) || StyleConstants.getIcon(a) != null) {
             String no = resimNo(resim);
             float g = sayi(ozellik(a, "width")), y = sayi(ozellik(a, "height"));
-            sb.append("<img data-o=\"").append(s0).append("\" data-r=\"").append(no).append("\" style=\"");
+            sb.append("<img data-o=\"").append(s0 - taban).append("\" data-r=\"").append(no).append("\" style=\"");
             if (g > 0) sb.append("width:").append(g).append("pt;");
             if (y > 0) sb.append("height:").append(y).append("pt;");
             sb.append("\">");
@@ -378,7 +486,7 @@ final class Mobil {
             kacis(sb, t);
             sb.append("</span>");
         } else {
-            sb.append("<span data-o=\"").append(s0).append("\"");
+            sb.append("<span data-o=\"").append(s0 - taban).append("\"");
             if (!st.isEmpty()) sb.append(" style=\"").append(st).append('"');
             sb.append('>');
             kacis(sb, t);

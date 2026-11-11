@@ -434,8 +434,13 @@ public class EkranView extends View implements Choreographer.FrameCallback {
         }
         if ((mod & SHIFT) != 0) s = s.toUpperCase(new java.util.Locale("tr", "TR"));
         UyapMobilServisi.gonder("T " + UyapMobilServisi.hex(s.getBytes(StandardCharsets.UTF_8)));
+        if (yazildi != null) yazildi.yazildi(s);     // kağıt/mobil görünümde anında yerel yankı
         if (mod != 0) yapiskanBirak();
     }
+
+    /** Yazılan metin (Arayuz → MobilGorunum.yerel). */
+    interface Yazildi { void yazildi(String s); }
+    Yazildi yazildi;
 
     /** AWT tuş kodu (VK_*) + değiştiriciler. */
     public void tus(int vk, int mod) {

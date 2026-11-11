@@ -219,13 +219,14 @@ final class Arayuz {
         kl.setMargins(dp(4), 0, dp(6), 0);
         s.addView(kaydet, kl);
         // Mobil ⇄ Sayfa
-        TextView mobil = metin("📱", 19, Tasarim.METIN, false);
+        TextView mobil = metin("📄 Kağıt", 13, Tasarim.METIN, true);
+        mobil.setPadding(dp(10), 0, dp(10), 0);
         mobil.setGravity(Gravity.CENTER);
         mobil.setBackground(Tasarim.dalga(Tasarim.yuvarlak(Color.rgb(241, 243, 244), dp(10)), dp(10)));
         mobil.setOnClickListener(v -> { pulse(v); mobilDegistir(); });
         mobil.setOnLongClickListener(v -> { gorunumSec(gorunum == ORIJINAL ? KAGIT : ORIJINAL); return true; });
         mobilDugme = mobil;
-        LinearLayout.LayoutParams ml = new LinearLayout.LayoutParams(dp(46), dp(40));
+        LinearLayout.LayoutParams ml = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(40));
         ml.setMargins(0, 0, dp(2), 0);
         s.addView(mobil, ml);
         s.addView(ikonDugme(Tasarim.S.MENU, "Menü", v -> cekmeceAc()));
@@ -267,6 +268,42 @@ final class Arayuz {
         b.addView(ikonDugme(Tasarim.S.BICIM, "Tüm biçim seçenekleri", v -> bicimSayfasi(0)));
         b.addView(ikonDugme(Tasarim.S.TUSLAR, "Ek tuşlar (Esc, Ctrl, oklar…)", v -> tuslariAcKapa()));
         ic(ustKap).addView(bh, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(52)));
+    }
+
+    /** Yazı tipi listesinde önizleme: kurulu Windows/Liberation TTF dosyasından (yoksa sistemin en yakın ailesi). */
+    private final Map<String, Typeface> onizlemeler = new HashMap<>();
+
+    private Typeface onizleme(String aile, boolean kalin) {
+        Typeface t = onizlemeler.get(aile);
+        if (t == null && !onizlemeler.containsKey(aile)) {
+            String[][] d = {{"Times New Roman", "times.ttf"}, {"Arial", "arial.ttf"}, {"Arial Black", "ariblk.ttf"}, {"Courier New", "cour.ttf"},
+                    {"Georgia", "georgia.ttf"}, {"Verdana", "verdana.ttf"}, {"Trebuchet MS", "trebuc.ttf"}, {"Comic Sans MS", "comic.ttf"},
+                    {"Impact", "impact.ttf"}, {"Andale Mono", "andalemo.ttf"}, {"Liberation Serif", "../../rt/fonts/LiberationSerif-Regular.ttf"},
+                    {"Liberation Sans", "../../rt/fonts/LiberationSans-Regular.ttf"}, {"Liberation Mono", "../../rt/fonts/LiberationMono-Regular.ttf"}};
+            for (String[] e : d)
+                if (e[0].equals(aile)) {
+                    java.io.File f = new java.io.File(UyapMobil.yaziTipleri(a), e[1]);
+                    try { if (f.isFile()) t = Typeface.createFromFile(f); } catch (Exception ignored) { }
+                }
+            if (t == null) {
+                String k = aile.toLowerCase(java.util.Locale.ROOT);
+                t = k.contains("mono") || k.contains("courier") ? Typeface.MONOSPACE : k.contains("sans") || k.contains("arial") || k.contains("verdana") ? Typeface.SANS_SERIF : Typeface.SERIF;
+            }
+            onizlemeler.put(aile, t);
+        }
+        return Typeface.create(t, kalin ? Typeface.BOLD : Typeface.NORMAL);
+    }
+
+    /** Java'nın mantıksal yazı tipi adları kullanıcıya "Varsayılan" olarak gösterilir. */
+    static String aileAdi(String f) {
+        if (f == null) return "";
+        switch (f) {
+            case "Dialog": return "Varsayılan";
+            case "DialogInput": return "Varsayılan (sabit)";
+            case "SansSerif": return "Sans Serif";
+            case "Monospaced": return "Sabit aralıklı";
+            default: return f;
+        }
     }
 
     private void hazirlaniyor() {
@@ -322,9 +359,9 @@ final class Arayuz {
         tusSatiri.addView(kipTv);
         kipGoster(false);
         tusKutusu = tk;
-        tk.setVisibility(ayar.getBoolean("tuslar", false) ? View.VISIBLE : View.GONE);
+        tk.setVisibility(View.GONE);      // klavye açılınca görünür (klavyeIzle)
         FrameLayout.LayoutParams tl = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM);
-        tl.bottomMargin = dp(72);
+        tl.bottomMargin = 0;
         altKap.addView(tk, tl);
 
         // yakınlaştırma kapsülü (CanEditor: − %50 Sığdır + ↔ Sığdır ↕ Sayfa) — bulanık cam
@@ -351,6 +388,7 @@ final class Arayuz {
         FrameLayout.LayoutParams kpl = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(52), Gravity.BOTTOM | Gravity.START);
         kpl.setMargins(dp(14), 0, 0, dp(14));
         altKap.addView(kap, kpl);
+        kapsul = kap;
         ekran.olcekDinleyici = () -> { if (!mobilKip) yuzdeYaz(); };
 
         // ✏ klavye düğmesi (yüzen, mavi)
@@ -365,9 +403,41 @@ final class Arayuz {
         FrameLayout.LayoutParams fl = new FrameLayout.LayoutParams(dp(60), dp(60), Gravity.BOTTOM | Gravity.END);
         fl.setMargins(0, 0, dp(16), dp(10));
         altKap.addView(fab, fl);
+        klavyeDugmesi = fab;
+        klavyeIzle();
     }
 
-    private View tusKutusu;
+    private View tusKutusu, kapsul, klavyeDugmesi;
+    private boolean klavyeAcik;
+
+    /**
+     * Klavye açıkken: ek tuş satırı klavyenin hemen üstünde (Esc, Tab, Ctrl, Alt, oklar…), yakınlaştırma kapsülü ve
+     * klavye düğmesi gizli; kapalıyken tersi. (adjustResize: pencere klavye kadar küçülür.)
+     */
+    private void klavyeIzle() {
+        kok.getViewTreeObserver().addOnGlobalLayoutListener(() -> {
+            android.graphics.Rect r = new android.graphics.Rect();
+            kok.getWindowVisibleDisplayFrame(r);
+            int fark = kok.getRootView().getHeight() - r.bottom;
+            boolean acik = fark > dp(140);
+            if (acik == klavyeAcik) return;
+            klavyeAcik = acik;
+            yumusak(tusKutusu, acik);
+            yumusak(kapsul, !acik);
+            yumusak(klavyeDugmesi, !acik);
+        });
+    }
+
+    private void yumusak(final View v, boolean goster) {
+        if (v == null) return;
+        v.animate().cancel();
+        if (goster) {
+            v.setVisibility(View.VISIBLE);
+            v.setAlpha(0f);
+            v.setTranslationY(dp(16));
+            v.animate().alpha(1f).translationY(0).setDuration(200).setInterpolator(hareket()).start();
+        } else v.animate().alpha(0f).translationY(dp(16)).setDuration(150).withEndAction(() -> v.setVisibility(View.GONE)).start();
+    }
 
     private ImageView kucukIkon(Tasarim.S s, View.OnClickListener l) {
         ImageView iv = new ImageView(a);
@@ -545,7 +615,7 @@ final class Arayuz {
                 n++;
             }
         }
-        if (combolar.size() > 1) fontTv.setText(combolar.get(1).optString("t") + "  ▾");
+        if (combolar.size() > 1) fontTv.setText(aileAdi(combolar.get(1).optString("t")) + "  ▾");
         if (combolar.size() > 2) boyutTv.setText(combolar.get(2).optString("t") + "  ▾");
         for (Map.Entry<String, ImageView> e : bicimDugmeleri.entrySet()) {
             int[] k = komut.get(e.getKey());
@@ -586,6 +656,7 @@ final class Arayuz {
         ayar.edit().putInt("gorunum", g).apply();
         if (mobil == null && g != ORIJINAL) {
             mobil = new MobilGorunum(a);
+            ekran.yazildi = t -> { if (mobilKip && !diyalogAcik && mobil != null) mobil.yerel(t); };
             FrameLayout.LayoutParams lp = tam();
             lp.topMargin = dp(UST_YUKSEKLIK);
             kok.addView(mobil, 1, lp);       // ekranın üstünde, çubukların altında
@@ -602,7 +673,7 @@ final class Arayuz {
                 if (once < 0 || once == ORIJINAL) { mobil.setAlpha(0f); mobil.animate().alpha(1f).setDuration(220).start(); }
             }
         }
-        mobilDugme.setText(g == MOBIL ? "📄" : "📱");
+        mobilDugme.setText(g == MOBIL ? "📱 Mobil" : g == KAGIT ? "📄 Kağıt" : "🏛 Orijinal");
         if (once >= 0) gecisRozeti(g == KAGIT ? "📄  Kağıt Görünümü" : g == MOBIL ? "📱  Mobil Görünüm" : "🏛  Orijinal Ekran");
         if (altBaslikTv != null) altBaslikTv.setText((belgeYolu == null ? "Kaydedilmemiş belge" : "Orijinal UYAP belgesi") + " · " + gorunumAdi());
         yuzdeYaz();
@@ -645,9 +716,23 @@ final class Arayuz {
         else yuzdeTv.setText("%" + ekran.yuzde() + (ekran.yuzde() == 100 ? " Sığdır" : ""));
     }
 
+    /** Bilgi kartı, tek eylem düğmesiyle (ör. "Şimdi yeniden aç"). Karta dokununca kapanır. */
+    void sor(String m, String eylem, Runnable r) {
+        durum(m, false);
+        durumEylem.setText(eylem);
+        durumEylem.setOnClickListener(v -> { pulse(v); durumGizle(); r.run(); durumEylemSifirla(); });
+        durumEylem.setVisibility(View.VISIBLE);
+    }
+
+    private void durumEylemSifirla() {
+        durumEylem.setText("Günlüğü gönder");
+        durumEylem.setOnClickListener(v -> { pulse(v); uyg.gunlukGonder(); });
+    }
+
     /** Köprü belgenin açılmadığını bildirdi: nedeni göster, günlük gönderme düğmesiyle. */
     void acilmadi(String neden) {
         acilisBekleme = 0;
+        durumEylemSifirla();
         durum("Belge açılamadı\n" + neden, false);
         durumEylem.setVisibility(View.VISIBLE);
     }
@@ -1150,8 +1235,9 @@ final class Arayuz {
             final int s = i;
             String deger = l.optString(i);
             boolean bu = deger.equals(simdiki);
-            TextView t = metin((bu ? "✓  " : "     ") + deger, 17, bu ? Tasarim.VURGU : Tasarim.METIN, bu);
-            if ("Yazı tipi".equals(ad)) t.setTypeface(Typeface.create(deger, bu ? Typeface.BOLD : Typeface.NORMAL));
+            boolean yt = "Yazı tipi".equals(ad);
+            TextView t = metin((bu ? "✓  " : "     ") + (yt ? aileAdi(deger) : deger), 17, bu ? Tasarim.VURGU : Tasarim.METIN, bu);
+            if (yt) t.setTypeface(onizleme(deger, bu));
             t.setPadding(dp(20), dp(14), dp(24), dp(14));
             t.setBackground(bu ? Tasarim.yuvarlak(Tasarim.VURGU_ACIK, 0) : Tasarim.dalga(null, 0));
             t.setOnClickListener(v -> { sayfaKapat(); UyapMobilServisi.gonder("MS " + id + " " + s); iste(350); });
