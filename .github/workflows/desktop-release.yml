@@ -174,7 +174,7 @@ jobs:
           src-tauri/eimza/jre/bin/java.exe -version
           du -sh src-tauri/eimza/jre
           # Unicode PC/SC ajanı: Türkçe karakterli okuyucu adları (ArkSigner) için. JNA sabit SHA-256 ile.
-          python scripts/win_ajan_derle.py
+          PYTHONUTF8=1 python scripts/win_ajan_derle.py
           test -f src-tauri/eimza/eimza-win-agent.jar
           # Duman testi: ajan winscard.dll'i yükleyebiliyor mu (CI'da akıllı kart hizmeti olmayabilir; hata derlemeyi durdurmaz)
           src-tauri/eimza/jre/bin/java.exe -javaagent:src-tauri/eimza/eimza-win-agent.jar -version 2>&1 | grep -E "CANEDITOR-PCSC|version" || true

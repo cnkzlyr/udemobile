@@ -78,7 +78,7 @@ def main():
                     if lis in j.namelist():
                         z.writestr(lis.replace("META-INF/", "META-INF/JNA-"), j.read(lis))
         os.replace(CIKTI + ".tmp", CIKTI)
-    print("eimza-win-agent.jar:", os.path.getsize(CIKTI), "bayt →", CIKTI)
+    print("eimza-win-agent.jar:", os.path.getsize(CIKTI), "bayt ->", CIKTI)
 
 
 if __name__ == "__main__":
