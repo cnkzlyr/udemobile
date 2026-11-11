@@ -1,6 +1,6 @@
 # ⚖️ CanEditor (UdeMobile) — Çapraz Platform UYAP & Word Editörü
 
-[![Sürüm](https://img.shields.io/badge/Sürüm-v3.18.5-blue.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v3.18.5)
+[![Sürüm](https://img.shields.io/badge/Sürüm-v3.18.6-blue.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v3.18.6)
 [![Platformlar](https://img.shields.io/badge/Platformlar-Android%20%7C%20Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Web-success.svg)](https://github.com/cnkzlyr/udemobile/releases)
 [![UYAP](https://img.shields.io/badge/Format-UYAP_UDF_v1.8-0D47A1.svg)](https://uyap.gov.tr)
 [![Word](https://img.shields.io/badge/Format-MS_DOCX_OpenXML-2B579A.svg?logo=microsoft-word&logoColor=white)](https://microsoft.com)
@@ -11,14 +11,14 @@
 
 ---
 
-## 🚀 Hızlı İndirme (v3.18.5)
+## 🚀 Hızlı İndirme (v3.18.6)
 
 | Platform | Paket Dosyası | Açıklama |
 | :--- | :--- | :--- |
-| **Android (Telefon & Tablet)** | [**CanEditor-v3.18.5.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.18.5/CanEditor-v3.18.5.apk) | Güncel Android APK paketi (Termux gerektirmez) |
-| **Android (Her Zaman En Son)** | [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.18.5/CanEditor-latest.apk) | Kalıcı son sürüm bağlantısı |
-| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v3.18.5.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v3.18.5/CanEditor-Portable-Web-GUI-v3.18.5.zip) | **Kurulumsuz;** zipten çıkarıp `index.html` açarak tüm işletim sistemlerinde doğrudan çalışır |
-| **Windows / macOS / Linux** | [**GitHub Releases Sayfası**](https://github.com/cnkzlyr/udemobile/releases/tag/v3.18.5) | GitHub Actions CI ile derlenen yerel ikili (.msi, .exe, .dmg, .AppImage, .deb, .rpm) paketleri |
+| **Android (Telefon & Tablet)** | [**CanEditor-v3.18.6.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.18.6/CanEditor-v3.18.6.apk) | Güncel Android APK paketi (Termux gerektirmez) |
+| **Android (Her Zaman En Son)** | [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.18.6/CanEditor-latest.apk) | Kalıcı son sürüm bağlantısı |
+| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v3.18.6.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v3.18.6/CanEditor-Portable-Web-GUI-v3.18.6.zip) | **Kurulumsuz;** zipten çıkarıp `index.html` açarak tüm işletim sistemlerinde doğrudan çalışır |
+| **Windows / macOS / Linux** | [**GitHub Releases Sayfası**](https://github.com/cnkzlyr/udemobile/releases/tag/v3.18.6) | GitHub Actions CI ile derlenen yerel ikili (.msi, .exe, .dmg, .AppImage, .deb, .rpm) paketleri |
 
 ---
 
@@ -28,6 +28,17 @@ v3.17.0'dan itibaren APK yeni ve kalıcı bir proje anahtarıyla imzalanır (ser
 `BA:80:78:89:12:28:35:C0:58:3B:C9:72:3B:C0:90:5C:C8:6F:49:A8:1A:92:BA:F9:D0:96:33:77:71:BB:D4:F0`). Telefonunuzda
 v3.16.0 ya da öncesi kuruluysa bir kez **kaldırıp** yeni APK'yı kurun (aksi halde Android "paket çakışıyor" hatası
 verir). Sonraki güncellemeler kaldırmadan, üzerine kurulur.
+
+## 🌟 v3.18.6: İmzalı belgede "Kaydet" imzaları korur, yeniden imzalama ek imza olarak eklenir
+
+**Kural:** İmzalı bir UDF değiştirilmeden kaydedilirse ya da yeniden imzalanırsa önceki imzaların hiçbiri kaybolmaz.
+- **Kaydet = Farklı Kaydet:** İmzalı ve değiştirilmemiş belgede ikisi de belgeyi yeniden üretmez, orijinal baytları aynen
+  yazar. Android'de "Kaydet" eskiden belgeyi yeniden oluşturup TÜM imzaları siliyordu (belge editör içinden açıldığında
+  açık dosya bilgisi boş kalıyordu); "Farklı Kaydet" koruyordu. Artık her iki yol (üst çubuk ve menü) aynı kontrolü kullanır.
+- **Ek imza:** Değiştirilmemiş imzalı belge yeniden imzalanınca yeni imza öncekilere EKLENİR (3 imza + sizin imzanız = 4).
+  Adalet E-İmza, mobil imza ve doğrudan kart yollarında sonuç doğrulanır: önceki imzacıların hepsi + 1 yoksa belge kaydedilmez.
+- Belge değiştirildiyse önceki imzalar hukuken geçersiz olacağından ek imza yine engellenir (uyarı verilir).
+- Test: 3 gerçek imzalı UDF'ye test sertifikasıyla imza eklendi → imzacı sayısı N→N+1, content.xml bayt bayt aynı, tüm imzalar geçerli.
 
 ## 🌟 v3.18.5: Gömülü Java telefonda açılmıyordu (libc++_shared.so eksikti)
 

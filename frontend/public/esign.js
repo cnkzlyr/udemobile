@@ -487,7 +487,10 @@
         const cF = zip.file('content.xml');
         if (sgnF && cF) {
           if (modified) throw new Error('Bu belge imzalı ve imzadan sonra değiştirildi. Değiştirilmiş belgeye ek imza atılırsa önceki imzalar geçersiz olur. Önce belgeyi "Kaydet" ile kaydedin (önceki imzalar kaldırılır) veya değişiklik yapmadan yeniden açıp imzalayın.');
-          return { zip, content: await cF.async('uint8array'), existingSgn: await sgnF.async('uint8array') };
+          const content = await cF.async('uint8array'), existingSgn = await sgnF.async('uint8array');
+          let oncekiImzaci = 0;
+          try { oncekiImzaci = ((await verify(content, existingSgn)).signers || []).length; } catch (e) {}
+          return { zip, content, existingSgn, oncekiImzaci };
         }
         if (!modified && cF) return { zip, content: await cF.async('uint8array'), existingSgn: null };
       } catch (e) { if (/imzalı/.test(e.message)) throw e; }
@@ -496,6 +499,14 @@
     const blob = await generateUdfBlob(getDoc ? getDoc() : null);
     const zip = await JSZip.loadAsync(await blob.arrayBuffer());
     return { zip, content: await zip.file('content.xml').async('uint8array'), existingSgn: null };
+  }
+  /** Ek imza kuralı: imzalı belge değiştirilmeden yeniden imzalanınca önceki imzacıların HEPSİ kalmalı ve bir
+   *  imzacı eklenmeli (ör. 3 imza + benim imzam = 4). Aksi halde belge kaydedilmez, önceki imzalar kaybolmaz. */
+  function imzaEklendiMi(src, check) {
+    const n = (check.signers || []).length, once = src.oncekiImzaci || 0;
+    if (src.existingSgn && once > 0 && n < once + 1) {
+      throw new Error('Yeni imza önceki ' + once + ' imzaya eklenemedi (sonuçta ' + n + ' imza var). Önceki imzaları korumak için belge kaydedilmedi.');
+    }
   }
   async function writeSigned(src, sgn) {
     src.zip.file('content.xml', src.content, { compression: 'DEFLATE' }); // baytlar AYNEN korunur
@@ -574,6 +585,7 @@
     const sgn = src.existingSgn ? combine(src.existingSgn, d.cms) : d.cms;
     const check = await verify(src.content, sgn);
     if (!check.isValid) throw new Error('İmza birleştirildikten sonra doğrulanamadı; belge kaydedilmedi.');
+    imzaEklendiMi(src, check);
     const bytes = await writeSigned(src, sgn);
     await finish(bytes);
     return { signerName: res.signerName, identityNo: res.identityNo, verification: check };
@@ -597,10 +609,14 @@
     const imzali = await JSZip.loadAsync(b64d(r.data.content));
     const sgnF = imzali.file('sign.sgn');
     if (!sgnF) throw new Error('Adalet E-İmza imza dosyası (sign.sgn) döndürmedi.');
-    const sgn = await sgnF.async('uint8array');
+    // Önceki imzalar KORUNUR: servis birleştirmiş olsa da olmasa da mevcut imzacılar yenisiyle birleştirilir
+    // (combine aynı SignerInfo'yu iki kez eklemez). 3 kişi imzalamışsa sonuç 4 imzacı olmalıdır.
+    const donen = await sgnF.async('uint8array');
+    const sgn = src.existingSgn ? combine(src.existingSgn, donen) : donen;
     const check = await verify(src.content, sgn);
-    tlog('signUdf imza doğrulama: geçerli=' + check.isValid + ' imzacı sayısı=' + (check.signers || []).length);
+    tlog('signUdf imza doğrulama: geçerli=' + check.isValid + ' imzacı sayısı=' + (check.signers || []).length + ' (önceki ' + (src.oncekiImzaci || 0) + ')');
     if (!check.isValid) throw new Error('Adalet E-İmza imzası belgeyle doğrulanamadı; belge kaydedilmedi.');
+    imzaEklendiMi(src, check);
     const bytes = await writeSigned(src, sgn);
     await finish(bytes);
     return { verification: check, cert: { subjectCN: card.label } };
@@ -620,6 +636,7 @@
     const sgn = src.existingSgn ? combine(src.existingSgn, cms) : cms;
     const check = await verify(src.content, sgn);
     if (!check.isValid) throw new Error('Oluşturulan imza doğrulanamadı (kart yanlış imza üretti). Belge kaydedilmedi.');
+    imzaEklendiMi(src, check);
     const bytes = await writeSigned(src, sgn);
     await finish(bytes);
     return { verification: check, cert: signed.cert };

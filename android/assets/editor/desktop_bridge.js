@@ -3435,9 +3435,50 @@ async function triggerOpenDocument() {
   if (fileInput) fileInput.click();
 }
 
+/**
+ * İmzalı UDF kuralı: açılan (ya da az önce imzalanan) .udf belgesinde sign.sgn varsa ve belge DEĞİŞTİRİLMEDİYSE
+ * Kaydet / Farklı Kaydet belgeyi yeniden üretmez; orijinal baytları aynen yazar → tüm imzalar korunur.
+ * Karar senkron verilir (Android yerel Kaydet düğmesi de kullanır): ZIP dizininde "sign.sgn" adı aranır.
+ */
+function imzaliBelgeKorunurMu() {
+  try {
+    if (!currentDocOriginalBuffer) return false;
+    const ad = String(currentDocFileName || window.currentDocFileName || "");
+    if (!/\.udf$/i.test(ad)) return false;
+    if (window.isDocumentModified && window.isDocumentModified()) return false;
+    const u8 = new Uint8Array(currentDocOriginalBuffer);
+    if (!(u8[0] === 0x50 && u8[1] === 0x4B)) return false;
+    const aranan = [0x73, 0x69, 0x67, 0x6E, 0x2E, 0x73, 0x67, 0x6E]; // "sign.sgn"
+    for (let i = 0; i + aranan.length <= u8.length; i++) {
+      let k = 0;
+      while (k < aranan.length && u8[i + k] === aranan[k]) k++;
+      if (k === aranan.length) return true;
+    }
+  } catch (e) {}
+  return false;
+}
+window.imzaliBelgeKorunurMu = imzaliBelgeKorunurMu;
+
+/** İmzalı, değiştirilmemiş belgeyi bayt bayt aynen kaydeder (forceDialog: Farklı Kaydet). */
+async function imzaliBelgeyiKoruyarakKaydet(forceDialog) {
+  let name = (document.getElementById("desktopDocTitle")?.value || currentDocFileName || "Belge").trim();
+  name = name.replace(/\.(udf|docx|pdf|tiff|tif|odt)$/i, "") + ".udf";
+  const blob = new Blob([currentDocOriginalBuffer], { type: "application/octet-stream" });
+  if (!(await saveBytesSmart(blob, name, "application/octet-stream", { overwriteCurrent: !forceDialog, signed: true }))) return false;
+  const statusEl = document.getElementById("desktopStatusMsg");
+  if (statusEl) statusEl.innerText = "✓ UDF Korunarak Kaydedildi";
+  if (typeof showEditorToast === "function") showEditorToast("✓ İmzalı belge kaydedildi (tüm e-imzalar korundu)");
+  return true;
+}
+window.imzaliBelgeyiKoruyarakKaydet = imzaliBelgeyiKoruyarakKaydet;
+
 async function triggerQuickSave() {
   const statusEl = document.getElementById("desktopStatusMsg");
   if (statusEl) statusEl.innerText = "Kaydediliyor...";
+
+  // İmzalı ve değiştirilmemiş belge: Android'de de yerel kayıt yolu yerine orijinal baytlar yazılır
+  // (eskiden Android "Kaydet" belgeyi yeniden üretip imzaları siliyordu; "Farklı Kaydet" koruyordu)
+  if (imzaliBelgeKorunurMu()) { await imzaliBelgeyiKoruyarakKaydet(false); return; }
 
   if (window.AndroidBridge && window.AndroidBridge.requestSave) {
     try {
@@ -3467,16 +3508,7 @@ async function triggerSaveUdf(forceDialog) {
   let name = (document.getElementById("desktopDocTitle")?.value || currentDocFileName).trim();
   name = name.replace(/\.(docx|pdf|tiff|tif|odt)$/i, "") + ".udf";
 
-  const hasSig = window.__currentDocSignature && window.__currentDocSignature.hasSignature;
-  const isModified = window.isDocumentModified ? window.isDocumentModified() : true;
-  if (!isModified && hasSig && currentDocOriginalBuffer && currentDocFileName.toLowerCase().endsWith(".udf")) {
-    const blob = new Blob([currentDocOriginalBuffer], { type: "application/octet-stream" });
-    if (!(await saveBytesSmart(blob, name, "application/octet-stream", __saveOpts))) return;
-    const statusEl = document.getElementById("desktopStatusMsg");
-    if (statusEl) statusEl.innerText = "✓ UDF Korunarak Kaydedildi";
-    if (typeof showEditorToast === "function") showEditorToast("✓ UDF Belgesi (İmza Korundu) Kaydedildi");
-    return;
-  }
+  if (imzaliBelgeKorunurMu()) { await imzaliBelgeyiKoruyarakKaydet(!!forceDialog); return; }
 
   const getDocFn = window.getStructuredDocument || (typeof getStructuredDocument === 'function' ? getStructuredDocument : null);
   if (!getDocFn) return;

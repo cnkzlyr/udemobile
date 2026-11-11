@@ -486,7 +486,8 @@ public class EditorActivity extends Activity {
         btnSave.setEnabled(false);
         btnSaveDocx.setEnabled(false);
 
-        String js = "(function(){try{var t=document.getElementById('desktopDocTitle');if(t&&t.value)AndroidBridge.syncDocumentTitle(t.value);AndroidBridge.setDocModified(isDocumentModified());}catch(e){} return JSON.stringify(getStructuredDocument());})()";
+        String js = "(function(){try{var t=document.getElementById('desktopDocTitle');if(t&&t.value)AndroidBridge.syncDocumentTitle(t.value);AndroidBridge.setDocModified(isDocumentModified());}catch(e){} try{if(!__DOCX__&&window.imzaliBelgeKorunurMu&&window.imzaliBelgeKorunurMu())return '__IMZALI_KORU__';}catch(e){} return JSON.stringify(getStructuredDocument());})()";
+        js = js.replace("__DOCX__", isDocx ? "true" : "false");
         editorWebView.evaluateJavascript(js, rawResult -> {
             if (btnQuickSave != null) btnQuickSave.setEnabled(true);
             btnSave.setEnabled(true);
@@ -495,6 +496,15 @@ public class EditorActivity extends Activity {
             if (rawResult == null || rawResult.isEmpty() || "null".equals(rawResult)) {
                 Toast.makeText(EditorActivity.this, "Kaydedilecek metin bulunamadı!", Toast.LENGTH_SHORT).show();
                 tvSaveStatus.setText("Hata");
+                return;
+            }
+
+            // İmzalı ve değiştirilmemiş belge (editörün kendi kontrolü): orijinal baytlar aynen yazılır, imzalar korunur.
+            // Eskiden karar yalnızca currentFile'a bakıyordu; belge editör içinden açıldıysa currentFile boş kalıyor,
+            // "Kaydet" belgeyi yeniden üretip TÜM imzaları siliyordu.
+            if (!isDocx && rawResult.contains("__IMZALI_KORU__")) {
+                editorWebView.evaluateJavascript("imzaliBelgeyiKoruyarakKaydet(false);", null);
+                tvSaveStatus.setText("✓ İmzalı belge korundu");
                 return;
             }
 
