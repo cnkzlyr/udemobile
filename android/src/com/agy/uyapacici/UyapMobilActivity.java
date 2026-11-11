@@ -50,6 +50,7 @@ public class UyapMobilActivity extends Activity implements UyapMobilServisi.Dinl
     private EkranView ekran;
     private TextView durum;
     private Button ctrl, alt, shift, kip;
+    private static final int IZIN_DEPOLAMA = 51;
     private String bekleyenDosya;
     private boolean baslatildi;
 
@@ -82,6 +83,27 @@ public class UyapMobilActivity extends Activity implements UyapMobilServisi.Dinl
 
         bekleyenDosya = gelenBelge(getIntent());
         UyapMobilServisi.dinleyiciAyarla(this);
+        if (izinIste()) ekran.post(this::basla);
+    }
+
+    /**
+     * Aç / Kaydet pencereleri telefonun depolamasında (/sdcard) başlasın diye depolama izni istenir (bir kez).
+     * true: izin zaten var ya da daha önce sorulduysa hemen başla; false: yanıttan sonra başlanır.
+     */
+    private boolean izinIste() {
+        if (android.os.Build.VERSION.SDK_INT < 23 || UyapMobil.depolamaIzniVar(this) || ayar().getBoolean("depolama_soruldu", false)) return true;
+        ayar().edit().putBoolean("depolama_soruldu", true).apply();
+        try {
+            requestPermissions(new String[]{android.Manifest.permission.READ_EXTERNAL_STORAGE, android.Manifest.permission.WRITE_EXTERNAL_STORAGE}, IZIN_DEPOLAMA);
+            return false;
+        } catch (Exception e) { return true; }
+    }
+
+    @Override public void onRequestPermissionsResult(int kod, String[] izinler, int[] sonuclar) {
+        super.onRequestPermissionsResult(kod, izinler, sonuclar);
+        if (kod != IZIN_DEPOLAMA) return;
+        if (!UyapMobil.depolamaIzniVar(this))
+            Toast.makeText(this, "Depolama izni yok: Aç/Kaydet pencereleri uygulama klasöründe açılır (Ayarlar > Uygulamalar > UYAP Editör > İzinler)", Toast.LENGTH_LONG).show();
         ekran.post(this::basla);
     }
 

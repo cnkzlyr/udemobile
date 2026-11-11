@@ -347,6 +347,13 @@ public final class UyapMobil {
     }
 
     /** Editör sürecini başlatır. dosya null ise boş belge. */
+    /** Ortak depolamayı (/sdcard) okuyup yazma izni (targetSdk 28: klasik depolama izni, Android 6+ çalışma anında istenir). */
+    static boolean depolamaIzniVar(Context c) {
+        if (android.os.Build.VERSION.SDK_INT < 23) return true;
+        return c.checkSelfPermission(android.Manifest.permission.WRITE_EXTERNAL_STORAGE) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                || c.checkSelfPermission(android.Manifest.permission.READ_EXTERNAL_STORAGE) == android.content.pm.PackageManager.PERMISSION_GRANTED;
+    }
+
     static Process baslat(Context c, int genislik, int yukseklik, int port, String jeton, String dosya) throws IOException {
         File r = rt(c), k = kok(c), ev = ev(c), tmp = new File(c.getCacheDir(), "uyapmobil-tmp");
         ev.mkdirs();
@@ -396,6 +403,10 @@ public final class UyapMobil {
         a.add("-Duyapmobil.jeton=" + jeton);
         a.add("-Duyapmobil.ekran=" + ekranDosyasi(c).getAbsolutePath());
         a.add("-Duyapmobil.gunluk=" + new File(k, "kopru.log").getAbsolutePath());
+        // Aç / Kaydet pencereleri telefonun ortak depolamasında (/sdcard) başlasın (köprü: dosyaSeciciDepolamada).
+        // Yalnızca depolama izni verildiyse: izinsiz klasör boş görünür.
+        File depo = android.os.Environment.getExternalStorageDirectory();
+        if (depo != null && depo.isDirectory() && depolamaIzniVar(c)) a.add("-Duyapmobil.depolama=" + depo.getAbsolutePath());
         a.add("--");
         a.add(ANA_SINIF);
         a.add("getNewWPInstance");

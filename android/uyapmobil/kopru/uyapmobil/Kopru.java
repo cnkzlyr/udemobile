@@ -154,10 +154,53 @@ public final class Kopru {
             }
         };
         Toolkit.getDefaultToolkit().addAWTEventListener(l, AWTEvent.WINDOW_EVENT_MASK | AWTEvent.COMPONENT_EVENT_MASK);
+        Toolkit.getDefaultToolkit().addAWTEventListener(e -> {
+            if (e.getID() == java.awt.event.WindowEvent.WINDOW_OPENED && e.getSource() instanceof java.awt.Container)
+                dosyaSeciciDepolamada((java.awt.Container) e.getSource());
+        }, AWTEvent.WINDOW_EVENT_MASK);
         EventQueue.invokeLater(() -> {
             for (Window win : Window.getWindows()) if (win.isShowing() && win instanceof java.awt.Frame) { win.setBounds(0, 0, w, h); yenidenCiz(win); }
         });
         panoIzle();
+    }
+
+    /**
+     * "Aç" / "Kaydet" / "Farklı kaydet" pencereleri (JFileChooser) varsayılan olarak user.home'da, yani uygulamanın
+     * kullanıcıya görünmeyen özel klasöründe açılıyordu. Seçici telefonun ortak depolamasının dışındaysa
+     * (uyapmobil.depolama, ör. /storage/emulated/0 = /sdcard) oraya taşınır; kaydederken önerilen dosya adı korunur.
+     * Kullanıcı önceden depolamada bir klasöre gittiyse ona dokunulmaz.
+     */
+    private static void dosyaSeciciDepolamada(java.awt.Container kok) {
+        String d = System.getProperty("uyapmobil.depolama");
+        if (d == null) return;
+        File depo = new File(d);
+        if (!depo.isDirectory()) return;
+        javax.swing.JFileChooser fc = seciciBul(kok);
+        if (fc == null) return;
+        EventQueue.invokeLater(() -> {
+            try {
+                File simdi = fc.getCurrentDirectory();
+                String dp = depo.getCanonicalPath();
+                if (simdi != null && (simdi.getCanonicalPath() + "/").startsWith(dp + "/")) return;
+                File secili = fc.getSelectedFile();
+                fc.setCurrentDirectory(depo);
+                if (secili != null && fc.getDialogType() == javax.swing.JFileChooser.SAVE_DIALOG)
+                    fc.setSelectedFile(new File(depo, secili.getName()));
+                LOG.println("[uyapmobil] dosya seçici → " + depo);
+            } catch (Exception ex) {
+                LOG.println("[uyapmobil] dosya seçici: " + ex);
+            }
+        });
+    }
+
+    private static javax.swing.JFileChooser seciciBul(java.awt.Container c) {
+        if (c instanceof javax.swing.JFileChooser) return (javax.swing.JFileChooser) c;
+        for (Component k : c.getComponents())
+            if (k instanceof java.awt.Container) {
+                javax.swing.JFileChooser f = seciciBul((java.awt.Container) k);
+                if (f != null) return f;
+            }
+        return null;
     }
 
     /**
@@ -245,13 +288,35 @@ public final class Kopru {
         return false;
     }
 
-    /** Çalışan editörde yeni belge aç (resmi editörün kendi giriş noktası: WPAppManager getNewWPInstance). */
+    /** Editörün ana belge penceresi (ekranı kaplayan, görünür bir Frame) kuruldu mu? */
+    static boolean anaPencereHazir() {
+        for (Window w : Window.getWindows())
+            if (w instanceof java.awt.Frame && w.isShowing() && w.getWidth() > 0 && w.getHeight() > 0
+                    && !w.getClass().getName().startsWith("com.github.caciocavallosilano")) return true;
+        return false;
+    }
+
+    /**
+     * Çalışan editörde yeni belge aç (resmi editörün kendi giriş noktası: WPAppManager getNewWPInstance).
+     * 3.20.0 hatası: telefon yavaş olduğu için köprü portu editörün ana penceresinden çok önce açılıyor; belge
+     * erken istenirse editör onu açılıştaki boş belge penceresinin arkasında kaybediyordu (dosyaya dokununca boş
+     * belge). Artık ana pencere görünür olup ~1,5 sn sakinleşene, modal pencere de kapanana kadar beklenir.
+     */
     static void belgeAc(String yol) {
         Thread t = new Thread(() -> {
             try {
-                // Açık bir modal pencere (ör. açılıştaki "Son sürümlerde yapılan güncellemeler") kapanana kadar bekle:
+                // 1) Ana pencere en az 1,5 sn kesintisiz görünür olsun (en çok 3 dk).
+                int sakin = 0;
+                for (int i = 0; i < 900 && sakin < 8; i++) {
+                    sakin = anaPencereHazir() ? sakin + 1 : 0;
+                    Thread.sleep(200);
+                }
+                // 2) Açık bir modal pencere (ör. açılıştaki "Son sürümlerde yapılan güncellemeler") kapanana kadar bekle:
                 // modal pencere açıkken yeni belge penceresi engelleniyor.
-                for (int i = 0; i < 600 && modalAcik(); i++) Thread.sleep(200);
+                for (int i = 0; i < 1500 && modalAcik(); i++) Thread.sleep(200);
+                // 3) Olay kuyruğu boşalsın (ana pencerenin ilk çizimi bitsin).
+                EventQueue.invokeAndWait(() -> { });
+                Thread.sleep(500);
                 String tip = yol.toLowerCase(java.util.Locale.ROOT).endsWith(".usf") ? "EDITOR_TYPE_TEMPLATE" : "EDITOR_TYPE_DOCUMENT";
                 Class<?> c = Class.forName("tr.com.havelsan.uyap.system.editor.common.WPAppManager", true, ClassLoader.getSystemClassLoader());
                 c.getMethod("main", String[].class).invoke(null, (Object) new String[]{"getNewWPInstance", tip, yol});
