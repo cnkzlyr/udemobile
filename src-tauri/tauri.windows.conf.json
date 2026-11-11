@@ -1,7 +1,8 @@
 {
   "bundle": {
     "resources": {
-      "eimza/jre/": "eimza/jre/"
+      "eimza/jre/": "eimza/jre/",
+      "eimza/eimza-win-agent.jar": "eimza/eimza-win-agent.jar"
     }
   }
 }
