@@ -303,7 +303,7 @@ def main():
             sys.exit("aarch64-linux-gnu-gcc yok (apt install gcc-aarch64-linux-gnu)")
         os.makedirs(os.path.join(rt, "bin"), exist_ok=True)
         uyapjava = os.path.join(rt, "bin", "uyapjava")
-        subprocess.run([gcc, "-O2", "-s", "-I", os.path.join(jdk_x64, "include"), "-I", os.path.join(jdk_x64, "include", "linux"),
+        subprocess.run([gcc, "-O2", "-s", "-rdynamic", "-I", os.path.join(jdk_x64, "include"), "-I", os.path.join(jdk_x64, "include", "linux"),
                         "-o", uyapjava, os.path.join(KAYNAK, "baslatici", "uyapjava.c"), "-ldl", "-lpthread"], check=True)
         glibc_ham = os.path.join(ON, "glibc-ham")
         shutil.rmtree(glibc_ham, ignore_errors=True)

@@ -8,16 +8,34 @@
  *
  * Kullanım:  uyapjava <libjvm.so yolu> <JVM seçeneği>... -- <ana sınıf> <argüman>...
  *   JVM seçenekleri JNI biçimindedir: "-Dx=y", "-Xmx512m", "--add-opens=a/b=c", "-javaagent:yol", "-Djava.class.path=..."
- * Derleme: aarch64-linux-gnu-gcc -O2 -o uyapjava uyapjava.c -ldl -lpthread
+ * Derleme: aarch64-linux-gnu-gcc -O2 -rdynamic -o uyapjava uyapjava.c -ldl -lpthread
  */
+#define _GNU_SOURCE
 #include <dlfcn.h>
 #include <jni.h>
+#include <langinfo.h>
+#include <locale.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 typedef jint (JNICALL *CreateJavaVM_t)(JavaVM **, void **, void *);
+
+/*
+ * Dosya adı kodlaması (sun.jnu.encoding) HER ZAMAN UTF-8.
+ * JDK 14 bu değeri komut satırından (-Dsun.jnu.encoding) almaz; setlocale(LC_ALL, "") + nl_langinfo(CODESET) ile
+ * yerel ayardan okur. Android'de glibc yerel ayarı yüklenemeyince kodlama ANSI_X3.4-1968 (ASCII) oluyor ve adında
+ * Türkçe harf (İ, ş, ç, ı, ğ, ö, ü) bulunan her dosya "Malformed input or input contains unmappable characters" ile
+ * açılamıyor, Aç/Kaydet pencereleri hata veriyordu (3.24.0 günlüğü). Bu başlatıcı nl_langinfo'yu dışa aktarır
+ * (-rdynamic): libjava.so çağırınca CODESET için "UTF-8" döner; diğer sorgular gerçek glibc'ye gider.
+ */
+char *nl_langinfo(nl_item item) {
+    static char *(*gercek)(nl_item) = NULL;
+    if (item == CODESET) return (char *) "UTF-8";
+    if (!gercek) gercek = (char *(*)(nl_item)) dlsym(RTLD_NEXT, "nl_langinfo");
+    return gercek ? gercek(item) : (char *) "";
+}
 
 struct baslat { int argc; char **argv; int ret; };
 
@@ -79,6 +97,8 @@ static void *calis(void *p) {
 }
 
 int main(int argc, char **argv) {
+    /* Önce gerçek bir UTF-8 yerel ayarı dene (mbstowcs vb. için); olmazsa nl_langinfo yine UTF-8 der. */
+    if (!setlocale(LC_ALL, "C.UTF-8") && !setlocale(LC_ALL, "C.utf8") && !setlocale(LC_ALL, "en_US.UTF-8")) setlocale(LC_ALL, "");
     if (argc < 4) { fprintf(stderr, "kullanım: uyapjava libjvm.so [seçenek...] -- AnaSinif [arg...]\n"); return 2; }
     /* JVM'i büyük yığınlı ayrı bir iş parçacığında başlat (java başlatıcısının yaptığı gibi; ana iş parçacığı yığını küçük olabilir) */
     struct baslat b = { argc, argv, 1 };
