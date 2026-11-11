@@ -45,6 +45,9 @@ jobs:
           distribution: temurin
           java-version: '21'
 
+      - name: UYAP Mobil araçları (aarch64 C derleyicisi + readelf)
+        run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu
+
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
         with:

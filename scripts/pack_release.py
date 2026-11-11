@@ -1,11 +1,14 @@
 import os
+import urllib.request
+import hashlib
 import sys
 import glob
 import shutil
 import zipfile
 import subprocess
 
-VERSION = "3.18.8"
+VERSION = "3.19.0"
+XZ_SHA256 = "211b306cfc44f8f96df3a0a3ddaf75ba8c5289eed77d60d72f889bb855f535e5"
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 IS_WINDOWS = os.name == "nt"
 
@@ -173,12 +176,22 @@ def main():
     java_files = glob.glob("android/src/**/*.java", recursive=True) + glob.glob(f"{gen_dir}/**/*.java", recursive=True)
     if not glob.glob(f"{gen_dir}/**/*.java", recursive=True):
         java_files += glob.glob("android/gen/**/*.java", recursive=True)
+    # xz-java (org.tukaani:xz 1.9, kamu malı): resmi UYAP Editör Debian paketindeki data.tar.xz'yi açmak için
+    xz_jar = os.path.join(PROJECT_ROOT, "build", "onbellek", "xz-1.9.jar")
+    if not os.path.exists(xz_jar) or hashlib.sha256(open(xz_jar, "rb").read()).hexdigest() != XZ_SHA256:
+        os.makedirs(os.path.dirname(xz_jar), exist_ok=True)
+        _istek = urllib.request.Request("https://repo1.maven.org/maven2/org/tukaani/xz/1.9/xz-1.9.jar", headers={"User-Agent": "curl/8"})
+        with urllib.request.urlopen(_istek, timeout=120) as _r, open(xz_jar + ".tmp", "wb") as _f:
+            _f.write(_r.read())
+        os.replace(xz_jar + ".tmp", xz_jar)
+    if hashlib.sha256(open(xz_jar, "rb").read()).hexdigest() != XZ_SHA256:
+        print("xz-1.9.jar SHA256 uyuşmuyor"); sys.exit(1)
     cmd = [
         JAVAC,
         "-encoding", "UTF-8",
         "-source", "8",
         "-target", "8",
-        "-cp", PLATFORM_JAR,
+        "-cp", PLATFORM_JAR + os.pathsep + xz_jar,
         "-d", classes_dir
     ] + java_files
     res = subprocess.run(cmd, capture_output=True, text=True)
@@ -192,7 +205,7 @@ def main():
     dex_dir = os.path.join(temp_dir, "dex")
     os.makedirs(dex_dir, exist_ok=True)
     class_files = glob.glob(f"{classes_dir}/**/*.class", recursive=True)
-    cmd = D8_CMD + ["--lib", PLATFORM_JAR, "--output", dex_dir] + class_files
+    cmd = D8_CMD + ["--lib", PLATFORM_JAR, "--output", dex_dir, "--min-api", "21"] + class_files + [xz_jar]
     res = subprocess.run(cmd, capture_output=True, text=True)
     if res.returncode != 0:
         print("D8 failed:", res.stderr)
@@ -221,6 +234,21 @@ def main():
             zf.write(os.path.join(eimza_dir, g), arcname="assets/eimza/" + g,
                      compress_type=zipfile.ZIP_STORED if g.endswith(".zip") else zipfile.ZIP_DEFLATED)
     print("assets/eimza/* added to APK.")
+
+    # 5c. UYAP Mobil: resmi UYAP Editör'ü Java 14 ile Termux/X11'siz çalıştıran ortam (scripts/uyapmobil_hazirla.py üretir)
+    step("5c. Adding UYAP Mobil runtime (glibc + Java 14 + Cacio)")
+    um_dir = os.path.join(PROJECT_ROOT, "build", "uyapmobil")
+    um_gerekli = ["rt-arm64.zip", "awt-patch14.jar", "uyapmobil-kopru.jar", "uyap-modern.jar", "surum.txt"]
+    if not all(os.path.exists(os.path.join(um_dir, g)) for g in um_gerekli) or os.environ.get("CANEDITOR_UYAPMOBIL_YENIDEN") == "1":
+        r = subprocess.run([sys.executable, os.path.join(PROJECT_ROOT, "scripts", "uyapmobil_hazirla.py")])
+        if r.returncode != 0:
+            print("uyapmobil_hazirla.py başarısız (UYAP Mobil çalışma ortamı hazırlanamadı).")
+            sys.exit(1)
+    with zipfile.ZipFile(unaligned_apk, "a") as zf:
+        for g in um_gerekli:
+            zf.write(os.path.join(um_dir, g), arcname="assets/uyapmobil/" + g,
+                     compress_type=zipfile.ZIP_STORED if g.endswith(".zip") else zipfile.ZIP_DEFLATED)
+    print("assets/uyapmobil/* added to APK.")
 
     # 6. Zipalign
     step("6. Aligning APK with zipalign")

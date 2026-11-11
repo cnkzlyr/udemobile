@@ -1963,6 +1963,40 @@ public class EditorActivity extends Activity {
             }).start();
         }
 
+        /**
+         * "Orijinal UYAP Editör'de aç": belge resmi UYAP Doküman Editörü'nde (Java 14, Termux/X11'siz UYAP Editör ekranı)
+         * açılır. Belge kaydedilince asıl dosyasına (yazılabiliyorsa) geri yazılır.
+         */
+        @JavascriptInterface
+        public void uyapEditordeAc(String ad, String base64Data) {
+            new Thread(() -> {
+                try {
+                    byte[] bytes = Base64.decode(base64Data, Base64.DEFAULT);
+                    String a = (ad == null || ad.trim().isEmpty() ? "Belge.udf" : ad.trim()).replaceAll("[\\\\/:*?\"<>|]", "_");
+                    if (!a.toLowerCase(Locale.ROOT).endsWith(".udf") && !a.toLowerCase(Locale.ROOT).endsWith(".usf")) a = a.replaceAll("\\.[^.]+$", "") + ".udf";
+                    File d = UyapMobil.belgeler(EditorActivity.this);
+                    d.mkdirs();
+                    File f = new File(d, a);
+                    try (FileOutputStream fos = new FileOutputStream(f)) { fos.write(bytes); }
+                    if (originDataUri != null) {
+                        boolean yaz;
+                        try (android.os.ParcelFileDescriptor p = getContentResolver().openFileDescriptor(originDataUri, "rw")) { yaz = p != null; }
+                        catch (Exception e) { yaz = false; }
+                        UyapMobilServisi.kaynakKaydet(EditorActivity.this, f, originDataUri, yaz);
+                    } else if (currentFile != null && currentFile.exists()) {
+                        UyapMobilServisi.kaynakKaydet(EditorActivity.this, f, Uri.fromFile(currentFile), currentFile.canWrite());
+                    }
+                    Intent i = new Intent(EditorActivity.this, UyapMobilActivity.class);
+                    i.setAction(UyapMobilActivity.EYLEM_AC);
+                    i.putExtra(UyapMobilActivity.EK_YOL, f.getAbsolutePath());
+                    i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    startActivity(i);
+                } catch (Exception e) {
+                    runOnUiThread(() -> Toast.makeText(EditorActivity.this, "UYAP Editör açılamadı: " + e.getMessage(), Toast.LENGTH_LONG).show());
+                }
+            }).start();
+        }
+
         /** İmzalanmış/oluşturulmuş belgeyi açık belgenin yerine (yoksa İndirilenler/UYAP_Belgelerim) kaydeder */
         @JavascriptInterface
         public void saveBytesToCurrent(String fileName, String mimeType, String base64Data) {

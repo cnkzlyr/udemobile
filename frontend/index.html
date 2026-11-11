@@ -58,6 +58,7 @@
         <button onclick="if(window.newDocument)newDocument();else location.reload()">Yeni <kbd>Ctrl+N</kbd></button>
         <button onclick="triggerOpenDocument()">Aç… <kbd>Ctrl+O</kbd></button>
         <button onclick="triggerQuickSave()">Kaydet <kbd>Ctrl+S</kbd></button>
+        <button onclick="uyapEditordeAc()" title="Belgeyi resmi UYAP Doküman Editörü'nde aç (birebir görünüm ve PDF)">🏛️ Orijinal UYAP Editör'de aç</button>
         <div class="ce-sub"><span>Farklı Kaydet</span>
           <div class="ce-menu-pop ce-sub-pop" id="saveAsDropdown">
             <button onclick="triggerSaveAs('udf')">UYAP Belgesi (.udf)</button>
@@ -977,6 +978,7 @@
       <div class="mobile-drawer-body">
         <button type="button" class="drawer-item primary" style="background:#16A34A !important; color:#FFFFFF !important; font-weight:700 !important; font-size:14px !important;" onclick="closeModal('modal-mobile-menu'); triggerQuickSave();">💾 Açık Olan Belgeyi Kaydet (1-Tık Doğrudan Kayıt)</button>
         <button type="button" class="drawer-item" onclick="closeModal('modal-mobile-menu'); triggerOpenDocument();">📂 Belge Aç (UDF, PDF, DOCX, TIFF, ODT)</button>
+        <button type="button" class="drawer-item" style="background:#7C2D12 !important; color:#FFFFFF !important; font-weight:700 !important;" onclick="closeModal('modal-mobile-menu'); uyapEditordeAc();">🏛️ Orijinal UYAP Editör'de Aç (birebir görünüm / PDF)</button>
         <div class="drawer-divider"></div>
         <div class="drawer-section-label">FARKLI KAYDET</div>
         <button type="button" class="drawer-item" onclick="closeModal('modal-mobile-menu'); triggerSaveAs('udf');">📄 Havelsan UDF (.udf)</button>

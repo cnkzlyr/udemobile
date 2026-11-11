@@ -1,4 +1,5 @@
 mod adalet;
+mod uyapeditor;
 mod esign;
 
 use std::io::{Cursor, Read, Write};
@@ -288,7 +289,9 @@ pub fn run() {
             adalet::adalet_durum,
             adalet::adalet_kur,
             adalet::adalet_baslat,
-            adalet::adalet_istek
+            adalet::adalet_istek,
+            uyapeditor::uyap_editor_ac,
+            uyapeditor::uyap_editor_durum
         ])
         .run(tauri::generate_context!())
         .expect("Tauri motoru başlatılamadı");
