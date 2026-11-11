@@ -93,14 +93,43 @@ public class UyapMobilServisi extends Service {
         }
     }
 
-    /** Köprüye komut (M/D/U/W/T/K/Y/O/X). Bağlı değilse sessizce düşer. */
+    /**
+     * Köprüye komut (M/D/U/W/T/K/Y/O/X). Bağlı değilse sessizce düşer.
+     * Dokunma olayları ana (arayüz) iş parçacığından gelir: soket yazımı ana iş parçacığında yapılırsa Android
+     * NetworkOnMainThreadException ile uygulamayı kapatır (3.19.0'da editöre ilk dokunuşta çökme). Komutlar kuyruğa
+     * alınır, ayrı bir iş parçacığı sırayla yazar (sıra korunur).
+     */
     public static void gonder(String komut) {
         UyapMobilServisi s = ornek;
         if (s == null || s.denetim == null) return;
-        byte[] b = (komut + "\n").getBytes(StandardCharsets.UTF_8);
-        synchronized (s.yazKilidi) {
-            try { s.denetim.write(b); s.denetim.flush(); } catch (IOException e) { s.denetim = null; }
-        }
+        s.kuyruk.offer(komut);
+    }
+
+    private final java.util.concurrent.LinkedBlockingQueue<String> kuyruk = new java.util.concurrent.LinkedBlockingQueue<>();
+    private volatile Thread yazici;
+
+    private void yaziciBaslat() {
+        if (yazici != null) return;
+        Thread t = new Thread(() -> {
+            try {
+                while (true) {
+                    String k = kuyruk.take();
+                    OutputStream o = denetim;
+                    if (o == null) continue;
+                    StringBuilder sb = new StringBuilder(k).append('\n');
+                    String ek;
+                    while ((ek = kuyruk.poll()) != null) sb.append(ek).append('\n');   // birikenleri tek yazımda gönder
+                    try {
+                        synchronized (yazKilidi) { o.write(sb.toString().getBytes(StandardCharsets.UTF_8)); o.flush(); }
+                    } catch (IOException e) {
+                        denetim = null;
+                    }
+                }
+            } catch (InterruptedException ignored) { }
+        }, "uyapmobil-yazici");
+        t.setDaemon(true);
+        t.start();
+        yazici = t;
     }
 
     static String hex(byte[] b) {
@@ -167,7 +196,9 @@ public class UyapMobilServisi extends Service {
             // Belge komut satırıyla verilmez: resmi editör açılışta "Son sürümlerde yapılan güncellemeler" penceresini
             // gösterdiğinde argümandaki belgeyi atlıyor. Köprü hazır olunca "O" komutuyla açılır (güvenilir).
             if (dosya != null) bekleyenDosya = dosya;
+            eskiSureciKapat();
             java = UyapMobil.baslat(this, w, h, port, jeton, null);
+            pidYaz(java);
             final Process p = java;
             Thread g = new Thread(() -> gunlukPompasi(p), "uyapmobil-gunluk");
             g.setDaemon(true);
@@ -198,6 +229,7 @@ public class UyapMobilServisi extends Service {
             String ilk = in.readLine();
             if (!"OK".equals(ilk)) { durumYaz("köprü yetkilendirmesi başarısız"); kapandi("köprü"); return; }
             denetim = o;
+            yaziciBaslat();
             durumYaz("Hazır");
             Dinleyici d = dinleyici;
             if (d != null) d.hazir(w, h);
@@ -221,6 +253,34 @@ public class UyapMobilServisi extends Service {
         }
         kapandi("süreç bitti");
         ana.post(this::stopSelf);
+    }
+
+    /** Uygulama çöküp yeniden açıldıysa önceki Java süreci sahipsiz kalmış olabilir: kapatılır (aynı kullanıcı kimliği). */
+    private void eskiSureciKapat() {
+        File f = new File(UyapMobil.kok(this), "java.pid");
+        try {
+            if (f.isFile()) {
+                int pid = Integer.parseInt(AdaletServisi.okuMetin(f).trim());
+                if (pid > 1 && new File("/proc/" + pid + "/cmdline").isFile()) {
+                    String cmd = new String(AdaletServisi.okuHepsi(new FileInputStream("/proc/" + pid + "/cmdline")), StandardCharsets.UTF_8);
+                    if (cmd.contains("uyapjava")) {
+                        android.os.Process.killProcess(pid);
+                        Tani.yaz("uyapmobil", "önceki Java süreci kapatıldı (pid " + pid + ")");
+                        Thread.sleep(300);
+                    }
+                }
+            }
+        } catch (Exception ignored) { }
+        f.delete();
+    }
+
+    private void pidYaz(Process p) {
+        try {
+            java.lang.reflect.Field fl = p.getClass().getDeclaredField("pid");
+            fl.setAccessible(true);
+            int pid = fl.getInt(p);
+            try (OutputStream o = new FileOutputStream(new File(UyapMobil.kok(this), "java.pid"))) { o.write(String.valueOf(pid).getBytes(StandardCharsets.UTF_8)); }
+        } catch (Exception ignored) { }
     }
 
     private void kapandi(String neden) {

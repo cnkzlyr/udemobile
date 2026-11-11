@@ -56,6 +56,7 @@ public class UyapMobilActivity extends Activity implements UyapMobilServisi.Dinl
     @Override protected void onCreate(Bundle b) {
         super.onCreate(b);
         Tani.baglam(this);
+        com.agy.telemetry.CrashReporter.install(this);   // çökme olursa İndirilenler/com.agy.uyapacici_crash.log
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
@@ -105,7 +106,7 @@ public class UyapMobilActivity extends Activity implements UyapMobilServisi.Dinl
     /** Mantıksal ekran: kısa kenar ~900 px (şerit menü sığar), ölçek ayarıyla büyütülüp küçültülebilir. */
     private int[] mantiksalBoyut() {
         int vw = Math.max(ekran.getWidth(), dp(320)), vh = Math.max(ekran.getHeight(), dp(320));
-        float hedef = ayar().getFloat("kisa_kenar", 900f);
+        float hedef = ayar().getFloat("kisa_kenar", 820f);
         float s = Math.max(0.75f, Math.min(vw, vh) / hedef);
         return new int[]{Math.round(vw / s), Math.round(vh / s)};
     }
@@ -160,6 +161,10 @@ public class UyapMobilActivity extends Activity implements UyapMobilServisi.Dinl
             ekran.baglan(UyapMobil.ekranDosyasi(this), w, h);
             durum.setVisibility(View.GONE);
             ekran.requestFocus();
+            if (!ayar().getBoolean("ipucu", false)) {
+                ayar().edit().putBoolean("ipucu", true).apply();
+                Toast.makeText(this, "İpucu: iki parmakla yakınlaştırın · uzun basış = sağ tık · ⋮ > Ekran ölçeği", Toast.LENGTH_LONG).show();
+            }
         });
     }
 
@@ -262,7 +267,7 @@ public class UyapMobilActivity extends Activity implements UyapMobilServisi.Dinl
         s.setOrientation(LinearLayout.HORIZONTAL);
         hs.addView(s);
         s.addView(dugme("⌨", v -> ekran.klavyeAcKapa()));
-        kip = dugme("✋", v -> { ekran.kaydirKipi = !ekran.kaydirKipi; kipGoster(); });
+        kip = dugme("✋", v -> { ekran.kaydirKipi = !ekran.kaydirKipi; kipGoster(true); });
         s.addView(kip);
         s.addView(dugme("Esc", v -> ekran.tus(27, 0)));
         s.addView(dugme("Tab", v -> ekran.tus(9, 0)));
@@ -285,7 +290,7 @@ public class UyapMobilActivity extends Activity implements UyapMobilServisi.Dinl
         s.addView(dugme("📋", v -> yapistir()));
         s.addView(dugme("⤢", v -> ekran.sigdir()));
         s.addView(dugme("⋮", v -> menu()));
-        kipGoster();
+        kipGoster(false);
         return hs;
     }
 
@@ -317,9 +322,9 @@ public class UyapMobilActivity extends Activity implements UyapMobilServisi.Dinl
         shift.setTextColor((y & EkranView.SHIFT) != 0 ? Color.rgb(255, 196, 0) : Color.WHITE);
     }
 
-    private void kipGoster() {
+    private void kipGoster(boolean bildir) {
         kip.setText(ekran.kaydirKipi ? "✋" : "🖱");
-        Toast.makeText(this, ekran.kaydirKipi ? "Kaydırma: tek parmak belgeyi kaydırır" : "Seçim: tek parmak metin seçer / sürükler", Toast.LENGTH_SHORT).show();
+        if (bildir) Toast.makeText(this, ekran.kaydirKipi ? "Kaydırma: tek parmak belgeyi kaydırır" : "Seçim: tek parmak metin seçer / sürükler", Toast.LENGTH_SHORT).show();
     }
 
     private void yapistir() {
@@ -358,8 +363,8 @@ public class UyapMobilActivity extends Activity implements UyapMobilServisi.Dinl
     }
 
     private void olcekSor() {
-        final String[] ad = {"Büyük (az içerik)", "Orta", "Küçük (çok içerik)", "Çok küçük"};
-        final float[] deger = {720f, 900f, 1100f, 1300f};
+        final String[] ad = {"Çok büyük", "Büyük", "Orta (önerilen)", "Küçük (şerit menü tam sığar)", "Çok küçük"};
+        final float[] deger = {640f, 720f, 820f, 960f, 1200f};
         new AlertDialog.Builder(this).setTitle("Ekran ölçeği (editör yeniden açılır)").setItems(ad, (d, w) -> {
             ayar().edit().putFloat("kisa_kenar", deger[w]).apply();
             yenidenBaslat();
