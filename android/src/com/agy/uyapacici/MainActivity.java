@@ -74,6 +74,7 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         CrashReporter.install(this);
+        Tani.baglam(this);
         setContentView(R.layout.activity_main);
 
         prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
@@ -83,8 +84,10 @@ public class MainActivity extends Activity {
         checkSystemStatus();
         loadRecentDocuments();
 
-        requestTermuxPermissionIfNeeded();
+        // Termux artık gerekmez: izin yalnızca Termux kuruluysa (eski masaüstü UYAP modu için) istenir.
+        if (isPackageInstalled("com.termux")) requestTermuxPermissionIfNeeded();
         checkStoragePermission();
+        adaletDugmesiEkle();
 
         handleIntent(getIntent());
     }
@@ -497,9 +500,48 @@ public class MainActivity extends Activity {
         }
     }
 
+    /** 🏛️ Adalet E-İmza (Termux'suz) düğmesi: "Dosya seç" düğmesinin hemen altına eklenir. */
+    private void adaletDugmesiEkle() {
+        try {
+            android.view.ViewGroup ebeveyn = (android.view.ViewGroup) btnPickFile.getParent();
+            Button b = new Button(this);
+            b.setText("🏛️ Adalet E-İmza (Chrome ile UYAP e-imza girişi)");
+            b.setAllCaps(false);
+            b.setOnClickListener(v -> startActivity(new Intent(this, AdaletActivity.class)));
+            ebeveyn.addView(b, ebeveyn.indexOfChild(btnPickFile) + 1);
+            final Button tani = new Button(this);
+            tani.setAllCaps(false);
+            final Runnable yaz = () -> tani.setText(Tani.dosya() == null ? "🐞 E-imza tanı günlüğünü başlat" : "⏹ Tanı günlüğünü durdur ve gönder");
+            yaz.run();
+            tani.setOnClickListener(v -> {
+                if (Tani.dosya() == null) {
+                    java.io.File f = Tani.baslat(this);
+                    Toast.makeText(this, "Tanı günlüğü başladı. Sorunu yaşayın, sonra buradan durdurup gönderin.\n" + f.getName(), Toast.LENGTH_LONG).show();
+                    if (AdaletKurulum.jarDosyasi(this).exists()) { AdaletServisi.durdur(this); AdaletServisi.baslat(this); }
+                } else {
+                    Tani.ozet(this);
+                    Tani.paylas(this, Tani.durdur(this));
+                }
+                yaz.run();
+            });
+            ebeveyn.addView(tani, ebeveyn.indexOfChild(b) + 1);
+            // Kuruluysa servis uygulamayla birlikte açılır (Chrome'da portal hazır olsun)
+            if (AdaletKurulum.jarDosyasi(this).exists() && !AdaletServisi.calisiyor()) AdaletServisi.baslat(this);
+        } catch (Exception ignored) { }
+    }
+
     private void checkSystemStatus() {
         boolean termuxInstalled = isPackageInstalled("com.termux");
         boolean x11Installed = isPackageInstalled("com.termux.x11");
+        // Termux'a bağlı masaüstü UYAP düğmeleri yalnızca Termux kuruluysa görünür
+        int gorunum = termuxInstalled ? View.VISIBLE : View.GONE;
+        if (btnLaunchBlank != null) btnLaunchBlank.setVisibility(gorunum);
+        if (btnForceCloseUyap != null) btnForceCloseUyap.setVisibility(gorunum);
+        if (btnDesktopUyapDoc != null) btnDesktopUyapDoc.setVisibility(gorunum);
+        if (!termuxInstalled) {
+            tvStatusTermux.setText("✓ Mobil UYAP Motoru: Aktif (Termux gerekmez)");
+            tvStatusTermux.setTextColor(0xFF2E7D32);
+        }
 
         if (termuxInstalled) {
             int perm = checkSelfPermission("com.termux.permission.RUN_COMMAND");

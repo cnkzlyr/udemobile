@@ -3112,6 +3112,10 @@ body { background: var(--ce-bg) !important; }
 .page-body-box p[data-udf-pitch] *:not(img):not(table):not(.udf-tab-space),
 .page-header-box p[data-udf-pitch] *:not(img), .page-footer-box p[data-udf-pitch] *:not(img) { line-height: 0 !important; }
 #pagination-measurer p[data-udf-pitch] *:not(img):not(table):not(.udf-tab-space) { line-height: 0 !important; }
+/* Sekme kutusu (inline-block, line-height:1) taban çizgisine hizalanınca alt kenarı satır kutusunun dışına taşıp
+   sekmeli her satırı ~1.5pt uzatıyordu (Havelsan'da satır sabit 14pt). Üste hizalı kutu satırı büyütmez.
+   A baseline-aligned inline-block tab grew each tabbed line by ~1.5pt; top alignment keeps the fixed pitch. */
+.page-body-box p[data-udf-pitch] .udf-tab-space, #pagination-measurer p[data-udf-pitch] .udf-tab-space { vertical-align: top; }
 /* v3.16: Havelsan (Swing) ardışık paragrafların SpaceBelow + SpaceAbove değerlerini TOPLAR; CSS blok düzeni ise
    kenar boşluklarını çakıştırır (max). Bu fark her paragraf geçişinde birkaç punto kazandırıp sayfalara fazladan
    satır sığdırıyor, sayfa sonlarını Havelsan'dan kaydırıyordu. Gövde kutusu flex sütun: boşluklar çakışmaz. */

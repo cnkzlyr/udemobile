@@ -1,6 +1,6 @@
 # ⚖️ CanEditor (UdeMobile) — Çapraz Platform UYAP & Word Editörü
 
-[![Sürüm](https://img.shields.io/badge/Sürüm-v3.16.0-blue.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v3.16.0)
+[![Sürüm](https://img.shields.io/badge/Sürüm-v3.18.7-blue.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v3.18.7)
 [![Platformlar](https://img.shields.io/badge/Platformlar-Android%20%7C%20Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Web-success.svg)](https://github.com/cnkzlyr/udemobile/releases)
 [![UYAP](https://img.shields.io/badge/Format-UYAP_UDF_v1.8-0D47A1.svg)](https://uyap.gov.tr)
 [![Word](https://img.shields.io/badge/Format-MS_DOCX_OpenXML-2B579A.svg?logo=microsoft-word&logoColor=white)](https://microsoft.com)
@@ -11,20 +11,143 @@
 
 ---
 
-## 🚀 Hızlı İndirme (v3.16.0)
+## 🚀 Hızlı İndirme (v3.18.7)
 
 | Platform | Paket Dosyası | Açıklama |
 | :--- | :--- | :--- |
-| **Android (Telefon & Tablet)** | [**CanEditor-v3.16.0.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.16.0/CanEditor-v3.16.0.apk) | Güncel Android APK paketi (Termux gerektirmez) |
-| **Android (Her Zaman En Son)** | [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.16.0/CanEditor-latest.apk) | Kalıcı son sürüm bağlantısı |
-| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v3.16.0.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v3.16.0/CanEditor-Portable-Web-GUI-v3.16.0.zip) | **Kurulumsuz;** zipten çıkarıp `index.html` açarak tüm işletim sistemlerinde doğrudan çalışır |
-| **Windows / macOS / Linux** | [**GitHub Releases Sayfası**](https://github.com/cnkzlyr/udemobile/releases/tag/v3.16.0) | GitHub Actions CI ile derlenen yerel ikili (.msi, .exe, .dmg, .AppImage, .deb, .rpm) paketleri |
+| **Android (Telefon & Tablet)** | [**CanEditor-v3.18.7.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.18.7/CanEditor-v3.18.7.apk) | Güncel Android APK paketi (Termux gerektirmez) |
+| **Android (Her Zaman En Son)** | [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.18.7/CanEditor-latest.apk) | Kalıcı son sürüm bağlantısı |
+| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v3.18.7.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v3.18.7/CanEditor-Portable-Web-GUI-v3.18.7.zip) | **Kurulumsuz;** zipten çıkarıp `index.html` açarak tüm işletim sistemlerinde doğrudan çalışır |
+| **Windows / macOS / Linux** | [**GitHub Releases Sayfası**](https://github.com/cnkzlyr/udemobile/releases/tag/v3.18.7) | GitHub Actions CI ile derlenen yerel ikili (.msi, .exe, .dmg, .AppImage, .deb, .rpm) paketleri |
 
 ---
 
-## ⚠️ Android: v3.16.0'a geçerken bir kerelik yeniden kurulum
+## ⚠️ Android: v3.16.0 ve öncesinden geçerken bir kerelik yeniden kurulum
 
-Önceki sürümler farklı derleme ortamlarında farklı imza anahtarlarıyla imzalanmıştı. v3.16.0'dan itibaren APK **sabit bir proje anahtarıyla** imzalanır; telefonunuzda eski CanEditor varsa bir kez **kaldırıp** yeni APK'yı kurun (aksi halde Android "paket çakışıyor" hatası verir). Sonraki güncellemeler kaldırmadan, üzerine kurulur.
+v3.17.0'dan itibaren APK yeni ve kalıcı bir proje anahtarıyla imzalanır (sertifika `CN=CanEditor`, SHA-256
+`BA:80:78:89:12:28:35:C0:58:3B:C9:72:3B:C0:90:5C:C8:6F:49:A8:1A:92:BA:F9:D0:96:33:77:71:BB:D4:F0`). Telefonunuzda
+v3.16.0 ya da öncesi kuruluysa bir kez **kaldırıp** yeni APK'yı kurun (aksi halde Android "paket çakışıyor" hatası
+verir). Sonraki güncellemeler kaldırmadan, üzerine kurulur.
+
+## 🌟 v3.18.7: Windows'ta sürücüsüz e-imza (ArkSigner, ACR39 + AKİS kart)
+
+- **Kart sürücüsü ve Java GEREKMEZ:** Windows kurulum paketine Java 21 gömülüdür (CI'da jlink). Kart, CanEditor'un
+  arka planda çalıştırdığı resmi Adalet E-İmza ile okunur. PKCS#11 kütüphanesi (akisp11.dll vb.) bulunmayınca resmi
+  uygulama kartla doğrudan APDU ile konuşur; okuyucuya Windows'un kendi PC/SC katmanı ve CCID sürücüsüyle ulaşılır.
+- **İlk kullanım:** "Kartı Tara"da resmi Adalet E-İmza bir kez ve yalnızca cdn.uyap.gov.tr'den kendiliğinden indirilip
+  kurulur (~80 MB). Sonraki açılışlarda doğrudan başlar. Bilgisayarda resmi uygulama zaten çalışıyorsa o kullanılır.
+- Servis 127.0.0.1:5975'te çalışır; Chrome'daki UYAP portallarına e-imzayla giriş de aynı servisle yapılır.
+- Kart bulunamazsa kurulu PKCS#11 sürücüsü (AKİS/SafeNet) yine denenir.
+- Android ve masaüstü aynı imza kodunu kullanır (`adaletIstek`, `adaletSertifikalari`).
+
+## 🌟 v3.18.6: İmzalı belgede "Kaydet" imzaları korur, yeniden imzalama ek imza olarak eklenir
+
+**Kural:** İmzalı bir UDF değiştirilmeden kaydedilirse ya da yeniden imzalanırsa önceki imzaların hiçbiri kaybolmaz.
+- **Kaydet = Farklı Kaydet:** İmzalı ve değiştirilmemiş belgede ikisi de belgeyi yeniden üretmez, orijinal baytları aynen
+  yazar. Android'de "Kaydet" eskiden belgeyi yeniden oluşturup TÜM imzaları siliyordu (belge editör içinden açıldığında
+  açık dosya bilgisi boş kalıyordu); "Farklı Kaydet" koruyordu. Artık her iki yol (üst çubuk ve menü) aynı kontrolü kullanır.
+- **Ek imza:** Değiştirilmemiş imzalı belge yeniden imzalanınca yeni imza öncekilere EKLENİR (3 imza + sizin imzanız = 4).
+  Adalet E-İmza, mobil imza ve doğrudan kart yollarında sonuç doğrulanır: önceki imzacıların hepsi + 1 yoksa belge kaydedilmez.
+- Belge değiştirildiyse önceki imzalar hukuken geçersiz olacağından ek imza yine engellenir (uyarı verilir).
+- Test: 3 gerçek imzalı UDF'ye test sertifikasıyla imza eklendi → imzacı sayısı N→N+1, content.xml bayt bayt aynı, tüm imzalar geçerli.
+
+## 🌟 v3.18.5: Gömülü Java telefonda açılmıyordu (libc++_shared.so eksikti)
+
+- Telefon günlüğü: `dlopen failed: library "libc++_shared.so" not found: needed by .../libandroid-spawn.so` → Java
+  sanal makinesi hiç başlamıyor, Adalet E-İmza hiç açılmıyordu (önceki sürümlerdeki "okuyucu var kart yok" belirtilerinin
+  temel nedeni). Termux `libc++` paketi JRE'ye eklendi.
+- `scripts/jre_hazirla.py` artık elle yazılmış listeye güvenmez: JRE'deki TÜM ELF dosyalarının bağımlılıklarını (DT_NEEDED)
+  `readelf` ile özyinelemeli tarar, eksikleri Termux önekinden kopyalar; çözülemeyen bağımlılık kalırsa derleme durur.
+
+## 🌟 v3.18.4: Termux'ta çalışan e-imza köprüsüyle birebir davranış
+
+Termux v3 kitindeki (ACR39 ve ArkSigner ile çalışan) `ccid_bridge.py` ile Android köprüsü satır satır karşılaştırıldı:
+- **Kart gücü 3 sn gecikmeli kesilir:** Adalet E-İmza 1.0.17 kartı ayrı bir "probe" Java sürecinde tarar, hemen ardından
+  ana süreç bağlanır. Köprü son bağlantı kapanır kapanmaz kartın gücünü kesiyordu; kart sıfırlanıyor, PIN doğrulanmış
+  oturum düşüyordu. Artık Termux köprüsü gibi 3 sn beklenir; bu sürede yeni bağlantı gelirse kart açık kalır.
+- **Kart tarayan alt Java süreci:** ev/geçici klasör, bellek sınırı ve (tanı açıkken) DEBUG günlüğü `JAVA_TOOL_OPTIONS`
+  ile alt sürece de geçer (Termux Java'sının varsayılan geçici klasörü bu uygulamaya kapalıdır).
+- Tanı günlüğüne köprü istemcilerinin bağlanma/ayrılma ve kart gücünün kesilme anları eklendi.
+- Doğrulama: Termux kitinin donanımsız kart simülatörü (`ccid_bridge.py --sim`) ile resmi Adalet E-İmza 1.0.17 +
+  UdeMobile ajanı uçtan uca denendi: okuyucu listelendi, kart bağlandı, APDU yolu çalıştı.
+
+## 🌟 v3.18.3: 🐞 E-imza tanı günlüğü
+
+Ana ekran ya da 🏛️ Adalet E-İmza ekranı > **🔴 Tanı günlüğünü BAŞLAT** → sorunu yaşayın → **⏹ DURDUR ve gönder**.
+Günlük (İndirilenler/CanEditor/tani/eimza_tani_*.log) şunları yazar: cihaz/Android/izinler, USB cihazları (VID/PID,
+sınıf, arayüz, uç noktalar, izin, köprüye uygun mu), Java'nın çıkarılması ve başlatma komutu, resmi Adalet E-İmza'nın
+ayrıntılı (DEBUG) çıktısı, köprüye gelen her komut (INFO/STATUS/CONNECT/TRANSMIT: APDU başlığı, uzunluk, SW), CCID
+okuyucu özellikleri/ATR/hata baytları, PIN penceresi (PIN'in kendisi değil), editördeki e-imza adımları, çökmeler.
+**PIN, APDU verisi ve belge içeriği yazılmaz.**
+
+## 🌟 v3.18.2 (düzeltme)
+
+- **Adalet E-İmza ekranı açılır açılmaz kapanıyordu:** durum satırı servisi (127.0.0.1:5975) ana iş parçacığından
+  yokluyordu; Android buna izin vermez. Denetim arka plana alındı.
+- Kurulum sorusu artık tarayıcı onay kutusu ("file:// adresindeki sayfa...") yerine Android penceresiyle sorulur.
+
+## 🌟 v3.18.1 ile Gelenler (E-imza kartı: yalnızca resmi Adalet E-İmza)
+
+1. **Uydurma sertifika kaldırıldı:** Eski tahmini USB sürücüsü kartı okuyamayınca "Nitelikli Elektronik Sertifika /
+   NES-… / 31.12.2028" gibi uydurma değerlerle "kart aktif" gösteriyordu; PIN girilince "kart bulunamadı" çıkıyordu.
+   Android'de kart artık **yalnızca resmi Adalet E-İmza** ile okunur ve imzalanır; okunamazsa açıkça söylenir.
+2. **"CanEditor yanıt vermiyor" donması giderildi:** USB işlemleri ana iş parçacığında yapılıyordu.
+3. Adalet E-İmza kurulu değilse e-imza penceresi kurulum ekranını önerir; kapalıysa kendisi başlatıp bekler.
+4. Üreticiye özel USB sınıfıyla görünen tokenlar (ör. ArkSigner) köprüde tanınır; izin penceresi her takılışta bir kez.
+5. Termux çağrıları tamamen kaldırıldı (editör artık Termux betiklerini çalıştırmaz).
+
+## 🌟 v3.18.0 ile Gelenler (Termux'suz Adalet E-İmza)
+
+1. **Adalet E-İmza artık UdeMobile'ın içinde (Android, Termux gerekmez):** Chrome'dan UYAP Avukat Portalı'na
+   e-imza ile giriş ve imzalama için gereken **resmi Adalet E-İmza** uygulaması, APK'nın içindeki **Java 21** ile
+   telefonda çalışır (`127.0.0.1:5975`, resmi uygulamadakiyle aynı adres). Ana ekran > **🏛️ Adalet E-İmza** >
+   **Resmi uygulamayı indir** (Adalet'in sunucusundan, cdn.uyap.gov.tr; UdeMobile resmi uygulamayı dağıtmaz).
+2. **USB e-imza okuyucu köprüsü (Termux'suz):** Okuyucu OTG ile takılır; kart, resmi uygulamaya UdeMobile'ın USB CCID
+   köprüsünden görünür (APDU ve TPDU/T=1 okuyucular). Kart komutlarını resmi uygulamanın TÜBİTAK kütüphanesi gönderir.
+3. **PIN penceresi:** Sayfa PIN'i sormazsa Android penceresi açılır (ekran görüntüsü alınamaz, PIN kaydedilmez).
+4. **Editörde kartla imza** Android'de önce resmi Adalet E-İmza servisiyle (signUdf) yapılır; dönen imza belgeyle
+   doğrulanmadan kaydedilmez. Servis kapalıysa eski doğrudan USB yolu kullanılır.
+5. Ekran yok: resmi uygulamanın Swing pencereleri Caciocavallo ile bellekte çizilir; Android sistem kök sertifikaları
+   Java güven deposuna eklenir (Adalet sunucularına HTTPS).
+6. Android hedef SDK 28 (gömülü Java uygulama klasöründen çalışabilsin; Termux da 28 hedefler). APK ~44 MB.
+
+> **Bilinen sınırlar:** Gerçek telefon + gerçek kartla uçtan uca henüz denenmedi (x86 Linux'ta resmi uygulama aynı
+> ajan ve yamayla açılıp 5975'te yanıt verdi). AKİS (Kamu SM) kartları beklenir; üretici PKCS#11 sürücüsü isteyen
+> bazı SafeNet/ArkSigner tokenlar Android'de çalışmayabilir.
+
+## 🌟 v3.17.1 ile Gelenler (Mobil İmza Düzeltmesi)
+
+1. **Mobil imza "imza belgenin içeriğiyle eşleşmiyor" hatası:** UYAP mobil imza servisi, bizim isteğimizde imzalanacak
+   verinin ilk 100 baytını sıfırlanmış olarak imzalıyordu; belge (doğru şekilde) kaydedilmiyordu. Havelsan Doküman
+   Editörü'nün (Apache Axis 1.3) isteği sahte bir sunucuyla yakalanıp karşılaştırıldı: gönderilen veri aynıydı, fark
+   SOAP başlıklarındaydı (`SOAPAction` boş gidiyordu, ad alanı önekliydi, Axis'in `Accept`/`User-Agent` başlıkları
+   yoktu). İstek artık Havelsan'ınkiyle **bayt bayt aynı** (Android, Windows, macOS, Linux).
+2. **Ayrıntılı teşhis dosyası:** Mobil imza yine eşleşmezse belge kaydedilmez ve İndirilenler'e
+   `mobil_imza_tani_*.json` yazılır (gönderilen veri, sunucudan dönen imza, fark özeti) — geliştiriciye gönderilebilir.
+3. Önceki imzalar korunur; yeni imza belgeyle doğrulanmadan asla kaydedilmez.
+
+## 🌟 v3.17.0 ile Gelenler (Kaydırırken Geri Sekme, Gerçek UYAP ile Sayfa Uyumu, Tutarı Yazıyla)
+
+Bu sürümdeki sayfalama düzeltmeleri, 9 gerçek UDF'nin **gerçek UYAP Editör** (durum çubuğundaki "Sayfa : x / N"
+ve paragraf ölçüleri) ve Havelsan PDF çıktılarıyla birebir karşılaştırılmasıyla bulundu.
+
+| Belge | UYAP | v3.16.0 | v3.17.0 |
+|---|---|---|---|
+| Fezleke (uzun, karekodlu) | 143 | 179 | 142 |
+| Fezleke (uzun, karekodlu) | 145 | 181 | 145 |
+| İtirazın iptali dilekçesi | 5 | 6 | 5 |
+| Diğer 6 belge | 1, 2, 5, 12, 18 … | aynı | aynı |
+
+- **Kaydırırken imlece geri sekme düzeltildi:** Belge açıkken kendi kendini tetikleyen yeniden sayfalama döngüsü
+  her ~80 ms'de imleci görünür yapmaya çalışıyor, tablette kaydırınca sayfa imlecin olduğu yere geri sıçrıyordu.
+  Artık imleç yalnızca **yazarken** takip edilir; boşta sayfalama 0 kez çalışır.
+- **Sayfa altlarında boş kalan alan:** Bölünen paragrafın devamı birleşince arada kalan boş sayfa, sonraki tüm
+  sayfaların toparlanmasını durduruyordu (uzun belgelerde 30+ fazla sayfa).
+- **Satır yükseklikleri:** paragraf sonundaki büyük puntolu satır sonu artık yalnızca son satırı büyütür;
+  sekmeli satırlar 1.5 pt uzamaz; karekodlu altbilgide gövde Havelsan gibi 51 satır alır;
+  "Dialog" yazı tipi Windows'taki UYAP gibi Arial ile çizilir.
+- **Yeni: Tutarı Yazıyla** (Ekle menüsü ve mobil menü): seçili ya da girilen tutarı
+  `1.250.000,50 TL (Birmilyonikiyüzellibin Türk Lirası Elli Kuruş)` biçiminde yazar.
 
 ## 🌟 v3.16.0 ile Gelenler (Havelsan ile Sayfa Uyumu, Cetvel, E-İmza Takınca Donma, Mobil İmza Doğrulaması)
 

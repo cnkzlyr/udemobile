@@ -335,6 +335,12 @@
     const c = cbs[id]; if (!c) return; delete cbs[id];
     ok ? c.resolve(payload) : c.reject(new Error(payload || 'İşlem başarısız'));
   };
+  /** Tanı günlüğüne (Android: Adalet E-İmza ekranı > tanı günlüğü) adım yazar. PIN/belge içeriği YAZILMAZ. */
+  function tlog(m) {
+    try { if (window.AndroidBridge && window.AndroidBridge.taniYaz) window.AndroidBridge.taniYaz(String(m).slice(0, 1500)); } catch (e) {}
+  }
+  window.__esignTlog = tlog;
+
   function androidCall(method, ...args) {
     return new Promise((resolve, reject) => {
       const id = 'e' + (++cbSeq) + '_' + Date.now();
@@ -361,8 +367,15 @@
 
   // ------------------------------------------------------------------ UYAP mobil imza (SOAP)
   function xmlEsc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+  // İstek, Havelsan Doküman Editörü'nün (Apache Axis 1.3 istemcisi) gönderdiğiyle BAYT BAYT aynı kurulur
+  // (istek sahte sunucuyla yakalanıp karşılaştırıldı): varsayılan ad alanı, xmlns="" alt öğeler,
+  // xsd/xsi bildirimleri ve SOAPAction: "getHash" / "getSignature". Eskiden SOAPAction boş ("") ve
+  // ad alanı önekli (cli:) gidiyordu; sunucu bu istekte imzalanan verinin ilk 100 baytını sıfırlıyordu.
   function soapEnv(op, inner) {
-    return '<?xml version="1.0" encoding="UTF-8"?><soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:cli="http://client.mimza.uyap.gov.tr"><soapenv:Body><cli:' + op + '>' + inner + '</cli:' + op + '></soapenv:Body></soapenv:Envelope>';
+    return '<?xml version="1.0" encoding="UTF-8"?><soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><soapenv:Body><' + op + ' xmlns="http://client.mimza.uyap.gov.tr">' + inner + '</' + op + '></soapenv:Body></soapenv:Envelope>';
+  }
+  function soapHeaders(op) {
+    return { 'Content-Type': 'text/xml; charset=utf-8', SOAPAction: '"' + op + '"' };
   }
   function tag(xml, name) {
     const m = new RegExp('<(?:[\\w-]+:)?' + name + '(?:\\s[^>]*)?>([\\s\\S]*?)</(?:[\\w-]+:)?' + name + '>').exec(xml);
@@ -383,7 +396,7 @@
     return msg || 'Mobil imza tamamlanamadı.';
   }
   async function mimzaGetHash(contentBytes, phone, operator) {
-    const xml = await httpPost(MIMZA_URL, soapEnv('getHash', '<dataToBeSigned>' + b64e(contentBytes) + '</dataToBeSigned><telNo>' + xmlEsc(phone) + '</telNo><gsmOperator>' + (operator | 0) + '</gsmOperator>'), { 'Content-Type': 'text/xml; charset=utf-8', SOAPAction: '""' });
+    const xml = await httpPost(MIMZA_URL, soapEnv('getHash', '<dataToBeSigned xmlns="">' + b64e(contentBytes) + '</dataToBeSigned><telNo xmlns="">' + xmlEsc(phone) + '</telNo><gsmOperator xmlns="">' + (operator | 0) + '</gsmOperator>'), soapHeaders('getHash'));
     const fault = soapFault(xml); if (fault) throw new Error(fault);
     const code = parseInt(tag(xml, 'resultCode'), 10);
     const res = { apTransId: tag(xml, 'apTransId'), fingerPrint: tag(xml, 'fingerPrint'), message: tag(xml, 'message'), resultCode: code };
@@ -391,7 +404,7 @@
     return res;
   }
   async function mimzaGetSignature(apTransId) {
-    const xml = await httpPost(MIMZA_URL, soapEnv('getSignature', '<dataToBeDisplayed>Evrak Mobil Imza Talebi</dataToBeDisplayed><apTransId>' + xmlEsc(apTransId) + '</apTransId>'), { 'Content-Type': 'text/xml; charset=utf-8', SOAPAction: '""' });
+    const xml = await httpPost(MIMZA_URL, soapEnv('getSignature', '<dataToBeDisplayed xmlns="">Evrak Mobil Imza Talebi</dataToBeDisplayed><apTransId xmlns="">' + xmlEsc(apTransId) + '</apTransId>'), soapHeaders('getSignature'));
     const fault = soapFault(xml); if (fault) throw new Error(fault);
     const code = parseInt(tag(xml, 'resultCode'), 10);
     const data = tag(xml, 'data');
@@ -400,11 +413,101 @@
   }
 
   // ------------------------------------------------------------------ akıllı kart
+  /** Resmi Adalet E-İmza servisine (127.0.0.1:5975) istek: masaüstünde Tauri, Android'de köprü üzerinden. */
+  async function adaletIstek(method, path, body) {
+    const t = tauri();
+    if (t) return await t.invoke('adalet_istek', { method, path, body: body || '' });
+    return await androidCall('adaletIstekAsync', method, path, body || '');
+  }
+  /** getCertificates → kart listesi (Android ve masaüstü ortak). */
+  async function adaletSertifikalari() {
+    let r = null;
+    try { r = JSON.parse(await adaletIstek('GET', '/api/v1/signature/getCertificates', '')); } catch (e) { tlog('getCertificates hatası: ' + e); }
+    const kartlar = [];
+    ((r && r.data) || []).forEach(rd => (rd.certificates || []).forEach(c => kartlar.push({
+      adalet: true, certificateId: c.certificateId, label: c.subject || 'Sertifika', issuer: c.issuer || '',
+      notAfter: c.notAfter || '', subjectSerial: c.subjectSerial || '', reader: (rd.terminal || 'Okuyucu') + ' · Adalet E-İmza',
+      keyType: c.pubKeyAlgorithm === 'EC' ? 'EC' : 'RSA' })));
+    const okuyucular = ((r && r.data) || []).map(rd => rd.terminal).filter(Boolean);
+    const hata = r && r.metadata && r.metadata.STATUS !== 'SUCCESS' ? (' (' + r.metadata.MESSAGE + ')') : '';
+    tlog('getCertificates → ' + (r ? (r.metadata && r.metadata.STATUS) + ' ' + ((r.metadata && r.metadata.MESSAGE) || '') : 'cevap yok')
+      + ' · okuyucu=' + okuyucular.length + ' · sertifika=' + kartlar.length);
+    return { kartlar, okuyucular, hata };
+  }
+  /**
+   * Masaüstü (Windows): kart, CanEditor'a gömülü Java ile çalışan resmi Adalet E-İmza üzerinden okunur. Kart
+   * sürücüsü (PKCS#11) gerekmez: okuyucuya Windows'un PC/SC katmanıyla, karta doğrudan APDU ile ulaşılır.
+   * İlk kullanımda resmi uygulama cdn.uyap.gov.tr'den kendiliğinden kurulur. Bilgisayarda resmi uygulama zaten
+   * çalışıyorsa (5975 açık) o kullanılır. null dönerse bu yol yok (PKCS#11'e geçilir).
+   */
+  async function masaustuAdaletListe(t) {
+    let d = null;
+    try { d = await t.invoke('adalet_durum'); } catch (e) { return null; }
+    if (!d || (!d.jre && !d.port)) return null;
+    const bildir = (m) => { if (window.onSmartCardStatusUpdated) window.onSmartCardStatusUpdated({ connected: false, certificates: [], message: m }); };
+    const bekle = (ms) => new Promise(r => setTimeout(r, ms));
+    if (!d.port && !d.kurulu) {
+      bildir('Adalet E-İmza ilk kez hazırlanıyor (resmi sunucudan ~80 MB, bir kez)…');
+      const kurulum = t.invoke('adalet_kur').catch(e => ({ hata: String(e) }));
+      let bitti = null;
+      kurulum.then(v => { bitti = v || {}; });
+      while (!bitti) { await bekle(1000); try { const x = await t.invoke('adalet_durum'); if (x.durum) bildir(x.durum); } catch (e) {} }
+      if (bitti.hata) return { cards: [], message: 'Adalet E-İmza kurulamadı: ' + bitti.hata + ' (İnternet bağlantısını kontrol edip "Kartı Tara"ya yeniden basın.)' };
+      d = await t.invoke('adalet_durum');
+    }
+    if (!d.port) {
+      try { await t.invoke('adalet_baslat'); } catch (e) { return { cards: [], message: 'Adalet E-İmza başlatılamadı: ' + e }; }
+      bildir('Adalet E-İmza başlatılıyor…');
+      for (let i = 0; i < 90 && !d.port; i++) { await bekle(1000); d = await t.invoke('adalet_durum'); }
+      if (!d.port) return { cards: [], message: 'Adalet E-İmza yanıt vermiyor (' + (d.durum || '') + ').' };
+      await bekle(2500); // ilk kart taraması
+    }
+    let s = await adaletSertifikalari();
+    if (!s.kartlar.length && s.okuyucular.length) { await bekle(2500); s = await adaletSertifikalari(); }
+    if (s.kartlar.length) return { cards: s.kartlar };
+    return { cards: [], message: s.okuyucular.length
+      ? ('Okuyucu görüldü (' + s.okuyucular.join(', ') + ') ama karttan sertifika okunamadı' + s.hata + '. Kartı çıkarıp doğru yönde yeniden takın; birkaç saniye sonra "Kartı Tara".')
+      : ('E-imza okuyucusu görünmüyor' + s.hata + '. Okuyucuyu/tokenı USB\'ye takın, Windows tanıdıktan sonra "Kartı Tara".') };
+  }
+
   async function scList(libPath) {
     const t = tauri();
     // Özel sürücü yolu: localStorage 'caneditor_pkcs11_lib' (veya ortam değişkeni CANEDITOR_PKCS11)
     if (!libPath) { try { libPath = localStorage.getItem('caneditor_pkcs11_lib') || null; } catch (e) {} }
-    if (t) return await t.invoke('pkcs11_list', { libPath: libPath || null });
+    if (t) {
+      // 1) Gömülü Adalet E-İmza (sürücüsüz)  2) kurulu PKCS#11 sürücüsü (AKİS/SafeNet...)  — hangisi kart bulursa
+      const a = await masaustuAdaletListe(t);
+      if (a && a.cards.length) return a;
+      let p = null;
+      try { p = await t.invoke('pkcs11_list', { libPath: libPath || null }); } catch (e) { p = { cards: [], message: String(e) }; }
+      if (p && p.cards && p.cards.length) return p;
+      return a || p;
+    }
+    // Android: kart YALNIZCA resmi Adalet E-İmza servisiyle okunur (UdeMobile içinde gömülü Java, 127.0.0.1:5975;
+    // kart komutlarını TÜBİTAK MA3 kütüphanesi gönderir). Eski tahmini USB sürücüsüne düşülmez: o sürücü kartı
+    // okuyamayınca uydurma sertifika gösteriyordu.
+    if (realAndroid() && window.AndroidBridge.adaletDurum) {
+      const durum = () => { try { return JSON.parse(window.AndroidBridge.adaletDurum()); } catch (e) { return {}; } };
+      let d = durum();
+      tlog('kart listesi istendi · adaletDurum=' + JSON.stringify(d));
+      if (!d.kurulu) {
+        return { cards: [], kurulumGerekli: true, message: 'Kartla e-imza için resmi Adalet E-İmza gerekir (Termux gerekmez). '
+          + 'Ana ekran > 🏛️ Adalet E-İmza > "Resmi uygulamayı indir" ile bir kez kurun.' };
+      }
+      if (!d.port) {
+        window.AndroidBridge.adaletBaslat();
+        if (window.onSmartCardStatusUpdated) window.onSmartCardStatusUpdated({ connected: false, certificates: [],
+          message: 'Adalet E-İmza başlatılıyor… (ilk açılışta Java hazırlanır, ~1 dk)' });
+        for (let i = 0; i < 80 && !d.port; i++) { await new Promise(r => setTimeout(r, 1500)); d = durum(); }
+        if (!d.port) return { cards: [], message: 'Adalet E-İmza yanıt vermiyor: ' + (d.durum || '') + ' (Adalet E-İmza ekranı > Günlük)' };
+      }
+      const sa = await adaletSertifikalari();
+      d = durum();
+      if (sa.kartlar.length) return { cards: sa.kartlar };
+      return { cards: [], message: d.okuyucu
+        ? ('Okuyucu görüldü (' + d.okuyucu + ') ama karttan sertifika okunamadı' + sa.hata + '. Kartı çıkarıp doğru yönde yeniden takın; birkaç saniye sonra "Kartı Tara".')
+        : ('E-imza okuyucusu görünmüyor' + sa.hata + '. OTG ile takın, çıkan "CanEditor ... erişmesine izin verilsin mi?" sorusuna Tamam deyin.') };
+    }
     if (realAndroid() && window.AndroidBridge.scardCertAsync) {
       const r = await androidCall('scardCertAsync');
       return JSON.parse(r);
@@ -440,7 +543,10 @@
         const cF = zip.file('content.xml');
         if (sgnF && cF) {
           if (modified) throw new Error('Bu belge imzalı ve imzadan sonra değiştirildi. Değiştirilmiş belgeye ek imza atılırsa önceki imzalar geçersiz olur. Önce belgeyi "Kaydet" ile kaydedin (önceki imzalar kaldırılır) veya değişiklik yapmadan yeniden açıp imzalayın.');
-          return { zip, content: await cF.async('uint8array'), existingSgn: await sgnF.async('uint8array') };
+          const content = await cF.async('uint8array'), existingSgn = await sgnF.async('uint8array');
+          let oncekiImzaci = 0;
+          try { oncekiImzaci = ((await verify(content, existingSgn)).signers || []).length; } catch (e) {}
+          return { zip, content, existingSgn, oncekiImzaci };
         }
         if (!modified && cF) return { zip, content: await cF.async('uint8array'), existingSgn: null };
       } catch (e) { if (/imzalı/.test(e.message)) throw e; }
@@ -449,6 +555,14 @@
     const blob = await generateUdfBlob(getDoc ? getDoc() : null);
     const zip = await JSZip.loadAsync(await blob.arrayBuffer());
     return { zip, content: await zip.file('content.xml').async('uint8array'), existingSgn: null };
+  }
+  /** Ek imza kuralı: imzalı belge değiştirilmeden yeniden imzalanınca önceki imzacıların HEPSİ kalmalı ve bir
+   *  imzacı eklenmeli (ör. 3 imza + benim imzam = 4). Aksi halde belge kaydedilmez, önceki imzalar kaybolmaz. */
+  function imzaEklendiMi(src, check) {
+    const n = (check.signers || []).length, once = src.oncekiImzaci || 0;
+    if (src.existingSgn && once > 0 && n < once + 1) {
+      throw new Error('Yeni imza önceki ' + once + ' imzaya eklenemedi (sonuçta ' + n + ' imza var). Önceki imzaları korumak için belge kaydedilmedi.');
+    }
   }
   async function writeSigned(src, sgn) {
     src.zip.file('content.xml', src.content, { compression: 'DEFLATE' }); // baytlar AYNEN korunur
@@ -499,24 +613,74 @@
     const alone = await verify(src.content, d.cms);
     if (!alone.isValid) {
       let why = 'UYAP mobil imza servisinden dönen imza belgenin içeriğiyle eşleşmiyor; belge KAYDEDİLMEDİ.';
-      if (d.eContent && d.eContent.length === src.content.length) {
-        let firstDiff = -1, zeros = 0;
-        for (let i = 0; i < d.eContent.length; i++) { if (d.eContent[i] !== src.content[i]) { if (firstDiff < 0) firstDiff = i; if (d.eContent[i] === 0) zeros++; } }
-        why += ' (Teşhis: sunucunun imzaladığı veri gönderilen veriden ' + (firstDiff >= 0 ? (firstDiff + '. bayttan itibaren ' + zeros + ' bayt sıfırlanmış olarak') : '') + ' farklı.)';
+      const tani = { zaman: new Date().toISOString(), surum: (window.APP_VERSION || ''), operator: opts.operator | 0,
+                     gonderilenUzunluk: src.content.length, gonderilenSha256: hex(await sha256(src.content)),
+                     imzaci: res.signerName || '', dogrulama: alone.signers, gomuluIcerikVar: !!d.eContent };
+      if (d.eContent) {
+        tani.gomuluUzunluk = d.eContent.length;
+        tani.gomuluSha256 = hex(await sha256(d.eContent));
+        let firstDiff = -1, farkli = 0, sifir = 0, sonFark = -1;
+        const n = Math.min(d.eContent.length, src.content.length);
+        for (let i = 0; i < n; i++) if (d.eContent[i] !== src.content[i]) { if (firstDiff < 0) firstDiff = i; sonFark = i; farkli++; if (d.eContent[i] === 0) sifir++; }
+        Object.assign(tani, { ilkFark: firstDiff, sonFark, farkliBayt: farkli, sifirBayt: sifir });
+        // Sunucu gömülü içeriğe göre mi imzalamış? (imza gömülü içerikle doğrulanıyorsa veri sunucuda bozulmuş demektir)
+        try { tani.gomuluIleGecerli = (await verify(d.eContent, d.cms)).isValid; } catch (e) {}
+        if (firstDiff >= 0) why += ' (Teşhis: sunucunun imzaladığı veri gönderilenden ' + firstDiff + '. bayttan itibaren ' + farkli + ' baytta farklı' + (sifir === farkli ? ', hepsi sıfırlanmış' : '') + '.)';
       }
-      try { window.__lastMimzaDiag = { sent: b64e(src.content), signedCms: b64e(res.cms), signer: res.signerName }; } catch (e) {}
+      tani.gonderilen = b64e(src.content);
+      tani.donenCms = b64e(res.cms);
+      try { window.__lastMimzaDiag = tani; } catch (e) {}
+      // Teşhis dosyası: İndirilenler'e kaydedilir (geliştiriciye gönderilebilir; belge metni ve imza sertifikanız içerir)
+      try {
+        const ad = 'mobil_imza_tani_' + new Date().toISOString().replace(/[-:]/g, '').slice(0, 13) + '.json';
+        const baytlar = new TextEncoder().encode(JSON.stringify(tani, null, 1));
+        if (typeof window.saveBytesSmart === 'function') { await window.saveBytesSmart(baytlar, ad, 'application/json', { overwriteCurrent: false }); why += ' Teşhis dosyası kaydedildi: ' + ad; }
+      } catch (e) {}
       throw new Error(why);
     }
     const sgn = src.existingSgn ? combine(src.existingSgn, d.cms) : d.cms;
     const check = await verify(src.content, sgn);
     if (!check.isValid) throw new Error('İmza birleştirildikten sonra doğrulanamadı; belge kaydedilmedi.');
+    imzaEklendiMi(src, check);
     const bytes = await writeSigned(src, sgn);
     await finish(bytes);
     return { signerName: res.signerName, identityNo: res.identityNo, verification: check };
   }
 
+  /** Android: resmi Adalet E-İmza servisiyle UDF imzası (signUdf). Sunucu content.xml'i imzalar ve önceki imzalarla
+   *  birleştirir; dönen sign.sgn burada belgeyle doğrulanmadan kaydedilmez. */
+  async function adaletUdfSign(card, pin, ui) {
+    const src = await prepareSource();
+    ui.status && ui.status('Adalet E-İmza ile imzalanıyor (kart ve PIN doğrulanıyor)…');
+    const z = src.zip;
+    z.file('content.xml', src.content, { compression: 'DEFLATE' });
+    if (src.existingSgn) z.file('sign.sgn', src.existingSgn, { compression: 'DEFLATE' }); else z.remove('sign.sgn');
+    const udf = await z.generateAsync({ type: 'uint8array', compression: 'DEFLATE' });
+    tlog('signUdf gönderiliyor · sertifika=' + card.certificateId + ' · UDF ' + udf.length + ' bayt · PIN ' + (pin ? 'sayfadan' : 'boş (Android penceresi)') + ' · önceki imza=' + !!src.existingSgn);
+    const r = JSON.parse(await adaletIstek('POST', '/api/v1/docsignature/signUdf',
+      JSON.stringify({ certificateId: card.certificateId, pin: pin || '', content: b64e(udf) })));
+    if (!r || !r.metadata || r.metadata.STATUS !== 'SUCCESS' || !r.data || !r.data.content) {
+      throw new Error((r && r.metadata && r.metadata.MESSAGE) || 'Adalet E-İmza imzalayamadı.');
+    }
+    const imzali = await JSZip.loadAsync(b64d(r.data.content));
+    const sgnF = imzali.file('sign.sgn');
+    if (!sgnF) throw new Error('Adalet E-İmza imza dosyası (sign.sgn) döndürmedi.');
+    // Önceki imzalar KORUNUR: servis birleştirmiş olsa da olmasa da mevcut imzacılar yenisiyle birleştirilir
+    // (combine aynı SignerInfo'yu iki kez eklemez). 3 kişi imzalamışsa sonuç 4 imzacı olmalıdır.
+    const donen = await sgnF.async('uint8array');
+    const sgn = src.existingSgn ? combine(src.existingSgn, donen) : donen;
+    const check = await verify(src.content, sgn);
+    tlog('signUdf imza doğrulama: geçerli=' + check.isValid + ' imzacı sayısı=' + (check.signers || []).length + ' (önceki ' + (src.oncekiImzaci || 0) + ')');
+    if (!check.isValid) throw new Error('Adalet E-İmza imzası belgeyle doğrulanamadı; belge kaydedilmedi.');
+    imzaEklendiMi(src, check);
+    const bytes = await writeSigned(src, sgn);
+    await finish(bytes);
+    return { verification: check, cert: { subjectCN: card.label } };
+  }
+
   async function smartCardSign(card, pin, ui) {
     ui = ui || {};
+    if (card && card.adalet) return adaletUdfSign(card, pin, ui);     // PIN boşsa servis kendi penceresini açar
     if (!pin || pin.length < 4) throw new Error('E-imza PIN en az 4 karakter olmalıdır.');
     const src = await prepareSource();
     ui.status && ui.status('İmza öznitelikleri hazırlanıyor…');
@@ -528,6 +692,7 @@
     const sgn = src.existingSgn ? combine(src.existingSgn, cms) : cms;
     const check = await verify(src.content, sgn);
     if (!check.isValid) throw new Error('Oluşturulan imza doğrulanamadı (kart yanlış imza üretti). Belge kaydedilmedi.');
+    imzaEklendiMi(src, check);
     const bytes = await writeSigned(src, sgn);
     await finish(bytes);
     return { verification: check, cert: signed.cert };
@@ -579,7 +744,7 @@
   // --- Akıllı kart: sertifika listesi (masaüstü PKCS#11 / Android USB CCID)
   let scCards = [];
   let scBusy = false;
-  const usesNewCardPath = () => !!(tauri() || (realAndroid() && window.AndroidBridge.scardCertAsync));
+  const usesNewCardPath = () => !!(tauri() || (realAndroid() && (window.AndroidBridge.scardCertAsync || window.AndroidBridge.adaletDurum)));
   window.refreshSmartCardStatus = async function () {
     if (!usesNewCardPath()) return legacyRefresh ? legacyRefresh() : undefined;
     if (scBusy) return;
@@ -587,13 +752,20 @@
     try {
       const list = await scList();
       scCards = (list && list.cards) || list || [];
+      if (list && list.kurulumGerekli && !window.__adaletKurulumSoruldu && window.AndroidBridge) {
+        window.__adaletKurulumSoruldu = true;
+        if (window.AndroidBridge.adaletKurulumSor) window.AndroidBridge.adaletKurulumSor();       // yerel Android penceresi
+        else if (window.AndroidBridge.adaletEkraniAc) window.AndroidBridge.adaletEkraniAc();
+      }
       const certs = scCards.map((c, i) => {
+        if (c.adalet) return { id: String(i), subject: 'CN=' + c.label, issuer: 'CN=' + c.issuer, validUntil: c.notAfter, terminal: c.reader, serial: c.subjectSerial };
         let pc = null; try { pc = parseCert(b64d(c.certB64)); } catch (e) {}
         c.keyType = c.keyType || (pc && pc.keyType) || 'RSA';
         return { id: String(i), subject: 'CN=' + ((pc && pc.subjectCN) || c.label || 'Sertifika'), issuer: 'CN=' + ((pc && pc.issuerCN) || ''), validUntil: pc ? pc.notAfter : '', terminal: c.reader || c.tokenLabel || 'Akıllı kart okuyucu', serial: pc ? pc.subjectSerial : '' };
       });
       if (window.onSmartCardStatusUpdated) window.onSmartCardStatusUpdated({ connected: certs.length > 0, certificates: certs, message: certs.length ? '' : ((list && list.message) || 'Takılı e-imza kartı bulunamadı. Kartı/token\'ı takın ve sürücüsünün kurulu olduğundan emin olun.') });
     } catch (e) {
+      tlog('kart durumu HATASI: ' + (e.message || String(e)));
       scCards = [];
       if (window.onSmartCardStatusUpdated) window.onSmartCardStatusUpdated({ connected: false, certificates: [], message: e.message || String(e) });
     } finally { scBusy = false; }
@@ -614,6 +786,7 @@
       if (window.onRealSignSuccess) window.onRealSignSuccess('NES-' + Date.now().toString(16).toUpperCase(), r.verification);
       if (typeof showEditorToast === 'function') showEditorToast('✓ E-imza eklendi: ' + ((r.cert && r.cert.subjectCN) || ''));
     } catch (e) {
+      tlog('kartla imza HATASI: ' + (e.message || String(e)));
       if (window.onRealSignFailed) window.onRealSignFailed(e.message || String(e));
     } finally { if (btn) btn.disabled = false; }
   };

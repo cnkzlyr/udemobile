@@ -26,6 +26,7 @@ public class CrashReporter {
                     StringWriter sw = new StringWriter();
                     throwable.printStackTrace(new PrintWriter(sw));
                     String stackTrace = sw.toString();
+                    try { com.agy.uyapacici.Tani.yaz("ÇÖKME", thread.getName() + ": " + stackTrace); } catch (Throwable ignored) { }
                     String errorType = throwable.getClass().getName();
                     String errorMessage = throwable.getMessage() != null ? throwable.getMessage() : "Unknown error";
                     String packageName = context.getPackageName();

@@ -1,3 +1,4 @@
+mod adalet;
 mod esign;
 
 use std::io::{Cursor, Read, Write};
@@ -283,7 +284,11 @@ pub fn run() {
             write_file_base64,
             esign::pkcs11_list,
             esign::pkcs11_sign,
-            esign::http_post
+            esign::http_post,
+            adalet::adalet_durum,
+            adalet::adalet_kur,
+            adalet::adalet_baslat,
+            adalet::adalet_istek
         ])
         .run(tauri::generate_context!())
         .expect("Tauri motoru başlatılamadı");

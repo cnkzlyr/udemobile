@@ -639,17 +639,28 @@ async function parseUdfArrayBuffer(buffer) {
     // (ör. 10 sayfalık dilekçe 8–9 sayfa görünüyordu).
     {
       const ls = Math.max(0, parseFloat(lineSpacing || "0") || 0);
-      let maxSize = 0;
-      Array.from(p.children).forEach(ch => {
-        const t = ch.tagName ? ch.tagName.toLowerCase() : "";
-        if (t !== "content" && t !== "tab" && t !== "field") return;
+      // Paragrafı bitiren yalnız-satır-sonu parçası (ör. 16 pt "\n") Swing'de yalnızca SON satırı büyütür;
+      // eskiden tüm satırların aralığına katılıyordu (12 satırlık paragraf 168 yerine 228 pt → sayfa kayması).
+      // A trailing newline-only run only enlarges the LAST row in Swing: keep it out of the pitch, pad the bottom.
+      let maxSize = 0, tailSize = 0;
+      const runs = Array.from(p.children).filter(ch => /^(content|tab|field)$/i.test(ch.tagName || ""));
+      runs.forEach((ch, idx) => {
         const sz = parseFloat(ch.getAttribute("size") || resolveAttr(ch, "size") || resolveAttr(p, "size") || "12");
+        const so = parseInt(ch.getAttribute("startOffset"), 10), ln = parseInt(ch.getAttribute("length"), 10);
+        const onlyNl = idx === runs.length - 1 && idx > 0 && ch.tagName.toLowerCase() === "content" && Number.isFinite(so) && Number.isFinite(ln)
+          && ln > 0 && /^[\r\n]+$/.test(rawText.substr(so, ln));
+        if (onlyNl) { tailSize = sz; return; }
         if (sz > maxSize) maxSize = sz;
       });
-      if (!maxSize) maxSize = parseFloat(resolveAttr(p, "size") || "12") || 12;
+      if (!maxSize) maxSize = tailSize || parseFloat(resolveAttr(p, "size") || "12") || 12;
       const rowH = Math.ceil(maxSize * 1.149 - 0.01);
       const pitch = rowH + Math.floor(rowH * ls + 1e-6);
       styleStr += ` line-height: ${pitch}pt;`;
+      if (tailSize > maxSize) {
+        const tailH = Math.ceil(tailSize * 1.149 - 0.01);
+        const extra = (tailH + Math.floor(tailH * ls + 1e-6)) - pitch;
+        if (extra > 0) styleStr += ` padding-bottom: ${extra}pt;`;
+      }
       dataAttrsPitch = ` data-udf-pitch="${pitch}"`;
     }
 
@@ -814,7 +825,11 @@ async function parseUdfArrayBuffer(buffer) {
           if (fgHex) spanStyle += `color:${fgHex};`;
           const bgHex = parseSignedRgbToHexJs(rBg, false);
           if (bgHex) spanStyle += `background-color:${bgHex};`;
-          if (spanStyle) seg = `<span style="${spanStyle}">${seg}</span>`;
+          // "Dialog" Java'nın mantıksal yazı tipidir: Windows'taki UYAP onu Arial ile çizer (Linux'ta DejaVu Sans).
+          // Satır içi font-family yazılmaz (kayıtta family="Dialog"/eksik hali korunur); görünüm .udf-dialog sınıfından gelir.
+          // Java maps the logical "Dialog" font to Arial on Windows; a class keeps export unchanged.
+          const dialogCls = rFamily === "Dialog" ? ' class="udf-dialog"' : "";
+          if (spanStyle || dialogCls) seg = `<span${dialogCls}${spanStyle ? ` style="${spanStyle}"` : ""}>${seg}</span>`;
           pHtml += seg;
         }
       }
@@ -3420,9 +3435,50 @@ async function triggerOpenDocument() {
   if (fileInput) fileInput.click();
 }
 
+/**
+ * İmzalı UDF kuralı: açılan (ya da az önce imzalanan) .udf belgesinde sign.sgn varsa ve belge DEĞİŞTİRİLMEDİYSE
+ * Kaydet / Farklı Kaydet belgeyi yeniden üretmez; orijinal baytları aynen yazar → tüm imzalar korunur.
+ * Karar senkron verilir (Android yerel Kaydet düğmesi de kullanır): ZIP dizininde "sign.sgn" adı aranır.
+ */
+function imzaliBelgeKorunurMu() {
+  try {
+    if (!currentDocOriginalBuffer) return false;
+    const ad = String(currentDocFileName || window.currentDocFileName || "");
+    if (!/\.udf$/i.test(ad)) return false;
+    if (window.isDocumentModified && window.isDocumentModified()) return false;
+    const u8 = new Uint8Array(currentDocOriginalBuffer);
+    if (!(u8[0] === 0x50 && u8[1] === 0x4B)) return false;
+    const aranan = [0x73, 0x69, 0x67, 0x6E, 0x2E, 0x73, 0x67, 0x6E]; // "sign.sgn"
+    for (let i = 0; i + aranan.length <= u8.length; i++) {
+      let k = 0;
+      while (k < aranan.length && u8[i + k] === aranan[k]) k++;
+      if (k === aranan.length) return true;
+    }
+  } catch (e) {}
+  return false;
+}
+window.imzaliBelgeKorunurMu = imzaliBelgeKorunurMu;
+
+/** İmzalı, değiştirilmemiş belgeyi bayt bayt aynen kaydeder (forceDialog: Farklı Kaydet). */
+async function imzaliBelgeyiKoruyarakKaydet(forceDialog) {
+  let name = (document.getElementById("desktopDocTitle")?.value || currentDocFileName || "Belge").trim();
+  name = name.replace(/\.(udf|docx|pdf|tiff|tif|odt)$/i, "") + ".udf";
+  const blob = new Blob([currentDocOriginalBuffer], { type: "application/octet-stream" });
+  if (!(await saveBytesSmart(blob, name, "application/octet-stream", { overwriteCurrent: !forceDialog, signed: true }))) return false;
+  const statusEl = document.getElementById("desktopStatusMsg");
+  if (statusEl) statusEl.innerText = "✓ UDF Korunarak Kaydedildi";
+  if (typeof showEditorToast === "function") showEditorToast("✓ İmzalı belge kaydedildi (tüm e-imzalar korundu)");
+  return true;
+}
+window.imzaliBelgeyiKoruyarakKaydet = imzaliBelgeyiKoruyarakKaydet;
+
 async function triggerQuickSave() {
   const statusEl = document.getElementById("desktopStatusMsg");
   if (statusEl) statusEl.innerText = "Kaydediliyor...";
+
+  // İmzalı ve değiştirilmemiş belge: Android'de de yerel kayıt yolu yerine orijinal baytlar yazılır
+  // (eskiden Android "Kaydet" belgeyi yeniden üretip imzaları siliyordu; "Farklı Kaydet" koruyordu)
+  if (imzaliBelgeKorunurMu()) { await imzaliBelgeyiKoruyarakKaydet(false); return; }
 
   if (window.AndroidBridge && window.AndroidBridge.requestSave) {
     try {
@@ -3452,16 +3508,7 @@ async function triggerSaveUdf(forceDialog) {
   let name = (document.getElementById("desktopDocTitle")?.value || currentDocFileName).trim();
   name = name.replace(/\.(docx|pdf|tiff|tif|odt)$/i, "") + ".udf";
 
-  const hasSig = window.__currentDocSignature && window.__currentDocSignature.hasSignature;
-  const isModified = window.isDocumentModified ? window.isDocumentModified() : true;
-  if (!isModified && hasSig && currentDocOriginalBuffer && currentDocFileName.toLowerCase().endsWith(".udf")) {
-    const blob = new Blob([currentDocOriginalBuffer], { type: "application/octet-stream" });
-    if (!(await saveBytesSmart(blob, name, "application/octet-stream", __saveOpts))) return;
-    const statusEl = document.getElementById("desktopStatusMsg");
-    if (statusEl) statusEl.innerText = "✓ UDF Korunarak Kaydedildi";
-    if (typeof showEditorToast === "function") showEditorToast("✓ UDF Belgesi (İmza Korundu) Kaydedildi");
-    return;
-  }
+  if (imzaliBelgeKorunurMu()) { await imzaliBelgeyiKoruyarakKaydet(!!forceDialog); return; }
 
   const getDocFn = window.getStructuredDocument || (typeof getStructuredDocument === 'function' ? getStructuredDocument : null);
   if (!getDocFn) return;

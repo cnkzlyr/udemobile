@@ -1,13 +1,115 @@
 name: CanEditor Cross-Platform Desktop GUI Release
 
+# Tek workflow, tum platformlar: Android APK + Portable Web zip (build-android) ve
+# Windows/macOS/Linux (build-desktop). v* etiketinde ya da elle (tag girdisiyle) calisir.
+#
+# APK HER ZAMAN ayni anahtarla imzalanmali (telefondaki kurulum guncellenebilsin). Depo gizlileri
+# (Settings > Secrets and variables > Actions):
+#   ANDROID_KEYSTORE_B64   : debug.keystore dosyasinin base64 hali  (base64 -w0 debug.keystore)
+#   ANDROID_KEYSTORE_PASS  : (istege bagli) varsayilan "android"
+#   ANDROID_KEY_ALIAS      : (istege bagli) varsayilan "androiddebugkey"
+#   ANDROID_KEY_PASS       : (istege bagli) varsayilan ANDROID_KEYSTORE_PASS
+# Gizli yoksa CI APK derlemez; depodaki, yerelde ayni anahtarla imzalanmis release/CanEditor-vX.apk yayimlanir.
+# 3.17.0'dan itibaren anahtar: "CN=CanEditor, O=CanEditor, C=TR", SHA-256 BA:80:78:89:...:BB:D4:F0
+# (3.16.0 ve oncesi farkli anahtarla imzaliydi; bir kez kaldirip kurmak gerekir).
+
 on:
   push:
     tags:
       - 'v*'
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Surum etiketi (or. v3.17.0); yoksa calistirilan commit uzerinde olusturulur'
+        required: true
+      masaustu:
+        description: 'Masaustu paketleri de derlensin mi? (yalniz APK eklemek icin false)'
+        required: false
+        default: 'true'
+
+env:
+  TAG: ${{ github.event.inputs.tag || github.ref_name }}
 
 jobs:
+  build-android:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java 21 (jlink ile Android gömülü Java'sı hazırlanır)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platforms;android-34 build-tools;35.0.0'
+
+      - name: Restore signing key
+        env:
+          KS_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+        run: |
+          if [ -n "$KS_B64" ]; then
+            echo "$KS_B64" | base64 -d > "$RUNNER_TEMP/release.keystore"
+            echo "ANDROID_KEYSTORE=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
+            echo "Imza anahtari yuklendi."
+          else
+            echo "::warning::ANDROID_KEYSTORE_B64 gizlisi yok: APK imzalanamaz, yalnizca Portable Web zip yayimlanacak."
+          fi
+
+      - name: Build Portable zip + APK
+        env:
+          CANEDITOR_IMZA_ZORUNLU: '1'
+          ANDROID_KEYSTORE_PASS: ${{ secrets.ANDROID_KEYSTORE_PASS }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASS: ${{ secrets.ANDROID_KEY_PASS }}
+        run: |
+          # Boş gizliler betiğin varsayılanlarını ezmesin
+          [ -n "$ANDROID_KEYSTORE_PASS" ] || unset ANDROID_KEYSTORE_PASS
+          [ -n "$ANDROID_KEY_ALIAS" ] || unset ANDROID_KEY_ALIAS
+          [ -n "$ANDROID_KEY_PASS" ] || unset ANDROID_KEY_PASS
+          set +e
+          python3 scripts/pack_release.py
+          kod=$?
+          set -e
+          if [ $kod -eq 2 ] && [ -z "$ANDROID_KEYSTORE" ]; then
+            echo "APK CI'da derlenmedi (imza anahtari gizlisi yok); depodaki imzali APK kullanilacak (varsa)."
+          elif [ $kod -ne 0 ]; then
+            exit $kod
+          fi
+          V="${TAG#v}"
+          mkdir -p out
+          cp "release/CanEditor-Portable-Web-GUI-v$V.zip" out/
+          # Anahtar gizlisi yoksa: depoya konmus, yerelde ayni anahtarla imzalanmis APK (release/CanEditor-vX.apk)
+          # yayimlanir. git checkout, derleme betiginin uzerine yazdigi dosyayi depodaki haline dondurur.
+          if [ -z "$ANDROID_KEYSTORE" ]; then git checkout -- release/ 2>/dev/null || true; fi
+          if [ -f "release/CanEditor-v$V.apk" ]; then
+            cp "release/CanEditor-v$V.apk" out/
+            cp "release/CanEditor-v$V.apk" out/CanEditor-latest.apk
+            "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs "out/CanEditor-v$V.apk" | grep -i 'SHA-256'
+          else
+            echo "::warning::release/CanEditor-v$V.apk yok: APK yayimlanmadi."
+          fi
+          ls -l out
+
+      - name: Upload to GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.TAG }}
+          name: CanEditor ${{ env.TAG }}
+          target_commitish: ${{ github.sha }}
+          files: out/*
+          fail_on_unmatched_files: false
+
   build-desktop:
+    # Surumu Android isi olusturur (etiket yoksa github.sha uzerinde); masaustu ayni surume ekler.
+    needs: build-android
+    if: ${{ always() && github.event.inputs.masaustu != 'false' }}
     permissions:
       contents: write
     strategy:
@@ -51,13 +153,35 @@ jobs:
           npm install
           npm run build
 
+      # Windows: Adalet E-Imza'yi calistiracak Java kurulum paketine GOMULUR (kullanici Java/surucu indirmez).
+      # Kart PC/SC (winscard) + Windows'un kendi CCID surucusuyle okunur; PKCS#11 surucusu gerekmez.
+      - name: Setup Java 21 (Windows gomulu Java icin jlink)
+        if: matrix.platform == 'windows-latest'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Gomulu Java hazirla (jlink, Windows)
+        if: matrix.platform == 'windows-latest'
+        shell: bash
+        run: |
+          rm -rf src-tauri/eimza/jre
+          "$JAVA_HOME/bin/jlink" --add-modules java.base,java.desktop,java.smartcardio,java.instrument,java.logging,java.management,java.naming,java.prefs,java.sql,java.xml,java.net.http,java.security.jgss,java.security.sasl,java.scripting,java.xml.crypto,java.transaction.xa,jdk.crypto.cryptoki,jdk.crypto.ec,jdk.crypto.mscapi,jdk.unsupported,jdk.charsets,jdk.localedata,jdk.zipfs,jdk.naming.dns,jdk.management,jdk.httpserver,jdk.accessibility \
+            --include-locales=tr,en --strip-debug --no-header-files --no-man-pages --compress=zip-6 \
+            --output src-tauri/eimza/jre
+          test -f src-tauri/eimza/jre/bin/javaw.exe
+          src-tauri/eimza/jre/bin/java.exe -version
+          du -sh src-tauri/eimza/jre
+
       - name: Build Desktop Application (Tauri Action)
         uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: 'CanEditor ${{ github.ref_name }}'
+          tagName: ${{ env.TAG }}
+          releaseName: 'CanEditor ${{ env.TAG }}'
+          releaseCommitish: ${{ github.sha }}
           releaseBody: 'CanEditor Cross-Platform Desktop GUI Release (Windows .exe/.msi, macOS .dmg, Linux .AppImage/.deb)'
           releaseDraft: false
           prerelease: false

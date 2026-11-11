@@ -878,10 +878,16 @@ function updatePagination() {
     footerHeightPx = measuredFooterH;
     window.__footerHasQr = footerHasQr;
     const FOOTER_BOTTOM_PAD = 5;   // karekodlu altbilginin sayfa kenarına uzaklığı (≈4 pt)
-    const FOOTER_GAP = 4;          // gövde ile altbilgi arası en az boşluk (Havelsan ölçümü)
+    // gövde ile altbilgi arası en az boşluk. 4 px'ten 2 px'e: UYAP PDF'inde (karekodlu fezleke) gövde 56.7→770.7 pt
+    // arasında 51 satır (14 pt) taşıyor; 4 px ile gövde 712.5 pt kalıp 50 satır sığıyor, belge 2 sayfa uzuyordu.
+    // Body/footer gap: UYAP's QR-footer pages hold 51 rows of 14pt (714pt); a 4px gap left room for only 50.
+    const FOOTER_GAP = 2;
     const bottomInsetPx = Math.round(!hasFooterArea
       ? bottomMarginPx
-      : (footerHasQr
+      : ((footerHasQr || currentDocVerificationCode)
+          // Doğrulama kodlu (karekodsuz) resmi altbilgi de Havelsan'da sayfanın en altına yaslanır (UYAP PDF: metin
+          // y≈831–838 pt); footerFOffset'e göre hesaplanınca gövde 1.5 pt kısa kalıp sayfa 51 yerine 50 satır alıyordu
+          // (143 sayfalık fezleke UdeMobile'da 145). Verification-code footers are bottom-anchored like QR footers.
           ? Math.max(bottomMarginPx, FOOTER_BOTTOM_PAD + footerHeightPx + FOOTER_GAP)
           : Math.max(bottomMarginPx, footerOffsetPx + footerHeightPx)));
     const printableH = Math.max(350, pageH - topInsetPx - bottomInsetPx);
@@ -3071,7 +3077,7 @@ let smartCardPollInterval = null;
 function cardPlugHint() {
   return isRealAndroidBridge()
     ? 'Lütfen akıllı kartınızı veya tokenınızı Type-C OTG adaptörüyle telefonunuza bağlayınız.'
-    : 'Lütfen e-imza kartınızı okuyucuya takın (veya USB token\'ınızı bilgisayara bağlayın). Kart sürücüsü (AKİS, SafeNet vb.) kurulu olmalıdır.';
+    : 'Lütfen e-imza kartınızı okuyucuya takın (veya USB token\'ınızı bilgisayara bağlayın). Ek sürücü gerekmez: kart, CanEditor içindeki Adalet E-İmza ile okunur.';
 }
 let currentSmartCardCerts = [];
 
@@ -3614,6 +3620,79 @@ function insertOfficialDate() {
   const dateStr = `${day}.${month}.${year}`;
   document.execCommand('insertText', false, dateStr);
   updateCounts();
+}
+
+// --- Tutarı Yazıyla Ekle (dilekçelerde dava değeri / alacak tutarı) ---
+// "1.250.000,50" -> "1.250.000,50 TL (Birmilyonikiyüzellibin Türk Lirası Elli Kuruş)".
+// Türkçe kurallar: "bin" (birbin değil), "yüz" (biryüz değil); grup adları bitişik (noter/banka yazımı).
+// Amount in words (Turkish legal style). Pure functions are exposed on window for tests.
+const TR_BIRLER = ['', 'bir', 'iki', 'üç', 'dört', 'beş', 'altı', 'yedi', 'sekiz', 'dokuz'];
+const TR_ONLAR = ['', 'on', 'yirmi', 'otuz', 'kırk', 'elli', 'altmış', 'yetmiş', 'seksen', 'doksan'];
+const TR_GRUPLAR = ['', 'bin', 'milyon', 'milyar', 'trilyon', 'katrilyon'];
+function trUcBasamak(n) {
+  const y = Math.floor(n / 100), o = Math.floor((n % 100) / 10), b = n % 10;
+  return (y ? (y > 1 ? TR_BIRLER[y] : '') + 'yüz' : '') + TR_ONLAR[o] + TR_BIRLER[b];
+}
+function sayiyiYaziyaCevir(n) {
+  // n: negatif olmayan tamsayı (BigInt ya da Number)
+  let v = BigInt(n);
+  if (v === 0n) return 'sıfır';
+  const parcalar = [];
+  let g = 0;
+  while (v > 0n) {
+    const uc = Number(v % 1000n);
+    if (uc) {
+      if (g >= TR_GRUPLAR.length) throw new Error('Sayı çok büyük');
+      parcalar.unshift((g === 1 && uc === 1 ? '' : trUcBasamak(uc)) + TR_GRUPLAR[g]);
+    }
+    v /= 1000n; g++;
+  }
+  return parcalar.join('');
+}
+function tutarAyristir(metin) {
+  // "1.250.000,50 TL", "1250000.5", "₺ 12.500", "12,5" -> {lira: BigInt, kurus: 0-99}
+  let t = String(metin || '').replace(/[₺\s]|TL|TRY|-$/gi, '').trim();
+  if (!/^\d[\d.,]*$/.test(t)) return null;
+  const sonV = t.lastIndexOf(','), sonN = t.lastIndexOf('.');
+  let tam = t, kesir = '';
+  if (sonV > -1 && sonV > sonN) { tam = t.slice(0, sonV); kesir = t.slice(sonV + 1); }          // 1.250,50
+  else if (sonN > -1 && sonV === -1 && t.length - sonN - 1 !== 3) { tam = t.slice(0, sonN); kesir = t.slice(sonN + 1); } // 1250.5
+  else if (sonN > -1 && sonV > -1) { tam = t.slice(0, sonN); kesir = t.slice(sonN + 1); }       // 1,250.50
+  // binlik ayraçlar 3'lü gruplarda olmalı ("1,2,3" tutar değildir)
+  if (!/^\d+$/.test(tam) && !/^\d{1,3}([.,]\d{3})+$/.test(tam)) return null;
+  tam = tam.replace(/[.,]/g, '');
+  if (!tam || /[.,]/.test(kesir) || kesir.length > 2) return null;
+  const kurus = kesir ? parseInt((kesir + '0').slice(0, 2), 10) : 0;
+  return { lira: BigInt(tam), kurus };
+}
+function tutarYaziyla(metin) {
+  const a = tutarAyristir(metin);
+  if (!a) return null;
+  const buyuk = (s) => s.charAt(0).toLocaleUpperCase('tr-TR') + s.slice(1);
+  const rakam = a.lira.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.') + ',' + String(a.kurus).padStart(2, '0');
+  let yazi = buyuk(sayiyiYaziyaCevir(a.lira)) + ' Türk Lirası';
+  if (a.kurus) yazi += ' ' + buyuk(sayiyiYaziyaCevir(a.kurus)) + ' Kuruş';
+  return { rakam: rakam + ' TL', yazi, tam: `${rakam} TL (${yazi})` };
+}
+window.sayiyiYaziyaCevir = sayiyiYaziyaCevir;
+window.tutarYaziyla = tutarYaziyla;
+function insertAmountInWords() {
+  const sel = window.getSelection();
+  // prompt() odağı alır: imleç/seçim önce saklanır, sonra geri konur (yoksa metin hiçbir yere yazılmıyordu)
+  const rg = sel && sel.rangeCount ? sel.getRangeAt(0).cloneRange() : null;
+  const kutu = rg && (rg.startContainer.nodeType === 1 ? rg.startContainer : rg.startContainer.parentElement);
+  const govde = kutu && kutu.closest ? kutu.closest('.page-body-box, [contenteditable="true"]') : null;
+  if (!govde) { alert('Önce belgede tutarın yazılacağı yere dokunun ya da tutarı seçin.'); return; }
+  let girdi = rg.collapsed ? '' : rg.toString().trim();
+  if (!girdi) girdi = (prompt('Tutar (ör. 1.250.000,50):') || '').trim();
+  if (!girdi) return;
+  const r = tutarYaziyla(girdi);
+  if (!r) { alert('Geçerli bir tutar bulunamadı. Örnek: 1.250.000,50'); return; }
+  try { govde.focus({ preventScroll: true }); } catch (e) {}
+  sel.removeAllRanges(); sel.addRange(rg);
+  document.execCommand('insertText', false, r.tam);
+  if (typeof updateCounts === 'function') updateCounts();
+  if (typeof showEditorToast === 'function') showEditorToast('💰 ' + r.yazi);
 }
 
 // Türkçe Büyük/Küçük Harf Dönüştürücü (UYAP standartlarına tam uyumlu: İ/i, I/ı)

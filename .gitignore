@@ -19,3 +19,7 @@ __pycache__/
 scripts/tr/
 scripts/com/
 
+build/
+
+# Windows gömülü Java (CI jlink ile üretir)
+src-tauri/eimza/

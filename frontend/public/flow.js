@@ -25,6 +25,15 @@
   let scheduled = 0;
   let observer = null;
 
+  // v3.17.0 — KAYDIRMADA GERİ SEKME DÜZELTMESİ / scroll bounce-back fix
+  // Kullanıcı en son ne yaptı? Yazdıysa imleç görünür tutulur; kaydırdıysa ASLA imlece geri çekilmez.
+  // (Önceki sürümde kendi kendini tetikleyen yeniden sayfalama döngüsü her ~80 ms'de keepCaretVisible()
+  //  çağırıp kaydırmayı imlecin olduğu sayfaya geri atıyordu.)
+  let lastEditTs = 0;     // son klavye/IME girişi (keydown, beforeinput, compositionend)
+  let lastScrollTs = 0;   // son kullanıcı kaydırma hareketi (dokunma sürükleme, tekerlek, kaydırma çubuğu)
+  const CARET_FOLLOW_MS = 1500;
+  let reflowTurlari = 0;   // art arda "düzen değişti" turları (sabit noktaya yakınsama sınırı)
+
   const container = () => document.getElementById('pages-container') || document.getElementById('sheet-container');
   const isMobileFlow = () => {
     const w = document.getElementById('page-wrapper');
@@ -253,6 +262,7 @@
     }
     const cont = p.cloneNode(false);
     cont.removeAttribute('id');
+    if (p.hasAttribute('data-orig-pb')) { cont.style.paddingBottom = p.getAttribute('data-orig-pb'); cont.removeAttribute('data-orig-pb'); }
     cont.appendChild(frag);
     cont.setAttribute('data-split-continuation', 'true');
     cont.style.textIndent = '0cm';
@@ -260,6 +270,8 @@
     cont.style.paddingTop = '0px';
     if (!p.hasAttribute('data-orig-mb')) p.setAttribute('data-orig-mb', p.style.marginBottom || '');
     p.style.marginBottom = '0px';
+    // son satır dolgusu (büyük puntolu paragraf sonu) yalnızca devam parçasında kalır
+    if (p.style.paddingBottom) { if (!p.hasAttribute('data-orig-pb')) p.setAttribute('data-orig-pb', p.style.paddingBottom); p.style.paddingBottom = '0px'; }
     return cont;
   }
   function mergeContinuation(head, cont) {
@@ -268,6 +280,10 @@
     if (head.hasAttribute('data-orig-mb')) {
       head.style.marginBottom = head.getAttribute('data-orig-mb');
       head.removeAttribute('data-orig-mb');
+    }
+    if (head.hasAttribute('data-orig-pb')) {
+      head.style.paddingBottom = head.getAttribute('data-orig-pb');
+      head.removeAttribute('data-orig-pb');
     }
     head.normalize();
   }
@@ -297,6 +313,13 @@
   }
 
   // ---------------------------------------------------------------- ana akış
+  // Sayfa düzeninin parmak izi: her sayfadaki blok sayısı + karakter sayısı.
+  // Böl-birleştir turları (3. adım) DOM düğümlerini değiştirse de sonuç aynıysa düzen DEĞİŞMEMİŞTİR.
+  // Layout fingerprint: a merge-then-resplit round touches the DOM but yields the same pages.
+  function layoutSignature() {
+    return bodies().map(b => contentChildren(b).length + ':' + (b.textContent || '').length).join('|');
+  }
+
   function reflow() {
     if (busy || isMobileFlow()) return false;
     const c = container();
@@ -304,6 +327,7 @@
     let all = bodies();
     if (!all.length) return false;
     busy = true;
+    const sigBefore = layoutSignature();
     normalizeBoxes();
     const emptyCaretBlock = caretEmptyBlock();
     const saved = saveCaret();
@@ -349,7 +373,14 @@
         while (i + 1 < all.length && pullGuard++ < 500) {
           const cur = contentChildren(box);
           if (cur.length && isHardBreak(cur[cur.length - 1])) break;
-          const next = all[i + 1];
+          // Sonraki DOLU sayfadan çek. Bir devam parçası tamamen birleştirilince arada boş sayfa kalabiliyor;
+          // eskiden döngü orada duruyor ve sonraki tüm sayfalar bu turda hiç toparlanmıyordu (ÇUBUK FEZLEKE:
+          // UYAP 143 sayfa, UdeMobile 179 — sayfa altlarında 500+ pt boşluk).
+          // Pull from the next NON-EMPTY page: a fully merged continuation can leave an empty page behind.
+          let ni = i + 1;
+          while (ni < all.length && !contentChildren(all[ni]).length) ni++;
+          if (ni >= all.length) break;
+          const next = all[ni];
           const first = contentChildren(next)[0];
           if (!first) break;
           const lastHere = cur[cur.length - 1];
@@ -407,9 +438,13 @@
       }
       // Boş gövde kutusu bırakma
       bodies().forEach(b => { if (!contentChildren(b).length) b.innerHTML = '<p style="text-align: justify;"><br></p>'; });
-      if (changed) renumber();
+      // Düğümler taşındı ama sayfa düzeni aynı kaldıysa (böl→birleştir→böl) gerçek değişiklik yok:
+      // yeniden numaralandırma ve imlece kaydırma yapılmaz.
+      if (changed && layoutSignature() === sigBefore) changed = 'nodes-only';
+      if (changed === true) renumber();
     } finally {
       if (changed) {
+        // Düğümler yeniden oluşmuş olabilir: imleç her durumda yerine konur
         if (emptyCaretBlock && emptyCaretBlock.isConnected) {
           const box = emptyCaretBlock.closest('.page-body-box');
           if (saved && saved.hadFocus && document.activeElement !== box) { try { box.focus({ preventScroll: true }); } catch (e) {} }
@@ -418,11 +453,30 @@
           restoreCaret(saved);
         }
         if (dbg) { const s2 = window.getSelection(); dbg('restored -> ' + (s2.anchorNode && (s2.anchorNode.textContent || '').slice(0, 24)) + '@' + s2.anchorOffset); }
-        keepCaretVisible();
+        // Yalnızca kullanıcı az önce YAZDIYSA ve o zamandan beri kaydırmadıysa imleci görünür tut
+        if (changed === true && userIsTyping()) keepCaretVisible();
       }
+      // Bu turun kendi DOM değişikliklerinin kayıtlarını at: aksi halde gözlemci (busy=false olduktan sonra
+      // çalışınca) bunları kullanıcı düzenlemesi sanıp yeni bir reflow planlıyor → sonsuz döngü.
+      // Drop the records produced by this reflow so the MutationObserver doesn't re-trigger it forever.
+      if (observer) observer.takeRecords();
       busy = false;
     }
-    return changed;
+    // Düzen gerçekten değiştiyse bir tur daha: bir geçişte geri çekilemeyen içerik sonraki turda yerine oturur.
+    // Parmak izi aynı kalınca durur (sonsuz döngü olmaz). Eski sürümde bu tekrarları kendi kendini tetikleyen
+    // gözlemci sağlıyordu; gözlemci döngüsü kesilince sabit noktaya kadar burada yineleniyor.
+    // Iterate to a fixed point: stop as soon as a pass leaves the layout fingerprint unchanged.
+    if (changed === true) {
+      reflowTurlari = (reflowTurlari || 0) + 1;
+      if (reflowTurlari < 12) schedule(0); else reflowTurlari = 0;
+    } else {
+      reflowTurlari = 0;
+    }
+    return changed === true;
+  }
+
+  function userIsTyping() {
+    return lastEditTs > lastScrollTs && (Date.now() - lastEditTs) < CARET_FOLLOW_MS;
   }
 
   function keepCaretVisible() {
@@ -608,6 +662,19 @@
     });
     observer.observe(c, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['style', 'class'] });
     document.addEventListener('keydown', onKeyDown, true);
+    // Kullanıcı niyeti: yazma mı kaydırma mı? (keepCaretVisible yalnızca yazarken)
+    const yazdi = () => { lastEditTs = Date.now(); };
+    const kaydirdi = () => { lastScrollTs = Date.now(); };
+    document.addEventListener('keydown', yazdi, true);
+    document.addEventListener('beforeinput', yazdi, true);
+    document.addEventListener('compositionend', yazdi, true);
+    const wrap = document.getElementById('page-wrapper');
+    if (wrap) {
+      wrap.addEventListener('touchmove', kaydirdi, { passive: true });
+      wrap.addEventListener('wheel', kaydirdi, { passive: true });
+      // kaydırma çubuğunu fareyle sürükleme: olayın hedefi sarmalayıcının kendisi
+      wrap.addEventListener('mousedown', (e) => { if (e.target === wrap) kaydirdi(); }, { passive: true });
+    }
     window.addEventListener('resize', () => schedule(200));
     if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => schedule(0));
   }
