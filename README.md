@@ -1,6 +1,6 @@
 # ⚖️ CanEditor (UdeMobile) — Çapraz Platform UYAP & Word Editörü
 
-[![Sürüm](https://img.shields.io/badge/Sürüm-v3.18.8-blue.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v3.18.8)
+[![Sürüm](https://img.shields.io/badge/Sürüm-v3.20.0-blue.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v3.20.0)
 [![Platformlar](https://img.shields.io/badge/Platformlar-Android%20%7C%20Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Web-success.svg)](https://github.com/cnkzlyr/udemobile/releases)
 [![UYAP](https://img.shields.io/badge/Format-UYAP_UDF_v1.8-0D47A1.svg)](https://uyap.gov.tr)
 [![Word](https://img.shields.io/badge/Format-MS_DOCX_OpenXML-2B579A.svg?logo=microsoft-word&logoColor=white)](https://microsoft.com)
@@ -11,14 +11,14 @@
 
 ---
 
-## 🚀 Hızlı İndirme (v3.18.8)
+## 🚀 Hızlı İndirme (v3.20.0)
 
 | Platform | Paket Dosyası | Açıklama |
 | :--- | :--- | :--- |
-| **Android (Telefon & Tablet)** | [**CanEditor-v3.18.8.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.18.8/CanEditor-v3.18.8.apk) | Güncel Android APK paketi (Termux gerektirmez) |
-| **Android (Her Zaman En Son)** | [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.18.8/CanEditor-latest.apk) | Kalıcı son sürüm bağlantısı |
-| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v3.18.8.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v3.18.8/CanEditor-Portable-Web-GUI-v3.18.8.zip) | **Kurulumsuz;** zipten çıkarıp `index.html` açarak tüm işletim sistemlerinde doğrudan çalışır |
-| **Windows / macOS / Linux** | [**GitHub Releases Sayfası**](https://github.com/cnkzlyr/udemobile/releases/tag/v3.18.8) | GitHub Actions CI ile derlenen yerel ikili (.msi, .exe, .dmg, .AppImage, .deb, .rpm) paketleri |
+| **Android (Telefon & Tablet)** | [**CanEditor-v3.20.0.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.20.0/CanEditor-v3.20.0.apk) | Güncel Android APK paketi (Termux gerektirmez) |
+| **Android (Her Zaman En Son)** | [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.20.0/CanEditor-latest.apk) | Kalıcı son sürüm bağlantısı |
+| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v3.20.0.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v3.20.0/CanEditor-Portable-Web-GUI-v3.20.0.zip) | **Kurulumsuz;** zipten çıkarıp `index.html` açarak tüm işletim sistemlerinde doğrudan çalışır |
+| **Windows / macOS / Linux** | [**GitHub Releases Sayfası**](https://github.com/cnkzlyr/udemobile/releases/tag/v3.20.0) | GitHub Actions CI ile derlenen yerel ikili (.msi, .exe, .dmg, .AppImage, .deb, .rpm) paketleri |
 
 ---
 
@@ -28,6 +28,53 @@ v3.17.0'dan itibaren APK yeni ve kalıcı bir proje anahtarıyla imzalanır (ser
 `BA:80:78:89:12:28:35:C0:58:3B:C9:72:3B:C0:90:5C:C8:6F:49:A8:1A:92:BA:F9:D0:96:33:77:71:BB:D4:F0`). Telefonunuzda
 v3.16.0 ya da öncesi kuruluysa bir kez **kaldırıp** yeni APK'yı kurun (aksi halde Android "paket çakışıyor" hatası
 verir). Sonraki güncellemeler kaldırmadan, üzerine kurulur.
+
+## 🌟 v3.20.0: 🏛️ UYAP Editör artık AYRI uygulama (UYAP-Editor-v3.20.0.apk)
+
+- Bazı telefonların "Şununla aç" penceresi aynı uygulamanın iki ekranını tek simgede birleştirdiği için .udf açılırken yalnızca
+  CanEditor görünüyordu. Resmi UYAP Doküman Editörü (Java 14, Termux/X11'siz) artık **ayrı bir uygulama**:
+  **UYAP Editör** (paket `com.agy.uyapeditor`, kırmızı belge simgesi). İki uygulama yan yana kurulur ve "Şununla aç"
+  penceresinde ayrı ayrı görünür; hangisi "Her zaman" seçilirse .udf/.usf dosyaları onunla açılır.
+- **İndirme:** `UYAP-Editor-v3.20.0.apk` (≈42 MB) — `CanEditor-v3.20.0.apk` ≈45 MB'a küçüldü.
+- CanEditor'daki "🏛️ Orijinal UYAP Editör'de aç" belgeyi UYAP Editör uygulamasına gönderir (kurulu değilse indirme sayfasını önerir).
+- Not: UYAP Editör ayrı uygulama olduğu için resmi editör (rayp.adalet.gov.tr) ilk açılışta bir kez yeniden indirilir.
+
+## 🌟 v3.19.1: UYAP Editör ekranına dokununca çökme giderildi
+
+- Telefonda resmi UYAP Editör (Java 14) açıldı; ancak ekrana ilk dokunuşta CanEditor kapanıyordu: dokunma komutları
+  editöre giden yerel sokete ana (arayüz) iş parçacığında yazılıyordu (Android: NetworkOnMainThreadException).
+  Komutlar artık kuyruğa alınıp ayrı iş parçacığında sırayla gönderilir.
+- Çökme sonrası arkada kalan eski Java süreci bir sonraki açılışta kapatılır (bellek boşa gitmez).
+- Varsayılan ölçek büyütüldü (kısa kenar 820 px); Menü > Ekran ölçeği 5 kademe. İlk açılışta kısa kullanım ipucu.
+- UYAP Editör ekranına çökme kaydı eklendi (İndirilenler/com.agy.uyapacici_crash.log).
+
+## 🌟 v3.19.0: 🏛️ Orijinal UYAP Editör — telefonda Termux / X11 / Termux:API OLMADAN, dokunmatik
+
+CanEditor'un yanına **"UYAP Editör"** adlı ikinci bir simge gelir: resmi **UYAP Doküman Editörü 5.4.20**'nin kendisi,
+UYAP'ın desteklediği **Java 14.0.2** ile telefonda çalışır. Belge görünümü, PDF ve UDF çıktısı masaüstündeki UYAP Editör ile
+birebir aynıdır (aynı program).
+
+- **.udf / .usf her yerden açılır:** dosya yöneticisi, WhatsApp, Celse, tarayıcı, e-posta → "Birlikte aç" → **UYAP Editör**
+  ("Her zaman" ile varsayılan yapılabilir). Kaydedince belge geldiği yere (yazılabiliyorsa) ya da İndirilenler/UYAP'a yazılır.
+- **Dokunmatik:** dokun = tıkla · çift dokun = çift tıkla · uzun bas = sağ tık · tek parmak = kaydır (ivmeli) ·
+  🖱 kipinde sürükleyerek seç · iki parmak = yakınlaştır / kaydır · fare, kalem ve donanım klavyesi desteklenir.
+- **Kendi klavye çubuğu:** ⌨ (klavye) · Esc · Tab · Ctrl · Alt · ⇧ (yapışkan) · oklar · Home/End · Del · 💾 Kaydet ·
+  ↶ Geri al · ↷ Yinele · 📋 Yapıştır (Android panosu) · ⤢ Sığdır · ⋮ Menü. Editörde kopyalanan metin Android panosuna geçer.
+- **Ölçek:** kısa kenar ~900 px (şerit menü ve A4 sayfa sığar); Menü > Ekran ölçeği ile Büyük/Orta/Küçük.
+- **Yazı tipleri:** Times New Roman / Arial / Courier New yerine ölçüleri birebir aynı Liberation yazı tipleri (satır ve sayfa
+  kırılımları değişmez). Menü > Yazı tipi ekle ile kendi (ör. Windows'taki gerçek Times New Roman) TTF dosyalarınızı ekleyebilirsiniz.
+- **Resmi editör dağıtılmaz:** ilk açılışta yalnızca rayp.adalet.gov.tr'den indirilir (ya da elinizdeki uyapeditor_*.zip/.deb seçilir).
+- **CanEditor'da "🏛️ Orijinal UYAP Editör'de aç"** (Dosya menüsü / mobil menü): açık belge resmi editörde açılır.
+  Masaüstünde bilgisayarda kurulu UYAP Editör (resmi, uyap-editor-modern) bulunur; yoksa resmi editör jar'ları
+  (rayp.adalet.gov.tr) ve resmi OpenJDK 14.0.2 (download.java.net, SHA-256 doğrulamalı) bir kez kurulup belge açılır.
+
+**Nasıl çalışıyor (teknik):** Termux glibc deposunun Android için derlenmiş glibc'si + resmi AdoptOpenJDK 14.0.2 aarch64
+(jlink, Nashorn dahil) uygulama içinde; `libjvm.so`'yu doğrudan yükleyen küçük başlatıcı (`uyapjava`, JNI_CreateJavaVM) glibc
+bağlayıcısıyla çalıştırılır. X sunucusu yoktur: Caciocavallo 1.11.1 (JDK 14 için `CTCGraphicsConfiguration` ve
+`getLockingKeyState` yamalı) pencereleri bellekte çizer; köprü ajanı ekranı değişen satırlarla paylaşılan belleğe yazar,
+dokunma/klavye olaylarını editöre iletir. uyap-editor-modern ajanı (akıcı kaydırma, PDF yazı tipi düzeltmesi) dahildir;
+lisans denetimine dokunan sınıflar alınmamıştır. Doğrulama: x86 ve aarch64 (qemu) üzerinde resmi editör açıldı, Türkçe yazı,
+Enter, tıklama, belge açma ve dikey 900×1600 ekran denendi.
 
 ## 🌟 v3.18.8: Windows'ta ArkSigner (Türkçe adlı okuyucular) görünür
 

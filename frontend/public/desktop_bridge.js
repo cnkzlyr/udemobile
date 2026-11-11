@@ -3472,6 +3472,50 @@ async function imzaliBelgeyiKoruyarakKaydet(forceDialog) {
 }
 window.imzaliBelgeyiKoruyarakKaydet = imzaliBelgeyiKoruyarakKaydet;
 
+/**
+ * "Orijinal UYAP Editör'de aç": belge resmi UYAP Doküman Editörü'nde açılır (birebir görünüm, PDF ve UDF çıktısı).
+ *  - Android: CanEditor içindeki "UYAP Editör" ekranı (Java 14, Termux / X11 gerekmez)
+ *  - Masaüstü: bilgisayarda kurulu UYAP Editör bulunur; yoksa CanEditor resmi editörü + Java 14'ü kendisi kurar
+ * İmzalı ve değiştirilmemiş belge baytlarına dokunulmadan gönderilir (imzalar korunur).
+ */
+async function uyapEditordeAc() {
+  try {
+    let ad = (document.getElementById("desktopDocTitle")?.value || currentDocFileName || "Belge").trim();
+    ad = ad.replace(/\.(udf|usf|docx|pdf|tiff|tif|odt)$/i, "") + (/\.usf$/i.test(currentDocFileName || "") ? ".usf" : ".udf");
+    let u8;
+    if (typeof imzaliBelgeKorunurMu === "function" && imzaliBelgeKorunurMu()) u8 = new Uint8Array(currentDocOriginalBuffer);
+    else if (currentDocOriginalBuffer && /\.(udf|usf)$/i.test(currentDocFileName || "") && !(window.isDocumentModified && window.isDocumentModified())) u8 = new Uint8Array(currentDocOriginalBuffer);
+    else {
+      const getDocFn = window.getStructuredDocument || (typeof getStructuredDocument === 'function' ? getStructuredDocument : null);
+      const blob = await generateUdfBlob(getDocFn ? getDocFn() : null);
+      u8 = new Uint8Array(await blob.arrayBuffer());
+    }
+    if (isRealAndroidEnv() && window.AndroidBridge.uyapEditordeAc) {
+      window.AndroidBridge.uyapEditordeAc(ad, u8ToB64(u8));
+      return;
+    }
+    const t = tauriCore();
+    if (t) {
+      if (typeof showEditorToast === "function") showEditorToast("UYAP Editör açılıyor…");
+      const yol = window.currentDocPath && !(window.isDocumentModified && window.isDocumentModified()) ? window.currentDocPath : null;
+      // İlk kullanımda resmi editör + Java 14 indirilir: ilerleme durum çubuğunda gösterilir
+      const st = document.getElementById("desktopStatusMsg");
+      const izle = setInterval(async () => {
+        try { const d = await t.invoke('uyap_editor_durum'); if (d && st) st.innerText = d; } catch (e) {}
+      }, 700);
+      let r;
+      try { r = await t.invoke('uyap_editor_ac', { yol, ad, verib64: yol ? null : u8ToB64(u8) }); }
+      finally { clearInterval(izle); }
+      if (typeof showEditorToast === "function") showEditorToast(r || "UYAP Editör açıldı");
+      return;
+    }
+    alert("Orijinal UYAP Editör'de açma yalnızca Android ve masaüstü (Windows / Linux / macOS) uygulamasında vardır.");
+  } catch (e) {
+    alert("UYAP Editör açılamadı: " + (e && e.message ? e.message : e));
+  }
+}
+window.uyapEditordeAc = uyapEditordeAc;
+
 async function triggerQuickSave() {
   const statusEl = document.getElementById("desktopStatusMsg");
   if (statusEl) statusEl.innerText = "Kaydediliyor...";

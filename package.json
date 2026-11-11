@@ -1,6 +1,6 @@
 {
   "name": "can-editor",
-  "version": "3.18.8",
+  "version": "3.20.0",
   "private": true,
   "scripts": {
     "tauri": "tauri"

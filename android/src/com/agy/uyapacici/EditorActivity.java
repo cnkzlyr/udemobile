@@ -1963,6 +1963,47 @@ public class EditorActivity extends Activity {
             }).start();
         }
 
+        /**
+         * "Orijinal UYAP Editör'de aç": belge AYRI "UYAP Editör" uygulamasında (com.agy.uyapeditor; resmi UYAP Doküman
+         * Editörü, Java 14, Termux/X11'siz) açılır. Belgenin kopyası (CanFileProvider, salt okunur) gönderilir; UYAP Editör'de
+         * kaydedilen belge İndirilenler/UYAP klasörüne yazılır.
+         */
+        @JavascriptInterface
+        public void uyapEditordeAc(String ad, String base64Data) {
+            new Thread(() -> {
+                try {
+                    Uri hedef;
+                    {   // her zaman kopya: başka uygulamadan gelen geçici URI izni üçüncü uygulamaya güvenle aktarılamıyor
+                        byte[] bytes = Base64.decode(base64Data, Base64.DEFAULT);
+                        String a = (ad == null || ad.trim().isEmpty() ? "Belge.udf" : ad.trim()).replaceAll("[\\\\/:*?\"<>|]", "_");
+                        if (!a.toLowerCase(Locale.ROOT).endsWith(".udf") && !a.toLowerCase(Locale.ROOT).endsWith(".usf")) a = a.replaceAll("\\.[^.]+$", "") + ".udf";
+                        File d = getExternalCacheDir() != null ? getExternalCacheDir() : getCacheDir();
+                        File f = new File(d, a);
+                        try (FileOutputStream fos = new FileOutputStream(f)) { fos.write(bytes); }
+                        hedef = Uri.parse("content://" + CanFileProvider.AUTHORITY + f.getAbsolutePath());
+                    }
+                    Intent i = new Intent(Intent.ACTION_VIEW);
+                    i.setDataAndType(hedef, "application/octet-stream");
+                    i.setPackage("com.agy.uyapeditor");
+                    i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
+                    try {
+                        startActivity(i);
+                    } catch (android.content.ActivityNotFoundException yok) {
+                        runOnUiThread(() -> new AlertDialog.Builder(EditorActivity.this)
+                                .setTitle("UYAP Editör uygulaması kurulu değil")
+                                .setMessage("Belgeyi resmi UYAP Doküman Editörü'nde (Java 14, Termux/X11 gerekmez) açmak için "
+                                        + "\"UYAP Editör\" uygulamasını kurun: CanEditor sürüm sayfasında UYAP-Editor-v…apk.")
+                                .setPositiveButton("Sürüm sayfası", (dlg, w) -> {
+                                    try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/cnkzlyr/udemobile/releases/latest"))); } catch (Exception ignored) { }
+                                })
+                                .setNegativeButton("Kapat", null).show());
+                    }
+                } catch (Exception e) {
+                    runOnUiThread(() -> Toast.makeText(EditorActivity.this, "UYAP Editör açılamadı: " + e.getMessage(), Toast.LENGTH_LONG).show());
+                }
+            }).start();
+        }
+
         /** İmzalanmış/oluşturulmuş belgeyi açık belgenin yerine (yoksa İndirilenler/UYAP_Belgelerim) kaydeder */
         @JavascriptInterface
         public void saveBytesToCurrent(String fileName, String mimeType, String base64Data) {
