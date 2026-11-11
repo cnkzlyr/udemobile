@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="tr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<style>
+/* UYAP Editör — anlık mobil görünüm: resmi editörün belleğindeki belge, telefon genişliğinde satır kırılarak. */
+:root{--g:.45;--olcek:1}
+html,body{margin:0;background:#e8eaed;-webkit-text-size-adjust:none}
+body{font-family:'Times New Roman','Liberation Serif',serif;color:#202124}
+#kagit{background:#fff;margin:10px 8px 120px;padding:18px 16px 28px;border-radius:10px;
+  box-shadow:0 1px 3px rgba(60,64,67,.15),0 4px 12px rgba(60,64,67,.08);font-size:calc(12pt*var(--olcek));
+  line-height:1.38;word-wrap:break-word;overflow-wrap:anywhere;transition:opacity .15s}
+#kagit p{margin:0;white-space:pre-wrap;tab-size:3;-moz-tab-size:3;min-height:1em}
+#kagit span{font-size:inherit}
+#kagit span[style*="font-size"]{font-size:unset}
+#kagit img{max-width:100%;height:auto !important;vertical-align:middle}
+#kagit header,#kagit footer{display:block;color:#5f6368;font-size:.9em}
+#kagit header{border-bottom:1px dashed #dadce0;padding-bottom:8px;margin-bottom:12px}
+#kagit footer{border-top:1px dashed #dadce0;padding-top:8px;margin-top:16px}
+#kagit table{border-collapse:collapse;width:100%;margin:6px 0}
+#kagit td{border:1px solid #9aa0a6;padding:4px 6px;vertical-align:top}
+#imlec{position:absolute;width:2px;background:#1a73e8;border-radius:1px;pointer-events:none;animation:yanip 1.05s steps(1) infinite;z-index:5}
+@keyframes yanip{50%{opacity:0}}
+::selection{background:rgba(26,115,232,.28)}
+</style></head>
+<body><div id="kagit"></div><div id="imlec" style="display:none"></div>
+<script>
+// Köprü: Android → içerik(html, imleç, seçimSonu), imlec(a,b), resim(no, png)
+var R={}, kagit=document.getElementById('kagit'), imlecEl=document.getElementById('imlec'), sonA=-1, sonB=-1, ilk=true;
+function resim(no,png){R[no]='data:image/png;base64,'+png;var l=kagit.querySelectorAll('img[data-r="'+no+'"]');for(var i=0;i<l.length;i++)l[i].src=R[no];}
+function icerik(h,a,b){
+  var y=window.scrollY; kagit.innerHTML=h;
+  var l=kagit.querySelectorAll('img[data-r]');for(var i=0;i<l.length;i++){var r=R[l[i].getAttribute('data-r')];if(r)l[i].src=r;}
+  // yazı boyutları ölçekle: pt değerlerini telefon için oranla
+  var s=kagit.querySelectorAll('span[style*="font-size"]');for(var i=0;i<s.length;i++){var m=/font-size:\s*([\d.]+)pt/.exec(s[i].getAttribute('style'));if(m)s[i].style.fontSize='calc('+m[1]+'pt*var(--olcek))';}
+  window.scrollTo(0,y); imlec(a,b, ilk); ilk=false;
+}
+function konum(o){ // karakter konumu → DOM aralığı
+  var el=null, l=kagit.querySelectorAll('[data-o]'), best=null;
+  for(var i=0;i<l.length;i++){var v=+l[i].getAttribute('data-o'); if(v<=o && l[i].tagName!=='P'){best=l[i];} if(v>o)break;}
+  if(!best){var p=kagit.querySelector('p'); if(!p)return null; var r=document.createRange(); r.setStart(p,0); return r;}
+  var r=document.createRange(), d=o-(+best.getAttribute('data-o'));
+  if(best.tagName==='IMG'){ if(d>0) r.setStartAfter(best); else r.setStartBefore(best); return r;}
+  var t=best.firstChild; if(!t){r.setStart(best,0);return r;}
+  var n=t.textContent.length; if(d>n){ r.setStartAfter(best); } else r.setStart(t,Math.max(0,d)); return r;
+}
+function imlec(a,b,kaydir){
+  sonA=a; sonB=b; var sel=window.getSelection(); sel.removeAllRanges();
+  if(a!==b && a>=0 && b>=0){ var r1=konum(Math.min(a,b)), r2=konum(Math.max(a,b)); if(r1&&r2){var r=document.createRange(); r.setStart(r1.startContainer,r1.startOffset); r.setEnd(r2.startContainer,r2.startOffset); sel.addRange(r);} imlecEl.style.display='none'; return;}
+  var r=konum(b); if(!r){imlecEl.style.display='none';return;}
+  var k=r.getClientRects(); var c=k.length?k[0]:(r.startContainer.nodeType===1?r.startContainer.getBoundingClientRect():r.startContainer.parentNode.getBoundingClientRect());
+  imlecEl.style.display='block'; imlecEl.style.left=(c.left+window.scrollX)+'px'; imlecEl.style.top=(c.top+window.scrollY)+'px'; imlecEl.style.height=Math.max(14,c.height||18)+'px';
+  if(kaydir){ imlecEl.scrollIntoView({block:'center'}); }
+  else { var y=c.top; if(y<70||y>window.innerHeight-220) window.scrollBy({top:y-window.innerHeight/3,behavior:'smooth'}); }
+}
+function ofset(node,off){ // DOM → karakter konumu
+  var e=node.nodeType===3?node.parentNode:node;
+  while(e&&e!==kagit&&!e.hasAttribute('data-o'))e=e.parentNode;
+  if(!e||e===kagit)return -1;
+  var o=+e.getAttribute('data-o'); if(e.tagName==='P'){ // paragraf boşluğu: sonuna
+    var son=e.lastElementChild; if(son&&son.hasAttribute('data-o')){return +son.getAttribute('data-o')+(son.tagName==='IMG'?1:son.textContent.length);} return o;}
+  return o+(node.nodeType===3?off:0);
+}
+document.addEventListener('click',function(ev){
+  var r=document.caretRangeFromPoint?document.caretRangeFromPoint(ev.clientX,ev.clientY):null;
+  if(!r)return; var o=ofset(r.startContainer,r.startOffset); if(o>=0&&window.K)K.imlec(o,-1);
+});
+var secZ=null;
+document.addEventListener('selectionchange',function(){
+  var s=window.getSelection(); if(!s.rangeCount||s.isCollapsed)return; var r=s.getRangeAt(0);
+  clearTimeout(secZ); secZ=setTimeout(function(){var a=ofset(r.startContainer,r.startOffset),b=ofset(r.endContainer,r.endOffset); if(a>=0&&b>=0&&window.K&&(a!==Math.min(sonA,sonB)||b!==Math.max(sonA,sonB)))K.imlec(a,b);},350);
+});
+function olcek(k){document.documentElement.style.setProperty('--olcek',k);}
+</script></body></html>

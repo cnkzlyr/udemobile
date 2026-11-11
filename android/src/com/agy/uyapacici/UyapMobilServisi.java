@@ -66,6 +66,12 @@ public class UyapMobilServisi extends Service {
         void kapandi(String neden);
         /** Ön plandaki belge penceresinin başlığı (belge adı ve yolu içerir). */
         void baslik(String t);
+        /** Anlık mobil görünüm satırları: MOBIL / MKARET / MRESIM (köprü: uyapmobil.Mobil). */
+        void mobil(String satir);
+        /** Belge belirli sürede açılamadı (köprünün tanısı). */
+        void acilmadi(String neden);
+        /** Arayüzden: günlüğü paylaş. */
+        void gunlukGonder();
         /** Editörün menü ağacı (Kopru.menuGonder, JSON). */
         void menu(String json);
         /** Editör bir Aç/Kaydet penceresi açtı: Android seçicisini göster, yanıtı {@link #seciciYanit} ile ver. */
@@ -307,6 +313,17 @@ public class UyapMobilServisi extends Service {
 
     /** Köprüden gelen bildirimler: PANO <hex> (editörde kopyalanan metin Android panosuna). */
     private void bildirimIsle(String satir) {
+        if (satir.startsWith("MOBIL ") || satir.startsWith("MKARET ") || satir.startsWith("MRESIM ")) {
+            Dinleyici d = dinleyici;
+            if (d != null) ana.post(() -> d.mobil(satir));
+            return;
+        }
+        if (satir.startsWith("ACILMADI ")) {
+            final String n = b64coz(satir.substring(9).trim());
+            Dinleyici d = dinleyici;
+            if (d != null) ana.post(() -> d.acilmadi(n));
+            return;
+        }
         if (satir.startsWith("BASLIK ")) {
             final String t = b64coz(satir.substring(7).trim());
             Dinleyici d = dinleyici;

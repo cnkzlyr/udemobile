@@ -73,6 +73,8 @@ def main():
             for g in gerekli:
                 z.write(os.path.join(um, g), "assets/uyapmobil/" + g,
                         compress_type=zipfile.ZIP_STORED if g.endswith(".zip") else zipfile.ZIP_DEFLATED)
+            # Anlık mobil görünüm sayfası (MobilGorunum)
+            z.write(os.path.join(KOK, "android", "uyapmobil", "mobil", "mobil.html"), "assets/uyapmobil/mobil.html")
             # Mobil görünüm (EditorActivity): UdeMobile web editörü
             ed = os.path.join(KOK, "android", "assets", "editor")
             for kok, _, dosyalar in os.walk(ed):

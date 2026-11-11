@@ -55,7 +55,17 @@ public final class Kopru {
         return System.err;
     }
 
+    /** Son yakalanmamış hata (belge açılmazsa tanıda gösterilir). */
+    static volatile String sonHata;
+
     public static void premain(String args, Instrumentation inst) {
+        Thread.UncaughtExceptionHandler eski = Thread.getDefaultUncaughtExceptionHandler();
+        Thread.setDefaultUncaughtExceptionHandler((t, e) -> {
+            sonHata = e + (e.getStackTrace().length > 0 ? " @ " + e.getStackTrace()[0] : "");
+            LOG.println("[uyapmobil] yakalanmamış hata (" + t.getName() + "): " + sonHata);
+            e.printStackTrace(LOG);
+            if (eski != null) eski.uncaughtException(t, e);
+        });
         Thread t = new Thread(Kopru::calis, "uyapmobil-kopru");
         t.setDaemon(true);
         t.start();
@@ -266,8 +276,10 @@ public final class Kopru {
             File f = new File(yol);
             fc.setCurrentDirectory(f.getParentFile());
             fc.setSelectedFile(f);
+            boolean ac = fc.getDialogType() != javax.swing.JFileChooser.SAVE_DIALOG;
             fc.approveSelection();
-            LOG.println("[uyapmobil] seçici → " + f);
+            LOG.println("[uyapmobil] seçici → " + f + " (var=" + f.isFile() + ", " + f.length() + " bayt)");
+            if (ac && yol.toLowerCase(java.util.Locale.ROOT).matches(".*\\.(udf|usf)$")) acilisIzle(yol);
         });
     }
 
@@ -642,6 +654,8 @@ public final class Kopru {
         return m != null && m.getDocument().getLength() <= 1;
     }
 
+    static javax.swing.text.JTextComponent metinBilesenAc(java.awt.Container c) { return metinBilesen(c); }
+
     private static javax.swing.text.JTextComponent metinBilesen(java.awt.Container c) {
         for (Component k : c.getComponents()) {
             if (k instanceof javax.swing.text.JTextComponent && ((javax.swing.text.JTextComponent) k).isEditable() && k.getWidth() > 200)
@@ -671,6 +685,58 @@ public final class Kopru {
         }
     }
 
+    /**
+     * Belge 35 sn içinde bir pencere başlığında görünmezse neden toplanır (açık uyarı pencereleri ve metinleri, son hata,
+     * dosya durumu) ve Android'e "ACILMADI <base64>" bildirilir; günlüğe de yazılır.
+     */
+    static void acilisIzle(String yol) {
+        final String ad = new File(yol).getName();
+        final String onceHata = sonHata;
+        Thread t = new Thread(() -> {
+            long son = System.currentTimeMillis() + 35_000;
+            try {
+                while (System.currentTimeMillis() < son) {
+                    for (Window w : Window.getWindows())
+                        if (w instanceof java.awt.Frame && w.isShowing() && String.valueOf(((java.awt.Frame) w).getTitle()).contains(ad)) {
+                            LOG.println("[uyapmobil] açıldı (" + ad + ")");
+                            return;
+                        }
+                    Thread.sleep(500);
+                }
+            } catch (InterruptedException e) { return; }
+            StringBuilder n = new StringBuilder();
+            File f = new File(yol);
+            if (!f.isFile()) n.append("Dosya bulunamadı: ").append(yol).append('\n');
+            else if (!f.canRead()) n.append("Dosya okunamıyor: ").append(yol).append('\n');
+            for (Window w : Window.getWindows())
+                if (w.isShowing() && w instanceof java.awt.Dialog) {
+                    n.append("Açık pencere: ").append(((java.awt.Dialog) w).getTitle());
+                    StringBuilder m = new StringBuilder();
+                    etiketler(w, m);
+                    if (m.length() > 0) n.append(" — ").append(m.length() > 300 ? m.substring(0, 300) : m);
+                    n.append('\n');
+                }
+            if (sonHata != null && sonHata != onceHata) n.append("Hata: ").append(sonHata).append('\n');
+            if (n.length() == 0) n.append("Editör 35 sn içinde belgeyi göstermedi (yanıt yok).");
+            LOG.println("[uyapmobil] AÇILMADI " + ad + ": " + n);
+            for (Window w : Window.getWindows())
+                LOG.println("[uyapmobil]   pencere " + w.getClass().getName() + (w instanceof java.awt.Frame ? " başlık=" + ((java.awt.Frame) w).getTitle() : "") + " görünür=" + w.isShowing());
+            bildir("ACILMADI " + b64(n.toString().trim()));
+        }, "uyapmobil-acilis");
+        t.setDaemon(true);
+        t.start();
+    }
+
+    private static void etiketler(java.awt.Container c, StringBuilder sb) {
+        for (Component k : c.getComponents()) {
+            String t = null;
+            if (k instanceof javax.swing.JLabel) t = ((javax.swing.JLabel) k).getText();
+            else if (k instanceof javax.swing.text.JTextComponent && !((javax.swing.text.JTextComponent) k).isEditable()) t = ((javax.swing.text.JTextComponent) k).getText();
+            if (t != null && !t.trim().isEmpty()) sb.append(t.replaceAll("<[^>]+>", " ").trim()).append(' ');
+            if (k instanceof java.awt.Container) etiketler((java.awt.Container) k, sb);
+        }
+    }
+
     /** Editörün ana belge penceresi (ekranı kaplayan, görünür bir Frame) kuruldu mu? */
     static boolean anaPencereHazir() {
         for (Window w : Window.getWindows())
@@ -686,6 +752,7 @@ public final class Kopru {
      * belge). Artık ana pencere görünür olup ~1,5 sn sakinleşene, modal pencere de kapanana kadar beklenir.
      */
     static void belgeAc(String yol) {
+        acilisIzle(yol);
         Thread t = new Thread(() -> {
             try {
                 // 1) Ana pencere en az 1,5 sn kesintisiz görünür olsun (en çok 3 dk).
@@ -820,6 +887,17 @@ public final class Kopru {
             case "SG":  // şerit menüyü gizle (0) / göster (1): ☰ menü kullanılırken belgeye daha çok yer kalsın
                 EventQueue.invokeLater(() -> seritGoster(!"0".equals(p.length > 1 ? p[1] : "1")));
                 break;
+            case "DT":  // tanı: belge öğe ağacı
+                EventQueue.invokeLater(() -> {
+                    javax.swing.text.JTextComponent m = null;
+                    for (Window w : Window.getWindows()) if (w.isShowing() && w instanceof java.awt.Frame) { javax.swing.text.JTextComponent x = metinBilesen(w); if (x != null) m = x; }
+                    if (m == null) return;
+                    LOG.println("[belge] sınıf=" + m.getDocument().getClass().getName() + " uzunluk=" + m.getDocument().getLength());
+                    ogeDok(m.getDocument().getDefaultRootElement(), 0, new int[]{0});
+                });
+                break;
+            case "MM": EventQueue.invokeLater(() -> Mobil.kip("1".equals(p.length > 1 ? p[1] : "0"))); break;
+            case "MK": EventQueue.invokeLater(() -> Mobil.imlec(Integer.parseInt(p[1]), p.length > 2 ? Integer.parseInt(p[2]) : -1)); break;
             case "BD":  // tanı: ana penceredeki bileşen ağacı (düğmeler, etiketler, sekmeler)
                 EventQueue.invokeLater(() -> { for (Window w : Window.getWindows()) if (w.isShowing() && w instanceof java.awt.Frame) agacDok(w, 0); });
                 break;
@@ -838,6 +916,30 @@ public final class Kopru {
                 break;
             default: break;
         }
+    }
+
+    private static void ogeDok(javax.swing.text.Element e, int d, int[] say) {
+        if (say[0]++ > 400) return;
+        StringBuilder sb = new StringBuilder("[belge] ");
+        for (int i = 0; i < d; i++) sb.append("  ");
+        sb.append(e.getName()).append(" [").append(e.getStartOffset()).append(',').append(e.getEndOffset()).append("] ");
+        javax.swing.text.AttributeSet a = e.getAttributes();
+        java.util.Enumeration<?> n = a.getAttributeNames();
+        while (n.hasMoreElements()) {
+            Object k = n.nextElement();
+            Object v = a.getAttribute(k);
+            String vs = String.valueOf(v);
+            if (vs.length() > 40) vs = vs.substring(0, 40) + "…";
+            sb.append(k).append('=').append(vs).append("; ");
+        }
+        if (e.isLeaf()) {
+            try {
+                String t = e.getDocument().getText(e.getStartOffset(), Math.min(30, e.getEndOffset() - e.getStartOffset()));
+                sb.append(" «").append(t.replace("\n", "⏎")).append('»');
+            } catch (Exception ignored) { }
+        }
+        LOG.println(sb);
+        for (int i = 0; i < e.getElementCount(); i++) ogeDok(e.getElement(i), d + 1, say);
     }
 
     private static void menuDok(javax.swing.JMenuItem m, int d) {

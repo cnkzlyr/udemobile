@@ -311,7 +311,7 @@ public class UyapMobilActivity extends Activity implements UyapMobilServisi.Dinl
 
     // ------------------------------------------------------------------------------------ menü
     private static final String[] UYGULAMA = {"Belge aç (telefondan)…", "Yeniden aç ⟳", "Ekran ölçeği…",
-            "Yazı tipi ekle (TTF, ör. Times New Roman)…", "Resmi editörü kur / güncelle", "Günlüğü paylaş", "Editörü kapat"};
+            "Yazı tipi ekle (TTF, ör. Times New Roman)…", "Resmi editörü kur / güncelle", "Günlüğü gönder", "Editörü kapat"};
 
     @Override public String[] uygulamaKomutlari() { return UYGULAMA; }
 
@@ -469,7 +469,23 @@ public class UyapMobilActivity extends Activity implements UyapMobilServisi.Dinl
         }
     }
 
+    /** Günlük paylaşım menüsüyle (WhatsApp, e-posta…) gönderilir: köprü + editör günlüğünün son kısmı metin olarak. */
+    @Override public void gunlukGonder() { gunlukPaylas(); }
+
     private void gunlukPaylas() {
+        try {
+            StringBuilder sb = new StringBuilder("UYAP Editör " + UyapMobil.editorSurumu(this) + " · uygulama " + BuildConfigSurum.surum(this)
+                    + " · Android " + Build.VERSION.RELEASE + " · " + Build.MANUFACTURER + " " + Build.MODEL + "\n\n---- köprü ----\n");
+            File k = new File(UyapMobil.kok(this), "kopru.log");
+            if (k.isFile()) sb.append(sonu(k, 30000));
+            sb.append("\n---- editör ----\n");
+            File f = UyapMobil.gunluk(this);
+            if (f.isFile()) sb.append(sonu(f, 60000));
+            Intent i = new Intent(Intent.ACTION_SEND).setType("text/plain")
+                    .putExtra(Intent.EXTRA_SUBJECT, "UYAP Editör günlüğü").putExtra(Intent.EXTRA_TEXT, sb.toString());
+            startActivity(Intent.createChooser(i, "Günlüğü gönder"));
+            return;
+        } catch (Exception e) { Tani.hata("uyapmobil", "günlük paylaş", e); }
         try {
             File f = UyapMobil.gunluk(this);
             File d = new File(android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS), "CanEditor/tani");
@@ -483,6 +499,16 @@ public class UyapMobilActivity extends Activity implements UyapMobilServisi.Dinl
             Toast.makeText(this, "Günlük: İndirilenler/CanEditor/tani/uyap_editor_gunluk.txt", Toast.LENGTH_LONG).show();
         } catch (Exception e) { Toast.makeText(this, "Günlük yazılamadı: " + e.getMessage(), Toast.LENGTH_LONG).show(); }
     }
+
+    private static String sonu(File f, int enFazla) throws IOException {
+        byte[] b = AdaletServisi.okuHepsi(new java.io.FileInputStream(f));
+        int bas = Math.max(0, b.length - enFazla);
+        return new String(b, bas, b.length - bas, StandardCharsets.UTF_8);
+    }
+
+    @Override public void mobil(String satir) { if (ui != null) ui.mobilSatir(satir); }
+
+    @Override public void acilmadi(String neden) { if (ui != null) ui.acilmadi(neden); }
 
     private int dp(int v) { return Math.round(v * getResources().getDisplayMetrics().density); }
 }
