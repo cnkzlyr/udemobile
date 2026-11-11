@@ -153,6 +153,27 @@ jobs:
           npm install
           npm run build
 
+      # Windows: Adalet E-Imza'yi calistiracak Java kurulum paketine GOMULUR (kullanici Java/surucu indirmez).
+      # Kart PC/SC (winscard) + Windows'un kendi CCID surucusuyle okunur; PKCS#11 surucusu gerekmez.
+      - name: Setup Java 21 (Windows gomulu Java icin jlink)
+        if: matrix.platform == 'windows-latest'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Gomulu Java hazirla (jlink, Windows)
+        if: matrix.platform == 'windows-latest'
+        shell: bash
+        run: |
+          rm -rf src-tauri/eimza/jre
+          "$JAVA_HOME/bin/jlink" --add-modules java.base,java.desktop,java.smartcardio,java.instrument,java.logging,java.management,java.naming,java.prefs,java.sql,java.xml,java.net.http,java.security.jgss,java.security.sasl,java.scripting,java.xml.crypto,java.transaction.xa,jdk.crypto.cryptoki,jdk.crypto.ec,jdk.crypto.mscapi,jdk.unsupported,jdk.charsets,jdk.localedata,jdk.zipfs,jdk.naming.dns,jdk.management,jdk.httpserver,jdk.accessibility \
+            --include-locales=tr,en --strip-debug --no-header-files --no-man-pages --compress=zip-6 \
+            --output src-tauri/eimza/jre
+          test -f src-tauri/eimza/jre/bin/javaw.exe
+          src-tauri/eimza/jre/bin/java.exe -version
+          du -sh src-tauri/eimza/jre
+
       - name: Build Desktop Application (Tauri Action)
         uses: tauri-apps/tauri-action@v1
         env:

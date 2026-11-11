@@ -1,6 +1,6 @@
 [package]
 name = "can-editor"
-version = "3.18.3"
+version = "3.18.7"
 description = "CanEditor - Cross-Platform UYAP & Word Editor"
 authors = ["Can Kızılyar"]
 edition = "2021"
@@ -19,5 +19,6 @@ serde_json = "1"
 zip = "8.6.0"
 tauri-plugin-dialog = "2"
 base64 = "0.22"
-ureq = { version = "2", default-features = false }
+ureq = { version = "2", default-features = false, features = ["native-tls", "json"] }
+native-tls = "0.2"
 cryptoki = "0.7"

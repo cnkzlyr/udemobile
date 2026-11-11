@@ -3077,7 +3077,7 @@ let smartCardPollInterval = null;
 function cardPlugHint() {
   return isRealAndroidBridge()
     ? 'Lütfen akıllı kartınızı veya tokenınızı Type-C OTG adaptörüyle telefonunuza bağlayınız.'
-    : 'Lütfen e-imza kartınızı okuyucuya takın (veya USB token\'ınızı bilgisayara bağlayın). Kart sürücüsü (AKİS, SafeNet vb.) kurulu olmalıdır.';
+    : 'Lütfen e-imza kartınızı okuyucuya takın (veya USB token\'ınızı bilgisayara bağlayın). Ek sürücü gerekmez: kart, CanEditor içindeki Adalet E-İmza ile okunur.';
 }
 let currentSmartCardCerts = [];
 

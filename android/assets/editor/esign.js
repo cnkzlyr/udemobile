@@ -413,11 +413,76 @@
   }
 
   // ------------------------------------------------------------------ akıllı kart
+  /** Resmi Adalet E-İmza servisine (127.0.0.1:5975) istek: masaüstünde Tauri, Android'de köprü üzerinden. */
+  async function adaletIstek(method, path, body) {
+    const t = tauri();
+    if (t) return await t.invoke('adalet_istek', { method, path, body: body || '' });
+    return await androidCall('adaletIstekAsync', method, path, body || '');
+  }
+  /** getCertificates → kart listesi (Android ve masaüstü ortak). */
+  async function adaletSertifikalari() {
+    let r = null;
+    try { r = JSON.parse(await adaletIstek('GET', '/api/v1/signature/getCertificates', '')); } catch (e) { tlog('getCertificates hatası: ' + e); }
+    const kartlar = [];
+    ((r && r.data) || []).forEach(rd => (rd.certificates || []).forEach(c => kartlar.push({
+      adalet: true, certificateId: c.certificateId, label: c.subject || 'Sertifika', issuer: c.issuer || '',
+      notAfter: c.notAfter || '', subjectSerial: c.subjectSerial || '', reader: (rd.terminal || 'Okuyucu') + ' · Adalet E-İmza',
+      keyType: c.pubKeyAlgorithm === 'EC' ? 'EC' : 'RSA' })));
+    const okuyucular = ((r && r.data) || []).map(rd => rd.terminal).filter(Boolean);
+    const hata = r && r.metadata && r.metadata.STATUS !== 'SUCCESS' ? (' (' + r.metadata.MESSAGE + ')') : '';
+    tlog('getCertificates → ' + (r ? (r.metadata && r.metadata.STATUS) + ' ' + ((r.metadata && r.metadata.MESSAGE) || '') : 'cevap yok')
+      + ' · okuyucu=' + okuyucular.length + ' · sertifika=' + kartlar.length);
+    return { kartlar, okuyucular, hata };
+  }
+  /**
+   * Masaüstü (Windows): kart, CanEditor'a gömülü Java ile çalışan resmi Adalet E-İmza üzerinden okunur. Kart
+   * sürücüsü (PKCS#11) gerekmez: okuyucuya Windows'un PC/SC katmanıyla, karta doğrudan APDU ile ulaşılır.
+   * İlk kullanımda resmi uygulama cdn.uyap.gov.tr'den kendiliğinden kurulur. Bilgisayarda resmi uygulama zaten
+   * çalışıyorsa (5975 açık) o kullanılır. null dönerse bu yol yok (PKCS#11'e geçilir).
+   */
+  async function masaustuAdaletListe(t) {
+    let d = null;
+    try { d = await t.invoke('adalet_durum'); } catch (e) { return null; }
+    if (!d || (!d.jre && !d.port)) return null;
+    const bildir = (m) => { if (window.onSmartCardStatusUpdated) window.onSmartCardStatusUpdated({ connected: false, certificates: [], message: m }); };
+    const bekle = (ms) => new Promise(r => setTimeout(r, ms));
+    if (!d.port && !d.kurulu) {
+      bildir('Adalet E-İmza ilk kez hazırlanıyor (resmi sunucudan ~80 MB, bir kez)…');
+      const kurulum = t.invoke('adalet_kur').catch(e => ({ hata: String(e) }));
+      let bitti = null;
+      kurulum.then(v => { bitti = v || {}; });
+      while (!bitti) { await bekle(1000); try { const x = await t.invoke('adalet_durum'); if (x.durum) bildir(x.durum); } catch (e) {} }
+      if (bitti.hata) return { cards: [], message: 'Adalet E-İmza kurulamadı: ' + bitti.hata + ' (İnternet bağlantısını kontrol edip "Kartı Tara"ya yeniden basın.)' };
+      d = await t.invoke('adalet_durum');
+    }
+    if (!d.port) {
+      try { await t.invoke('adalet_baslat'); } catch (e) { return { cards: [], message: 'Adalet E-İmza başlatılamadı: ' + e }; }
+      bildir('Adalet E-İmza başlatılıyor…');
+      for (let i = 0; i < 90 && !d.port; i++) { await bekle(1000); d = await t.invoke('adalet_durum'); }
+      if (!d.port) return { cards: [], message: 'Adalet E-İmza yanıt vermiyor (' + (d.durum || '') + ').' };
+      await bekle(2500); // ilk kart taraması
+    }
+    let s = await adaletSertifikalari();
+    if (!s.kartlar.length && s.okuyucular.length) { await bekle(2500); s = await adaletSertifikalari(); }
+    if (s.kartlar.length) return { cards: s.kartlar };
+    return { cards: [], message: s.okuyucular.length
+      ? ('Okuyucu görüldü (' + s.okuyucular.join(', ') + ') ama karttan sertifika okunamadı' + s.hata + '. Kartı çıkarıp doğru yönde yeniden takın; birkaç saniye sonra "Kartı Tara".')
+      : ('E-imza okuyucusu görünmüyor' + s.hata + '. Okuyucuyu/tokenı USB\'ye takın, Windows tanıdıktan sonra "Kartı Tara".') };
+  }
+
   async function scList(libPath) {
     const t = tauri();
     // Özel sürücü yolu: localStorage 'caneditor_pkcs11_lib' (veya ortam değişkeni CANEDITOR_PKCS11)
     if (!libPath) { try { libPath = localStorage.getItem('caneditor_pkcs11_lib') || null; } catch (e) {} }
-    if (t) return await t.invoke('pkcs11_list', { libPath: libPath || null });
+    if (t) {
+      // 1) Gömülü Adalet E-İmza (sürücüsüz)  2) kurulu PKCS#11 sürücüsü (AKİS/SafeNet...)  — hangisi kart bulursa
+      const a = await masaustuAdaletListe(t);
+      if (a && a.cards.length) return a;
+      let p = null;
+      try { p = await t.invoke('pkcs11_list', { libPath: libPath || null }); } catch (e) { p = { cards: [], message: String(e) }; }
+      if (p && p.cards && p.cards.length) return p;
+      return a || p;
+    }
     // Android: kart YALNIZCA resmi Adalet E-İmza servisiyle okunur (UdeMobile içinde gömülü Java, 127.0.0.1:5975;
     // kart komutlarını TÜBİTAK MA3 kütüphanesi gönderir). Eski tahmini USB sürücüsüne düşülmez: o sürücü kartı
     // okuyamayınca uydurma sertifika gösteriyordu.
@@ -436,21 +501,12 @@
         for (let i = 0; i < 80 && !d.port; i++) { await new Promise(r => setTimeout(r, 1500)); d = durum(); }
         if (!d.port) return { cards: [], message: 'Adalet E-İmza yanıt vermiyor: ' + (d.durum || '') + ' (Adalet E-İmza ekranı > Günlük)' };
       }
-      let r = null;
-      try { r = JSON.parse(await androidCall('adaletIstekAsync', 'GET', '/api/v1/signature/getCertificates', '')); } catch (e) {}
-      const kartlar = [];
-      ((r && r.data) || []).forEach(rd => (rd.certificates || []).forEach(c => kartlar.push({
-        adalet: true, certificateId: c.certificateId, label: c.subject || 'Sertifika', issuer: c.issuer || '',
-        notAfter: c.notAfter || '', subjectSerial: c.subjectSerial || '', reader: (rd.terminal || 'Okuyucu') + ' · Adalet E-İmza',
-        keyType: c.pubKeyAlgorithm === 'EC' ? 'EC' : 'RSA' })));
+      const sa = await adaletSertifikalari();
       d = durum();
-      tlog('getCertificates → ' + (r ? (r.metadata && r.metadata.STATUS) + ' ' + ((r.metadata && r.metadata.MESSAGE) || '') : 'cevap yok')
-        + ' · okuyucu sayısı=' + ((r && r.data) || []).length + ' · sertifika=' + kartlar.length + ' · durum=' + JSON.stringify(d));
-      if (kartlar.length) return { cards: kartlar };
-      const hata = r && r.metadata && r.metadata.STATUS !== 'SUCCESS' ? (' (' + r.metadata.MESSAGE + ')') : '';
+      if (sa.kartlar.length) return { cards: sa.kartlar };
       return { cards: [], message: d.okuyucu
-        ? ('Okuyucu görüldü (' + d.okuyucu + ') ama karttan sertifika okunamadı' + hata + '. Kartı çıkarıp doğru yönde yeniden takın; birkaç saniye sonra "Kartı Tara".')
-        : ('E-imza okuyucusu görünmüyor' + hata + '. OTG ile takın, çıkan "CanEditor ... erişmesine izin verilsin mi?" sorusuna Tamam deyin.') };
+        ? ('Okuyucu görüldü (' + d.okuyucu + ') ama karttan sertifika okunamadı' + sa.hata + '. Kartı çıkarıp doğru yönde yeniden takın; birkaç saniye sonra "Kartı Tara".')
+        : ('E-imza okuyucusu görünmüyor' + sa.hata + '. OTG ile takın, çıkan "CanEditor ... erişmesine izin verilsin mi?" sorusuna Tamam deyin.') };
     }
     if (realAndroid() && window.AndroidBridge.scardCertAsync) {
       const r = await androidCall('scardCertAsync');
@@ -601,7 +657,7 @@
     if (src.existingSgn) z.file('sign.sgn', src.existingSgn, { compression: 'DEFLATE' }); else z.remove('sign.sgn');
     const udf = await z.generateAsync({ type: 'uint8array', compression: 'DEFLATE' });
     tlog('signUdf gönderiliyor · sertifika=' + card.certificateId + ' · UDF ' + udf.length + ' bayt · PIN ' + (pin ? 'sayfadan' : 'boş (Android penceresi)') + ' · önceki imza=' + !!src.existingSgn);
-    const r = JSON.parse(await androidCall('adaletIstekAsync', 'POST', '/api/v1/docsignature/signUdf',
+    const r = JSON.parse(await adaletIstek('POST', '/api/v1/docsignature/signUdf',
       JSON.stringify({ certificateId: card.certificateId, pin: pin || '', content: b64e(udf) })));
     if (!r || !r.metadata || r.metadata.STATUS !== 'SUCCESS' || !r.data || !r.data.content) {
       throw new Error((r && r.metadata && r.metadata.MESSAGE) || 'Adalet E-İmza imzalayamadı.');
