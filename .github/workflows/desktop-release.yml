@@ -94,6 +94,7 @@ jobs:
           if [ -f "release/CanEditor-v$V.apk" ]; then
             cp "release/CanEditor-v$V.apk" out/
             cp "release/CanEditor-v$V.apk" out/CanEditor-latest.apk
+            [ -f "release/UYAP-Editor-v$V.apk" ] && cp "release/UYAP-Editor-v$V.apk" out/ && cp "release/UYAP-Editor-v$V.apk" out/UYAP-Editor-latest.apk
             "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs "out/CanEditor-v$V.apk" | grep -i 'SHA-256'
           else
             echo "::warning::release/CanEditor-v$V.apk yok: APK yayimlanmadi."

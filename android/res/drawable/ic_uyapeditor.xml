@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- UYAP Editör simgesi: kırmızı zemin + beyaz belge + satırlar -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <path android:fillColor="#B91C1C" android:pathData="M24,4h60a20,20 0 0 1 20,20v60a20,20 0 0 1 -20,20h-60a20,20 0 0 1 -20,-20v-60a20,20 0 0 1 20,-20z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M32,20h32l14,14v54a4,4 0 0 1 -4,4h-42a4,4 0 0 1 -4,-4v-64a4,4 0 0 1 4,-4z" />
+    <path android:fillColor="#FCA5A5" android:pathData="M64,20l14,14h-10a4,4 0 0 1 -4,-4z" />
+    <path android:fillColor="#7F1D1D" android:pathData="M38,44h32v4h-32zM38,54h32v4h-32zM38,64h32v4h-32zM38,74h20v4h-20z" />
+    <path android:fillColor="#B91C1C" android:pathData="M38,30h18v6h-18z" />
+</vector>

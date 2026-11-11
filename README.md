@@ -1,6 +1,6 @@
 # ⚖️ CanEditor (UdeMobile) — Çapraz Platform UYAP & Word Editörü
 
-[![Sürüm](https://img.shields.io/badge/Sürüm-v3.19.1-blue.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v3.19.1)
+[![Sürüm](https://img.shields.io/badge/Sürüm-v3.20.0-blue.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v3.20.0)
 [![Platformlar](https://img.shields.io/badge/Platformlar-Android%20%7C%20Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Web-success.svg)](https://github.com/cnkzlyr/udemobile/releases)
 [![UYAP](https://img.shields.io/badge/Format-UYAP_UDF_v1.8-0D47A1.svg)](https://uyap.gov.tr)
 [![Word](https://img.shields.io/badge/Format-MS_DOCX_OpenXML-2B579A.svg?logo=microsoft-word&logoColor=white)](https://microsoft.com)
@@ -11,14 +11,14 @@
 
 ---
 
-## 🚀 Hızlı İndirme (v3.19.1)
+## 🚀 Hızlı İndirme (v3.20.0)
 
 | Platform | Paket Dosyası | Açıklama |
 | :--- | :--- | :--- |
-| **Android (Telefon & Tablet)** | [**CanEditor-v3.19.1.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.19.1/CanEditor-v3.19.1.apk) | Güncel Android APK paketi (Termux gerektirmez) |
-| **Android (Her Zaman En Son)** | [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.19.1/CanEditor-latest.apk) | Kalıcı son sürüm bağlantısı |
-| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v3.19.1.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v3.19.1/CanEditor-Portable-Web-GUI-v3.19.1.zip) | **Kurulumsuz;** zipten çıkarıp `index.html` açarak tüm işletim sistemlerinde doğrudan çalışır |
-| **Windows / macOS / Linux** | [**GitHub Releases Sayfası**](https://github.com/cnkzlyr/udemobile/releases/tag/v3.19.1) | GitHub Actions CI ile derlenen yerel ikili (.msi, .exe, .dmg, .AppImage, .deb, .rpm) paketleri |
+| **Android (Telefon & Tablet)** | [**CanEditor-v3.20.0.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.20.0/CanEditor-v3.20.0.apk) | Güncel Android APK paketi (Termux gerektirmez) |
+| **Android (Her Zaman En Son)** | [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.20.0/CanEditor-latest.apk) | Kalıcı son sürüm bağlantısı |
+| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v3.20.0.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v3.20.0/CanEditor-Portable-Web-GUI-v3.20.0.zip) | **Kurulumsuz;** zipten çıkarıp `index.html` açarak tüm işletim sistemlerinde doğrudan çalışır |
+| **Windows / macOS / Linux** | [**GitHub Releases Sayfası**](https://github.com/cnkzlyr/udemobile/releases/tag/v3.20.0) | GitHub Actions CI ile derlenen yerel ikili (.msi, .exe, .dmg, .AppImage, .deb, .rpm) paketleri |
 
 ---
 
@@ -28,6 +28,16 @@ v3.17.0'dan itibaren APK yeni ve kalıcı bir proje anahtarıyla imzalanır (ser
 `BA:80:78:89:12:28:35:C0:58:3B:C9:72:3B:C0:90:5C:C8:6F:49:A8:1A:92:BA:F9:D0:96:33:77:71:BB:D4:F0`). Telefonunuzda
 v3.16.0 ya da öncesi kuruluysa bir kez **kaldırıp** yeni APK'yı kurun (aksi halde Android "paket çakışıyor" hatası
 verir). Sonraki güncellemeler kaldırmadan, üzerine kurulur.
+
+## 🌟 v3.20.0: 🏛️ UYAP Editör artık AYRI uygulama (UYAP-Editor-v3.20.0.apk)
+
+- Bazı telefonların "Şununla aç" penceresi aynı uygulamanın iki ekranını tek simgede birleştirdiği için .udf açılırken yalnızca
+  CanEditor görünüyordu. Resmi UYAP Doküman Editörü (Java 14, Termux/X11'siz) artık **ayrı bir uygulama**:
+  **UYAP Editör** (paket `com.agy.uyapeditor`, kırmızı belge simgesi). İki uygulama yan yana kurulur ve "Şununla aç"
+  penceresinde ayrı ayrı görünür; hangisi "Her zaman" seçilirse .udf/.usf dosyaları onunla açılır.
+- **İndirme:** `UYAP-Editor-v3.20.0.apk` (≈42 MB) — `CanEditor-v3.20.0.apk` ≈45 MB'a küçüldü.
+- CanEditor'daki "🏛️ Orijinal UYAP Editör'de aç" belgeyi UYAP Editör uygulamasına gönderir (kurulu değilse indirme sayfasını önerir).
+- Not: UYAP Editör ayrı uygulama olduğu için resmi editör (rayp.adalet.gov.tr) ilk açılışta bir kez yeniden indirilir.
 
 ## 🌟 v3.19.1: UYAP Editör ekranına dokununca çökme giderildi
 

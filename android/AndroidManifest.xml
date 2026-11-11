@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.agy.uyapacici"
-    android:versionCode="61"
-    android:versionName="3.19.1">
+    android:versionCode="62"
+    android:versionName="3.20.0">
 
     <uses-sdk
         android:minSdkVersion="21"
@@ -234,118 +234,6 @@
                  dinamik alıcı + UsbManager.requestPermission ile algılanır. -->
         </activity>
 
-        <!-- 📄 UYAP Editör (orijinal, Java 14): Termux / X11 / Termux:API olmadan, dokunmatik.
-             .udf / .usf her yerden (dosya yöneticisi, WhatsApp, Celse, tarayıcı, e-posta) doğrudan bu ekranda açılır ve
-             "Her zaman" seçilerek varsayılan yapılabilir. -->
-        <activity
-            android:name=".UyapMobilActivity"
-            android:label="UYAP Editör"
-            android:theme="@android:style/Theme.DeviceDefault.NoActionBar"
-            android:windowSoftInputMode="adjustResize"
-            android:configChanges="orientation|screenSize|keyboardHidden|screenLayout|smallestScreenSize|keyboard|navigation|uiMode|density"
-            android:launchMode="singleTask"
-            android:taskAffinity="com.agy.uyapacici.uyapeditor"
-            android:exported="true">
-            <!-- uzantıya göre (file:// ve content://) -->
-            <intent-filter android:label="UYAP Editör">
-                <action android:name="android.intent.action.VIEW" />
-                <action android:name="android.intent.action.EDIT" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="content" />
-                <data android:scheme="file" />
-                <data android:host="*" />
-                <data android:pathPattern=".*\\.udf" />
-                <data android:pathPattern=".*\\..*\\.udf" />
-                <data android:pathPattern=".*\\..*\\..*\\.udf" />
-                <data android:pathPattern=".*\\..*\\..*\\..*\\.udf" />
-                <data android:pathSuffix=".udf" />
-                <data android:pathPattern=".*\\.UDF" />
-                <data android:pathPattern=".*\\..*\\.UDF" />
-                <data android:pathPattern=".*\\..*\\..*\\.UDF" />
-                <data android:pathPattern=".*\\..*\\..*\\..*\\.UDF" />
-                <data android:pathSuffix=".UDF" />
-                <data android:pathPattern=".*\\.usf" />
-                <data android:pathPattern=".*\\..*\\.usf" />
-                <data android:pathPattern=".*\\..*\\..*\\.usf" />
-                <data android:pathPattern=".*\\..*\\..*\\..*\\.usf" />
-                <data android:pathSuffix=".usf" />
-                <data android:pathPattern=".*\\.USF" />
-                <data android:pathPattern=".*\\..*\\.USF" />
-                <data android:pathPattern=".*\\..*\\..*\\.USF" />
-                <data android:pathPattern=".*\\..*\\..*\\..*\\.USF" />
-                <data android:pathSuffix=".USF" />
-            </intent-filter>
-            <!-- uzantı + herhangi bir MIME (bazı dosya yöneticileri MIME bildirir) -->
-            <intent-filter android:label="UYAP Editör">
-                <action android:name="android.intent.action.VIEW" />
-                <action android:name="android.intent.action.EDIT" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="content" />
-                <data android:scheme="file" />
-                <data android:host="*" />
-                <data android:mimeType="*/*" />
-                <data android:pathPattern=".*\\.udf" />
-                <data android:pathPattern=".*\\..*\\.udf" />
-                <data android:pathPattern=".*\\..*\\..*\\.udf" />
-                <data android:pathPattern=".*\\..*\\..*\\..*\\.udf" />
-                <data android:pathSuffix=".udf" />
-                <data android:pathPattern=".*\\.UDF" />
-                <data android:pathPattern=".*\\..*\\.UDF" />
-                <data android:pathPattern=".*\\..*\\..*\\.UDF" />
-                <data android:pathPattern=".*\\..*\\..*\\..*\\.UDF" />
-                <data android:pathSuffix=".UDF" />
-                <data android:pathPattern=".*\\.usf" />
-                <data android:pathPattern=".*\\..*\\.usf" />
-                <data android:pathPattern=".*\\..*\\..*\\.usf" />
-                <data android:pathPattern=".*\\..*\\..*\\..*\\.usf" />
-                <data android:pathSuffix=".usf" />
-                <data android:pathPattern=".*\\.USF" />
-                <data android:pathPattern=".*\\..*\\.USF" />
-                <data android:pathPattern=".*\\..*\\..*\\.USF" />
-                <data android:pathPattern=".*\\..*\\..*\\..*\\.USF" />
-                <data android:pathSuffix=".USF" />
-            </intent-filter>
-            <!-- UDF/USF için kullanılan MIME türleri (WhatsApp, Celse, e-posta ve tarayıcı indirmeleri uzantısız content:// verir) -->
-            <intent-filter android:label="UYAP Editör">
-                <action android:name="android.intent.action.VIEW" />
-                <action android:name="android.intent.action.EDIT" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="content" />
-                <data android:scheme="file" />
-                <data android:mimeType="application/octet-stream" />
-                <data android:mimeType="application/zip" />
-                <data android:mimeType="application/x-zip-compressed" />
-                <data android:mimeType="application/udf" />
-                <data android:mimeType="application/x-udf" />
-                <data android:mimeType="application/vnd.uyap.udf" />
-                <data android:mimeType="application/usf" />
-                <data android:mimeType="application/x-usf" />
-            </intent-filter>
-            <!-- Paylaş menüsü -->
-            <intent-filter android:label="UYAP Editör">
-                <action android:name="android.intent.action.SEND" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <data android:mimeType="application/*" />
-            </intent-filter>
-        </activity>
-        <!-- Ayrı başlatıcı simgesi: "UYAP Editör" -->
-        <activity-alias
-            android:name=".UyapEditorBaslatici"
-            android:targetActivity=".UyapMobilActivity"
-            android:label="UYAP Editör"
-            android:icon="@mipmap/ic_launcher"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity-alias>
-        <service
-            android:name=".UyapMobilServisi"
-            android:exported="false" />
         <!-- 🏛️ Adalet E-İmza (Termux'suz): yönetim ekranı, ön plan servisi, PIN penceresi -->
         <activity
             android:name=".AdaletActivity"

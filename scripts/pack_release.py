@@ -7,7 +7,7 @@ import shutil
 import zipfile
 import subprocess
 
-VERSION = "3.19.1"
+VERSION = "3.20.0"
 XZ_SHA256 = "211b306cfc44f8f96df3a0a3ddaf75ba8c5289eed77d60d72f889bb855f535e5"
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 IS_WINDOWS = os.name == "nt"
@@ -235,20 +235,7 @@ def main():
                      compress_type=zipfile.ZIP_STORED if g.endswith(".zip") else zipfile.ZIP_DEFLATED)
     print("assets/eimza/* added to APK.")
 
-    # 5c. UYAP Mobil: resmi UYAP Editör'ü Java 14 ile Termux/X11'siz çalıştıran ortam (scripts/uyapmobil_hazirla.py üretir)
-    step("5c. Adding UYAP Mobil runtime (glibc + Java 14 + Cacio)")
-    um_dir = os.path.join(PROJECT_ROOT, "build", "uyapmobil")
-    um_gerekli = ["rt-arm64.zip", "awt-patch14.jar", "uyapmobil-kopru.jar", "uyap-modern.jar", "surum.txt"]
-    if not all(os.path.exists(os.path.join(um_dir, g)) for g in um_gerekli) or os.environ.get("CANEDITOR_UYAPMOBIL_YENIDEN") == "1":
-        r = subprocess.run([sys.executable, os.path.join(PROJECT_ROOT, "scripts", "uyapmobil_hazirla.py")])
-        if r.returncode != 0:
-            print("uyapmobil_hazirla.py başarısız (UYAP Mobil çalışma ortamı hazırlanamadı).")
-            sys.exit(1)
-    with zipfile.ZipFile(unaligned_apk, "a") as zf:
-        for g in um_gerekli:
-            zf.write(os.path.join(um_dir, g), arcname="assets/uyapmobil/" + g,
-                     compress_type=zipfile.ZIP_STORED if g.endswith(".zip") else zipfile.ZIP_DEFLATED)
-    print("assets/uyapmobil/* added to APK.")
+    # 5c. UYAP Editör (resmi editör, Java 14) artık AYRI uygulamadır: scripts/uyapeditor_apk.py (en sonda çağrılır)
 
     # 6. Zipalign
     step("6. Aligning APK with zipalign")
@@ -327,6 +314,13 @@ def main():
     latest_apk = os.path.join("release", "CanEditor-latest.apk")
     shutil.copy2(out_apk, latest_apk)
     print(f"Copied to {latest_apk}.")
+
+    # UYAP Editör ayrı uygulaması (com.agy.uyapeditor): aynı kaynak kod ve imza anahtarı
+    step("8b. UYAP Editör ayrı uygulaması (scripts/uyapeditor_apk.py)")
+    r = subprocess.run([sys.executable, os.path.join(PROJECT_ROOT, "scripts", "uyapeditor_apk.py")])
+    if r.returncode != 0:
+        print("UYAP Editör APK'sı derlenemedi.")
+        sys.exit(1)
 
     # 9. Verify
     step("8. Verifying APK signature")
