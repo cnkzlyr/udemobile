@@ -32,6 +32,8 @@ final class Mobil {
     private Mobil() { }
 
     private static volatile boolean acik;
+    /** 1: mobil (yeniden akış), 2: kağıt (motorun sayfa/satır/kelime konumlarıyla birebir) */
+    private static volatile int tur = 1;
     private static JTextComponent bagli;
     private static Document bagliBelge;
     private static final javax.swing.Timer gecikme = new javax.swing.Timer(250, e -> gonder());
@@ -49,8 +51,13 @@ final class Mobil {
         new javax.swing.Timer(700, e -> { if (acik) bagla(); }).start();
     }
 
-    static void kip(boolean ac) {
-        if (ac && !acik) resimleriUnut();
+    static void kip(boolean ac) { kip(ac ? 1 : 0); }
+
+    static void kip(int t) {
+        boolean ac = t > 0;
+        if (ac && (!acik || t != tur)) resimleriUnut();
+        if (ac) tur = t;
+        gecikme.setInitialDelay(tur == 2 ? 350 : 250);
         acik = ac;
         if (ac) { bagla(); gonder(); }
     }
@@ -97,19 +104,185 @@ final class Mobil {
     private static void imlecGonder() {
         JTextComponent m = bagli;
         if (m == null) return;
-        Kopru.bildir("MKARET " + m.getCaret().getMark() + " " + m.getCaret().getDot());
+        Kopru.bildir("MKARET " + m.getCaret().getMark() + " " + m.getCaret().getDot() + konum(m, m.getCaret().getDot()));
+    }
+
+    /** İmlecin motor koordinatları: " x y yükseklik" (kağıt görünümünde imleç buraya çizilir). */
+    @SuppressWarnings("deprecation")
+    private static String konum(JTextComponent m, int o) {
+        try {
+            java.awt.Rectangle r = m.modelToView(o);
+            if (r != null) return " " + r.x + " " + r.y + " " + Math.max(10, r.height);
+        } catch (Exception ignored) { }
+        return "";
+    }
+
+    /** MP x y [x2 y2]: kağıt görünümünde dokunulan motor koordinatı → imleç (ikinci nokta: seçim). */
+    @SuppressWarnings("deprecation")
+    static void nokta(int x, int y, int x2, int y2) {
+        JTextComponent m = bagli != null ? bagli : onMetin();
+        if (m == null) return;
+        int a = m.viewToModel(new java.awt.Point(x, y));
+        if (a < 0) return;
+        if (x2 >= 0) {
+            int b = m.viewToModel(new java.awt.Point(x2, y2));
+            m.setCaretPosition(a);
+            if (b >= 0) m.moveCaretPosition(b);
+        } else m.setCaretPosition(a);
+        m.requestFocusInWindow();
+        try { java.awt.Rectangle r = m.modelToView(m.getCaret().getDot()); if (r != null) m.scrollRectToVisible(r); } catch (Exception ignored) { }
     }
 
     private static void gonder() {
         JTextComponent m = bagli;
         if (!acik || m == null) return;
         try {
+            if (tur == 2) {
+                String j = kagit(m);
+                Kopru.bildir("MKAGIT " + Base64.getEncoder().encodeToString(j.getBytes(java.nio.charset.StandardCharsets.UTF_8))
+                        + " " + m.getCaret().getMark() + " " + m.getCaret().getDot() + konum(m, m.getCaret().getDot()));
+                return;
+            }
             String h = html(m.getDocument());
             Kopru.bildir("MOBIL " + Base64.getEncoder().encodeToString(h.getBytes(java.nio.charset.StandardCharsets.UTF_8))
                     + " " + m.getCaret().getMark() + " " + m.getCaret().getDot());
         } catch (Throwable e) {
             Kopru.LOG.println("[uyapmobil] mobil görünüm: " + e);
         }
+    }
+
+    // ------------------------------------------------------------------------------------ kağıt görünümü
+    /*
+     * Motorun kendi yerleşimi (View ağacı) okunur: her satır (yaprak görünümlerden oluşan satır görünümü) ve
+     * satırdaki her kelime/boşluk/alan/resim parçasının motor koordinatı. Koordinatlar punto cinsindendir (1 birim = 1 pt).
+     * Sayfa: PageFormat (A4 595,28 × 841,89; kenar boşlukları) ve sayfa adımı (sayfa yüksekliği + aralık) motorun sayfa
+     * yöneticisinden; üst/alt bilgi her sayfaya kopyalanır. Böylece satır kırılımı, iki yana yaslama, sekmeler ve sayfa
+     * sonları resmi editörle birebir aynıdır; metin HTML olduğu için her yakınlaştırmada keskindir.
+     *
+     * JSON: {"pw","ph","px","pitch","n","L":[[y,h,bölge,[[x,w,ofset,"metin","css",punto]...]]...],"I":[[x,y,w,h,"resim"]...]}
+     * bölge: 0 gövde, 1 üst bilgi, 2 alt bilgi.
+     */
+    private static final class Sayfa { double pw = 595.28, ph = 841.89, ml = 70.87; int pitch = 861; }
+
+    private static Sayfa sayfaBul(javax.swing.text.View sec) {
+        Sayfa s = new Sayfa();
+        Object tutan = null;
+        java.awt.print.PageFormat pf = null;
+        java.util.List<Object> kuyruk = new java.util.ArrayList<>();
+        kuyruk.add(sec);
+        for (int d = 0; d < 3 && pf == null; d++) {
+            java.util.List<Object> sonraki = new java.util.ArrayList<>();
+            for (Object o : kuyruk) {
+                for (Class<?> c = o.getClass(); c != null && c != Object.class; c = c.getSuperclass())
+                    for (java.lang.reflect.Field f : c.getDeclaredFields()) {
+                        if (java.lang.reflect.Modifier.isStatic(f.getModifiers()) || f.getType().isPrimitive()) continue;
+                        try {
+                            f.setAccessible(true);
+                            Object v = f.get(o);
+                            if (v instanceof java.awt.print.PageFormat && pf == null) { pf = (java.awt.print.PageFormat) v; tutan = o; }
+                            else if (v != null && v.getClass().getName().startsWith("tr.com.havelsan") && !(v instanceof java.awt.Component)
+                                    && !(v instanceof javax.swing.text.View)) sonraki.add(v);
+                        } catch (Throwable ignored) { }
+                    }
+                if (pf != null) break;
+            }
+            kuyruk = sonraki;
+        }
+        if (pf == null) return s;
+        s.pw = pf.getWidth();
+        s.ph = pf.getHeight();
+        s.ml = pf.getImageableX();
+        int sh = (int) Math.round(s.ph), en = -1;
+        for (Class<?> c = tutan.getClass(); c != null && c != Object.class; c = c.getSuperclass())
+            for (java.lang.reflect.Field f : c.getDeclaredFields())
+                if (f.getType() == int.class && !java.lang.reflect.Modifier.isStatic(f.getModifiers())) {
+                    try {
+                        f.setAccessible(true);
+                        int v = f.getInt(tutan);
+                        if (v > sh && v <= sh + 80 && (en < 0 || v < en)) en = v;   // sayfa yüksekliği + aralık
+                    } catch (Throwable ignored) { }
+                }
+        if (en > 0) s.pitch = en; else s.pitch = sh + 20;
+        return s;
+    }
+
+    private static String kagit(JTextComponent m) {
+        javax.swing.text.View kok = m.getUI().getRootView(m);
+        javax.swing.text.View sec = kok.getViewCount() > 0 ? kok.getView(0) : kok;
+        java.awt.Rectangle alan = new java.awt.Rectangle(0, 0, m.getWidth(), m.getHeight());
+        Sayfa s = sayfaBul(sec);
+        StringBuilder L = new StringBuilder(), I = new StringBuilder();
+        int[] solX = {Integer.MAX_VALUE};
+        gez(m.getDocument(), sec, alan, 0, L, I, solX, 0);
+        double px = solX[0] == Integer.MAX_VALUE ? 0 : solX[0] - s.ml;
+        int n = Math.max(1, (int) Math.ceil(m.getHeight() / (double) s.pitch));
+        return "{\"pw\":" + s.pw + ",\"ph\":" + s.ph + ",\"px\":" + px + ",\"pitch\":" + s.pitch + ",\"n\":" + n
+                + ",\"L\":[" + L + "],\"I\":[" + I + "]}";
+    }
+
+    private static void gez(Document d, javax.swing.text.View v, java.awt.Shape a, int bolge, StringBuilder L, StringBuilder I, int[] solX, int derinlik) {
+        if (v == null || a == null || derinlik > 30) return;
+        Element el = v.getElement();
+        String ad = el == null ? "" : el.getName();
+        if ("header".equals(ad)) bolge = 1;
+        else if ("footer".equals(ad)) bolge = 2;
+        int n = v.getViewCount();
+        if (n == 0) return;
+        boolean satir = true;
+        for (int i = 0; i < n; i++) if (v.getView(i).getViewCount() > 0) { satir = false; break; }
+        java.awt.Rectangle r = a.getBounds();
+        if (!satir) {
+            if ("paragraph".equals(ad) && bolge == 0 && r.x < solX[0] && r.width > 100) solX[0] = r.x;
+            for (int i = 0; i < n; i++) {
+                java.awt.Shape c;
+                try { c = v.getChildAllocation(i, a); } catch (Exception e) { continue; }
+                gez(d, v.getView(i), c, bolge, L, I, solX, derinlik + 1);
+            }
+            return;
+        }
+        StringBuilder P = new StringBuilder();
+        for (int i = 0; i < n; i++) {
+            javax.swing.text.View y = v.getView(i);
+            java.awt.Shape c;
+            try { c = v.getChildAllocation(i, a); } catch (Exception e) { continue; }
+            if (c == null) continue;
+            java.awt.Rectangle q = c.getBounds();
+            Element e = y.getElement();
+            AttributeSet at = e.getAttributes();
+            String en = e.getName();
+            Object resim = ozellik(at, "imageData");
+            if ("image".equals(en) || StyleConstants.getIcon(at) != null) {
+                if (resim == null) resim = StyleConstants.getIcon(at);
+                if (I.length() > 0) I.append(',');
+                I.append('[').append(q.x).append(',').append(q.y).append(',').append(q.width).append(',').append(q.height)
+                        .append(",\"").append(resimNo(resim)).append("\",").append(bolge).append(']');
+                continue;
+            }
+            int s0 = y.getStartOffset(), s1 = y.getEndOffset();
+            String t;
+            try { t = d.getText(s0, s1 - s0); } catch (Exception ex) { continue; }
+            t = t.replace("\n", "").replace("\t", "");
+            if (t.isEmpty()) continue;
+            if (P.length() > 0) P.append(',');
+            P.append('[').append(q.x).append(',').append(q.width).append(',').append(s0).append(',');
+            jsonDize(P, t);
+            P.append(',');
+            jsonDize(P, stil(at, "field".equals(en)).replaceAll("font-size:[^;]*;", ""));
+            P.append(',').append(Math.max(1, StyleConstants.getFontSize(at))).append(']');
+        }
+        if (L.length() > 0) L.append(',');
+        L.append('[').append(r.y).append(',').append(r.height).append(',').append(bolge).append(",[").append(P).append("]]");
+    }
+
+    private static void jsonDize(StringBuilder sb, String t) {
+        sb.append('"');
+        for (int i = 0; i < t.length(); i++) {
+            char c = t.charAt(i);
+            if (c == '"' || c == '\\') sb.append('\\').append(c);
+            else if (c < 0x20) sb.append(String.format("\\u%04x", (int) c));
+            else sb.append(c);
+        }
+        sb.append('"');
     }
 
     // ------------------------------------------------------------------------------------ belge → HTML

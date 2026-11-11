@@ -223,7 +223,7 @@ final class Arayuz {
         mobil.setGravity(Gravity.CENTER);
         mobil.setBackground(Tasarim.dalga(Tasarim.yuvarlak(Color.rgb(241, 243, 244), dp(10)), dp(10)));
         mobil.setOnClickListener(v -> { pulse(v); mobilDegistir(); });
-        mobil.setOnLongClickListener(v -> { Toast.makeText(a, mobilKip ? "Sayfa görünümüne geç" : "Mobil görünüme geç (anlık, kaydetmeden)", Toast.LENGTH_SHORT).show(); return true; });
+        mobil.setOnLongClickListener(v -> { gorunumSec(gorunum == ORIJINAL ? KAGIT : ORIJINAL); return true; });
         mobilDugme = mobil;
         LinearLayout.LayoutParams ml = new LinearLayout.LayoutParams(dp(46), dp(40));
         ml.setMargins(0, 0, dp(2), 0);
@@ -293,7 +293,7 @@ final class Arayuz {
     private void altDoldur() {
         // ek tuş satırı (bulanık cam, açılır/kapanır)
         FrameLayout tk = new FrameLayout(a);
-        tk.addView(new BulanikZemin(a), tam());
+        tk.setBackgroundColor(0xF5F8F9FA);
         HorizontalScrollView th = new HorizontalScrollView(a);
         th.setHorizontalScrollBarEnabled(false);
         tusSatiri = new LinearLayout(a);
@@ -329,12 +329,12 @@ final class Arayuz {
 
         // yakınlaştırma kapsülü (CanEditor: − %50 Sığdır + ↔ Sığdır ↕ Sayfa) — bulanık cam
         FrameLayout kap = new FrameLayout(a);
-        kap.setBackground(Tasarim.yuvarlak(0x00FFFFFF, dp(26)));
+        kap.setBackground(Tasarim.yuvarlak(0xF7FFFFFF, dp(26)));
         if (Build.VERSION.SDK_INT >= 21) {
             kap.setClipToOutline(true);
             kap.setElevation(dp(6));
         }
-        kap.addView(new BulanikZemin(a), tam());
+
         LinearLayout z = new LinearLayout(a);
         z.setOrientation(LinearLayout.HORIZONTAL);
         z.setGravity(Gravity.CENTER_VERTICAL);
@@ -345,8 +345,8 @@ final class Arayuz {
         yuzdeTv.setOnClickListener(v -> { pulse(v); if (mobilKip) { mobil.olcekSifirla(); yuzdeYaz(); } else ekran.sigdir(); });
         z.addView(yuzdeTv);
         z.addView(kucukIkon(Tasarim.S.ARTI, v -> { if (mobilKip) { mobil.yakinlastir(1.12f); yuzdeYaz(); } else ekran.yakinlastir(1.2f); }));
-        z.addView(kucukMetin("↔", "Sığdır", v -> { if (mobilKip) mobilDegistir(); ekran.sigdir(); }));
-        z.addView(kucukMetin("↕", "Sayfa", v -> { if (mobilKip) mobilDegistir(); ekran.sayfaSigdir(); }));
+        z.addView(kucukMetin("↔", "Sığdır", v -> { if (mobilKip) { mobil.olcekSifirla(); yuzdeYaz(); } else ekran.sigdir(); }));
+        z.addView(kucukMetin("↕", "Sayfa", v -> { if (mobilKip) { if (gorunum != KAGIT) gorunumSec(KAGIT); mobil.yakinlastir(0.5f); yuzdeYaz(); } else ekran.sayfaSigdir(); }));
         kap.addView(z, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(52)));
         FrameLayout.LayoutParams kpl = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(52), Gravity.BOTTOM | Gravity.START);
         kpl.setMargins(dp(14), 0, 0, dp(14));
@@ -474,6 +474,8 @@ final class Arayuz {
     /** Editör bağlandı: şerit tercihini uygula, menüyü iste. */
     void hazir() {
         UyapMobilServisi.gonder("SG " + (seritGizli() ? "0" : "1"));
+        if (gorunum < 0) gorunumSec(ayar.getInt("gorunum", KAGIT));
+        else if (gorunum != ORIJINAL) UyapMobilServisi.gonder("MM " + gorunum);
         iste(800);
     }
 
@@ -491,8 +493,8 @@ final class Arayuz {
         belgeAdi = ad.trim().isEmpty() ? "UYAP Editör" : ad.trim();
         belgeYolu = yol != null && yol.contains("/.uki/") ? null : yol;   // .uki: kaydedilmemiş yeni belge
         baslikTv.setText(belgeAdi);
-        altBaslikTv.setText((belgeYolu == null ? "Kaydedilmemiş belge" : "Orijinal UYAP Editör · Sayfa görünümü")
-                + (ek.isEmpty() ? "" : " · " + ek.replace("(", "").replace(")", "")));
+        altBaslikTv.setText((ek.isEmpty() ? (belgeYolu == null ? "Kaydedilmemiş belge" : "Orijinal UYAP belgesi") : ek.replace("(", "").replace(")", ""))
+                + " · " + gorunumAdi());
         if (acilisBekleme > 0 && !belgeAdi.toLowerCase(java.util.Locale.ROOT).startsWith("isimsiz")) { acilisBekleme = 0; durumGizle(); }
         iste(300);
     }
@@ -563,44 +565,83 @@ final class Arayuz {
         iste(350);    // seçili durumlar (K, T, hizalama) güncellensin
     }
 
-    // ==================================================================================== anlık mobil görünüm
-    /**
-     * 📱 ⇄ 📄: kaydetmeden, anında. Mobil görünüm resmi editörün bellekteki belgesini telefon genişliğinde gösterir;
-     * yazılanlar resmi editöre gider. Belge, imzalar ve dosya olduğu gibi kalır.
+    // ==================================================================================== görünümler
+    /*
+     * Üç görünüm, hepsi resmi motorun BELLEKTEKİ belgesinden, kaydetmeden:
+     *   2 KAĞIT  (varsayılan) — motorun sayfa/satır/kelime konumlarıyla birebir A4 sayfalar, HTML (keskin, akıcı)
+     *   1 MOBİL  — aynı belge telefon genişliğinde satır kırılarak
+     *   0 ORİJİNAL — resmi editörün kendi ekranı (Swing)
+     * Kağıt ve mobilde resmi editör bir pencere açınca (imza, mobil imza, yazdırma önizlemesi, uyarı) o pencere
+     * orijinal ekrandan büyütülerek gösterilir, kapanınca görünüm geri gelir (DIYALOG).
      */
-    void mobilDegistir() {
-        mobilKip = !mobilKip;
-        if (mobil == null) {
+    static final int ORIJINAL = 0, MOBIL = 1, KAGIT = 2;
+    private int gorunum = -1;
+    private boolean diyalogAcik;
+
+    void gorunumSec(int g) {
+        if (g == gorunum) return;
+        int once = gorunum;
+        gorunum = g;
+        mobilKip = g != ORIJINAL;
+        ayar.edit().putInt("gorunum", g).apply();
+        if (mobil == null && g != ORIJINAL) {
             mobil = new MobilGorunum(a);
             FrameLayout.LayoutParams lp = tam();
             lp.topMargin = dp(UST_YUKSEKLIK);
             kok.addView(mobil, 1, lp);       // ekranın üstünde, çubukların altında
             mobil.setVisibility(View.GONE);
         }
-        if (mobilKip) {
-            mobil.setVisibility(View.VISIBLE);
-            mobil.setAlpha(0f);
-            mobil.animate().alpha(1f).setDuration(220).start();
-            UyapMobilServisi.gonder("MM 1");
-            mobilDugme.setText("📄");
-            gecisRozeti("📱  Mobil Görünüm · orijinal belge");
-        } else {
+        if (g == ORIJINAL) {
             UyapMobilServisi.gonder("MM 0");
-            mobil.animate().alpha(0f).setDuration(180).withEndAction(() -> mobil.setVisibility(View.GONE)).start();
-            mobilDugme.setText("📱");
-            gecisRozeti("📄  Sayfa Görünümü");
+            if (mobil != null) mobil.animate().alpha(0f).setDuration(180).withEndAction(() -> mobil.setVisibility(View.GONE)).start();
+            ekran.sigdir();
+        } else {
+            UyapMobilServisi.gonder("MM " + g);
+            if (!diyalogAcik) {
+                mobil.setVisibility(View.VISIBLE);
+                if (once < 0 || once == ORIJINAL) { mobil.setAlpha(0f); mobil.animate().alpha(1f).setDuration(220).start(); }
+            }
         }
+        mobilDugme.setText(g == MOBIL ? "📄" : "📱");
+        if (once >= 0) gecisRozeti(g == KAGIT ? "📄  Kağıt Görünümü" : g == MOBIL ? "📱  Mobil Görünüm" : "🏛  Orijinal Ekran");
+        if (altBaslikTv != null) altBaslikTv.setText((belgeYolu == null ? "Kaydedilmemiş belge" : "Orijinal UYAP belgesi") + " · " + gorunumAdi());
         yuzdeYaz();
         ekran.requestFocus();
     }
 
+    private String gorunumAdi() { return gorunum == KAGIT ? "Kağıt" : gorunum == MOBIL ? "Mobil" : "Orijinal ekran"; }
+
+    /** 📱/📄 düğmesi: Kağıt ⇄ Mobil (uzun basış: orijinal ekran). */
+    void mobilDegistir() { gorunumSec(gorunum == MOBIL ? KAGIT : MOBIL); }
+
     boolean mobilKipte() { return mobilKip; }
 
-    void mobilSatir(String s) { if (mobil != null && mobilKip) mobil.satir(s); }
+    void mobilSatir(String s) {
+        if (s.startsWith("DIYALOG ")) { diyalog(s); return; }
+        if (mobil != null && mobilKip) mobil.satir(s);
+    }
+
+    /** Resmi editör pencere açtı/kapattı: kağıt/mobilde orijinal ekranı o pencereye odaklayarak göster. */
+    private void diyalog(String s) {
+        String[] p = s.split(" ");
+        boolean ac = p.length >= 6 && "1".equals(p[1]);
+        diyalogAcik = ac;
+        if (ac) ekran.odakla(Integer.parseInt(p[2]), Integer.parseInt(p[3]), Integer.parseInt(p[4]), Integer.parseInt(p[5]));
+        else ekran.sigdir();
+        if (gorunum != ORIJINAL && mobil != null) {
+            if (ac) {
+                if (mobil.getVisibility() == View.VISIBLE) mobil.animate().alpha(0f).setDuration(150).withEndAction(() -> mobil.setVisibility(View.INVISIBLE)).start();
+            } else {
+                mobil.setVisibility(View.VISIBLE);
+                mobil.animate().alpha(1f).setDuration(180).start();
+            }
+        }
+        ekran.requestFocus();
+    }
 
     private void yuzdeYaz() {
         if (yuzdeTv == null) return;
-        if (mobilKip && mobil != null) yuzdeTv.setText("%" + mobil.yuzde() + " Mobil");
+        if (mobilKip && mobil != null) yuzdeTv.setText("%" + mobil.yuzde() + (gorunum == KAGIT ? " Kağıt" : " Mobil"));
         else yuzdeTv.setText("%" + ekran.yuzde() + (ekran.yuzde() == 100 ? " Sığdır" : ""));
     }
 
@@ -637,6 +678,8 @@ final class Arayuz {
     }
 
     /** 💾: kayıtlı belgeyse Kaydet, yeni belgeyse Farklı kaydet (telefonun seçicisi açılır). */
+    String belgeAdi() { return belgeAdi; }
+
     void kaydet() {
         if (son == null) { hazirlaniyor(); return; }
         int k = ogeKimligi("Dosya", "Kaydet");
@@ -756,7 +799,9 @@ final class Arayuz {
         ic.addView(buyukDugme("💾  Açık Olan Belgeyi Kaydet (1-Tık)", Color.rgb(30, 142, 62), () -> { cekmeceKapat(); kaydet(); }));
         ic.addView(satir(null, null, "📂  Belge Aç (UDF, USF)", true, -1, () -> menuKomutu("Dosya", "Aç")));
         ic.addView(satir(null, null, "📄  Yeni Belge", true, -1, () -> menuKomutu("Dosya", "Yeni")));
-        ic.addView(buyukDugme(mobilKip ? "📄  Sayfa Görünümüne Geç" : "📱  Mobil Görünüme Geç (anlık, kaydetmeden)", Color.rgb(121, 59, 34), () -> { cekmeceKapat(); mobilDegistir(); }));
+        ic.addView(buyukDugme(gorunum == MOBIL ? "📄  Kağıt Görünümüne Geç" : "📱  Mobil Görünüme Geç", Color.rgb(121, 59, 34), () -> { cekmeceKapat(); mobilDegistir(); }));
+        ic.addView(satir(null, null, gorunum == ORIJINAL ? "📄  Kağıt görünümüne dön" : "🏛  Orijinal UYAP ekranı (tüm şerit ve pencereler)", true, -1,
+                () -> { cekmeceKapat(); gorunumSec(gorunum == ORIJINAL ? KAGIT : ORIJINAL); }));
         ic.addView(satir(null, null, "✏️  CanEditor'da düzenle (dosyayı kaydeder)", true, -1, () -> { cekmeceKapat(); mobilGorunum(); }));
 
         baslikEtiketi(ic, "FARKLI KAYDET");

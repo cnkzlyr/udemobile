@@ -209,6 +209,18 @@ public class EkranView extends View implements Choreographer.FrameCallback {
         invalidate();
     }
 
+    /** Mantıksal ekrandaki bir dikdörtgeni (ör. resmi editörün açtığı pencere) ekrana sığdırıp ortala. */
+    void odakla(int x, int y, int w, int h) {
+        if (W == 0 || getWidth() == 0 || w <= 0 || h <= 0) return;
+        float k = Math.min(getWidth() * 0.97f / w, getHeight() * 0.92f / h);
+        olcek = Math.max(sigdirOlcegi() * 0.5f, Math.min(k, sigdirOlcegi() * 3.2f));
+        ox = getWidth() / 2f - (x + w / 2f) * olcek;
+        oy = getHeight() / 2f - (y + h / 2f) * olcek;
+        kullaniciYakinlasti = true;
+        sinirla();
+        invalidate();
+    }
+
     /** Ekranın tamamını göster (tüm sayfa, CanEditor'daki "↕ Sayfa"). */
     void sayfaSigdir() {
         if (W == 0 || H == 0 || getWidth() == 0) return;

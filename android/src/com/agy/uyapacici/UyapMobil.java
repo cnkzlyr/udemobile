@@ -354,12 +354,91 @@ public final class UyapMobil {
                 || c.checkSelfPermission(android.Manifest.permission.READ_EXTERNAL_STORAGE) == android.content.pm.PackageManager.PERMISSION_GRANTED;
     }
 
+    // ------------------------------------------------------------------------------------ ağ (DNS)
+    /*
+     * Gömülü glibc (Termux derlemesi) DNS ayarını derlemede sabitlenmiş yollardan okur:
+     *   /data/data/com.termux/files/usr/glibc/etc/resolv.conf · …/etc/hosts · …/etc/nsswitch.conf
+     * Bu klasörler telefonda yok: UYAP motoru HİÇBİR sunucuya ulaşamıyordu (mobil imza hatası, ESYA kök
+     * sertifikası / CRL / OCSP indirilemediği için "Sertifika Zinciri Sorunlu" → "geçersiz imza"). Açılan libc.so.6
+     * içindeki bu yollar, aynı uzunluğu aşmayan uygulama yollarıyla değiştirilir (sonu NUL ile doldurulur) ve
+     * telefonun o anki DNS sunucuları resolv.conf'a yazılır.
+     */
+    private static final String[][] GLIBC_YOLLARI = {
+            {"/data/data/com.termux/files/usr/glibc/etc/resolv.conf", "r.conf"},
+            {"/data/data/com.termux/files/usr/glibc/etc/hosts", "h.conf"},
+    };
+
+    static void agAyari(Context c) {
+        File d = c.getFilesDir();
+        try {
+            StringBuilder r = new StringBuilder();
+            java.util.LinkedHashSet<String> sunucular = new java.util.LinkedHashSet<>();
+            try {
+                android.net.ConnectivityManager cm = (android.net.ConnectivityManager) c.getSystemService(Context.CONNECTIVITY_SERVICE);
+                if (cm != null && android.os.Build.VERSION.SDK_INT >= 23) {
+                    android.net.Network n = cm.getActiveNetwork();
+                    android.net.LinkProperties lp = n == null ? null : cm.getLinkProperties(n);
+                    if (lp != null) for (java.net.InetAddress a : lp.getDnsServers()) sunucular.add(a.getHostAddress());
+                }
+            } catch (Exception ignored) { }
+            sunucular.add("1.1.1.1");
+            sunucular.add("8.8.8.8");
+            int n = 0;
+            for (String s : sunucular) if (n++ < 3) r.append("nameserver ").append(s.replace("%", "%25").split("%")[0]).append('\n');
+            r.append("options timeout:3 attempts:2\n");
+            yaz(new File(d, "r.conf"), r.toString());
+            yaz(new File(d, "h.conf"), "127.0.0.1 localhost\n::1 localhost\n");
+            yaz(new File(d, "n.conf"), "hosts: files dns\n");
+        } catch (Exception e) { Tani.hata("uyapmobil", "ağ ayarı", e); }
+        File libc = new File(rt(c), "glibc/libc.so.6");
+        try { glibcYamala(libc, d); } catch (Exception e) { Tani.hata("uyapmobil", "glibc yaması", e); }
+    }
+
+    private static void yaz(File f, String m) throws IOException {
+        try (OutputStream o = new FileOutputStream(f)) { o.write(m.getBytes(StandardCharsets.UTF_8)); }
+    }
+
+    static void glibcYamala(File libc, File dizin) throws IOException {
+        if (!libc.isFile()) return;
+        byte[] b;
+        try (java.io.FileInputStream in = new java.io.FileInputStream(libc)) { b = AdaletServisi.okuHepsi(in); }
+        boolean degisti = false;
+        java.util.List<String[]> yollar = new java.util.ArrayList<>(java.util.Arrays.asList(GLIBC_YOLLARI));
+        yollar.add(new String[]{"/data/data/com.termux/files/usr/glibc/etc/nsswitch.conf", "n.conf"});
+        for (String[] y : yollar) {
+            byte[] eski = (y[0] + "\0").getBytes(StandardCharsets.US_ASCII);
+            byte[] yeni = (new File(dizin, y[1]).getAbsolutePath()).getBytes(StandardCharsets.UTF_8);
+            if (yeni.length >= eski.length) { Tani.yaz("uyapmobil", "glibc yolu sığmıyor: " + y[1]); continue; }
+            for (int i = indeks(b, eski, 0); i >= 0; i = indeks(b, eski, i + 1)) {
+                java.util.Arrays.fill(b, i, i + eski.length, (byte) 0);
+                System.arraycopy(yeni, 0, b, i, yeni.length);
+                degisti = true;
+            }
+        }
+        if (!degisti) return;
+        File gecici = new File(libc.getPath() + ".yeni");
+        try (OutputStream o = new FileOutputStream(gecici)) { o.write(b); }
+        gecici.setExecutable(true, false);
+        if (!gecici.renameTo(libc)) throw new IOException("libc.so.6 değiştirilemedi");
+        Tani.yaz("uyapmobil", "glibc DNS yolları uygulama klasörüne yönlendirildi");
+    }
+
+    private static int indeks(byte[] b, byte[] a, int bas) {
+        dis:
+        for (int i = bas; i <= b.length - a.length; i++) {
+            for (int j = 0; j < a.length; j++) if (b[i + j] != a[j]) continue dis;
+            return i;
+        }
+        return -1;
+    }
+
     static Process baslat(Context c, int genislik, int yukseklik, int port, String jeton, String dosya) throws IOException {
         File r = rt(c), k = kok(c), ev = ev(c), tmp = new File(c.getCacheDir(), "uyapmobil-tmp");
         ev.mkdirs();
         tmp.mkdirs();
         belgeler(c).mkdirs();
         yaziTipiAyari(c);
+        agAyari(c);
         StringBuilder cp = new StringBuilder();
         File[] jarlar = editorDizini(c).listFiles();
         if (jarlar != null) {

@@ -54,18 +54,31 @@ final class MobilGorunum extends WebView {
         @JavascriptInterface public void imlec(int a, int b) {
             UyapMobilServisi.gonder("MK " + a + (b >= 0 ? " " + b : ""));
         }
+
+        /** Kağıt görünümünde dokunulan motor koordinatı (x2 ≥ 0: seçim sonu). */
+        @JavascriptInterface public void nokta(int x, int y, int x2, int y2) {
+            UyapMobilServisi.gonder("MP " + x + " " + y + (x2 >= 0 ? " " + x2 + " " + y2 : ""));
+        }
     }
 
     /** Köprüden gelen satır: "MOBIL <b64> a b" · "MKARET a b" · "MRESIM no png". */
     void satir(String s) {
-        if (s.startsWith("MOBIL ")) {
+        if (s.startsWith("MKAGIT ")) {
+            String[] p = s.split(" ");
+            if (p.length < 4) return;
+            String im = p.length >= 7 ? "," + p[4] + "," + p[5] + "," + p[6] : "";
+            calistir("kagitCiz(decodeURIComponent(escape(atob('" + p[1] + "')))," + p[2] + "," + p[3] + im + ")");
+        } else if (s.startsWith("MOBIL ")) {
             String[] p = s.split(" ");
             if (p.length < 4) return;
             // base64 → UTF-8 JS içinde çözülür (büyük dizeyi Java'da kaçışlamaktan hızlı)
             calistir("icerik(decodeURIComponent(escape(atob('" + p[1] + "')))," + p[2] + "," + p[3] + ")");
         } else if (s.startsWith("MKARET ")) {
             String[] p = s.split(" ");
-            if (p.length >= 3) calistir("imlec(" + p[1] + "," + p[2] + ",false)");
+            if (p.length >= 3) {
+                String im = p.length >= 6 ? "," + p[3] + "," + p[4] + "," + p[5] : ",null,null,null";
+                calistir("(document.body.classList.contains('kagit')?kimlec(" + p[1] + "," + p[2] + im + ",false):imlec(" + p[1] + "," + p[2] + ",false))");
+            }
         } else if (s.startsWith("MRESIM ")) {
             String[] p = s.split(" ", 3);
             if (p.length == 3) calistir("resim('" + p[1] + "','" + p[2] + "')");
@@ -83,7 +96,7 @@ final class MobilGorunum extends WebView {
 
     private void calistir(String j) {
         if (hazir) js(j); else {
-            if (j.startsWith("icerik(")) bekleyen.removeIf(x -> x.startsWith("icerik("));
+            if (j.startsWith("icerik(") || j.startsWith("kagitCiz(")) bekleyen.removeIf(x -> x.startsWith("icerik(") || x.startsWith("kagitCiz("));
             bekleyen.add(j);
         }
     }

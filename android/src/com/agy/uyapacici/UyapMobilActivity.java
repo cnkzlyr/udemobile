@@ -356,7 +356,10 @@ public class UyapMobilActivity extends Activity implements UyapMobilServisi.Dinl
         Intent i = new Intent(kaydet ? Intent.ACTION_CREATE_DOCUMENT : Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE);
         if (kaydet) {
             i.setType(mimeTuru(ilkUz));
-            String a = ad == null || ad.trim().isEmpty() ? "Belge" : ad.trim();
+            String a = ad;
+            if ((a == null || a.trim().isEmpty()) && ui != null) a = ui.belgeAdi();      // PDF/ODT olarak kaydet: belgenin adı
+            if (a == null || a.trim().isEmpty() || a.toLowerCase(Locale.ROOT).startsWith("isimsiz") || "UYAP Editör".equals(a)) a = "Belge";
+            a = a.trim();
             if (!ilkUz.isEmpty() && !a.toLowerCase(Locale.ROOT).endsWith("." + ilkUz)) a = a.replaceAll("\\.[A-Za-z0-9]{1,5}$", "") + "." + ilkUz;
             i.putExtra(Intent.EXTRA_TITLE, a);
         } else i.setType("*/*");
