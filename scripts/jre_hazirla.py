@@ -40,7 +40,7 @@ PAKETLER = [
     "openjdk-21", "openjdk-21-x", "libandroid-shmem", "libandroid-spawn", "libandroid-support", "libiconv",
     "libjpeg-turbo", "zlib", "littlecms", "freetype", "libpng", "giflib", "brotli", "libbz2",
     "libx11", "libxcb", "libxau", "libxdmcp", "libxext", "libxi", "libxrender", "libxtst", "libxfixes",
-    "fontconfig", "libexpat",
+    "fontconfig", "libexpat", "libc++",
 ]
 MODULLER = ("java.base,java.desktop,java.smartcardio,java.instrument,java.logging,java.management,java.naming,"
             "java.prefs,java.sql,java.xml,java.net.http,java.security.jgss,java.security.sasl,java.scripting,"
@@ -51,6 +51,10 @@ YEREL = ["libandroid-shmem.so", "libandroid-spawn.so", "libandroid-support.so", 
          "libz.so.1", "liblcms2.so", "libfreetype.so", "libpng16.so", "libbz2.so.1.0", "libbrotlidec.so",
          "libbrotlicommon.so", "libX11.so", "libxcb.so", "libXau.so", "libXdmcp.so", "libXext.so", "libXi.so",
          "libXrender.so", "libXtst.so", "libXfixes.so", "libfontconfig.so", "libexpat.so.1", "libgif.so"]
+# Android'in kendi sağladığı (bionic/NDK) kütüphaneler: kopyalanmaz. Geri kalan her NEEDED bağımlılık Termux
+# önekinden kopyalanmak ZORUNDA; aksi halde telefonda "dlopen failed: library ... not found" ile Java hiç açılmaz.
+SISTEM = {"libc.so", "libm.so", "libdl.so", "liblog.so", "libandroid.so", "libEGL.so", "libGLESv2.so", "libGLESv1_CM.so",
+          "libOpenSLES.so", "libjnigraphics.so", "libmediandk.so", "libvulkan.so", "libz.so", "libnativewindow.so"}
 GEREKSIZ = ["bin/jrunscript", "bin/jwebserver", "lib/libjsound.so", "lib/libsplashscreen.so"]
 
 
@@ -111,6 +115,46 @@ def deb_ac(deb, hedef):
     sys.exit("data.tar yok: " + deb)
 
 
+def elf_gerekenler(yol):
+    """ELF dosyasının DT_NEEDED listesi (ELF değilse boş)."""
+    with open(yol, "rb") as f:
+        if f.read(4) != b"\x7fELF":
+            return []
+    r = subprocess.run(["readelf", "-d", yol], capture_output=True, text=True)
+    return re.findall(r"\(NEEDED\)\s+Shared library: \[([^\]]+)\]", r.stdout)
+
+
+def bagimlilik_kapat(jre, lib):
+    """JRE içindeki tüm ELF dosyalarının bağımlılıklarını tarar; eksikleri Termux önekinden kopyalar (özyinelemeli).
+    Bulunamayan, Android sisteminde de olmayan bir bağımlılık kalırsa derlemeyi durdurur."""
+    mevcut = {}
+    for kokd, _, dosyalar in os.walk(jre):
+        for d in dosyalar:
+            mevcut.setdefault(d, os.path.join(kokd, d))
+    kuyruk = list(mevcut.values())
+    eklenen, eksik = [], set()
+    while kuyruk:
+        yol = kuyruk.pop()
+        if os.path.islink(yol) or not os.path.isfile(yol):
+            continue
+        for ad in elf_gerekenler(yol):
+            if ad in mevcut or ad in SISTEM:
+                continue
+            kaynak = os.path.join(lib, ad)
+            if not os.path.exists(kaynak):
+                eksik.add(ad + " (" + os.path.relpath(yol, jre) + ")")
+                continue
+            hedef = os.path.join(jre, "lib", ad)
+            shutil.copyfile(os.path.realpath(kaynak), hedef)
+            mevcut[ad] = hedef
+            eklenen.append(ad)
+            kuyruk.append(hedef)
+    if eklenen:
+        print("   bağımlılık taramasıyla eklenen:", ", ".join(sorted(eklenen)), flush=True)
+    if eksik:
+        sys.exit("çözülemeyen yerel bağımlılık(lar): " + ", ".join(sorted(eksik)))
+
+
 def jre_olustur(kok):
     jdk = os.path.join(kok, PREFIX, "lib/jvm/java-21-openjdk")
     lib = os.path.join(kok, PREFIX, "lib")
@@ -131,6 +175,7 @@ def jre_olustur(kok):
         if not os.path.exists(kaynak):
             sys.exit("eksik yerel kütüphane: " + ad)
         shutil.copyfile(os.path.realpath(kaynak), os.path.join(jre, "lib", ad))
+    bagimlilik_kapat(jre, lib)
     # fontconfig: yazı tipleri Android'in /system/fonts klasöründen
     os.makedirs(os.path.join(jre, "conf", "fonts"), exist_ok=True)
     with open(os.path.join(jre, "conf", "fonts", "fonts.conf"), "w", encoding="utf-8") as f:
