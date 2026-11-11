@@ -42,8 +42,13 @@ import java.util.Locale;
  * resmi editörde açılır; bu ekran .udf/.usf için varsayılan uygulama yapılabilir. Kaydedince belge geldiği yere (yazılabiliyorsa)
  * ya da İndirilenler/UYAP klasörüne yazılır.
  */
-public class UyapMobilActivity extends Activity implements UyapMobilServisi.Dinleyici {
-    private static final int SEC_BELGE = 41, SEC_PAKET = 42, SEC_FONT = 43;
+public class UyapMobilActivity extends Activity implements UyapMobilServisi.Dinleyici, UyapMenu.Uygulama {
+    private static final int SEC_BELGE = 41, SEC_PAKET = 42, SEC_FONT = 43, SEC_EDITOR = 44;
+    /** Editörün Aç/Kaydet penceresi için açılan Android seçicisi (etkinlik yeniden kurulsa da kaybolmasın). */
+    private static int seciciNo = -1;
+    private static boolean seciciKaydet;
+    private static String seciciUzanti = "";
+    private UyapMenu menu;
     /** CanEditor'dan "Orijinal UYAP Editör'de aç": belge zaten belgeler/ klasöründe (EK_YOL). */
     public static final String EYLEM_AC = "com.agy.uyapacici.UYAP_EDITORDE_AC", EK_YOL = "yol";
 
@@ -77,7 +82,12 @@ public class UyapMobilActivity extends Activity implements UyapMobilServisi.Dinl
         FrameLayout.LayoutParams dl = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER);
         alan.addView(durum, dl);
         kok.addView(alan, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
+        LinearLayout bicim = new LinearLayout(this);   // "Aa" biçim çubuğu (UyapMenu doldurur)
+        bicim.setOrientation(LinearLayout.VERTICAL);
+        bicim.setBackgroundColor(Color.rgb(250, 250, 250));
+        kok.addView(bicim, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         kok.addView(tusCubugu(), new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(46)));
+        menu = new UyapMenu(this, alan, bicim, ayar(), this);
         setContentView(kok);
         ekran.degistiriciDinleyici = y -> runOnUiThread(this::degistiricileriGoster);
 
@@ -183,6 +193,7 @@ public class UyapMobilActivity extends Activity implements UyapMobilServisi.Dinl
             ekran.baglan(UyapMobil.ekranDosyasi(this), w, h);
             durum.setVisibility(View.GONE);
             ekran.requestFocus();
+            if (menu != null) menu.hazir();
             if (!ayar().getBoolean("ipucu", false)) {
                 ayar().edit().putBoolean("ipucu", true).apply();
                 Toast.makeText(this, "İpucu: iki parmakla yakınlaştırın · uzun basış = sağ tık · ⋮ > Ekran ölçeği", Toast.LENGTH_LONG).show();
@@ -288,6 +299,8 @@ public class UyapMobilActivity extends Activity implements UyapMobilServisi.Dinl
         LinearLayout s = new LinearLayout(this);
         s.setOrientation(LinearLayout.HORIZONTAL);
         hs.addView(s);
+        s.addView(dugme("☰", v -> menu.ac()));
+        s.addView(dugme("Aa", v -> menu.bicimDegistir()));
         s.addView(dugme("⌨", v -> ekran.klavyeAcKapa()));
         kip = dugme("✋", v -> { ekran.kaydirKipi = !ekran.kaydirKipi; kipGoster(true); });
         s.addView(kip);
@@ -311,7 +324,7 @@ public class UyapMobilActivity extends Activity implements UyapMobilServisi.Dinl
         s.addView(dugme("↷", v -> ekran.tus('Y', EkranView.CTRL)));
         s.addView(dugme("📋", v -> yapistir()));
         s.addView(dugme("⤢", v -> ekran.sigdir()));
-        s.addView(dugme("⋮", v -> menu()));
+        s.addView(dugme("⋮", v -> uygulamaMenusu()));
         kipGoster(false);
         return hs;
     }
@@ -361,10 +374,17 @@ public class UyapMobilActivity extends Activity implements UyapMobilServisi.Dinl
     }
 
     // ------------------------------------------------------------------------------------ menü
-    private void menu() {
-        String[] s = {"Belge aç…", "Yeniden aç ⟳", "Ekran ölçeği…", "Yazı tipi ekle (TTF, ör. Times New Roman)…",
-                "Resmi editörü kur / güncelle", "Günlüğü paylaş", "Editörü kapat"};
-        new AlertDialog.Builder(this).setTitle("UYAP Editör " + UyapMobil.editorSurumu(this)).setItems(s, (d, w) -> {
+    private static final String[] UYGULAMA = {"Belge aç (telefondan)…", "Yeniden aç ⟳", "Ekran ölçeği…",
+            "Yazı tipi ekle (TTF, ör. Times New Roman)…", "Resmi editörü kur / güncelle", "Günlüğü paylaş", "Editörü kapat"};
+
+    @Override public String[] uygulamaKomutlari() { return UYGULAMA; }
+
+    private void uygulamaMenusu() {
+        new AlertDialog.Builder(this).setTitle("UYAP Editör " + UyapMobil.editorSurumu(this)).setItems(UYGULAMA, (d, w) -> uygulamaKomutu(w)).show();
+    }
+
+    @Override public void uygulamaKomutu(int w) {
+        {
             switch (w) {
                 case 0: dosyaSec(SEC_BELGE, "*/*"); break;
                 case 1: yenidenBaslat(); break;
@@ -375,7 +395,94 @@ public class UyapMobilActivity extends Activity implements UyapMobilServisi.Dinl
                 case 6: UyapMobilServisi.gonder("X"); break;
                 default: break;
             }
-        }).show();
+        }
+    }
+
+    @Override public void onBackPressed() {
+        if (menu != null && menu.acikMi()) { menu.kapat(); return; }
+        super.onBackPressed();
+    }
+
+    // ------------------------------------------------------------------------------------ editörden gelenler
+    @Override public void menu(String json) { if (menu != null) menu.geldi(json); }
+
+    /**
+     * Editör Aç / Kaydet / Farklı kaydet / Resim ekle penceresi açtı: telefonun kendi dosya seçicisi gösterilir
+     * (İndirilenler, sdcard, Drive, WhatsApp…; depolama izni gerekmez). Açılan dosya uygulama klasörüne kopyalanır;
+     * kaydederken editör uygulama klasörüne yazar, UyapMobilServisi.geriYaz seçilen yere kopyalar.
+     */
+    @Override public void dosyaIste(int no, boolean kaydet, String ad, String uzantilar) {
+        if (seciciNo >= 0) UyapMobilServisi.seciciYanit(seciciNo, null, false);   // yarım kalmış önceki istek
+        seciciNo = no;
+        seciciKaydet = kaydet;
+        seciciUzanti = uzantilar == null ? "" : uzantilar;
+        String ilkUz = seciciUzanti.split(",")[0].trim();
+        Intent i = new Intent(kaydet ? Intent.ACTION_CREATE_DOCUMENT : Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE);
+        if (kaydet) {
+            i.setType(mimeTuru(ilkUz));
+            String a = ad == null || ad.trim().isEmpty() ? "Belge" : ad.trim();
+            if (!ilkUz.isEmpty() && !a.toLowerCase(Locale.ROOT).endsWith("." + ilkUz)) a = a.replaceAll("\\.[A-Za-z0-9]{1,5}$", "") + "." + ilkUz;
+            i.putExtra(Intent.EXTRA_TITLE, a);
+        } else i.setType("*/*");
+        try { startActivityForResult(i, SEC_EDITOR); }
+        catch (Exception e) {
+            Toast.makeText(this, "Telefonun dosya seçicisi açılamadı; editörün kendi penceresi kullanılıyor", Toast.LENGTH_LONG).show();
+            UyapMobilServisi.seciciYanit(no, null, true);
+            seciciNo = -1;
+        }
+    }
+
+    private static String mimeTuru(String uz) {
+        switch (uz.toLowerCase(Locale.ROOT)) {
+            case "pdf": return "application/pdf";
+            case "odt": return "application/vnd.oasis.opendocument.text";
+            case "html": case "htm": return "text/html";
+            case "txt": return "text/plain";
+            case "png": return "image/png";
+            case "jpg": case "jpeg": return "image/jpeg";
+            default: return "application/octet-stream";
+        }
+    }
+
+    private void editorSecimi(int sonuc, Intent veri) {
+        final int no = seciciNo;
+        seciciNo = -1;
+        if (no < 0) return;
+        Uri u = sonuc == RESULT_OK && veri != null ? veri.getData() : null;
+        if (u == null) { UyapMobilServisi.seciciYanit(no, null, false); return; }
+        try { getContentResolver().takePersistableUriPermission(u, Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION); } catch (Exception ignored) { }
+        try {
+            String ad = adBul(u).replaceAll("[\\\\/:*?\"<>|]", "_");
+            if (seciciKaydet) {
+                String ilkUz = seciciUzanti.split(",")[0].trim();
+                if (!ilkUz.isEmpty() && !ad.contains(".")) ad = ad + "." + ilkUz;
+                File d = UyapMobil.belgeler(this);
+                d.mkdirs();
+                File yerel = new File(d, ad);
+                if (yerel.exists() && !yerel.delete()) throw new IOException("eski kopya silinemedi");
+                UyapMobilServisi.kaynakKaydet(this, yerel, u, true);
+                UyapMobilServisi.seciciYanit(no, yerel.getAbsolutePath(), false);
+            } else {
+                String k = ad.toLowerCase(Locale.ROOT);
+                String yol;
+                if (k.endsWith(".udf") || k.endsWith(".usf")) yol = belgeAl(u);   // kaydedince asıl dosyaya geri yazılır
+                else {
+                    File d = new File(UyapMobil.kok(this), "gelen");
+                    d.mkdirs();
+                    File h = new File(d, ad);
+                    try (InputStream in = getContentResolver().openInputStream(u); OutputStream o = new FileOutputStream(h)) {
+                        if (in == null) throw new IOException("okunamadı");
+                        o.write(AdaletServisi.okuHepsi(in));
+                    }
+                    yol = h.getAbsolutePath();
+                }
+                UyapMobilServisi.seciciYanit(no, yol, false);
+            }
+        } catch (Exception e) {
+            Tani.hata("uyapmobil", "dosya seçici", e);
+            Toast.makeText(this, "Dosya alınamadı: " + e.getMessage(), Toast.LENGTH_LONG).show();
+            UyapMobilServisi.seciciYanit(no, null, false);
+        }
     }
 
     private void yenidenBaslat() {
@@ -400,6 +507,7 @@ public class UyapMobilActivity extends Activity implements UyapMobilServisi.Dinl
 
     @Override protected void onActivityResult(int kod, int sonuc, Intent veri) {
         super.onActivityResult(kod, sonuc, veri);
+        if (kod == SEC_EDITOR) { editorSecimi(sonuc, veri); return; }
         if (sonuc != RESULT_OK || veri == null || veri.getData() == null) return;
         Uri u = veri.getData();
         try { getContentResolver().takePersistableUriPermission(u, Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION); } catch (Exception ignored) { }

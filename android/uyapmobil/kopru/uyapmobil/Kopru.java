@@ -2,6 +2,7 @@ package uyapmobil;
 
 import java.awt.AWTEvent;
 import java.awt.Component;
+import javax.swing.Icon;
 import java.awt.EventQueue;
 import java.awt.KeyboardFocusManager;
 import java.awt.Toolkit;
@@ -157,6 +158,8 @@ public final class Kopru {
         Toolkit.getDefaultToolkit().addAWTEventListener(e -> {
             if (e.getID() == java.awt.event.WindowEvent.WINDOW_OPENED && e.getSource() instanceof java.awt.Container)
                 dosyaSeciciDepolamada((java.awt.Container) e.getSource());
+            if (e.getID() == java.awt.event.WindowEvent.WINDOW_OPENED && e.getSource() instanceof java.awt.Frame && !seritAcik)
+                EventQueue.invokeLater(() -> seritGoster(false));   // yeni belge penceresinde de şerit gizli kalsın
         }, AWTEvent.WINDOW_EVENT_MASK);
         EventQueue.invokeLater(() -> {
             for (Window win : Window.getWindows()) if (win.isShowing() && win instanceof java.awt.Frame) { win.setBounds(0, 0, w, h); yenidenCiz(win); }
@@ -171,12 +174,23 @@ public final class Kopru {
      * Kullanıcı önceden depolamada bir klasöre gittiyse ona dokunulmaz.
      */
     private static void dosyaSeciciDepolamada(java.awt.Container kok) {
+        javax.swing.JFileChooser fc = seciciBul(kok);
+        if (fc == null) return;
+        LOG.println("[uyapmobil] dosya seçici açıldı: tür=" + fc.getDialogType() + " kip=" + fc.getFileSelectionMode()
+                + " dizin=" + fc.getCurrentDirectory() + " depolama=" + System.getProperty("uyapmobil.depolama"));
+        if ("android".equals(System.getProperty("uyapmobil.secici")) && fc.getFileSelectionMode() != javax.swing.JFileChooser.DIRECTORIES_ONLY) {
+            EventQueue.invokeLater(() -> androidSecici(fc));
+            return;
+        }
+        swingSeciciDepolamada(fc);
+    }
+
+    /** Swing seçicisini telefon depolamasına taşı (Android seçicisi kullanılamazsa yedek yol). */
+    static void swingSeciciDepolamada(javax.swing.JFileChooser fc) {
         String d = System.getProperty("uyapmobil.depolama");
         if (d == null) return;
         File depo = new File(d);
-        if (!depo.isDirectory()) return;
-        javax.swing.JFileChooser fc = seciciBul(kok);
-        if (fc == null) return;
+        if (!depo.isDirectory()) { LOG.println("[uyapmobil] depolama okunamıyor: " + depo); return; }
         EventQueue.invokeLater(() -> {
             try {
                 File simdi = fc.getCurrentDirectory();
@@ -191,6 +205,245 @@ public final class Kopru {
                 LOG.println("[uyapmobil] dosya seçici: " + ex);
             }
         });
+    }
+
+    // ------------------------------------------------------------------------------------ Android dosya seçicisi
+    /*
+     * Editörün Aç / Kaydet / Farklı kaydet / Resim ekle … pencereleri (JFileChooser) telefonda küçük ve dokunmaya
+     * uygun değil; ayrıca uygulamanın göremediği klasörlerde açılıyordu. Seçici açılınca Android'e
+     *   SEC <no> <ac|kaydet> <base64 önerilen ad> <base64 uzantılar, virgülle>
+     * bildirilir; Android kendi seçicisini (Storage Access Framework: İndirilenler, sdcard, Drive, WhatsApp…) gösterir ve
+     *   SF <no> <base64 yerel yol>   → seçilen dosya (Aç) ya da yazılacak yerel dosya (Kaydet; Android asıl yere kopyalar)
+     *   SF <no>                      → vazgeçildi
+     *   SK <no>                      → Android seçicisi yok: Swing seçicisi depolamada kalsın
+     * yanıtlarından birini gönderir. Swing penceresi bu sırada arkada açık bekler (modal döngü bozulmaz).
+     */
+    private static final java.util.Map<Integer, javax.swing.JFileChooser> SECICILER = new java.util.concurrent.ConcurrentHashMap<>();
+    private static final java.util.concurrent.atomic.AtomicInteger SECICI_NO = new java.util.concurrent.atomic.AtomicInteger();
+
+    private static String b64(String s) {
+        return java.util.Base64.getEncoder().encodeToString((s == null ? "" : s).getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static String b64coz(String s) {
+        return new String(java.util.Base64.getDecoder().decode(s), StandardCharsets.UTF_8);
+    }
+
+    private static void androidSecici(javax.swing.JFileChooser fc) {
+        int no = SECICI_NO.incrementAndGet();
+        SECICILER.put(no, fc);
+        boolean kaydet = fc.getDialogType() == javax.swing.JFileChooser.SAVE_DIALOG;
+        String ad = "";
+        File sec = fc.getSelectedFile();
+        if (sec != null) ad = sec.getName();
+        StringBuilder uz = new StringBuilder();
+        javax.swing.filechooser.FileFilter f = fc.getFileFilter();
+        if (f instanceof javax.swing.filechooser.FileNameExtensionFilter) {
+            for (String e : ((javax.swing.filechooser.FileNameExtensionFilter) f).getExtensions()) uz.append(uz.length() > 0 ? "," : "").append(e);
+        } else if (f != null && f.getDescription() != null) {
+            java.util.regex.Matcher m = java.util.regex.Pattern.compile("\\.([A-Za-z0-9]{2,5})").matcher(f.getDescription());
+            while (m.find()) uz.append(uz.length() > 0 ? "," : "").append(m.group(1).toLowerCase(java.util.Locale.ROOT));
+        }
+        LOG.println("[uyapmobil] Android seçicisi #" + no + (kaydet ? " kaydet " : " aç ") + ad + " [" + uz + "]");
+        bildir("SEC " + no + " " + (kaydet ? "kaydet" : "ac") + " " + b64(ad) + " " + b64(uz.toString()));
+    }
+
+    private static void seciciYanit(String[] p, boolean swing) {
+        javax.swing.JFileChooser fc = SECICILER.remove(Integer.parseInt(p[1]));
+        if (fc == null) return;
+        if (swing) { swingSeciciDepolamada(fc); return; }
+        final String yol = p.length > 2 ? b64coz(p[2]) : null;
+        EventQueue.invokeLater(() -> {
+            if (yol == null || yol.isEmpty()) { fc.cancelSelection(); return; }
+            File f = new File(yol);
+            fc.setCurrentDirectory(f.getParentFile());
+            fc.setSelectedFile(f);
+            fc.approveSelection();
+            LOG.println("[uyapmobil] seçici → " + f);
+        });
+    }
+
+    // ------------------------------------------------------------------------------------ menü yansıtma
+    /*
+     * Resmi editörün klasik menü çubuğu (Dosya, Giriş, Düzenle, Ekle, Biçim, Araçlar, Görünüm, Modernizasyon) şerit
+     * görünümde gizli durur ama tüm komutları dinleyicileriyle içerir. "MN" isteğine bütün ağaç JSON olarak (simgeler PNG,
+     * base64) gönderilir: Android bunu büyük dokunmatik bir ☰ menüde ve "Aa" biçim çubuğunda gösterir.
+     *   MENU <base64 json>   {"m":[{"t":"Dosya","o":[öğe…]}…]}
+     *   öğe: {"k":"i","id":n,"t":"Yeni","e":1,"s":-1|0|1,"ic":"png64"}   menü öğesi / onay kutusu
+     *        {"k":"-"}                                                     ayraç
+     *        {"k":"b","o":[{"id":n,"e":1,"s":-1|0|1,"ic":"…","ip":"ipucu"}…]} araç çubuğu düğmeleri
+     *        {"k":"c","id":n,"t":"seçili","l":["…"]}                        açılır liste (yazı tipi, boyut, stil)
+     * Komutlar: "MC <id>" tıkla, "MS <id> <sıra>" listeden seç, "MT <id> <base64 metin>" listeye metin yaz (boyut).
+     */
+    private static final java.util.List<Component> MENU_OGELERI = new java.util.ArrayList<>();
+    private static final java.util.Map<Icon, String> SIMGE_ONBELLEK = new java.util.WeakHashMap<>();
+
+    private static javax.swing.JMenuBar menuCubugu() {
+        javax.swing.JFrame en = null;
+        for (Window w : Window.getWindows())
+            if (w.isShowing() && w instanceof javax.swing.JFrame && ((javax.swing.JFrame) w).getJMenuBar() != null) {
+                en = (javax.swing.JFrame) w;
+                if (w.isFocused() || w.isActive()) break;
+            }
+        return en == null ? null : en.getJMenuBar();
+    }
+
+    private static String js(String s) {
+        if (s == null) return "\"\"";
+        StringBuilder b = new StringBuilder("\"");
+        for (char ch : s.toCharArray()) {
+            if (ch == '"' || ch == '\\') b.append('\\').append(ch);
+            else if (ch < 0x20) b.append(String.format("\\u%04x", (int) ch));
+            else b.append(ch);
+        }
+        return b.append('"').toString();
+    }
+
+    private static String simge(Icon ic, Component c) {
+        if (ic == null || ic.getIconWidth() <= 0 || ic.getIconHeight() <= 0) return "";
+        String v = SIMGE_ONBELLEK.get(ic);
+        if (v != null) return v;
+        try {
+            int w = Math.min(ic.getIconWidth(), 96), h = Math.min(ic.getIconHeight(), 96);
+            BufferedImage im = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+            java.awt.Graphics2D g = im.createGraphics();
+            ic.paintIcon(c, g, 0, 0);
+            g.dispose();
+            java.io.ByteArrayOutputStream bo = new java.io.ByteArrayOutputStream();
+            javax.imageio.ImageIO.write(im, "png", bo);
+            v = java.util.Base64.getEncoder().encodeToString(bo.toByteArray());
+        } catch (Throwable e) { v = ""; }
+        SIMGE_ONBELLEK.put(ic, v);
+        return v;
+    }
+
+    private static int sec(javax.swing.AbstractButton b) {
+        return (b instanceof javax.swing.JCheckBoxMenuItem || b instanceof javax.swing.JRadioButtonMenuItem
+                || b instanceof javax.swing.JToggleButton) ? (b.isSelected() ? 1 : 0) : -1;
+    }
+
+    private static int kaydetOge(Component c) { MENU_OGELERI.add(c); return MENU_OGELERI.size() - 1; }
+
+    private static void ogeJson(StringBuilder sb, Component k) {
+        if (k instanceof javax.swing.JMenu) {
+            javax.swing.JMenu alt = (javax.swing.JMenu) k;
+            sb.append("{\"k\":\"g\",\"t\":").append(js(alt.getText())).append(",\"o\":[");
+            boolean ilk = true;
+            for (Component kk : alt.getMenuComponents()) { if (!ilk) sb.append(','); ilk = false; ogeJson(sb, kk); }
+            sb.append("]}");
+        } else if (k instanceof javax.swing.AbstractButton) {
+            javax.swing.AbstractButton b = (javax.swing.AbstractButton) k;
+            sb.append("{\"k\":\"i\",\"id\":").append(kaydetOge(b)).append(",\"t\":").append(js(b.getText()))
+              .append(",\"e\":").append(b.isEnabled() ? 1 : 0).append(",\"s\":").append(sec(b))
+              .append(",\"ic\":\"").append(simge(b.getIcon(), b)).append("\"}");
+        } else if (k instanceof javax.swing.JToolBar) {
+            sb.append("{\"k\":\"b\",\"o\":[");
+            boolean ilk = true;
+            for (Component kk : ((javax.swing.JToolBar) k).getComponents()) {
+                if (kk instanceof javax.swing.AbstractButton) {
+                    javax.swing.AbstractButton b = (javax.swing.AbstractButton) kk;
+                    if (!ilk) sb.append(','); ilk = false;
+                    sb.append("{\"k\":\"t\",\"id\":").append(kaydetOge(b)).append(",\"e\":").append(b.isEnabled() ? 1 : 0)
+                      .append(",\"s\":").append(sec(b)).append(",\"ip\":").append(js(b.getToolTipText()))
+                      .append(",\"ic\":\"").append(simge(b.getIcon(), b)).append("\"}");
+                } else if (kk instanceof javax.swing.JComboBox) {
+                    javax.swing.JComboBox<?> cb = (javax.swing.JComboBox<?>) kk;
+                    if (!ilk) sb.append(','); ilk = false;
+                    sb.append("{\"k\":\"c\",\"id\":").append(kaydetOge(cb)).append(",\"t\":").append(js(String.valueOf(cb.getSelectedItem())))
+                      .append(",\"ed\":").append(cb.isEditable() ? 1 : 0).append(",\"l\":[");
+                    for (int i = 0; i < cb.getItemCount(); i++) sb.append(i > 0 ? "," : "").append(js(String.valueOf(cb.getItemAt(i))));
+                    sb.append("]}");
+                }
+            }
+            sb.append("]}");
+        } else {
+            sb.append("{\"k\":\"-\"}");
+        }
+    }
+
+    private static void menuGonder() {
+        javax.swing.JMenuBar mb = menuCubugu();
+        if (mb == null) { bildir("MENU " + b64("{\"m\":[]}")); return; }
+        MENU_OGELERI.clear();
+        StringBuilder sb = new StringBuilder("{\"m\":[");
+        boolean ilk = true;
+        for (int i = 0; i < mb.getMenuCount(); i++) {
+            javax.swing.JMenu m = mb.getMenu(i);
+            if (m == null) continue;
+            if (!ilk) sb.append(','); ilk = false;
+            sb.append("{\"t\":").append(js(m.getText())).append(",\"o\":[");
+            boolean ilk2 = true;
+            for (Component k : m.getMenuComponents()) { if (!ilk2) sb.append(','); ilk2 = false; ogeJson(sb, k); }
+            sb.append("]}");
+        }
+        sb.append("]}");
+        bildir("MENU " + b64(sb.toString()));
+    }
+
+    private static void menuKomut(String[] p) {
+        int id = Integer.parseInt(p[1]);
+        if (id < 0 || id >= MENU_OGELERI.size()) return;
+        Component c = MENU_OGELERI.get(id);
+        if (c instanceof javax.swing.AbstractButton && "MC".equals(p[0])) {
+            javax.swing.AbstractButton b = (javax.swing.AbstractButton) c;
+            if (!b.isEnabled()) return;
+            LOG.println("[uyapmobil] komut: " + (b.getText() != null && !b.getText().isEmpty() ? b.getText() : b.getToolTipText()));
+            b.doClick(0);
+        } else if (c instanceof javax.swing.JComboBox) {
+            javax.swing.JComboBox<?> cb = (javax.swing.JComboBox<?>) c;
+            if ("MS".equals(p[0])) cb.setSelectedIndex(Integer.parseInt(p[2]));
+            else if ("MT".equals(p[0]) && cb.isEditable()) {
+                String v = b64coz(p[2]);
+                cb.getEditor().setItem(v);
+                cb.setSelectedItem(v);
+            }
+        }
+        // komuttan sonra odak belgeye dönsün (klavye yazmaya devam edebilsin)
+        EventQueue.invokeLater(() -> {
+            Component o = odak();
+            if (!(o instanceof javax.swing.text.JTextComponent)) {
+                for (Window w : Window.getWindows())
+                    if (w.isShowing() && w instanceof java.awt.Frame) { metinBul(w); break; }
+            }
+        });
+    }
+
+    private static void seritGoster(boolean goster) {
+        for (Window w : Window.getWindows())
+            if (w instanceof java.awt.Frame && w.isShowing()) {
+                Component r = sinifBul(w, "org.pushingpixels.flamingo.api.ribbon.JRibbon");
+                if (r == null) continue;
+                // Flamingo JRibbon: setVisible çerçeve düzeninde yok sayılabiliyor; önce "küçült" (yalnızca sekme satırı),
+                // ardından tamamen gizle.
+                try { r.getClass().getMethod("setMinimized", boolean.class).invoke(r, !goster); } catch (Exception ex) { LOG.println("[uyapmobil] şerit küçültülemedi: " + ex); }
+                // JRibbonFrame'de JRibbon.setVisible(false) "Can't hide ribbon" hatası verir: yükseklik 0'a indirilir.
+                ((javax.swing.JComponent) r).setPreferredSize(goster ? null : new java.awt.Dimension(r.getWidth(), 0));
+                ((javax.swing.JComponent) r).setMinimumSize(goster ? null : new java.awt.Dimension(0, 0));
+                java.awt.Container ust = r.getParent();
+                if (ust != null) { ust.invalidate(); ust.validate(); }
+                w.validate();
+                yenidenCiz(w);
+                LOG.println("[uyapmobil] şerit " + (goster ? "gösterildi" : "gizlendi") + " (görünür=" + r.isVisible() + ", " + r.getHeight() + " px)");
+            }
+        seritAcik = goster;
+    }
+    static volatile boolean seritAcik = true;
+
+    private static Component sinifBul(java.awt.Container c, String sinif) {
+        for (Component k : c.getComponents()) {
+            if (k.getClass().getName().equals(sinif)) return k;
+            if (k instanceof java.awt.Container) { Component b = sinifBul((java.awt.Container) k, sinif); if (b != null) return b; }
+        }
+        return null;
+    }
+
+    private static boolean metinBul(java.awt.Container c) {
+        for (Component k : c.getComponents()) {
+            if (k instanceof javax.swing.text.JTextComponent && k.isShowing() && ((javax.swing.text.JTextComponent) k).isEditable()
+                    && k.getWidth() > 200) { k.requestFocusInWindow(); return true; }
+            if (k instanceof java.awt.Container && metinBul((java.awt.Container) k)) return true;
+        }
+        return false;
     }
 
     private static javax.swing.JFileChooser seciciBul(java.awt.Container c) {
@@ -427,12 +680,68 @@ public final class Kopru {
             case "R":   // tanı: tüm pencereleri yeniden düzenle ve çiz
                 EventQueue.invokeLater(() -> { for (Window w : Window.getWindows()) if (w.isShowing()) { w.invalidate(); w.validate(); w.repaint(); } });
                 break;
+            case "SF": seciciYanit(p, false); break;
+            case "SK": seciciYanit(p, true); break;
+            case "MN": EventQueue.invokeLater(Kopru::menuGonder); break;
+            case "MC": case "MS": case "MT": EventQueue.invokeLater(() -> menuKomut(p)); break;
+            case "SG":  // şerit menüyü gizle (0) / göster (1): ☰ menü kullanılırken belgeye daha çok yer kalsın
+                EventQueue.invokeLater(() -> seritGoster(!"0".equals(p.length > 1 ? p[1] : "1")));
+                break;
+            case "BD":  // tanı: ana penceredeki bileşen ağacı (düğmeler, etiketler, sekmeler)
+                EventQueue.invokeLater(() -> { for (Window w : Window.getWindows()) if (w.isShowing() && w instanceof java.awt.Frame) agacDok(w, 0); });
+                break;
+            case "MD":  // tanı: menü çubuğu ağacı
+                EventQueue.invokeLater(() -> {
+                    for (Window w : Window.getWindows())
+                        if (w.isShowing() && w instanceof javax.swing.JFrame && ((javax.swing.JFrame) w).getJMenuBar() != null) {
+                            javax.swing.JMenuBar mb = ((javax.swing.JFrame) w).getJMenuBar();
+                            for (int i = 0; i < mb.getMenuCount(); i++) if (mb.getMenu(i) != null) menuDok(mb.getMenu(i), 0);
+                        }
+                });
+                break;
             case "G":   // tanı: fare/tuş olaylarını günlüğe yaz
                 Toolkit.getDefaultToolkit().addAWTEventListener(e -> LOG.println("[uyapmobil] olay " + e.paramString() + " @ " + e.getSource().getClass().getSimpleName()),
                         AWTEvent.MOUSE_EVENT_MASK | AWTEvent.KEY_EVENT_MASK);
                 break;
             default: break;
         }
+    }
+
+    private static void menuDok(javax.swing.JMenuItem m, int d) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < d; i++) sb.append("  ");
+        sb.append(m.getText()).append(" | ").append(m.getClass().getSimpleName()).append(" etkin=").append(m.isEnabled())
+          .append(" kısa=").append(m.getAccelerator()).append(" ikon=").append(m.getIcon() != null)
+          .append(" eylem=").append(m.getAction() != null ? m.getAction().getClass().getName() : "-")
+          .append(" dinleyici=").append(m.getActionListeners().length);
+        LOG.println("[menü] " + sb);
+        if (m instanceof javax.swing.JMenu)
+            for (Component k : ((javax.swing.JMenu) m).getMenuComponents())
+                if (k instanceof javax.swing.JMenuItem) menuDok((javax.swing.JMenuItem) k, d + 1);
+                else { LOG.println("[menü] " + "  ".repeat(d + 1) + "-- " + k.getClass().getSimpleName()); if (k instanceof javax.swing.JToolBar || k instanceof javax.swing.JCheckBox) agacDok(k, 2 * d + 6); }
+    }
+
+    private static void agacDok(Component c, int d) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < d; i++) sb.append(' ');
+        sb.append(c.getClass().getName());
+        if (c.getName() != null) sb.append(" ad=").append(c.getName());
+        if (c instanceof javax.swing.AbstractButton) {
+            javax.swing.AbstractButton b = (javax.swing.AbstractButton) c;
+            sb.append(" [DÜĞME metin=").append(b.getText()).append(" ipucu=").append(b.getToolTipText())
+              .append(" komut=").append(b.getActionCommand()).append(" etkin=").append(b.isEnabled())
+              .append(" eylem=").append(b.getAction() != null ? b.getAction().getClass().getName() : null).append(']');
+        } else if (c instanceof javax.swing.JLabel) sb.append(" [ETİKET ").append(((javax.swing.JLabel) c).getText()).append(']');
+        else if (c instanceof javax.swing.JComponent && ((javax.swing.JComponent) c).getToolTipText() != null)
+            sb.append(" ipucu=").append(((javax.swing.JComponent) c).getToolTipText());
+        if (c instanceof javax.swing.JTabbedPane) {
+            javax.swing.JTabbedPane t = (javax.swing.JTabbedPane) c;
+            for (int i = 0; i < t.getTabCount(); i++) sb.append(" sekme").append(i).append('=').append(t.getTitleAt(i));
+        }
+        sb.append(" g=").append(c.isVisible()).append(' ').append(c.getBounds().width).append('x').append(c.getBounds().height);
+        LOG.println(sb);
+        if (c instanceof java.awt.Container && d < 40)
+            for (Component k : ((java.awt.Container) c).getComponents()) agacDok(k, d + 1);
     }
 
     private static Component odak() {

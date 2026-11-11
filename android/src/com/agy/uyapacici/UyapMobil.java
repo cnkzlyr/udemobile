@@ -407,6 +407,7 @@ public final class UyapMobil {
         // Yalnızca depolama izni verildiyse: izinsiz klasör boş görünür.
         File depo = android.os.Environment.getExternalStorageDirectory();
         if (depo != null && depo.isDirectory() && depolamaIzniVar(c)) a.add("-Duyapmobil.depolama=" + depo.getAbsolutePath());
+        a.add("-Duyapmobil.secici=android");   // Aç/Kaydet → Android'in kendi dosya seçicisi (Kopru.androidSecici)
         a.add("--");
         a.add(ANA_SINIF);
         a.add("getNewWPInstance");
