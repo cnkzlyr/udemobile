@@ -51,6 +51,18 @@ fn java_yolu(app: &tauri::AppHandle) -> Option<PathBuf> {
     adaylar.iter().map(|a| kok.join(a)).find(|p| p.is_file())
 }
 
+/// Windows e-imza ajanı (Unicode PC/SC sağlayıcısı): resources/eimza/eimza-win-agent.jar
+fn ajan_yolu(app: &tauri::AppHandle) -> Option<PathBuf> {
+    let p = app.path().resource_dir().ok()?.join("eimza").join("eimza-win-agent.jar");
+    if p.is_file() { Some(p) } else { None }
+}
+
+/// JVM seçeneği için yol: Windows'un "\\?\" önekini atar (Java -javaagent bunu çözemez).
+fn duz_yol(p: &std::path::Path) -> String {
+    let s = p.display().to_string();
+    s.strip_prefix(r"\\?\").map(|x| x.to_string()).unwrap_or(s)
+}
+
 fn port_acik() -> bool {
     let a: SocketAddr = ([127, 0, 0, 1], PORT).into();
     TcpStream::connect_timeout(&a, Duration::from_millis(700)).is_ok()
@@ -206,11 +218,49 @@ fn kur_ic(app: &tauri::AppHandle) -> Result<String, String> {
     Ok(surum)
 }
 
-/// Adalet E-İmza'yı başlatır (zaten 5975'te bir servis çalışıyorsa dokunmaz).
+/// Başlatma ayarlarının sürümü: değişince CanEditor'un ÖNCEKİ sürümünün başlattığı Adalet süreci yeniden başlatılır
+/// (ör. 3.18.7'nin başlattığı süreç Unicode PC/SC ajanı olmadan çalışıyordu: ArkSigner görünmüyordu).
+const BASLATMA_SURUMU: &str = "2-unicode-pcsc";
+
+/// CanEditor'un kendi başlattığı (jar yolu bizim veri dizinimizde olan) Adalet sürecini kapatır.
+/// Bilgisayara ayrıca kurulmuş resmi Adalet E-İmza'ya dokunmaz.
+#[cfg(windows)]
+fn eski_sureci_kapat(jar: &std::path::Path) {
+    use std::os::windows::process::CommandExt;
+    let yol = duz_yol(jar).replace('\'', "''");
+    let betik = format!(
+        "Get-CimInstance Win32_Process -Filter \"Name='javaw.exe' OR Name='java.exe'\" | Where-Object {{ $_.CommandLine -and $_.CommandLine.Contains('{}') }} | ForEach-Object {{ Stop-Process -Id $_.ProcessId -Force }}",
+        yol
+    );
+    let _ = Command::new("powershell")
+        .args(["-NoProfile", "-NonInteractive", "-Command", &betik])
+        .creation_flags(0x0800_0000)
+        .status();
+}
+#[cfg(not(windows))]
+fn eski_sureci_kapat(_jar: &std::path::Path) {}
+
+/// Adalet E-İmza'yı başlatır (zaten 5975'te güncel bir servis çalışıyorsa dokunmaz).
 #[tauri::command(async)]
 pub fn adalet_baslat(app: tauri::AppHandle) -> Result<String, String> {
     if port_acik() {
-        return Ok("çalışıyor".into());
+        let dizin = veri_dizini(&app)?;
+        let jar = jar_yolu(&app)?;
+        let isaret = fs::read_to_string(dizin.join("calisan.txt")).unwrap_or_default();
+        // Port bizim eski sürecimizdeyse (işaret eski/yok) ve bu pakette ajan varsa: yeni ayarlarla yeniden başlat
+        if isaret.trim() != BASLATMA_SURUMU && ajan_yolu(&app).is_some() && jar.is_file() && !surec_canli() {
+            durum_yaz("Adalet E-İmza yeni ayarlarla yeniden başlatılıyor…");
+            eski_sureci_kapat(&jar);
+            for _ in 0..30 {
+                if !port_acik() {
+                    break;
+                }
+                std::thread::sleep(Duration::from_millis(500));
+            }
+        }
+        if port_acik() {
+            return Ok("çalışıyor".into());
+        }
     }
     if surec_canli() {
         return Ok("başlatılıyor".into());
@@ -248,8 +298,15 @@ pub fn adalet_baslat(app: tauri::AppHandle) -> Result<String, String> {
     .stdin(Stdio::null())
     .stdout(Stdio::from(gunluk))
     .stderr(Stdio::from(gunluk2));
-    // Kart tarayan alt Java süreçleri (probe) de aynı ayarları alsın
-    k.env("JAVA_TOOL_OPTIONS", format!("-Dfile.encoding=UTF-8 -Djava.io.tmpdir={}", tmp.display()));
+    // JAVA_TOOL_OPTIONS: kart tarayan alt Java süreçleri (probe) de aynı ayarları alır.
+    // Ajan: JDK'nın Windows PC/SC sağlayıcısı Türkçe karakterli okuyucu adlarını bozar (ArkSigner:
+    // "Microsoft Usbccid Akıllı Kart Okuyucusu (WUDF) 0" hiç açılamıyordu) → Unicode PC/SC sağlayıcısı.
+    // Yollar boşluk içerebilir (Program Files, kullanıcı adı): tırnaklanır.
+    let mut jto = format!("-Dfile.encoding=UTF-8 \"-Djava.io.tmpdir={}\"", duz_yol(&tmp));
+    if let Some(a) = ajan_yolu(&app) {
+        jto = format!("-javaagent:\"{}\" {}", duz_yol(&a), jto);
+    }
+    k.env("JAVA_TOOL_OPTIONS", jto);
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
@@ -259,6 +316,7 @@ pub fn adalet_baslat(app: tauri::AppHandle) -> Result<String, String> {
     if let Ok(mut g) = SUREC.lock() {
         *g = Some(c);
     }
+    let _ = fs::write(dizin.join("calisan.txt"), BASLATMA_SURUMU);
     durum_yaz("Adalet E-İmza başlatılıyor…");
     Ok("başlatılıyor".into())
 }

@@ -1,6 +1,6 @@
 # ⚖️ CanEditor (UdeMobile) — Çapraz Platform UYAP & Word Editörü
 
-[![Sürüm](https://img.shields.io/badge/Sürüm-v3.18.7-blue.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v3.18.7)
+[![Sürüm](https://img.shields.io/badge/Sürüm-v3.18.8-blue.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v3.18.8)
 [![Platformlar](https://img.shields.io/badge/Platformlar-Android%20%7C%20Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Web-success.svg)](https://github.com/cnkzlyr/udemobile/releases)
 [![UYAP](https://img.shields.io/badge/Format-UYAP_UDF_v1.8-0D47A1.svg)](https://uyap.gov.tr)
 [![Word](https://img.shields.io/badge/Format-MS_DOCX_OpenXML-2B579A.svg?logo=microsoft-word&logoColor=white)](https://microsoft.com)
@@ -11,14 +11,14 @@
 
 ---
 
-## 🚀 Hızlı İndirme (v3.18.7)
+## 🚀 Hızlı İndirme (v3.18.8)
 
 | Platform | Paket Dosyası | Açıklama |
 | :--- | :--- | :--- |
-| **Android (Telefon & Tablet)** | [**CanEditor-v3.18.7.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.18.7/CanEditor-v3.18.7.apk) | Güncel Android APK paketi (Termux gerektirmez) |
-| **Android (Her Zaman En Son)** | [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.18.7/CanEditor-latest.apk) | Kalıcı son sürüm bağlantısı |
-| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v3.18.7.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v3.18.7/CanEditor-Portable-Web-GUI-v3.18.7.zip) | **Kurulumsuz;** zipten çıkarıp `index.html` açarak tüm işletim sistemlerinde doğrudan çalışır |
-| **Windows / macOS / Linux** | [**GitHub Releases Sayfası**](https://github.com/cnkzlyr/udemobile/releases/tag/v3.18.7) | GitHub Actions CI ile derlenen yerel ikili (.msi, .exe, .dmg, .AppImage, .deb, .rpm) paketleri |
+| **Android (Telefon & Tablet)** | [**CanEditor-v3.18.8.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.18.8/CanEditor-v3.18.8.apk) | Güncel Android APK paketi (Termux gerektirmez) |
+| **Android (Her Zaman En Son)** | [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.18.8/CanEditor-latest.apk) | Kalıcı son sürüm bağlantısı |
+| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v3.18.8.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v3.18.8/CanEditor-Portable-Web-GUI-v3.18.8.zip) | **Kurulumsuz;** zipten çıkarıp `index.html` açarak tüm işletim sistemlerinde doğrudan çalışır |
+| **Windows / macOS / Linux** | [**GitHub Releases Sayfası**](https://github.com/cnkzlyr/udemobile/releases/tag/v3.18.8) | GitHub Actions CI ile derlenen yerel ikili (.msi, .exe, .dmg, .AppImage, .deb, .rpm) paketleri |
 
 ---
 
@@ -28,6 +28,19 @@ v3.17.0'dan itibaren APK yeni ve kalıcı bir proje anahtarıyla imzalanır (ser
 `BA:80:78:89:12:28:35:C0:58:3B:C9:72:3B:C0:90:5C:C8:6F:49:A8:1A:92:BA:F9:D0:96:33:77:71:BB:D4:F0`). Telefonunuzda
 v3.16.0 ya da öncesi kuruluysa bir kez **kaldırıp** yeni APK'yı kurun (aksi halde Android "paket çakışıyor" hatası
 verir). Sonraki güncellemeler kaldırmadan, üzerine kurulur.
+
+## 🌟 v3.18.8: Windows'ta ArkSigner (Türkçe adlı okuyucular) görünür
+
+- **Neden görünmüyordu:** Windows ArkSigner'ı kendi sürücüsüyle tanıyor (VID 33B6 / PID 0001, "Microsoft Usbccid Akıllı
+  Kart Okuyucusu (WUDF)"), ama okuyucu adında Türkçe "ı" var. JDK'nın Windows PC/SC katmanı ANSI işlevlerini
+  (SCardListReadersA/SCardConnectA) çağırıp adları UTF-8'miş gibi çeviriyor; Türkçe karakterli ad bozuluyor ve okuyucu
+  açılamıyordu. ACR39'un adı ASCII olduğu için o çalışıyordu.
+- **Çözüm:** CanEditor'un Adalet E-İmza'ya verdiği `eimza-win-agent.jar` (Unicode PC/SC sağlayıcısı) Windows'un Unicode
+  işlevlerini (…W) JNA ile çağırır; JDK sağlayıcısının davranışı (T=0 GET RESPONSE, 6Cxx, hata metinleri) birebir korunur.
+  Kart tarayan alt süreçler de `JAVA_TOOL_OPTIONS` ile aynı sağlayıcıyı kullanır. Birden fazla okuyucu birlikte çalışır.
+- 3.18.7'nin arka planda bıraktığı eski Adalet süreci (yalnızca CanEditor'un kendi başlattığı) yeni ayarlarla yeniden başlatılır.
+- Test: pcscd + sanal okuyucu "Sanal Akıllı Kart Okuyucusu" ile resmi Adalet 1.0.17 (ana süreç + kart tarama süreci)
+  okuyucuyu Türkçe adıyla listeledi ve ATR'yi okudu; bağlanma/komut/özel erişim/kart çıkarma JDK ile aynı sonucu verdi.
 
 ## 🌟 v3.18.7: Windows'ta sürücüsüz e-imza (ArkSigner, ACR39 + AKİS kart)
 
