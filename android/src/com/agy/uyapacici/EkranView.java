@@ -186,6 +186,19 @@ public class EkranView extends View implements Choreographer.FrameCallback {
         m.postScale(olcek, olcek);
         m.postTranslate(ox, oy);
         c.drawBitmap(bmp, m, boya);
+        for (View a : aynalar) a.invalidate();
+    }
+
+    /** Bulanık üst/alt çubuklar ekranın kendi altında kalan parçasını çizer (Arayuz.BulanikZemin). */
+    final java.util.List<View> aynalar = new java.util.concurrent.CopyOnWriteArrayList<>();
+
+    /** Görüntüyü başka bir tuvale çiz; (dx, dy): o görünümün bu görünüme göre konumu (eksi yönde kaydırılır). */
+    void aynaCiz(Canvas c, float dx, float dy) {
+        if (bmp == null) return;
+        Matrix a = new Matrix();
+        a.postScale(olcek, olcek);
+        a.postTranslate(ox - dx, oy - dy);
+        c.drawBitmap(bmp, a, boya);
     }
 
     private int[] mantiksal(float x, float y) {

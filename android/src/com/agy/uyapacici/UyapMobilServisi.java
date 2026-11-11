@@ -64,6 +64,8 @@ public class UyapMobilServisi extends Service {
         void durum(String m);
         void hazir(int w, int h);
         void kapandi(String neden);
+        /** Ön plandaki belge penceresinin başlığı (belge adı ve yolu içerir). */
+        void baslik(String t);
         /** Editörün menü ağacı (Kopru.menuGonder, JSON). */
         void menu(String json);
         /** Editör bir Aç/Kaydet penceresi açtı: Android seçicisini göster, yanıtı {@link #seciciYanit} ile ver. */
@@ -305,6 +307,12 @@ public class UyapMobilServisi extends Service {
 
     /** Köprüden gelen bildirimler: PANO <hex> (editörde kopyalanan metin Android panosuna). */
     private void bildirimIsle(String satir) {
+        if (satir.startsWith("BASLIK ")) {
+            final String t = b64coz(satir.substring(7).trim());
+            Dinleyici d = dinleyici;
+            if (d != null) ana.post(() -> d.baslik(t));
+            return;
+        }
         if (satir.startsWith("MENU ")) {
             final String j = b64coz(satir.substring(5).trim());
             Dinleyici d = dinleyici;
@@ -359,6 +367,15 @@ public class UyapMobilServisi extends Service {
     private static SharedPreferences kaynaklar(Context c) { return c.getSharedPreferences("uyapmobil_kaynak", MODE_PRIVATE); }
 
     /** Gelen belgenin asıl yerini (content:// ya da dosya) hatırla: kaydedince oraya da yazılır. */
+    /**
+     * İçe alınan (telefondan açılan) belgenin uygulama klasörüne kopyalanması da dosya gözcüsünü tetikliyordu: belge
+     * daha açılmadan "Kaydedildi: İndirilenler/UYAP/…" deniyor ve İndirilenler'e gereksiz kopya yazılıyordu. Kopyalanan
+     * dosyanın boyu/zamanı not edilir; gözcü aynı hâli görürse yok sayar (yalnızca editör gerçekten kaydedince yazılır).
+     */
+    static final java.util.Map<String, Long> ICE_ALINAN = new java.util.concurrent.ConcurrentHashMap<>();
+
+    static void iceAlindi(File f) { ICE_ALINAN.put(f.getAbsolutePath(), f.lastModified() * 31 + f.length()); }
+
     static void kaynakKaydet(Context c, File yerel, Uri kaynak, boolean yazilabilir) {
         kaynaklar(c).edit().putString(yerel.getAbsolutePath(), (yazilabilir ? "w|" : "r|") + kaynak).apply();
     }
@@ -384,6 +401,9 @@ public class UyapMobilServisi extends Service {
 
     private void geriYaz(File f) {
         if (!f.isFile() || f.length() == 0) return;
+        Long ice = ICE_ALINAN.get(f.getAbsolutePath());
+        if (ice != null && ice == f.lastModified() * 31 + f.length()) return;   // yalnızca içe alındı, değişmedi
+        ICE_ALINAN.remove(f.getAbsolutePath());
         String k = kaynaklar(this).getString(f.getAbsolutePath(), null);
         String mesaj;
         try {

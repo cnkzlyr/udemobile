@@ -1,6 +1,6 @@
 # ⚖️ CanEditor (UdeMobile) — Çapraz Platform UYAP & Word Editörü
 
-[![Sürüm](https://img.shields.io/badge/Sürüm-v3.21.0-blue.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v3.21.0)
+[![Sürüm](https://img.shields.io/badge/Sürüm-v3.22.0-blue.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v3.22.0)
 [![Platformlar](https://img.shields.io/badge/Platformlar-Android%20%7C%20Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Web-success.svg)](https://github.com/cnkzlyr/udemobile/releases)
 [![UYAP](https://img.shields.io/badge/Format-UYAP_UDF_v1.8-0D47A1.svg)](https://uyap.gov.tr)
 [![Word](https://img.shields.io/badge/Format-MS_DOCX_OpenXML-2B579A.svg?logo=microsoft-word&logoColor=white)](https://microsoft.com)
@@ -11,14 +11,14 @@
 
 ---
 
-## 🚀 Hızlı İndirme (v3.21.0)
+## 🚀 Hızlı İndirme (v3.22.0)
 
 | Platform | Paket Dosyası | Açıklama |
 | :--- | :--- | :--- |
-| **Android (Telefon & Tablet)** | [**CanEditor-v3.21.0.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.21.0/CanEditor-v3.21.0.apk) | Güncel Android APK paketi (Termux gerektirmez) |
-| **Android (Her Zaman En Son)** | [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.21.0/CanEditor-latest.apk) | Kalıcı son sürüm bağlantısı |
-| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v3.21.0.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v3.21.0/CanEditor-Portable-Web-GUI-v3.21.0.zip) | **Kurulumsuz;** zipten çıkarıp `index.html` açarak tüm işletim sistemlerinde doğrudan çalışır |
-| **Windows / macOS / Linux** | [**GitHub Releases Sayfası**](https://github.com/cnkzlyr/udemobile/releases/tag/v3.21.0) | GitHub Actions CI ile derlenen yerel ikili (.msi, .exe, .dmg, .AppImage, .deb, .rpm) paketleri |
+| **Android (Telefon & Tablet)** | [**CanEditor-v3.22.0.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.22.0/CanEditor-v3.22.0.apk) | Güncel Android APK paketi (Termux gerektirmez) |
+| **Android (Her Zaman En Son)** | [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.22.0/CanEditor-latest.apk) | Kalıcı son sürüm bağlantısı |
+| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v3.22.0.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v3.22.0/CanEditor-Portable-Web-GUI-v3.22.0.zip) | **Kurulumsuz;** zipten çıkarıp `index.html` açarak tüm işletim sistemlerinde doğrudan çalışır |
+| **Windows / macOS / Linux** | [**GitHub Releases Sayfası**](https://github.com/cnkzlyr/udemobile/releases/tag/v3.22.0) | GitHub Actions CI ile derlenen yerel ikili (.msi, .exe, .dmg, .AppImage, .deb, .rpm) paketleri |
 
 ---
 
@@ -28,6 +28,18 @@ v3.17.0'dan itibaren APK yeni ve kalıcı bir proje anahtarıyla imzalanır (ser
 `BA:80:78:89:12:28:35:C0:58:3B:C9:72:3B:C0:90:5C:C8:6F:49:A8:1A:92:BA:F9:D0:96:33:77:71:BB:D4:F0`). Telefonunuzda
 v3.16.0 ya da öncesi kuruluysa bir kez **kaldırıp** yeni APK'yı kurun (aksi halde Android "paket çakışıyor" hatası
 verir). Sonraki güncellemeler kaldırmadan, üzerine kurulur.
+
+## 🌟 v3.22.0: UYAP Editör — yeni arayüz (Google Dokümanlar tarzı) ve mobil görünüm
+
+- **Yeni arayüz:** üstte belge adı, geri al / yinele, mobil görünüm; altta biçim çubuğu (K, T, A, renk, vurgu, hizalama,
+  listeler, girinti). Çubuklar yarı saydam **bulanık cam**: belge altlarından kayar (Android 12+). Çekmece menü, alttan
+  kayan sayfalar ve dokunma efektleri animasyonlu.
+- **"A" biçim sayfası:** Metin (yazı tipi, boyut −/+, K T A S, alt/üst simge, renk, vurgu, temizle, stil) ve
+  Paragraf (hizalama, listeler, girinti, satır aralığı) sekmeleri.
+- **Mobil görünüm:** belge UdeMobile'ın telefon ekranına göre satır kıran editöründe açılır; orada kaydedip dönünce
+  UYAP Editör'de yeniden yüklenir.
+- **Düzeltme:** telefondan açılan belge için yanlış "Kaydedildi: İndirilenler/UYAP" mesajı ve gereksiz kopya kaldırıldı;
+  belge açılınca arkadaki boş pencere kapatılır, açılırken "Belge açılıyor…" göstergesi çıkar.
 
 ## 🌟 v3.21.0: UYAP Editör — dokunmatik menüler ve telefonun dosya seçicisi
 

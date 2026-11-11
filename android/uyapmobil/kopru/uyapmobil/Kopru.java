@@ -79,6 +79,9 @@ public final class Kopru {
                 Thread d = new Thread(() -> denetim(Integer.parseInt(port), System.getProperty("uyapmobil.jeton", "")), "uyapmobil-denetim");
                 d.setDaemon(true);
                 d.start();
+                Thread b = new Thread(Kopru::baslikIzle, "uyapmobil-baslik");
+                b.setDaemon(true);
+                b.start();
             }
             String yol = System.getProperty("uyapmobil.ekran");
             if (yol != null) kareDongusu(img, new File(yol));
@@ -541,6 +544,121 @@ public final class Kopru {
         return false;
     }
 
+    /** YB: mobil görünümde değişen belgeyi yeniden yükle. */
+
+    static void yenidenYukle(String yol) {
+        Thread t = new Thread(() -> {
+            try {
+                java.util.List<Window> eski = new java.util.ArrayList<>();
+                for (Window w : Window.getWindows())
+                    if (w instanceof java.awt.Frame && w.isShowing() && String.valueOf(((java.awt.Frame) w).getTitle()).contains("(" + yol + ")")) eski.add(w);
+                if (!eski.isEmpty()) {
+                    // Editör aynı dosyayı ikinci kez açmıyor ("Dosya Zaten Açık"); son pencere kapanınca da kapanıyor.
+                    // 1) Dosya > Yeni ile boş bir pencere aç  2) eski pencereyi editörün kendi kapatma yoluyla kapat  3) yeniden aç
+                    java.util.Set<Window> once = new java.util.HashSet<>(java.util.Arrays.asList(Window.getWindows()));
+                    EventQueue.invokeAndWait(() -> menuOgesiTikla("Dosya", "Yeni"));
+                    for (int i = 0; i < 75 && yeniCerceve(once) == null; i++) Thread.sleep(200);
+                    for (Window w : eski) EventQueue.invokeLater(() -> gonder(new java.awt.event.WindowEvent(w, java.awt.event.WindowEvent.WINDOW_CLOSING)));
+                    for (int i = 0; i < 100; i++) {
+                        boolean acik = false;
+                        for (Window w : eski) acik |= w.isShowing();
+                        if (!acik) break;
+                        Thread.sleep(200);
+                    }
+                }
+                belgeAc(yol);
+            } catch (Exception e) {
+                LOG.println("[uyapmobil] yeniden yükleme: " + e);
+            }
+        }, "uyapmobil-yb");
+        t.setDaemon(true);
+        t.start();
+    }
+
+    private static Window yeniCerceve(java.util.Set<Window> once) {
+        for (Window w : Window.getWindows())
+            if (w instanceof java.awt.Frame && w.isShowing() && !once.contains(w) && !w.getClass().getName().startsWith("com.github.caciocavallosilano")) return w;
+        return null;
+    }
+
+    private static void menuOgesiTikla(String menu, String ad) {
+        javax.swing.JMenuBar mb = menuCubugu();
+        if (mb == null) return;
+        for (int i = 0; i < mb.getMenuCount(); i++) {
+            javax.swing.JMenu m = mb.getMenu(i);
+            if (m == null || !menu.equals(m.getText())) continue;
+            for (Component k : m.getMenuComponents())
+                if (k instanceof javax.swing.JMenuItem && ad.equals(((javax.swing.JMenuItem) k).getText())) { ((javax.swing.JMenuItem) k).doClick(0); return; }
+        }
+    }
+
+    /**
+     * Belge yeni bir pencerede açıldıktan sonra: yeni pencere öne alınır; açılıştaki dokunulmamış boş "isimsiz" pencere ve
+     * (yeniden yüklemede) eski kopya kapatılır. Telefonda arkada kalan boş pencere bazen öne geçip belgeyi gizliyordu.
+     */
+    private static void pencereleriDuzenle(java.util.Set<Window> once, java.util.List<Window> eskiler) {
+        for (int i = 0; i < 100; i++) {          // yeni pencere görünene kadar (en çok 20 sn)
+            Window yeni = null;
+            for (Window w : Window.getWindows())
+                if (w instanceof java.awt.Frame && w.isShowing() && !once.contains(w)
+                        && !w.getClass().getName().startsWith("com.github.caciocavallosilano")) yeni = w;
+            if (yeni != null) {
+                final Window y = yeni;
+                try { Thread.sleep(800); } catch (InterruptedException ignored) { }
+                EventQueue.invokeLater(() -> {
+                    for (Window w : once)
+                        if (w != y && w instanceof java.awt.Frame && w.isShowing()
+                                && ((eskiler != null && eskiler.contains(w)) || bosIsimsiz((java.awt.Frame) w))) {
+                            LOG.println("[uyapmobil] pencere kapatıldı: " + ((java.awt.Frame) w).getTitle());
+                            w.setVisible(false);
+                            w.dispose();
+                        }
+                    y.toFront();
+                    yenidenCiz(y);
+                    if (!seritAcik) seritGoster(false);
+                });
+                return;
+            }
+            try { Thread.sleep(200); } catch (InterruptedException e) { return; }
+        }
+    }
+
+    private static boolean bosIsimsiz(java.awt.Frame f) {
+        String t = String.valueOf(f.getTitle()).toLowerCase(java.util.Locale.ROOT);
+        if (!t.contains("isimsiz")) return false;
+        javax.swing.text.JTextComponent m = metinBilesen(f);
+        return m != null && m.getDocument().getLength() <= 1;
+    }
+
+    private static javax.swing.text.JTextComponent metinBilesen(java.awt.Container c) {
+        for (Component k : c.getComponents()) {
+            if (k instanceof javax.swing.text.JTextComponent && ((javax.swing.text.JTextComponent) k).isEditable() && k.getWidth() > 200)
+                return (javax.swing.text.JTextComponent) k;
+            if (k instanceof java.awt.Container) { javax.swing.text.JTextComponent r = metinBilesen((java.awt.Container) k); if (r != null) return r; }
+        }
+        return null;
+    }
+
+    /** Ön plandaki belge penceresinin başlığı değişince Android'e "BASLIK <base64>" (belge adı ve yolu üst çubukta). */
+    private static void baslikIzle() {
+        String son = null;
+        while (true) {
+            try {
+                Thread.sleep(700);
+                java.awt.Frame on = null;
+                for (Window w : Window.getWindows())
+                    if (w instanceof java.awt.Frame && w.isShowing() && ((java.awt.Frame) w).getTitle() != null
+                            && !w.getClass().getName().startsWith("com.github.caciocavallosilano")) {
+                        if (on == null || w.isFocused() || w.isActive()) on = (java.awt.Frame) w;
+                    }
+                String t = on == null ? null : on.getTitle();
+                if (t != null && !t.equals(son) && !ISTEMCILER.isEmpty()) { son = t; bildir("BASLIK " + b64(t)); }
+            } catch (InterruptedException e) {
+                return;
+            } catch (Throwable ignored) { }
+        }
+    }
+
     /** Editörün ana belge penceresi (ekranı kaplayan, görünür bir Frame) kuruldu mu? */
     static boolean anaPencereHazir() {
         for (Window w : Window.getWindows())
@@ -572,8 +690,10 @@ public final class Kopru {
                 Thread.sleep(500);
                 String tip = yol.toLowerCase(java.util.Locale.ROOT).endsWith(".usf") ? "EDITOR_TYPE_TEMPLATE" : "EDITOR_TYPE_DOCUMENT";
                 Class<?> c = Class.forName("tr.com.havelsan.uyap.system.editor.common.WPAppManager", true, ClassLoader.getSystemClassLoader());
+                java.util.Set<Window> once = new java.util.HashSet<>(java.util.Arrays.asList(Window.getWindows()));
                 c.getMethod("main", String[].class).invoke(null, (Object) new String[]{"getNewWPInstance", tip, yol});
                 LOG.println("[uyapmobil] belge açıldı: " + yol);
+                pencereleriDuzenle(once, null);
             } catch (Throwable e) {
                 LOG.println("[uyapmobil] belge açılamadı: " + e);
             }
@@ -674,7 +794,7 @@ public final class Kopru {
                 break;
             case "L":   // tanı: açık pencereler ve odak
                 for (Window w : Window.getWindows())
-                    LOG.println("[uyapmobil] pencere " + w.getClass().getName() + " görünür=" + w.isShowing() + " " + w.getBounds() + " odak=" + w.isFocused());
+                    LOG.println("[uyapmobil] pencere " + w.getClass().getName() + (w instanceof java.awt.Frame ? " başlık=" + ((java.awt.Frame) w).getTitle() : "") + " görünür=" + w.isShowing() + " " + w.getBounds() + " odak=" + w.isFocused());
                 LOG.println("[uyapmobil] odak bileşeni: " + odak());
                 break;
             case "R":   // tanı: tüm pencereleri yeniden düzenle ve çiz
@@ -684,6 +804,7 @@ public final class Kopru {
             case "SK": seciciYanit(p, true); break;
             case "MN": EventQueue.invokeLater(Kopru::menuGonder); break;
             case "MC": case "MS": case "MT": EventQueue.invokeLater(() -> menuKomut(p)); break;
+            case "YB": yenidenYukle(b64coz(p[1])); break;
             case "SG":  // şerit menüyü gizle (0) / göster (1): ☰ menü kullanılırken belgeye daha çok yer kalsın
                 EventQueue.invokeLater(() -> seritGoster(!"0".equals(p.length > 1 ? p[1] : "1")));
                 break;
