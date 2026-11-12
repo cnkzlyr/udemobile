@@ -58,6 +58,15 @@ final class MobilGorunum extends WebView {
             UyapMobilServisi.gonder("MK " + a + (b >= 0 ? " " + b : ""));
         }
 
+        /** Arama sonucu: toplam eşleşme ve şu anki sıra. */
+        @JavascriptInterface public void araSonuc(int n, int i) { Eylem d = eylemDinleyici; if (d != null) post(() -> d.eylem("ara:" + n + ":" + i)); }
+
+        /** Kağıtta görünen sayfa değişti. */
+        @JavascriptInterface public void sayfa(int k, int n) { Eylem d = eylemDinleyici; if (d != null) post(() -> d.eylem("sayfa:" + k + ":" + n)); }
+
+        /** Görünüm tam içerik istiyor (önbellek tutarsız). */
+        @JavascriptInterface public void tam() { UyapMobilServisi.gonder("MR"); }
+
         /** İki parmakla yakınlaştırma bitti: kapsüldeki yüzde güncellensin. */
         @JavascriptInterface public void olcek(float k) {
             olcekDegeri = k;
@@ -98,6 +107,11 @@ final class MobilGorunum extends WebView {
         String k = t.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "");
         if (!k.isEmpty()) js("yerel('" + k + "')");
     }
+
+    void ara(String q) { js("ara('" + (q == null ? "" : q.replace("\\", "\\\\").replace("'", "\\'")) + "')"); }
+    void araGit(String yon) { js("araGit('" + yon + "')"); }
+    void araKapat() { js("araKapat()"); }
+    void sayfayaGit(int k) { js("sayfayaGit(" + k + ")"); }
 
     void yakinlastir(float k) {
         olcek = Math.max(0.6f, Math.min(2.2f, olcek * k));

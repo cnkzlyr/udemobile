@@ -313,7 +313,7 @@ public class UyapMobilServisi extends Service {
 
     /** Köprüden gelen bildirimler: PANO <hex> (editörde kopyalanan metin Android panosuna). */
     private void bildirimIsle(String satir) {
-        if (satir.startsWith("MOBIL ") || satir.startsWith("MKAGIT ") || satir.startsWith("MKARET ") || satir.startsWith("MRESIM ") || satir.startsWith("DIYALOG ") || satir.startsWith("FORM ")) {
+        if (satir.startsWith("MOBIL ") || satir.startsWith("MKAGIT ") || satir.startsWith("MKARET ") || satir.startsWith("MRESIM ") || satir.startsWith("DIYALOG ") || satir.startsWith("FORM ") || satir.startsWith("PENCERELER ")) {
             Dinleyici d = dinleyici;
             if (d != null) ana.post(() -> d.mobil(satir));
             return;

@@ -64,6 +64,10 @@ final class Arayuz {
         /** Belgeyi CanEditor'ın kendi editöründe aç (dosya kaydedilir; isteğe bağlı). */
         void mobilGorunum(String yol);
         void gunlukGonder();
+        /** Yerel bir .udf/.usf dosyasını aç (son belgeler). */
+        void belgeAc(String yol);
+        /** Belgeyi paylaş (gerekirse önce kaydet). */
+        void paylas(String yol, boolean degisti);
     }
 
     private final Activity a;
@@ -76,7 +80,11 @@ final class Arayuz {
 
     static final int UST_YUKSEKLIK = 56 + 52;
     private FrameLayout ustKap, altKap;
-    private TextView yuzdeTv, fontTv, boyutTv, mobilDugme, durumEylem;
+    private TextView yuzdeTv, fontTv, boyutTv, mobilDugme, durumEylem, sayfaRozeti, araSayac;
+    private LinearLayout araCubugu;
+    private EditText araKutusu;
+    private boolean degisti;
+    private JSONArray pencereler;
     private MobilGorunum mobil;
     private boolean mobilKip;
     private LinearLayout tusSatiri;
@@ -269,6 +277,7 @@ final class Arayuz {
         b.addView(ikonDugme(Tasarim.S.BICIM, "Tüm biçim seçenekleri", v -> bicimSayfasi(0)));
         b.addView(ikonDugme(Tasarim.S.TUSLAR, "Ek tuşlar (Esc, Ctrl, oklar…)", v -> tuslariAcKapa()));
         ic(ustKap).addView(bh, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(52)));
+        araCubuguKur();
     }
 
     /** Yazı tipi listesinde önizleme: kurulu Windows/Liberation TTF dosyasından (yoksa sistemin en yakın ailesi). */
@@ -305,6 +314,108 @@ final class Arayuz {
             case "Monospaced": return "Sabit aralıklı";
             default: return f;
         }
+    }
+
+    // ==================================================================================== arama çubuğu
+    /** Belge içi arama: kağıt/mobilde görünümün kendi araması (anında, tüm eşleşmeler boyalı); orijinalde editörün "Bul"u. */
+    private void araCubuguKur() {
+        araCubugu = new LinearLayout(a);
+        araCubugu.setOrientation(LinearLayout.HORIZONTAL);
+        araCubugu.setGravity(Gravity.CENTER_VERTICAL);
+        araCubugu.setPadding(dp(8), dp(4), dp(4), dp(8));
+        araCubugu.setVisibility(View.GONE);
+        araKutusu = new EditText(a);
+        araKutusu.setHint("Belgede ara…");
+        araKutusu.setSingleLine(true);
+        araKutusu.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
+        araKutusu.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH);
+        araKutusu.setPadding(dp(16), dp(10), dp(16), dp(10));
+        android.graphics.drawable.GradientDrawable g = Tasarim.yuvarlak(Color.WHITE, dp(22));
+        g.setStroke(dp(1), Tasarim.CIZGI);
+        araKutusu.setBackground(g);
+        araKutusu.addTextChangedListener(new android.text.TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence c, int i, int j, int k) { }
+            @Override public void onTextChanged(CharSequence c, int i, int j, int k) { }
+            @Override public void afterTextChanged(android.text.Editable e) { if (mobil != null) mobil.ara(e.toString()); }
+        });
+        araKutusu.setOnEditorActionListener((v, id, ev) -> { if (mobil != null) mobil.araGit("ileri"); return true; });
+        araCubugu.addView(araKutusu, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        araSayac = metin("", 13, Tasarim.IKINCIL, true);
+        araSayac.setPadding(dp(8), 0, dp(4), 0);
+        araCubugu.addView(araSayac);
+        araCubugu.addView(kucukIkon(Tasarim.S.GERI, v -> { if (mobil != null) mobil.araGit("geri"); }));
+        ImageView ileri = kucukIkon(Tasarim.S.GERI, v -> { if (mobil != null) mobil.araGit("ileri"); });
+        ileri.setRotation(180);
+        araCubugu.addView(ileri);
+        araCubugu.addView(kucukIkon(Tasarim.S.KAPAT, v -> araKapat()));
+        ic(ustKap).addView(araCubugu, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+    }
+
+    void araAc() {
+        if (gorunum == ORIJINAL || mobil == null) { menuKomutu("Giriş", "Bul"); return; }
+        if (araCubugu.getVisibility() == View.VISIBLE) { araKutusu.requestFocus(); return; }
+        araCubugu.setVisibility(View.VISIBLE);
+        araCubugu.setAlpha(0f);
+        araCubugu.setTranslationY(-dp(12));
+        araCubugu.animate().alpha(1f).translationY(0).setDuration(200).setInterpolator(hareket()).start();
+        ustYukseklikGuncelle();
+        araKutusu.requestFocus();
+        android.view.inputmethod.InputMethodManager imm = (android.view.inputmethod.InputMethodManager) a.getSystemService(Context.INPUT_METHOD_SERVICE);
+        if (imm != null) imm.showSoftInput(araKutusu, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT);
+    }
+
+    void araKapat() {
+        if (araCubugu.getVisibility() != View.VISIBLE) return;
+        araKutusu.setText("");
+        if (mobil != null) mobil.araKapat();
+        araCubugu.animate().alpha(0f).translationY(-dp(12)).setDuration(150).withEndAction(() -> { araCubugu.setVisibility(View.GONE); ustYukseklikGuncelle(); }).start();
+        ekran.requestFocus();
+    }
+
+    boolean aramaAcik() { return araCubugu != null && araCubugu.getVisibility() == View.VISIBLE; }
+
+    /** Üst çubuğun yüksekliği (arama çubuğu açılınca) belge ve görünüm üstten o kadar başlasın. */
+    private void ustYukseklikGuncelle() {
+        ustKap.post(() -> {
+            int h = ustKap.getHeight();
+            ((FrameLayout.LayoutParams) ekran.getLayoutParams()).topMargin = h;
+            ekran.requestLayout();
+            if (mobil != null) { ((FrameLayout.LayoutParams) mobil.getLayoutParams()).topMargin = h; mobil.requestLayout(); }
+        });
+    }
+
+    // ==================================================================================== sayfa rozeti
+    private void sayfaRozetiKur() {
+        sayfaRozeti = metin("", 13, Color.WHITE, true);
+        sayfaRozeti.setPadding(dp(14), dp(8), dp(14), dp(8));
+        sayfaRozeti.setBackground(Tasarim.dalga(Tasarim.yuvarlak(0xE6202124, dp(18)), dp(18)));
+        sayfaRozeti.setVisibility(View.GONE);
+        sayfaRozeti.setOnClickListener(v -> sayfaSor());
+        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.CENTER_HORIZONTAL);
+        lp.topMargin = dp(UST_YUKSEKLIK + 10);
+        kok.addView(sayfaRozeti, lp);
+    }
+
+    private int toplamSayfa;
+    private final Runnable rozetGizle = () -> { if (sayfaRozeti != null) sayfaRozeti.animate().alpha(0f).setDuration(250).withEndAction(() -> sayfaRozeti.setVisibility(View.GONE)).start(); };
+
+    private void sayfaGoster(int k, int n) {
+        toplamSayfa = n;
+        sayfaRozeti.setText(k + " / " + n);
+        if (sayfaRozeti.getVisibility() != View.VISIBLE) { sayfaRozeti.setVisibility(View.VISIBLE); sayfaRozeti.setAlpha(0f); }
+        sayfaRozeti.animate().cancel();
+        sayfaRozeti.animate().alpha(1f).setDuration(120).start();
+        kok.removeCallbacks(rozetGizle);
+        kok.postDelayed(rozetGizle, 1400);
+    }
+
+    private void sayfaSor() {
+        final EditText e = new EditText(a);
+        e.setInputType(InputType.TYPE_CLASS_NUMBER);
+        e.setHint("1 – " + toplamSayfa);
+        new android.app.AlertDialog.Builder(a).setTitle("Sayfaya git").setView(e).setPositiveButton("Git", (d, w) -> {
+            try { if (mobil != null) mobil.sayfayaGit(Integer.parseInt(e.getText().toString().trim())); } catch (Exception ignored) { }
+        }).setNegativeButton("Vazgeç", null).show();
     }
 
     private void hazirlaniyor() {
@@ -404,6 +515,7 @@ final class Arayuz {
         FrameLayout.LayoutParams fl = new FrameLayout.LayoutParams(dp(60), dp(60), Gravity.BOTTOM | Gravity.END);
         fl.setMargins(0, 0, dp(16), dp(10));
         altKap.addView(fab, fl);
+        sayfaRozetiKur();
         klavyeDugmesi = fab;
         klavyeIzle();
     }
@@ -561,10 +673,11 @@ final class Arayuz {
             if (q > p) { yol = ad.substring(p + 2, q); ek = ad.substring(q + 1).trim(); }
             ad = ad.substring(0, p);
         }
+        degisti = t.contains("(*)");          // editör değişiklik varsa başlığa "(*)" koyar
         belgeAdi = ad.trim().isEmpty() ? "UYAP Editör" : ad.trim();
         belgeYolu = yol != null && yol.contains("/.uki/") ? null : yol;   // .uki: kaydedilmemiş yeni belge
-        baslikTv.setText(belgeAdi);
-        altBaslikTv.setText((ek.isEmpty() ? (belgeYolu == null ? "Kaydedilmemiş belge" : "Orijinal UYAP belgesi") : ek.replace("(", "").replace(")", ""))
+        baslikTv.setText((degisti ? "• " : "") + belgeAdi);
+        altBaslikTv.setText((degisti ? "Kaydedilmedi" : ek.isEmpty() ? (belgeYolu == null ? "Kaydedilmemiş belge" : "Orijinal UYAP belgesi") : ek.replace("(", "").replace(")", ""))
                 + " · " + gorunumAdi());
         if (acilisBekleme > 0 && !belgeAdi.toLowerCase(java.util.Locale.ROOT).startsWith("isimsiz")) { acilisBekleme = 0; durumGizle(); }
         iste(300);
@@ -670,7 +783,10 @@ final class Arayuz {
                     case "yapistir": yapistir(); break;
                     case "tumu": ekran.tus('A', EkranView.CTRL); break;
                     case "olcek": yuzdeYaz(); return;
-                    default: break;
+                    default:
+                        if (e.startsWith("ara:")) { String[] q = e.split(":"); araSayac.setText("0".equals(q[1]) ? (araKutusu.length() > 0 ? "Yok" : "") : q[2] + "/" + q[1]); return; }
+                        if (e.startsWith("sayfa:")) { String[] q = e.split(":"); sayfaGoster(Integer.parseInt(q[1]), Integer.parseInt(q[2])); return; }
+                        return;
                 }
                 ekran.requestFocus();
             };
@@ -706,6 +822,12 @@ final class Arayuz {
 
     void mobilSatir(String s) {
         if (s.startsWith("DIYALOG ")) { diyalog(s); return; }
+        if (s.startsWith("PENCERELER ")) {
+            try { pencereler = new JSONArray(new String(android.util.Base64.decode(s.substring(11).trim(), android.util.Base64.DEFAULT), java.nio.charset.StandardCharsets.UTF_8)); }
+            catch (Exception e) { pencereler = null; }
+            if (cekmece != null && cekmece.getParent() != null) cekmeceCiz();
+            return;
+        }
         if (s.startsWith("FORM ")) {
             String v = s.substring(5).trim();
             if ("0".equals(v)) { formVar = false; formP.kapat(); diyalogUygula(); }
@@ -817,6 +939,13 @@ final class Arayuz {
         if (f >= 0) UyapMobilServisi.gonder("MC " + f);
     }
 
+    /** Paylaş: kaydedilmemiş değişiklik varsa önce kaydet (Activity bekler), sonra paylaşım menüsü. */
+    private void paylas() {
+        if (belgeYolu == null) { Toast.makeText(a, "Paylaşmak için önce belgeyi kaydedin (💾)", Toast.LENGTH_LONG).show(); kaydet(); return; }
+        if (degisti) { int k = ogeKimligi("Dosya", "Kaydet"); if (k >= 0) UyapMobilServisi.gonder("MC " + k); }
+        uyg.paylas(belgeYolu, degisti);
+    }
+
     private void kayitBildir() {
         altBaslikTv.setText("Kaydediliyor…");
         kok.postDelayed(() -> { altBaslikTv.setText("✓ Kaydedildi · Orijinal UYAP Editör"); iste(0); }, 1500);
@@ -864,10 +993,11 @@ final class Arayuz {
     }
 
     // ==================================================================================== çekmece (☰)
-    boolean acikMi() { return (cekmece != null && cekmece.getParent() != null) || (sayfa != null && sayfa.getParent() != null) || formP.acik() || diyalogAcik; }
+    boolean acikMi() { return (cekmece != null && cekmece.getParent() != null) || (sayfa != null && sayfa.getParent() != null) || formP.acik() || diyalogAcik || aramaAcik(); }
 
     void kapatHepsi() {
         if (formP.acik()) { formP.geri(); return; }
+        if (aramaAcik()) { araKapat(); return; }
         if (diyalogAcik) { ekran.tus(27, 0); return; }      // büyütülmüş orijinal pencere: Esc
         cekmeceKapat();
         sayfaKapat();
@@ -897,6 +1027,7 @@ final class Arayuz {
         panel.setTranslationX(-cekmeceGenisligi());
         panel.animate().translationX(0).setDuration(280).setInterpolator(hareket()).start();
         UyapMobilServisi.gonder("MN");
+        UyapMobilServisi.gonder("WL");
     }
 
     private void cekmeceKapat() {
@@ -936,6 +1067,34 @@ final class Arayuz {
         ic.addView(satir(null, null, gorunum == ORIJINAL ? "📄  Kağıt görünümüne dön" : "🏛  Orijinal UYAP ekranı (tüm şerit ve pencereler)", true, -1,
                 () -> { cekmeceKapat(); gorunumSec(gorunum == ORIJINAL ? KAGIT : ORIJINAL); }));
         ic.addView(satir(null, null, "✏️  CanEditor'da düzenle (dosyayı kaydeder)", true, -1, () -> { cekmeceKapat(); mobilGorunum(); }));
+        ic.addView(satir(null, null, "📤  Belgeyi paylaş (WhatsApp, e-posta…)", true, -1, () -> { cekmeceKapat(); paylas(); }));
+
+        // açık belgeler (motorda birden çok pencere olabilir)
+        if (pencereler != null && pencereler.length() > 1) {
+            baslikEtiketi(ic, "AÇIK BELGELER");
+            for (int i = 0; i < pencereler.length(); i++) {
+                JSONObject w = pencereler.optJSONObject(i);
+                final String t = w.optString("t");
+                String ad = t;
+                int tire = ad.indexOf(" - "); if (tire >= 0) ad = ad.substring(tire + 3);
+                int pp = ad.indexOf(" ("); if (pp > 0) ad = ad.substring(0, pp);
+                boolean on = w.optInt("on") == 1 || t.contains(belgeAdi + " (");
+                ic.addView(satir(null, null, (on ? "✓  " : "      ") + ad, true, -1, () -> {
+                    cekmeceKapat();
+                    UyapMobilServisi.gonder("WF " + android.util.Base64.encodeToString(t.getBytes(java.nio.charset.StandardCharsets.UTF_8), android.util.Base64.NO_WRAP));
+                }));
+            }
+        }
+        // son belgeler (uygulamanın belge klasörü, en yeni önce)
+        java.io.File[] sonlar = UyapMobil.belgeler(a).listFiles((d, n) -> { String k = n.toLowerCase(java.util.Locale.ROOT); return (k.endsWith(".udf") || k.endsWith(".usf")) && !n.startsWith("."); });
+        if (sonlar != null && sonlar.length > 0) {
+            java.util.Arrays.sort(sonlar, (x, y) -> Long.compare(y.lastModified(), x.lastModified()));
+            baslikEtiketi(ic, "SON BELGELER");
+            for (int i = 0; i < Math.min(8, sonlar.length); i++) {
+                final java.io.File f = sonlar[i];
+                ic.addView(satir(null, null, "🕘  " + f.getName(), true, -1, () -> { cekmeceKapat(); uyg.belgeAc(f.getAbsolutePath()); }));
+            }
+        }
 
         baslikEtiketi(ic, "FARKLI KAYDET");
         ic.addView(satir(null, null, "📄  Havelsan UDF (.udf)", true, -1, () -> menuKomutu("Dosya", "Farklı Kaydet")));
@@ -953,7 +1112,8 @@ final class Arayuz {
         ic.addView(satir(null, null, "📲  Dokümanı Mobil İmzala", true, -1, () -> menuKomutu("Araçlar", "Dokümanı Mobil İmzala")));
         ic.addView(satir(null, null, "🔏  İmzalar", true, -1, () -> menuKomutu("Araçlar", "İmzalar")));
         ic.addView(satir(null, null, "🪪  Sertifikalar", true, -1, () -> menuKomutu("Araçlar", "Sertifikalar")));
-        ic.addView(satir(null, null, "🔍  Bul ve Değiştir", true, -1, () -> menuKomutu("Giriş", "Bul")));
+        ic.addView(satir(null, null, "🔍  Belgede ara", true, -1, () -> { cekmeceKapat(); araAc(); }));
+        ic.addView(satir(null, null, "🔁  Bul ve Değiştir (editör)", true, -1, () -> menuKomutu("Giriş", "Bul")));
         ic.addView(satir(null, null, "📑  Sayfa Düzenle", true, -1, () -> menuKomutu("Düzenle", "Sayfa Düzenle")));
 
         baslikEtiketi(ic, "TÜM UYAP EDİTÖR MENÜLERİ");
