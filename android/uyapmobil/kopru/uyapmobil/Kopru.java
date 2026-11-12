@@ -82,6 +82,7 @@ public final class Kopru {
             if (img == null) { LOG.println("[uyapmobil] Cacio ekranı bulunamadı"); return; }
             ekran = img;
             pencereleriOturt(img.getWidth(), img.getHeight());
+            EventQueue.invokeLater(() -> Form.yansitiliyor());      // pencere yansıtma zamanlayıcısı başlasın
             yaziTipiEslestir();
             LOG.println("[uyapmobil] ekran " + img.getWidth() + "x" + img.getHeight());
             String port = System.getProperty("uyapmobil.port");
@@ -970,6 +971,7 @@ public final class Kopru {
                     alanTara("kökView", k.getView(0), 0, new java.util.IdentityHashMap<>());
                 });
                 break;
+            case "FA": case "FT": case "FS": Form.komut(p); break;
             case "ZD":  // tanı: model→ekran ile yerleşim karşılaştırması
                 EventQueue.invokeLater(() -> {
                     javax.swing.text.JTextComponent m = null;

@@ -122,6 +122,7 @@ final class Arayuz {
         ustDoldur();
         altDoldur();
         durumKartiKur();
+        formP = new FormPaneli(a, kok, () -> { formZorla = true; formP.kapat(); diyalogUygula(); });
         sistemCubuklari();
     }
 
@@ -645,6 +646,11 @@ final class Arayuz {
      * orijinal ekrandan büyütülerek gösterilir, kapanınca görünüm geri gelir (DIYALOG).
      */
     static final int ORIJINAL = 0, MOBIL = 1, KAGIT = 2;
+    private FormPaneli formP;
+    /** Son DIYALOG dikdörtgeni (null: açık pencere yok) ve yansıtılan form var mı. */
+    private int[] diyalogRect;
+    private boolean formVar, formZorla;
+    private final Runnable diyalogGecikmeli = this::diyalogUygula;
     private int gorunum = -1;
     private boolean diyalogAcik;
 
@@ -657,6 +663,17 @@ final class Arayuz {
         if (mobil == null && g != ORIJINAL) {
             mobil = new MobilGorunum(a);
             ekran.yazildi = t -> { if (mobilKip && !diyalogAcik && mobil != null) mobil.yerel(t); };
+            mobil.eylemDinleyici = e -> {
+                switch (e) {
+                    case "kes": ekran.tus('X', EkranView.CTRL); break;
+                    case "kopyala": ekran.tus('C', EkranView.CTRL); Toast.makeText(a, "Kopyalandı", Toast.LENGTH_SHORT).show(); break;
+                    case "yapistir": yapistir(); break;
+                    case "tumu": ekran.tus('A', EkranView.CTRL); break;
+                    case "olcek": yuzdeYaz(); return;
+                    default: break;
+                }
+                ekran.requestFocus();
+            };
             FrameLayout.LayoutParams lp = tam();
             lp.topMargin = dp(UST_YUKSEKLIK);
             kok.addView(mobil, 1, lp);       // ekranın üstünde, çubukların altında
@@ -689,25 +706,51 @@ final class Arayuz {
 
     void mobilSatir(String s) {
         if (s.startsWith("DIYALOG ")) { diyalog(s); return; }
+        if (s.startsWith("FORM ")) {
+            String v = s.substring(5).trim();
+            if ("0".equals(v)) { formVar = false; formP.kapat(); diyalogUygula(); }
+            else {
+                formVar = true;
+                if (!formZorla) {
+                    try { formP.goster(new String(android.util.Base64.decode(v, android.util.Base64.DEFAULT), java.nio.charset.StandardCharsets.UTF_8)); }
+                    catch (Exception e) { Tani.hata("uyapmobil", "form", e); }
+                }
+                diyalogUygula();
+            }
+            return;
+        }
         if (mobil != null && mobilKip) mobil.satir(s);
     }
 
-    /** Resmi editör pencere açtı/kapattı: kağıt/mobilde orijinal ekranı o pencereye odaklayarak göster. */
+    /**
+     * Resmi editör pencere açtı/kapattı. Yansıtılabilen pencereler (mobil imza, PIN, uyarılar, imzalar…) yerel panelde
+     * (FormPaneli) gösterilir; yansıtılamayanlar (ör. yazdırma önizlemesi) orijinal ekrandan büyütülür. FORM, DIYALOG'dan
+     * en çok ~400 ms sonra gelir: büyütme kısa bir bekleme ile uygulanır.
+     */
     private void diyalog(String s) {
         String[] p = s.split(" ");
         boolean ac = p.length >= 6 && "1".equals(p[1]);
-        diyalogAcik = ac;
-        if (ac) ekran.odakla(Integer.parseInt(p[2]), Integer.parseInt(p[3]), Integer.parseInt(p[4]), Integer.parseInt(p[5]));
+        diyalogRect = ac ? new int[]{Integer.parseInt(p[2]), Integer.parseInt(p[3]), Integer.parseInt(p[4]), Integer.parseInt(p[5])} : null;
+        if (!ac) { formZorla = false; formVar = false; formP.kapat(); }
+        kok.removeCallbacks(diyalogGecikmeli);
+        if (ac && !formVar) kok.postDelayed(diyalogGecikmeli, 480); else diyalogUygula();
+    }
+
+    /** Büyütülmüş orijinal pencere mi, yerel panel mi, yoksa normal görünüm mü. */
+    private void diyalogUygula() {
+        boolean buyut = diyalogRect != null && (!formVar || formZorla);
+        diyalogAcik = buyut;
+        if (buyut) ekran.odakla(diyalogRect[0], diyalogRect[1], diyalogRect[2], diyalogRect[3]);
         else ekran.sigdir();
         if (gorunum != ORIJINAL && mobil != null) {
-            if (ac) {
-                if (mobil.getVisibility() == View.VISIBLE) mobil.animate().alpha(0f).setDuration(150).withEndAction(() -> mobil.setVisibility(View.INVISIBLE)).start();
-            } else {
+            if (buyut) {
+                if (mobil.getVisibility() == View.VISIBLE) mobil.animate().alpha(0f).setDuration(150).withEndAction(() -> { if (diyalogAcik) mobil.setVisibility(View.INVISIBLE); }).start();
+            } else if (mobil.getVisibility() != View.VISIBLE || mobil.getAlpha() < 1f) {
                 mobil.setVisibility(View.VISIBLE);
                 mobil.animate().alpha(1f).setDuration(180).start();
             }
         }
-        ekran.requestFocus();
+        if (!formP.acik()) ekran.requestFocus();
     }
 
     private void yuzdeYaz() {
@@ -821,9 +864,14 @@ final class Arayuz {
     }
 
     // ==================================================================================== çekmece (☰)
-    boolean acikMi() { return (cekmece != null && cekmece.getParent() != null) || (sayfa != null && sayfa.getParent() != null); }
+    boolean acikMi() { return (cekmece != null && cekmece.getParent() != null) || (sayfa != null && sayfa.getParent() != null) || formP.acik() || diyalogAcik; }
 
-    void kapatHepsi() { cekmeceKapat(); sayfaKapat(); }
+    void kapatHepsi() {
+        if (formP.acik()) { formP.geri(); return; }
+        if (diyalogAcik) { ekran.tus(27, 0); return; }      // büyütülmüş orijinal pencere: Esc
+        cekmeceKapat();
+        sayfaKapat();
+    }
 
     private void cekmeceAc() {
         if (cekmece == null) {

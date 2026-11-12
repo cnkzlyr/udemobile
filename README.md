@@ -1,6 +1,6 @@
 # ⚖️ CanEditor (UdeMobile) — Çapraz Platform UYAP & Word Editörü
 
-[![Sürüm](https://img.shields.io/badge/Sürüm-v3.26.1-blue.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v3.26.1)
+[![Sürüm](https://img.shields.io/badge/Sürüm-v3.27.0-blue.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v3.27.0)
 [![Platformlar](https://img.shields.io/badge/Platformlar-Android%20%7C%20Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Web-success.svg)](https://github.com/cnkzlyr/udemobile/releases)
 [![UYAP](https://img.shields.io/badge/Format-UYAP_UDF_v1.8-0D47A1.svg)](https://uyap.gov.tr)
 [![Word](https://img.shields.io/badge/Format-MS_DOCX_OpenXML-2B579A.svg?logo=microsoft-word&logoColor=white)](https://microsoft.com)
@@ -11,14 +11,14 @@
 
 ---
 
-## 🚀 Hızlı İndirme (v3.26.1)
+## 🚀 Hızlı İndirme (v3.27.0)
 
 | Platform | Paket Dosyası | Açıklama |
 | :--- | :--- | :--- |
-| **Android (Telefon & Tablet)** | [**CanEditor-v3.26.1.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.26.1/CanEditor-v3.26.1.apk) | Güncel Android APK paketi (Termux gerektirmez) |
-| **Android (Her Zaman En Son)** | [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.26.1/CanEditor-latest.apk) | Kalıcı son sürüm bağlantısı |
-| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v3.26.1.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v3.26.1/CanEditor-Portable-Web-GUI-v3.26.1.zip) | **Kurulumsuz;** zipten çıkarıp `index.html` açarak tüm işletim sistemlerinde doğrudan çalışır |
-| **Windows / macOS / Linux** | [**GitHub Releases Sayfası**](https://github.com/cnkzlyr/udemobile/releases/tag/v3.26.1) | GitHub Actions CI ile derlenen yerel ikili (.msi, .exe, .dmg, .AppImage, .deb, .rpm) paketleri |
+| **Android (Telefon & Tablet)** | [**CanEditor-v3.27.0.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.27.0/CanEditor-v3.27.0.apk) | Güncel Android APK paketi (Termux gerektirmez) |
+| **Android (Her Zaman En Son)** | [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.27.0/CanEditor-latest.apk) | Kalıcı son sürüm bağlantısı |
+| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v3.27.0.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v3.27.0/CanEditor-Portable-Web-GUI-v3.27.0.zip) | **Kurulumsuz;** zipten çıkarıp `index.html` açarak tüm işletim sistemlerinde doğrudan çalışır |
+| **Windows / macOS / Linux** | [**GitHub Releases Sayfası**](https://github.com/cnkzlyr/udemobile/releases/tag/v3.27.0) | GitHub Actions CI ile derlenen yerel ikili (.msi, .exe, .dmg, .AppImage, .deb, .rpm) paketleri |
 
 ---
 
@@ -28,6 +28,17 @@ v3.17.0'dan itibaren APK yeni ve kalıcı bir proje anahtarıyla imzalanır (ser
 `BA:80:78:89:12:28:35:C0:58:3B:C9:72:3B:C0:90:5C:C8:6F:49:A8:1A:92:BA:F9:D0:96:33:77:71:BB:D4:F0`). Telefonunuzda
 v3.16.0 ya da öncesi kuruluysa bir kez **kaldırıp** yeni APK'yı kurun (aksi halde Android "paket çakışıyor" hatası
 verir). Sonraki güncellemeler kaldırmadan, üzerine kurulur.
+
+## 🌟 v3.27.0: UYAP Editör — tam dokunmatik seçim, yerel pencere paneli (mobil imza / e-imza), iki parmakla yakınlaştırma
+
+- **Seçim:** çift dokunma kelimeyi seçer; basılı tutup sürükleme kelime kelime genişletir (büyüteçle); mavi tutamaçlar
+  seçimin uçlarını sürükler; seçimin üstünde **Kes · Kopyala · Yapıştır · Tümünü seç** çubuğu. Hem kağıt hem mobil görünümde.
+- **Yerel pencere paneli:** resmi editörün pencereleri (Mobil İmza, e-imza PIN'i, sertifika/imza seçimi, uyarı ve soru
+  pencereleri, İmzalar) alttan kayan, dokunmaya uygun bir panel olarak açılır: büyük alanlar, sayısal klavye, radyo ve
+  onay seçenekleri, listeler; yazılanlar orijinal pencereye gider, düğmeler orijinal düğmeye basar. Pencere değişince
+  (ör. doğrulama kodu gelince) panel yerinde güncellenir. Yansıtılamayan pencereler (yazdırma önizlemesi) büyütülerek
+  gösterilir; "Orijinal" ile her zaman asıl pencereye geçilebilir.
+- **İki parmakla yakınlaştırma** kağıt ve mobil görünümde (odak noktası sabit); sayfalar yumuşak belirir.
 
 ## 🌟 v3.26.1: UYAP Editör — imleç dokunulan yere gider
 

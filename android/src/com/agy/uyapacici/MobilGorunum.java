@@ -19,9 +19,12 @@ import java.util.List;
  * (odak EkranView'da kalır), değişiklikler burada hemen görünür.
  */
 final class MobilGorunum extends WebView {
+    interface Eylem { void eylem(String e); }
+    Eylem eylemDinleyici;
     private boolean hazir;
     private final List<String> bekleyen = new ArrayList<>();
     private float olcek = 1f;
+    private volatile float olcekDegeri = -1;
 
     @SuppressLint({"SetJavaScriptEnabled", "AddJavascriptInterface"})
     MobilGorunum(Context c) {
@@ -53,6 +56,19 @@ final class MobilGorunum extends WebView {
     private final class Kopru {
         @JavascriptInterface public void imlec(int a, int b) {
             UyapMobilServisi.gonder("MK " + a + (b >= 0 ? " " + b : ""));
+        }
+
+        /** İki parmakla yakınlaştırma bitti: kapsüldeki yüzde güncellensin. */
+        @JavascriptInterface public void olcek(float k) {
+            olcekDegeri = k;
+            Eylem d = eylemDinleyici;
+            if (d != null) post(() -> d.eylem("olcek"));
+        }
+
+        /** Seçim eylem çubuğu: kes / kopyala / yapistir / tumu. */
+        @JavascriptInterface public void eylem(String e) {
+            Eylem d = eylemDinleyici;
+            if (d != null) post(() -> d.eylem(e));
         }
 
         /** Kağıt görünümünde dokunulan motor koordinatı (x2 ≥ 0: seçim sonu). */
@@ -88,7 +104,7 @@ final class MobilGorunum extends WebView {
         calistir("olcek(" + olcek + ")");
     }
 
-    int yuzde() { return Math.round(olcek * 100); }
+    int yuzde() { if (olcekDegeri > 0) { olcek = olcekDegeri; olcekDegeri = -1; } return Math.round(olcek * 100); }
 
     void olcekSifirla() { olcek = 1f; calistir("olcek(1)"); }
 
