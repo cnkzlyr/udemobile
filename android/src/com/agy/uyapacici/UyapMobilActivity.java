@@ -536,6 +536,36 @@ public class UyapMobilActivity extends Activity implements UyapMobilServisi.Dinl
 
     @Override public void mobil(String satir) { if (ui != null) ui.mobilSatir(satir); }
 
+    @Override public void belgeAc(String yol) {
+        File f = new File(yol);
+        if (!f.isFile()) { Toast.makeText(this, "Dosya bulunamadı", Toast.LENGTH_SHORT).show(); return; }
+        ui.belgeAciliyor(f.getName());
+        if (UyapMobilServisi.calisiyor()) UyapMobilServisi.ac(this, yol, 0, 0); else { bekleyenDosya = yol; basla(); }
+    }
+
+    /** Belgeyi paylaş: değişiklik varsa dosya yazılana kadar (en çok 8 sn) bekle, sonra ACTION_SEND (FileProvider). */
+    @Override public void paylas(final String yol, boolean degisti) {
+        final File f = new File(yol);
+        final long once = f.lastModified(), son = System.currentTimeMillis() + 8000;
+        final Runnable gonder = () -> {
+            try {
+                Uri u = Uri.parse("content://" + getPackageName() + ".fileprovider" + f.getAbsolutePath());
+                String k = f.getName().toLowerCase(Locale.ROOT);
+                Intent i = new Intent(Intent.ACTION_SEND).setType(k.endsWith(".pdf") ? "application/pdf" : "application/octet-stream")
+                        .putExtra(Intent.EXTRA_STREAM, u).putExtra(Intent.EXTRA_SUBJECT, f.getName()).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                startActivity(Intent.createChooser(i, "Belgeyi paylaş"));
+            } catch (Exception e) { Toast.makeText(this, "Paylaşılamadı: " + e.getMessage(), Toast.LENGTH_LONG).show(); }
+        };
+        if (!degisti) { gonder.run(); return; }
+        ui.durum("Kaydediliyor…", true);
+        ekran.postDelayed(new Runnable() {
+            @Override public void run() {
+                if (f.lastModified() != once || System.currentTimeMillis() > son) { ui.durumGizle(); gonder.run(); }
+                else ekran.postDelayed(this, 200);
+            }
+        }, 300);
+    }
+
     @Override public void acilmadi(String neden) { if (ui != null) ui.acilmadi(neden); }
 
     private int dp(int v) { return Math.round(v * getResources().getDisplayMetrics().density); }

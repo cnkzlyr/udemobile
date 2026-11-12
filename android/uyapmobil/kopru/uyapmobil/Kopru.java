@@ -532,6 +532,46 @@ public final class Kopru {
         }
     }
 
+    // ------------------------------------------------------------------------------------ açık belgeler
+    /** "PENCERELER <b64 json>": [{"t":başlık,"on":1|0}…] — belge çerçeveleri (Cacio ve sahipsiz çerçeveler hariç). */
+    private static void pencereListesi() {
+        StringBuilder sb = new StringBuilder("[");
+        java.awt.Frame on = onCerceve();
+        for (Window w : Window.getWindows()) {
+            if (!(w instanceof java.awt.Frame) || !w.isShowing() || w.getClass().getName().startsWith("com.github.caciocavallosilano")
+                    || w.getClass().getName().startsWith("javax.swing.SwingUtilities")) continue;
+            if (sb.length() > 1) sb.append(',');
+            sb.append("{\"t\":").append(js(((java.awt.Frame) w).getTitle())).append(",\"on\":").append(w == on ? 1 : 0).append('}');
+        }
+        bildir("PENCERELER " + b64(sb.append(']').toString()));
+    }
+
+    static java.awt.Frame onCerceve() {
+        java.awt.Frame on = null;
+        for (Window w : Window.getWindows())
+            if (w instanceof java.awt.Frame && w.isShowing() && !w.getClass().getName().startsWith("com.github.caciocavallosilano")
+                    && (on == null || w.isFocused() || w.isActive() || w == onSecilen)) on = (java.awt.Frame) w;
+        return on;
+    }
+
+    /** Kullanıcının seçtiği belge çerçevesi (Cacio'da odak bilgisi güvenilir değil). */
+    static volatile Window onSecilen;
+
+    private static void pencereyeGec(String baslik) {
+        for (Window w : Window.getWindows())
+            if (w instanceof java.awt.Frame && w.isShowing() && baslik.equals(((java.awt.Frame) w).getTitle())) {
+                onSecilen = w;
+                w.toFront();
+                w.requestFocus();
+                javax.swing.text.JTextComponent m = metinBilesen(w);
+                if (m != null) m.requestFocusInWindow();
+                yenidenCiz(w);
+                Mobil.yenidenBagla();
+                bildir("BASLIK " + b64(((java.awt.Frame) w).getTitle()));
+                return;
+            }
+    }
+
     /** Pencere başlığı yüksekliği (Cacio dekorasyonu); "uyapmobil.baslik=1" ile görünür bırakılabilir. */
     static int baslikYuksekligi(Window w) {
         if ("1".equals(System.getProperty("uyapmobil.baslik"))) return 0;
@@ -695,8 +735,10 @@ public final class Kopru {
                             w.setVisible(false);
                             w.dispose();
                         }
+                    onSecilen = y;
                     y.toFront();
                     yenidenCiz(y);
+                    Mobil.yenidenBagla();
                     if (!seritAcik) seritGoster(false);
                 });
                 return;
@@ -729,12 +771,7 @@ public final class Kopru {
         while (true) {
             try {
                 Thread.sleep(700);
-                java.awt.Frame on = null;
-                for (Window w : Window.getWindows())
-                    if (w instanceof java.awt.Frame && w.isShowing() && ((java.awt.Frame) w).getTitle() != null
-                            && !w.getClass().getName().startsWith("com.github.caciocavallosilano")) {
-                        if (on == null || w.isFocused() || w.isActive()) on = (java.awt.Frame) w;
-                    }
+                java.awt.Frame on = onCerceve();
                 String t = on == null ? null : on.getTitle();
                 if (t != null && !t.equals(son) && !ISTEMCILER.isEmpty()) { son = t; bildir("BASLIK " + b64(t)); }
             } catch (InterruptedException e) {
@@ -972,6 +1009,9 @@ public final class Kopru {
                 });
                 break;
             case "FA": case "FT": case "FS": Form.komut(p); break;
+            case "MR": EventQueue.invokeLater(Mobil::yenidenGonder); break;          // görünüm tam içeriği yeniden istedi
+            case "WL": EventQueue.invokeLater(Kopru::pencereListesi); break;         // açık belgeler
+            case "WF": EventQueue.invokeLater(() -> pencereyeGec(b64coz(p[1]))); break;
             case "ZD":  // tanı: model→ekran ile yerleşim karşılaştırması
                 EventQueue.invokeLater(() -> {
                     javax.swing.text.JTextComponent m = null;

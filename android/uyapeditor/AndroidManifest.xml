@@ -16,6 +16,7 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.VIBRATE" />
 
     <application
         android:label="UYAP Editör"
@@ -127,6 +128,13 @@
         <service
             android:name=".UyapMobilServisi"
             android:exported="false" />
+
+        <!-- Belgeyi paylaş (WhatsApp, e-posta…): dışa kapalı; yalnızca paylaşılan URI'ye geçici okuma izni verilir -->
+        <provider
+            android:name=".CanFileProvider"
+            android:authorities="com.agy.uyapeditor.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true" />
 
         <!-- Mobil görünüm: belge UdeMobile'ın telefon ekranına göre satır kıran editöründe (assets/editor) açılır -->
         <activity

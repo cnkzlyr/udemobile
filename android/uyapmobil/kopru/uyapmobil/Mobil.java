@@ -108,14 +108,14 @@ final class Mobil {
     private static void degisti() { if (acik) gecikme.restart(); }
 
     private static JTextComponent onMetin() {
-        JTextComponent son = null;
-        java.awt.Frame on = null;
-        for (Window w : Window.getWindows())
-            if (w instanceof java.awt.Frame && w.isShowing() && !w.getClass().getName().startsWith("com.github.caciocavallosilano")
-                    && (on == null || w.isFocused() || w.isActive())) on = (java.awt.Frame) w;
-        if (on != null) son = Kopru.metinBilesenAc(on);
-        return son;
+        java.awt.Frame on = Kopru.onCerceve();
+        return on == null ? null : Kopru.metinBilesenAc(on);
     }
+
+    /** Görünüm tam içerik istedi (ilk mesajı kaçırdı) ya da belge penceresi değişti. */
+    static void yenidenGonder() { if (acik) { onbellekSifirla(); resimleriUnut(); gonder(); } }
+
+    static void yenidenBagla() { if (acik) { bagla(); yenidenGonder(); } }
 
     private static void bagla() {
         JTextComponent m = onMetin();
@@ -544,7 +544,7 @@ final class Mobil {
         if (on instanceof Color && !Color.BLACK.equals(on)) s.append("color:").append(renk((Color) on)).append(';');
         Object arka = a.getAttribute(StyleConstants.Background);
         if (arka instanceof Color && !Color.WHITE.equals(arka)) s.append("background:").append(renk((Color) arka)).append(';');
-        if (alan) s.append("background:rgba(26,115,232,.08);border-bottom:1px dotted rgba(26,115,232,.5);");
+        // UYAP alanları (field) resmi editörde düz görünür: ek vurgu yok (uyumluluk)
         return s.toString();
     }
 
