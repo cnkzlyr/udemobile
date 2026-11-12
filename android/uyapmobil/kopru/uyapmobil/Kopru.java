@@ -1011,6 +1011,8 @@ public final class Kopru {
             case "FA": case "FT": case "FS": Form.komut(p); break;
             case "MR": EventQueue.invokeLater(Mobil::yenidenGonder); break;
             case "ST": Suzgec.TANI = !Suzgec.TANI; break;
+            case "PAR": if (p.length >= 5) { float[] v = new float[4]; for (int i = 0; i < 4; i++) v[i] = Float.parseFloat(p[i + 1]);
+                EventQueue.invokeLater(() -> Mobil.paragrafAyarla(v[0], v[1], v[2], v[3])); } break;
             case "SR": EventQueue.invokeLater(() -> Mobil.sayfaResmi(Integer.parseInt(p[1]), p.length > 2 ? Float.parseFloat(p[2]) : 2f)); break;          // görünüm tam içeriği yeniden istedi
             case "WL": EventQueue.invokeLater(Kopru::pencereListesi); break;         // açık belgeler
             case "WF": EventQueue.invokeLater(() -> pencereyeGec(b64coz(p[1]))); break;

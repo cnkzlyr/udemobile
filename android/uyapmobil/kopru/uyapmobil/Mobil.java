@@ -470,7 +470,10 @@ final class Mobil {
         }
     }
 
-    /** İmlecin paragrafı: "MPAR sol ilk sağ hizalama" (pt) — cetveldeki girinti işaretleri için. */
+    /**
+     * İmlecin paragrafı: "MPAR sol ilk asılı sağ hizalama" (pt, UDF öznitelikleri olduğu gibi) — cetvel işaretleri için.
+     * UYAP yerleşimi: ilk satır sol+ilk'te, sonraki satırlar sol+asılı'da başlar; sağ girinti sağ kenardan.
+     */
     private static String sonPar = "";
 
     static void paragrafGonder(JTextComponent m) {
@@ -479,9 +482,33 @@ final class Mobil {
             AttributeSet a = p.getAttributes();
             float sol = StyleConstants.getLeftIndent(a), sag = StyleConstants.getRightIndent(a), ilk = StyleConstants.getFirstLineIndent(a);
             float asili = sayi(ozellik(a, "Hanging"));
-            String v = "MPAR " + (sol + asili) + " " + (sol + ilk) + " " + sag + " " + StyleConstants.getAlignment(a);
+            String v = "MPAR " + sol + " " + ilk + " " + asili + " " + sag + " " + StyleConstants.getAlignment(a);
             if (!v.equals(sonPar)) { sonPar = v; Kopru.bildir(v); }
         } catch (Throwable ignored) { }
+    }
+
+    /**
+     * Cetvelden girinti: "PAR sol ilk asılı sağ" (pt). Seçimdeki tüm paragraflara UDF'nin kendi öznitelikleriyle
+     * (LeftIndent, FirstLineIndent, Hanging, RightIndent) yazılır; belge değişikliği olarak editörün geri al
+     * yığınına ve kaydedilmemiş durumuna geçer. Editörün Paragraf Özellikleri penceresinin yazdığıyla aynıdır.
+     */
+    static void paragrafAyarla(float sol, float ilk, float asili, float sag) {
+        JTextComponent m = bagli != null ? bagli : onMetin();
+        if (m == null || !m.isEditable()) return;
+        try {
+            javax.swing.text.StyledDocument d = (javax.swing.text.StyledDocument) m.getDocument();
+            int a = Math.min(m.getCaret().getDot(), m.getCaret().getMark()), b = Math.max(m.getCaret().getDot(), m.getCaret().getMark());
+            javax.swing.text.SimpleAttributeSet s = new javax.swing.text.SimpleAttributeSet();
+            StyleConstants.setLeftIndent(s, Math.max(0f, sol));
+            StyleConstants.setFirstLineIndent(s, ilk);
+            StyleConstants.setRightIndent(s, Math.max(0f, sag));
+            s.addAttribute("Hanging", Math.max(0f, asili));
+            d.setParagraphAttributes(a, Math.max(0, b - a), s, false);
+            sonPar = "";
+            paragrafGonder(m);
+        } catch (Throwable e) {
+            Kopru.LOG.println("[uyapmobil] girinti: " + e);
+        }
     }
 
     private static boolean tekSayfa(int y, int h, int pitch) { return y / pitch == (y + Math.max(0, h - 1)) / pitch; }

@@ -1,6 +1,6 @@
 # ⚖️ CanEditor (UdeMobile) — Çapraz Platform UYAP & Word Editörü
 
-[![Sürüm](https://img.shields.io/badge/Sürüm-v3.29.0-blue.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v3.29.0)
+[![Sürüm](https://img.shields.io/badge/Sürüm-v3.30.0-blue.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v3.30.0)
 [![Platformlar](https://img.shields.io/badge/Platformlar-Android%20%7C%20Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Web-success.svg)](https://github.com/cnkzlyr/udemobile/releases)
 [![UYAP](https://img.shields.io/badge/Format-UYAP_UDF_v1.8-0D47A1.svg)](https://uyap.gov.tr)
 [![Word](https://img.shields.io/badge/Format-MS_DOCX_OpenXML-2B579A.svg?logo=microsoft-word&logoColor=white)](https://microsoft.com)
@@ -11,14 +11,14 @@
 
 ---
 
-## 🚀 Hızlı İndirme (v3.29.0)
+## 🚀 Hızlı İndirme (v3.30.0)
 
 | Platform | Paket Dosyası | Açıklama |
 | :--- | :--- | :--- |
-| **Android (Telefon & Tablet)** | [**CanEditor-v3.29.0.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.29.0/CanEditor-v3.29.0.apk) | Güncel Android APK paketi (Termux gerektirmez) |
-| **Android (Her Zaman En Son)** | [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.29.0/CanEditor-latest.apk) | Kalıcı son sürüm bağlantısı |
-| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v3.29.0.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v3.29.0/CanEditor-Portable-Web-GUI-v3.29.0.zip) | **Kurulumsuz;** zipten çıkarıp `index.html` açarak tüm işletim sistemlerinde doğrudan çalışır |
-| **Windows / macOS / Linux** | [**GitHub Releases Sayfası**](https://github.com/cnkzlyr/udemobile/releases/tag/v3.29.0) | GitHub Actions CI ile derlenen yerel ikili (.msi, .exe, .dmg, .AppImage, .deb, .rpm) paketleri |
+| **Android (Telefon & Tablet)** | [**CanEditor-v3.30.0.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.30.0/CanEditor-v3.30.0.apk) | Güncel Android APK paketi (Termux gerektirmez) |
+| **Android (Her Zaman En Son)** | [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.30.0/CanEditor-latest.apk) | Kalıcı son sürüm bağlantısı |
+| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v3.30.0.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v3.30.0/CanEditor-Portable-Web-GUI-v3.30.0.zip) | **Kurulumsuz;** zipten çıkarıp `index.html` açarak tüm işletim sistemlerinde doğrudan çalışır |
+| **Windows / macOS / Linux** | [**GitHub Releases Sayfası**](https://github.com/cnkzlyr/udemobile/releases/tag/v3.30.0) | GitHub Actions CI ile derlenen yerel ikili (.msi, .exe, .dmg, .AppImage, .deb, .rpm) paketleri |
 
 ---
 
@@ -28,6 +28,12 @@ v3.17.0'dan itibaren APK yeni ve kalıcı bir proje anahtarıyla imzalanır (ser
 `BA:80:78:89:12:28:35:C0:58:3B:C9:72:3B:C0:90:5C:C8:6F:49:A8:1A:92:BA:F9:D0:96:33:77:71:BB:D4:F0`). Telefonunuzda
 v3.16.0 ya da öncesi kuruluysa bir kez **kaldırıp** yeni APK'yı kurun (aksi halde Android "paket çakışıyor" hatası
 verir). Sonraki güncellemeler kaldırmadan, üzerine kurulur.
+
+## 🌟 v3.30.0: UYAP Editör — CanEditor ile aynı, sürüklenebilir 3 ayarlı cetvel
+
+- **Görünüm CanEditor'ınkiyle aynı:** 40 px açık zemin, gri kenar boşlukları, beyaz metin alanı, alttan yükselen mm / yarım cm / cm çizgileri ve sol kenar boşluğundan iki yana sayan kalın santimetre numaraları. Kağıtta sayfaya ve yakınlaştırmaya, mobilde metin genişliğine ölçeklenir.
+- **Üç ayarlı (Word / UYAP standardı) + sağ girinti, parmakla sürüklenir:** ▼ ilk satır girintisi, ▲ asılı girinti (sonraki satırlar), ■ sol girinti (tüm paragrafı taşır), sağda ▲ sağ girinti. 0,25 cm adımla oturur; sürüklerken mavi kesikli kılavuz çizgisi ve "İlk satır: 2,00 cm" gibi ölçü rozeti görünür.
+- **Gerçekten uygulanır:** Bırakınca resmi motor seçimdeki tüm paragraflara UDF'nin kendi özniteliklerini yazar (`PAR sol ilk asılı sağ` → `LeftIndent` / `FirstLineIndent` / `Hanging` / `RightIndent`, Paragraf Özellikleri penceresinin yazdığıyla aynı). Değişiklik geri alınabilir ve sayfa anında yeniden dizilir. İmleç başka paragrafa geçince işaretler o paragrafın değerlerine gelir (`MPAR sol ilk asılı sağ hizalama`). İşaret dışına dokunmak Paragraf Özellikleri'ni açar.
 
 ## 🌟 v3.29.0: UYAP Editör — cetvel, sayfa süsleri (sayfa no / karekod / filigran), üst-alt bilgi, yeni simge, varsayılan açıcı
 
