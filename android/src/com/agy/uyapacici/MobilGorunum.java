@@ -64,6 +64,9 @@ final class MobilGorunum extends WebView {
         /** Kağıtta görünen sayfa değişti. */
         @JavascriptInterface public void sayfa(int k, int n) { Eylem d = eylemDinleyici; if (d != null) post(() -> d.eylem("sayfa:" + k + ":" + n)); }
 
+        /** k. sayfanın süslerini (filigran, karekod, doğrulama satırı, sayfa no) iste: SR k ölçek → SRESIM. */
+        @JavascriptInterface public void sus(int k, float olcek) { UyapMobilServisi.gonder("SR " + k + " " + olcek); }
+
         /** Görünüm tam içerik istiyor (önbellek tutarsız). */
         @JavascriptInterface public void tam() { UyapMobilServisi.gonder("MR"); }
 
@@ -95,6 +98,10 @@ final class MobilGorunum extends WebView {
             calistir((s.startsWith("MKAGIT ") ? "kagitCiz(" : "mobilCiz(") + "b64('" + p[1] + "')," + p[2] + "," + p[3] + im + ")");
         } else if (s.startsWith("MKARET ")) {
             if (p.length >= 3) calistir("imlec(" + p[1] + "," + p[2] + (p.length >= 6 ? "," + p[3] + "," + p[4] + "," + p[5] : "") + ")");
+        } else if (s.startsWith("SRESIM ")) {
+            if (p.length >= 4) calistir("sus(" + p[1] + "," + p[2] + ",'" + ("-".equals(p[3]) ? "" : p[3]) + "')");
+        } else if (s.startsWith("MPAR ")) {
+            if (p.length >= 5) calistir("cetvelPar(" + p[1] + "," + p[2] + "," + p[3] + "," + p[4] + ")");
         } else if (s.startsWith("MRESIM ")) {
             String[] q = s.split(" ", 3);
             if (q.length == 3) calistir("resim('" + q[1] + "','" + q[2] + "')");
@@ -112,6 +119,8 @@ final class MobilGorunum extends WebView {
     void araGit(String yon) { js("araGit('" + yon + "')"); }
     void araKapat() { js("araKapat()"); }
     void sayfayaGit(int k) { js("sayfayaGit(" + k + ")"); }
+    /** Cetveli göster / gizle (kağıt ve mobil). */
+    void cetvel(boolean g) { calistir("cetvelGoster(" + g + ")"); }
 
     void yakinlastir(float k) {
         olcek = Math.max(0.6f, Math.min(2.2f, olcek * k));

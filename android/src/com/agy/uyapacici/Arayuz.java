@@ -198,8 +198,19 @@ final class Arayuz {
         s.setOrientation(LinearLayout.HORIZONTAL);
         s.setGravity(Gravity.CENTER_VERTICAL);
         s.setPadding(dp(8), 0, dp(4), 0);
-        TextView logo = metin("🏛️", 20, Tasarim.VURGU, false);
-        logo.setPadding(dp(8), dp(8), dp(8), dp(8));
+        // uygulama simgesi (CanEditor tarzı mavi karo); yüklenemezse 🏛️
+        View logo;
+        try {
+            ImageView iv = new ImageView(a);
+            iv.setImageDrawable(a.getPackageManager().getApplicationIcon(a.getApplicationInfo()));
+            iv.setPadding(dp(8), dp(8), dp(8), dp(8));
+            iv.setLayoutParams(new LinearLayout.LayoutParams(dp(48), dp(48)));
+            logo = iv;
+        } catch (Throwable e) {
+            TextView t = metin("🏛️", 20, Tasarim.VURGU, false);
+            t.setPadding(dp(8), dp(8), dp(8), dp(8));
+            logo = t;
+        }
         logo.setBackground(Tasarim.dalga(null, dp(20)));
         logo.setOnClickListener(v -> cekmeceAc());
         s.addView(logo);
@@ -783,6 +794,9 @@ final class Arayuz {
                     case "yapistir": yapistir(); break;
                     case "tumu": ekran.tus('A', EkranView.CTRL); break;
                     case "olcek": yuzdeYaz(); return;
+                    case "ustbilgi": ustAltBilgi(true); return;
+                    case "altbilgi": ustAltBilgi(false); return;
+                    case "paragraf": menuKomutu("Biçim", "Paragraf Özellikleri"); return;
                     default:
                         if (e.startsWith("ara:")) { String[] q = e.split(":"); araSayac.setText("0".equals(q[1]) ? (araKutusu.length() > 0 ? "Yok" : "") : q[2] + "/" + q[1]); return; }
                         if (e.startsWith("sayfa:")) { String[] q = e.split(":"); sayfaGoster(Integer.parseInt(q[1]), Integer.parseInt(q[2])); return; }
@@ -794,6 +808,7 @@ final class Arayuz {
             lp.topMargin = dp(UST_YUKSEKLIK);
             kok.addView(mobil, 1, lp);       // ekranın üstünde, çubukların altında
             mobil.setVisibility(View.GONE);
+            mobil.cetvel(ayar.getBoolean("cetvel", true));
         }
         if (g == ORIJINAL) {
             UyapMobilServisi.gonder("MM 0");
@@ -1107,6 +1122,20 @@ final class Arayuz {
         ic.addView(satir(null, null, "👁️  Yazdırma Önizlemesi", true, -1, () -> menuKomutu("Dosya", "Yazdırma Önizlemesi")));
         ic.addView(satir(null, null, "📤  Dışa Aktar", true, -1, () -> menuKomutu("Dosya", "Dışa Aktar")));
 
+        baslikEtiketi(ic, "ÜST / ALT BİLGİ · SAYFA NO");
+        ic.addView(satir(null, null, "⬆️  Üst bilgi", true, -1, () -> ustAltBilgi(true)));
+        ic.addView(satir(null, null, "⬇️  Alt bilgi", true, -1, () -> ustAltBilgi(false)));
+        ic.addView(satir(null, null, "🔢  Sayfa numarası ekle", true, -1, () -> menuKomutu("Ekle", "Sayfa Numarası")));
+        ic.addView(satir(null, null, "✏️  Sayfa numarasını düzenle", true, -1, () -> menuKomutu("Düzenle", "Sayfa Numarası Düzenle")));
+        ic.addView(satir(null, null, "📐  Paragraf özellikleri (cetvel)", true, -1, () -> menuKomutu("Biçim", "Paragraf Özellikleri")));
+        ic.addView(satir(null, null, (ayar.getBoolean("cetvel", true) ? "📏  Cetveli gizle" : "📏  Cetveli göster"), true, -1, () -> {
+            boolean g = !ayar.getBoolean("cetvel", true);
+            ayar.edit().putBoolean("cetvel", g).apply();
+            if (mobil != null) mobil.cetvel(g);
+            cekmeceKapat();
+        }));
+        ic.addView(satir(null, null, "▦  Barkod ekle", true, -1, () -> menuKomutu("Ekle", "Barkod Ekle")));
+
         baslikEtiketi(ic, "HUKUK & E-İMZA ARAÇLARI");
         ic.addView(satir(null, null, "✍️  İmzala", true, -1, () -> menuKomutu("Araçlar", "İmzala")));
         ic.addView(satir(null, null, "📲  Dokümanı Mobil İmzala", true, -1, () -> menuKomutu("Araçlar", "Dokümanı Mobil İmzala")));
@@ -1162,6 +1191,30 @@ final class Arayuz {
         t.setLetterSpacing(0.06f);
         t.setPadding(dp(20), dp(18), dp(20), dp(6));
         ic.addView(t);
+    }
+
+    /**
+     * Üst/alt bilgi: belgede varsa editörün "… Yazı Düzenle" penceresi, yoksa "… Yazı Ekle" açılır (Düzenle menüsündeki
+     * öğeler yalnızca üst/alt yazı varken etkindir). Kağıtta kenar boşluğuna çift dokunmak da buraya gelir.
+     */
+    private void ustAltBilgi(boolean ust) {
+        String d = ust ? "Üst Yazı Düzenle" : "Alt Yazı Düzenle", e = ust ? "Üst Yazı Ekle" : "Alt Yazı Ekle";
+        if (ogeEtkin("Düzenle", d)) menuKomutu("Düzenle", d); else menuKomutu("Ekle", e);
+    }
+
+    private boolean ogeEtkin(String menu, String ad) {
+        if (son == null) return false;
+        JSONArray m = son.optJSONArray("m");
+        for (int i = 0; m != null && i < m.length(); i++) {
+            JSONObject b = m.optJSONObject(i);
+            if (!menu.equals(b.optString("t"))) continue;
+            JSONArray o = b.optJSONArray("o");
+            for (int j = 0; o != null && j < o.length(); j++) {
+                JSONObject x = o.optJSONObject(j);
+                if (ad.equals(x.optString("t"))) return x.optInt("e") == 1;
+            }
+        }
+        return false;
     }
 
     /** Menüde metniyle bir komutu bul ve çalıştır (ilk etkin olanı). */

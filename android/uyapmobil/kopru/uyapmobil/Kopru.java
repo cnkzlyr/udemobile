@@ -1009,7 +1009,9 @@ public final class Kopru {
                 });
                 break;
             case "FA": case "FT": case "FS": Form.komut(p); break;
-            case "MR": EventQueue.invokeLater(Mobil::yenidenGonder); break;          // görünüm tam içeriği yeniden istedi
+            case "MR": EventQueue.invokeLater(Mobil::yenidenGonder); break;
+            case "ST": Suzgec.TANI = !Suzgec.TANI; break;
+            case "SR": EventQueue.invokeLater(() -> Mobil.sayfaResmi(Integer.parseInt(p[1]), p.length > 2 ? Float.parseFloat(p[2]) : 2f)); break;          // görünüm tam içeriği yeniden istedi
             case "WL": EventQueue.invokeLater(Kopru::pencereListesi); break;         // açık belgeler
             case "WF": EventQueue.invokeLater(() -> pencereyeGec(b64coz(p[1]))); break;
             case "ZD":  // tanı: model→ekran ile yerleşim karşılaştırması

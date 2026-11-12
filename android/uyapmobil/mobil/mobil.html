@@ -29,7 +29,15 @@ body.kagit #kagit{display:block} body.kagit #mobil{display:none}
 #dis{position:relative;margin:0 auto}
 #ic{position:absolute;left:0;top:0;transform-origin:0 0}
 .sf{position:absolute;left:0;background:#fff;animation:belir .18s ease-out;box-shadow:0 1px 3px rgba(60,64,67,.18),0 6px 16px rgba(60,64,67,.10)}
+.sf img.sus{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;animation:sus .25s ease-out}
+@keyframes sus{from{opacity:0}to{opacity:1}}
 .bk{position:absolute;left:0;top:0}
+/* ---- cetvel (kağıt: sayfaya, mobil: metin genişliğine ölçekli) ---- */
+#cetvel{position:fixed;left:0;right:0;top:0;height:26px;z-index:6;background:#f1f3f4;box-shadow:0 1px 0 #dadce0,0 2px 6px rgba(60,64,67,.08);
+  transition:transform .22s cubic-bezier(.2,.8,.2,1)}
+#cetvel canvas{display:block}
+body.cetvelsiz #cetvel{transform:translateY(-30px)}
+body{padding-top:26px}
 .w{position:absolute;white-space:pre;font-family:'Times New Roman','Liberation Serif',serif;color:#202124}
 .w.sec{background:rgba(26,115,232,.28)}
 .bk img{position:absolute}
@@ -56,6 +64,7 @@ body.kagit #kagit{display:block} body.kagit #mobil{display:none}
 @keyframes belir{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 </style></head>
 <body>
+<div id="cetvel"><canvas></canvas></div>
 <div id="mobil" class="mb"></div>
 <div id="kagit"><div id="dis"><div id="ic"></div></div></div>
 <div id="imlec"></div><div id="secim"></div><div id="ara"></div><div class="tut" id="tutA"></div><div class="tut" id="tutB"></div>
@@ -85,7 +94,7 @@ function mobilCiz(js,a,b){
   }
   for(var k in MB) if(!yeni[k] && MB[k].parentNode) MB[k].parentNode.removeChild(MB[k]);
   while(once&&once.nextSibling) mobilEl.removeChild(once.nextSibling);
-  MB=yeni; gecersiz(); if(eksik) tamIste(); imlecAyarla(a,b,null,ilk); ilk=false;
+  MB=yeni; gecersiz(); if(eksik) tamIste(); imlecAyarla(a,b,null,ilk); ilk=false; cetvelCiz();
 }
 function taban(el){ while(el&&el!==document.body){ if(el.dataset&&el.dataset.b!==undefined) return +el.dataset.b; el=el.parentNode; } return 0; }
 function mutlak(el){ return taban(el)+(+el.getAttribute('data-o')); }
@@ -140,7 +149,7 @@ function kagitCiz(js,a,b,cx,cy,ch){
     yeni[k]=n;
   }
   for(var k in KB) if(!yeni[k]) blokKaldir(KB[k]);
-  KB=yeni; ciz(); gecersiz(); if(eksik) tamIste();
+  KB=yeni; ciz(); gecersiz(); if(eksik) tamIste(); cetvelCiz();
   imlecAyarla(a,b,cx===undefined?null:[cx,cy,ch], ilkKez);
 }
 function blokKaldir(n){ if(n.d) n.d.remove(); for(var x in n.k) n.k[x].remove(); n.d=null; n.k={}; }
@@ -152,7 +161,8 @@ function ciz(){
   // sayfa zeminleri
   var var_={}, sf=ic.querySelectorAll('.sf');
   for(var i=0;i<sf.length;i++){ var k=+sf[i].dataset.k; if(k<p0||k>p1) sf[i].remove(); else var_[k]=1; }
-  for(var k=p0;k<=p1;k++) if(!var_[k]){ var z=document.createElement('div'); z.className='sf'; z.dataset.k=k; z.style.cssText='top:'+(k*KD.pitch)+'px;width:'+KD.pw+'px;height:'+KD.ph+'px'; ic.insertBefore(z,ic.firstChild); }
+  for(var k=p0;k<=p1;k++) if(!var_[k]){ var z=document.createElement('div'); z.className='sf'; z.dataset.k=k; z.style.cssText='top:'+(k*KD.pitch+(KD.pu||0))+'px;width:'+KD.pw+'px;height:'+KD.ph+'px'; susKoy(z,k); ic.insertBefore(z,ic.firstChild); }
+  susGuncelle(); cetvelCiz();
   for(var id in KB){ var n=KB[id]; if(!n.p) continue;
     if(n.bolge===0){
       var gor=n.y+n.h>=y0 && n.y<=y1;
@@ -309,7 +319,7 @@ function surukleHareket(x,y){
 }
 function kenarKaydir(y){ if(y<120) window.scrollBy(0,-14); else if(y>window.innerHeight-120) window.scrollBy(0,14); }
 document.addEventListener('touchstart',function(ev){
-  if(ev.target.closest&&(ev.target.closest('.tut')||ev.target.closest('#eylem'))) return;
+  if(ev.target.closest&&(ev.target.closest('.tut')||ev.target.closest('#eylem')||ev.target.closest('#cetvel'))) return;
   if(ev.touches.length!==1){ bas=null; clearTimeout(uzunZ); return; }
   var t=ev.touches[0]; bas={x:t.clientX,y:t.clientY,t:Date.now()};
   clearTimeout(uzunZ); uzunZ=setTimeout(function(){ if(!bas) return; bas.uzun=true; if(navigator.vibrate) navigator.vibrate(12);
@@ -331,6 +341,10 @@ document.addEventListener('touchend',function(ev){
   ev.preventDefault();
   var simdi=Date.now(), cift=simdi-sonDok.t<320 && Math.abs(b.x-sonDok.x)<30 && Math.abs(b.y-sonDok.y)<30;
   sonDok={t:cift?0:simdi,x:b.x,y:b.y};
+  if(cift&&kip===2&&KD){ // üst/alt bilgi alanına (kenar boşluğu) çift dokunuş: düzenleyiciyi aç
+    var m=kMotor(b.x,b.y), k=Math.floor(m[1]/KD.pitch), ry=m[1]-k*KD.pitch-(KD.pu||0);
+    if(ry>=0&&ry<KD.mt-6){ if(window.K) K.eylem('ustbilgi'); return; }
+    if(ry<=KD.ph&&ry>KD.ph-KD.mb+6){ if(window.K) K.eylem('altbilgi'); return; } }
   if(cift){ var o=noktaOfset(b.x,b.y); if(o>=0){ var k=kelime(o); eylemGoster=true; secimYap(k[0],k[1],true); } return; }
   eylemGoster=false;
   if(sec[0]!==sec[1]){ sec=[sec[0],sec[0]]; secimCiz(); }
@@ -411,9 +425,76 @@ document.addEventListener('touchmove',function(ev){ if(!pinch||ev.touches.length
 document.addEventListener('touchend',function(ev){ if(pinch&&ev.touches.length<2){ pinch=null; if(kip===2){ ic.style.willChange=''; ciz(); gecersiz(); } imlecAyarla(sec[0],sec[1],null,false,true); if(window.K&&K.olcek) K.olcek(olcekK); } },{passive:true});
 
 // ======================================================================= kip / ölçek
-function kipSec(k){ if(k===kip) return; kip=k; document.body.classList.toggle('kagit',k===2); imlecEl.style.display='none'; }
+function kipSec(k){ if(k===kip) return; kip=k; setTimeout(cetvelCiz,0); document.body.classList.toggle('kagit',k===2); imlecEl.style.display='none'; }
 function sifirla(){ MB={}; for(var k in KB) blokKaldir(KB[k]); KB={}; KD=null; mobilEl.innerHTML=''; ic.innerHTML=''; ilk=true; }
-function olcek(k){ olcekK=k; document.documentElement.style.setProperty('--olcek',k);
+function olcek(k){ setTimeout(function(){ cetvelCiz(); susGuncelle(); },60); olcekK=k; document.documentElement.style.setProperty('--olcek',k);
   if(KD){ var s=sc(); dis.style.width=(KD.pw*s)+'px'; dis.style.height=(KD.n*KD.pitch*s)+'px'; ic.style.transform='scale('+s+')'; ciz(); gecersiz(); imlecAyarla(sec[0],sec[1],null,false,true); } }
 window.addEventListener('resize',function(){ olcek(olcekK); });
+
+// ======================================================================= sayfa süsleri (3.29)
+/* Motorun sayfayı boyarken eklediği ama belge modelinde olmayan süsler — filigran, karekod/barkod, e-imza doğrulama
+ * satırı, sayfa numarası — resmi motordan saydam PNG olarak gelir (SR k ölçek → SRESIM k sürüm png) ve sayfa
+ * zemininin üstüne, metnin altına konur. Belge değişince (sürüm) görünen sayfalar yeniden istenir; yenisi gelene
+ * kadar eskisi kalır. */
+var SUS={}, susBek={}, susZ=null;
+function susOlcek(){ return Math.round(Math.min(3,Math.max(1,(window.devicePixelRatio||1)*sc()))*4)/4; }
+/* Motor her sayfayı kendi iş parçacığında (EDT) çizer: yazmayı aksatmamak için istekler tek tek gider (biri gelince
+ * sıradaki), ekranın ortasına en yakın sayfa önce; resmi olan ama eskiyen sayfa ancak yazmaya 2,5 sn ara verilince. */
+function susGuncelle(){
+  clearTimeout(susZ); susZ=setTimeout(function(){
+    if(!KD||kip!==2||!window.K||!K.sus) return; var o=susOlcek(), sf=ic.querySelectorAll('.sf'), simdi=Date.now();
+    for(var k in susBek) if(simdi-susBek[k].t<8000) return;
+    var r=dis.getBoundingClientRect(), s=sc(), orta=(-r.top+window.innerHeight/2)/s, ad=[];
+    for(var i=0;i<sf.length;i++){ var k=+sf[i].dataset.k, x=SUS[k]; if(x&&x.v===KD.v&&x.o>=o-0.01) continue; ad.push(k); }
+    if(!ad.length) return;
+    ad.sort(function(a,b){ return Math.abs((a+0.5)*KD.pitch-orta)-Math.abs((b+0.5)*KD.pitch-orta); });
+    var k=ad[0];
+    if(SUS[k]&&simdi-sonDegisim<2500){ susGuncelle(); return; }
+    susBek[k]={v:KD.v,o:o,t:simdi}; K.sus(k,o);
+  },SUS_BEKLE());
+}
+var sonDegisim=0, sonV=-1;
+function SUS_BEKLE(){ if(!KD||KD.v===sonV) return 250; var ilk=sonV<0; sonV=KD.v; if(ilk) return 250; sonDegisim=Date.now(); return 2600; }
+function sus(k,v,b){ var q=susBek[k]; delete susBek[k];
+  SUS[k]={v:v,o:q?q.o:1,src:b?'data:image/png;base64,'+b:''};
+  var z=ic.querySelector('.sf[data-k="'+k+'"]'); if(z) susKoy(z,k);
+  susGuncelle(); }
+function susKoy(z,k){ var s=SUS[k], im=z.querySelector('img.sus'); if(!s) return;
+  if(!s.src){ if(im) im.remove(); return; }
+  if(!im){ im=document.createElement('img'); im.className='sus'; z.appendChild(im); }
+  if(im.getAttribute('src')!==s.src) im.setAttribute('src',s.src); }
+
+// ======================================================================= cetvel (3.29)
+/* Kağıtta sayfa genişliğine ve yakınlaştırmaya göre ölçeklenir (kenar boşlukları gri), mobilde metin genişliğine.
+ * Santimetre bölmeleri sol kenar boşluğundan başlar; imlecin paragrafının girintileri (MPAR) üçgen işaretlerle
+ * gösterilir: üstte ilk satır, altta sol ve sağ girinti. Dokununca Paragraf Özellikleri açılır. */
+var PAR=[0,0,0,0], cetvelEl=document.getElementById('cetvel'), cv=cetvelEl.querySelector('canvas'), cetZ=null;
+function cetvelPar(sol,ilk,sag,h){ PAR=[sol,ilk,sag,h]; cetvelCiz(); }
+function cetvelCiz(){ if(cetZ) return; cetZ=requestAnimationFrame(function(){ cetZ=null; cetvelBoya(); }); }
+function cetvelBoya(){
+  var d=window.devicePixelRatio||1, W=window.innerWidth, H=26;
+  if(cv.width!==Math.round(W*d)){ cv.width=Math.round(W*d); cv.height=Math.round(H*d); cv.style.width=W+'px'; cv.style.height=H+'px'; }
+  var c=cv.getContext('2d'); c.setTransform(d,0,0,d,0,0); c.clearRect(0,0,W,H);
+  var pw,ml,mr,x0,s,r;
+  if(kip===2&&KD){ r=dis.getBoundingClientRect(); s=sc(); pw=KD.pw; ml=KD.ml; mr=KD.mr; x0=r.left; }
+  else { r=mobilEl.getBoundingClientRect(); var cs=getComputedStyle(mobilEl), pl=parseFloat(cs.paddingLeft)||0, pr=parseFloat(cs.paddingRight)||0;
+    var tw=KD?KD.pw-KD.ml-KD.mr:453.54; ml=0; mr=0; pw=tw; x0=r.left+pl; s=(r.width-pl-pr)/tw; }
+  var o=x0+ml*s, son=x0+(pw-mr)*s;
+  c.fillStyle='#dfe1e5'; c.fillRect(x0,5,pw*s,H-10);
+  c.fillStyle='#ffffff'; c.fillRect(o,5,son-o,H-10);
+  var cm=28.3465*s, adim=cm<22?2:1, f=Math.max(8,Math.min(11,cm*0.42));
+  c.font='500 '+f+'px system-ui,sans-serif'; c.textAlign='center'; c.textBaseline='middle';
+  var i0=-Math.floor(ml/28.3465*4), i1=Math.ceil((pw-ml)/28.3465*4);
+  for(var i=i0;i<=i1;i++){ var x=o+i*cm/4; if(x<x0-1||x>x0+pw*s+1||x<0||x>W) continue;
+    if(i%4===0){ if(i!==0&&(Math.abs(i/4)%adim===0)){ c.fillStyle='#5f6368'; c.fillText(String(Math.abs(i/4)),x,H/2+0.5); } }
+    else { var u=i%2===0?6:3; c.fillStyle='#9aa0a6'; c.fillRect(Math.round(x),H/2-u/2,1,u); } }
+  c.fillStyle='#1a73e8';
+  function uc(x,ust){ c.beginPath(); if(ust){ c.moveTo(x-5,3); c.lineTo(x+5,3); c.lineTo(x,10); } else { c.moveTo(x-5,H-3); c.lineTo(x+5,H-3); c.lineTo(x,H-10); } c.closePath(); c.fill(); }
+  uc(o+PAR[1]*s,true); uc(o+PAR[0]*s,false); uc(son-PAR[2]*s,false);
+  c.fillRect(o+PAR[0]*s-5,H-3,10,2);
+}
+cetvelEl.addEventListener('touchend',function(ev){ ev.preventDefault(); ev.stopPropagation(); if(navigator.vibrate) navigator.vibrate(8); if(window.K) K.eylem('paragraf'); },{passive:false});
+window.addEventListener('scroll',cetvelCiz,{passive:true});
+window.addEventListener('resize',cetvelCiz);
+function cetvelGoster(g){ document.body.classList.toggle('cetvelsiz',!g); }
 </script></body></html>

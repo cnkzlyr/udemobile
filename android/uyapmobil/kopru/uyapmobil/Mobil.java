@@ -105,7 +105,7 @@ final class Mobil {
         if (ac) { bagla(); gonder(); }
     }
 
-    private static void degisti() { if (acik) gecikme.restart(); }
+    private static void degisti() { surum++; if (acik) gecikme.restart(); }
 
     private static JTextComponent onMetin() {
         java.awt.Frame on = Kopru.onCerceve();
@@ -113,7 +113,7 @@ final class Mobil {
     }
 
     /** Görünüm tam içerik istedi (ilk mesajı kaçırdı) ya da belge penceresi değişti. */
-    static void yenidenGonder() { if (acik) { onbellekSifirla(); resimleriUnut(); gonder(); } }
+    static void yenidenGonder() { if (acik) { onbellekSifirla(); resimleriUnut(); sonPar = ""; gonder(); } }
 
     static void yenidenBagla() { if (acik) { bagla(); yenidenGonder(); } }
 
@@ -148,6 +148,7 @@ final class Mobil {
     private static void imlecGonder() {
         JTextComponent m = bagli;
         if (m == null) return;
+        paragrafGonder(m);
         Kopru.bildir("MKARET " + m.getCaret().getMark() + " " + m.getCaret().getDot() + konum(m, m.getCaret().getDot()));
     }
 
@@ -211,6 +212,7 @@ final class Mobil {
         try {
             String son = " " + m.getCaret().getMark() + " " + m.getCaret().getDot() + konum(m, m.getCaret().getDot());
             String j = tur == 2 ? kagit(m) : mobilBloklar(m.getDocument());
+            paragrafGonder(m);
             Kopru.bildir((tur == 2 ? "MKAGIT " : "MOBIL ") + Base64.getEncoder().encodeToString(j.getBytes(java.nio.charset.StandardCharsets.UTF_8)) + son);
             long ms = (System.nanoTime() - t0) / 1000000;
             if (ms > 150) Kopru.LOG.println("[süre] " + (tur == 2 ? "kağıt " : "mobil ") + ms + " ms, " + j.length() + " bayt");
@@ -256,7 +258,9 @@ final class Mobil {
      * JSON: {"pw","ph","px","pitch","n","L":[[y,h,bölge,[[x,w,ofset,"metin","css",punto]...]]...],"I":[[x,y,w,h,"resim"]...]}
      * bölge: 0 gövde, 1 üst bilgi, 2 alt bilgi.
      */
-    private static final class Sayfa { double pw = 595.28, ph = 841.89, ml = 70.87; int pitch = 861; }
+    private static final class Sayfa { double pw = 595.28, ph = 841.89, ml = 70.87, mt = 70.87, mr = 70.87, mb = 70.87; int pitch = 861; }
+    private static Sayfa sonSayfa = new Sayfa();
+    private static double sonPx;
 
     private static Sayfa sayfaBul(javax.swing.text.View sec) {
         Sayfa s = new Sayfa();
@@ -286,6 +290,9 @@ final class Mobil {
         s.pw = pf.getWidth();
         s.ph = pf.getHeight();
         s.ml = pf.getImageableX();
+        s.mt = pf.getImageableY();
+        s.mr = s.pw - pf.getImageableX() - pf.getImageableWidth();
+        s.mb = s.ph - pf.getImageableY() - pf.getImageableHeight();
         int sh = (int) Math.round(s.ph), en = -1;
         for (Class<?> c = tutan.getClass(); c != null && c != Object.class; c = c.getSuperclass())
             for (java.lang.reflect.Field f : c.getDeclaredFields())
@@ -340,11 +347,14 @@ final class Mobil {
         }
         double px = solX == Integer.MAX_VALUE ? 0 : solX - s.ml;
         int n = Math.max(1, (enAlt - 1) / s.pitch + 1);
+        sonSayfa = s;
+        sonPx = px;
+        sayfaSayisi = n;
         StringBuilder S = new StringBuilder();
         for (int i = stilGonderilen; i < stiller.size(); i++) { if (S.length() > 0) S.append(','); jsonDize(S, stiller.get(i)); }
         int s0 = stilGonderilen;
         stilGonderilen = stiller.size();
-        return "{\"g\":" + nesil + ",\"S0\":" + s0 + ",\"S\":[" + S + "],\"pw\":" + s.pw + ",\"ph\":" + s.ph + ",\"px\":" + px + ",\"pitch\":" + s.pitch + ",\"n\":" + n + ",\"B\":[" + B + "]}";
+        return "{\"g\":" + nesil + ",\"S0\":" + s0 + ",\"S\":[" + S + "],\"mt\":" + s.mt + ",\"mb\":" + s.mb + ",\"ml\":" + s.ml + ",\"mr\":" + s.mr + ",\"pw\":" + s.pw + ",\"ph\":" + s.ph + ",\"px\":" + px + ",\"v\":" + surum + ",\"pu\":" + Math.round((s.pitch - s.ph) / 2) + ",\"pitch\":" + s.pitch + ",\"n\":" + n + ",\"B\":[" + B + "]}";
     }
 
     /** Kağıt: biçim tablosu (her kelimede tekrarlanmasın); yalnızca yeni biçimler gönderilir. */
@@ -356,6 +366,122 @@ final class Mobil {
         Integer i = stilIndeks.get(st);
         if (i == null) { i = stiller.size(); stiller.add(st); stilIndeks.put(st, i); }
         return i;
+    }
+
+    // ------------------------------------------------------------------------------------ sayfa süsleri
+    /*
+     * SR k ölçek: k. sayfayı motorun kendi çizimiyle resme döker, belgenin metni/resimleri süzülür (Suzgec) → yalnızca
+     * süsler kalır: filigran, e-imza doğrulama satırı ve karekodu, sayfa numarası, kenar işaretleri.
+     *   → SRESIM k sürüm <png base64 | ->   (sürüm: belge değişiklik sayacı; "-": süs yok)
+     */
+    private static int sayfaSayisi = 1, surum;
+
+    static void sayfaResmi(int k, float olcek) {
+        JTextComponent m = bagli != null ? bagli : onMetin();
+        if (m == null || k < 0) return;
+        try {
+            javax.swing.text.View kok = m.getUI().getRootView(m);
+            java.awt.Rectangle alan = new java.awt.Rectangle(0, 0, m.getWidth(), m.getHeight());
+            Sayfa s = sonSayfa;
+            double px = sonPx;
+            int y0 = k * s.pitch + (int) Math.round((s.pitch - s.ph) / 2);
+            java.awt.Rectangle sayfa = new java.awt.Rectangle((int) Math.floor(px), y0, (int) Math.ceil(s.pw), (int) Math.ceil(s.ph));
+            java.util.List<java.awt.Rectangle> metin = new java.util.ArrayList<>(), resim = new java.util.ArrayList<>();
+            // üst/alt yazı her sayfada yinelenir ama görünüm ağacında tek yerdedir: yaprakları bu sayfaya taşınır
+            javax.swing.text.View sec = kok.getViewCount() > 0 ? kok.getView(0) : kok;
+            java.awt.Shape secA = kok.getViewCount() > 0 ? kok.getChildAllocation(0, alan) : alan;
+            for (int i = 0; i < sec.getViewCount(); i++) {
+                javax.swing.text.View v = sec.getView(i);
+                java.awt.Shape a;
+                try { a = sec.getChildAllocation(i, secA); } catch (Exception ex) { continue; }
+                if (a == null) continue;
+                Element e = v.getElement();
+                String ad = e == null ? "" : e.getName();
+                if ("header".equals(ad) || "footer".equals(ad)) {
+                    java.awt.Rectangle r = a.getBounds();
+                    int ry = "header".equals(ad) ? r.y : r.y - Math.floorDiv(r.y, s.pitch) * s.pitch;
+                    int dy = k * s.pitch + ry - r.y;
+                    java.util.List<java.awt.Rectangle> mt = new java.util.ArrayList<>(), rs = new java.util.ArrayList<>();
+                    yapraklar(v, a, null, mt, rs, 2);
+                    for (java.awt.Rectangle q : mt) { q.translate(0, dy); metin.add(q); }
+                    for (java.awt.Rectangle q : rs) { q.translate(0, dy); resim.add(q); }
+                } else yapraklar(v, a, sayfa, metin, resim, 2);
+            }
+            olcek = Math.max(0.5f, Math.min(3f, olcek));
+            int W = (int) Math.ceil(s.pw * olcek), H = (int) Math.ceil(s.ph * olcek);
+            java.awt.image.BufferedImage im = new java.awt.image.BufferedImage(W, H, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+            java.awt.Graphics2D g = im.createGraphics();
+            g.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING, java.awt.RenderingHints.VALUE_ANTIALIAS_ON);
+            g.setRenderingHint(java.awt.RenderingHints.KEY_TEXT_ANTIALIASING, java.awt.RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+            g.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION, java.awt.RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+            // editör boyarken kendi yakınlaştırmasını (z, ~0.98) uygular: önceden 1/z ile telafi edilir
+            if (zoom == 1) zoomOlc(m);
+            java.awt.geom.AffineTransform t = new java.awt.geom.AffineTransform();
+            t.scale(olcek, olcek);
+            t.translate(-px, -y0);
+            java.awt.geom.AffineTransform b = new java.awt.geom.AffineTransform(t);
+            b.scale(1 / zoom, 1 / zoom);
+            g.setClip(0, 0, W, H);
+            g.setTransform(b);
+            Suzgec sg = new Suzgec(g, metin, resim, t);
+            java.awt.Rectangle za = new java.awt.Rectangle(0, 0, (int) Math.round(alan.width * zoom), (int) Math.round(alan.height * zoom));
+            // kök görünüm sayfayı ayrılan alanda ortalar: dışa aktarımdaki (z'siz) ortalamayla aynı olsun diye kaydır
+            sg.translate((alan.width - za.width) / 2.0, 0);
+            kok.paint(sg, za);
+            g.dispose();
+            // sayfa zemini (beyaz) şeffaf yapılır: görünüm kendi zeminini çizer, süsler üstte kalır
+            int[] px2 = ((java.awt.image.DataBufferInt) im.getRaster().getDataBuffer()).getData();
+            boolean bos = true;
+            int kenar = (int) Math.ceil(olcek * 1.5), sagKenar = (int) Math.ceil(olcek * 4);
+            for (int i = 0; i < px2.length; i++) {
+                int c = px2[i];
+                // sayfa çerçevesi/gölgesi (kenarlardaki ince çizgiler) görünümün kendisinde var
+                int xx = i % W, yy = i / W;
+                if (xx < kenar || xx >= W - sagKenar || yy < kenar || yy >= H - kenar) { px2[i] = 0; continue; }
+                if ((c >>> 24) == 0 || (((c >> 16) & 255) > 250 && ((c >> 8) & 255) > 250 && (c & 255) > 253)) px2[i] = 0; else bos = false;
+            }
+            if (bos) { Kopru.bildir("SRESIM " + k + " " + surum + " -"); return; }
+            java.io.ByteArrayOutputStream bo = new java.io.ByteArrayOutputStream();
+            javax.imageio.ImageIO.write(im, "png", bo);
+            Kopru.bildir("SRESIM " + k + " " + surum + " " + Base64.getEncoder().encodeToString(bo.toByteArray()));
+        } catch (Throwable e) {
+            Kopru.LOG.println("[uyapmobil] sayfa süsü " + k + ": " + e);
+        }
+    }
+
+    /** Sayfayla kesişen yaprak görünümlerin dikdörtgenleri: metin/alan ve resim. */
+    private static void yapraklar(javax.swing.text.View v, java.awt.Shape a, java.awt.Rectangle sayfa,
+                                  java.util.List<java.awt.Rectangle> metin, java.util.List<java.awt.Rectangle> resim, int d) {
+        if (v == null || a == null || d > 30) return;
+        java.awt.Rectangle r = a.getBounds();
+        if (d > 1 && sayfa != null && !r.intersects(sayfa)) return;
+        int n = v.getViewCount();
+        if (n == 0) {
+            Element e = v.getElement();
+            String ad = e == null ? "" : e.getName();
+            if ("image".equals(ad) || (e != null && StyleConstants.getIcon(e.getAttributes()) != null)) resim.add(r);
+            else metin.add(r);
+            return;
+        }
+        for (int i = 0; i < n; i++) {
+            java.awt.Shape c;
+            try { c = v.getChildAllocation(i, a); } catch (Exception ex) { continue; }
+            yapraklar(v.getView(i), c, sayfa, metin, resim, d + 1);
+        }
+    }
+
+    /** İmlecin paragrafı: "MPAR sol ilk sağ hizalama" (pt) — cetveldeki girinti işaretleri için. */
+    private static String sonPar = "";
+
+    static void paragrafGonder(JTextComponent m) {
+        try {
+            Element p = ((javax.swing.text.StyledDocument) m.getDocument()).getParagraphElement(m.getCaret().getDot());
+            AttributeSet a = p.getAttributes();
+            float sol = StyleConstants.getLeftIndent(a), sag = StyleConstants.getRightIndent(a), ilk = StyleConstants.getFirstLineIndent(a);
+            float asili = sayi(ozellik(a, "Hanging"));
+            String v = "MPAR " + (sol + asili) + " " + (sol + ilk) + " " + sag + " " + StyleConstants.getAlignment(a);
+            if (!v.equals(sonPar)) { sonPar = v; Kopru.bildir(v); }
+        } catch (Throwable ignored) { }
     }
 
     private static boolean tekSayfa(int y, int h, int pitch) { return y / pitch == (y + Math.max(0, h - 1)) / pitch; }

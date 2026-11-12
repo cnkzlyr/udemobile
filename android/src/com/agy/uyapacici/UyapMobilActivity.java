@@ -75,6 +75,7 @@ public class UyapMobilActivity extends Activity implements UyapMobilServisi.Dinl
         bekleyenDosya = gelenBelge(getIntent());
         if (bekleyenDosya != null) bekleyenAd = new File(bekleyenDosya).getName();
         UyapMobilServisi.dinleyiciAyarla(this);
+        ekran.post(this::varsayilanIpucu);
         ekran.post(this::basla);   // Aç/Kaydet telefonun kendi seçicisini kullanır: depolama izni istenmez
     }
 
@@ -259,6 +260,11 @@ public class UyapMobilActivity extends Activity implements UyapMobilServisi.Dinl
     /** VIEW / SEND ile gelen .udf/.usf → belgeler/ klasörüne kopyala; yolu döndür. */
     private String gelenBelge(Intent i) {
         if (i == null) return null;
+        if (i.getBooleanExtra(EK_VARSAYILAN, false)) {          // "Her zaman" denemesi: örnek dosya açılmaz
+            ayar().edit().putBoolean("varsayilan_soruldu", true).apply();
+            Toast.makeText(this, varsayilanMi() ? "✓ UYAP Editör artık .udf / .usf dosyalarını her zaman açar" : "UYAP Editör seçildi", Toast.LENGTH_LONG).show();
+            return null;
+        }
         if (EYLEM_AC.equals(i.getAction())) {
             String y = i.getStringExtra(EK_YOL);
             return y != null && new File(y).isFile() && y.startsWith(UyapMobil.belgeler(this).getAbsolutePath()) ? y : null;
@@ -336,7 +342,8 @@ public class UyapMobilActivity extends Activity implements UyapMobilServisi.Dinl
 
     // ------------------------------------------------------------------------------------ menü
     private static final String[] UYGULAMA = {"Belge aç (telefondan)…", "Yeniden aç ⟳", "Ekran ölçeği…",
-            "Yazı tipi ekle (TTF, ör. Times New Roman)…", "Resmi editörü kur / güncelle", "Günlüğü gönder", "Editörü kapat"};
+            "Yazı tipi ekle (TTF, ör. Times New Roman)…", "Resmi editörü kur / güncelle", "Günlüğü gönder", "Editörü kapat",
+            "UDF / USF için varsayılan uygulama yap"};
 
     @Override public String[] uygulamaKomutlari() { return UYGULAMA; }
 
@@ -354,9 +361,90 @@ public class UyapMobilActivity extends Activity implements UyapMobilServisi.Dinl
                 case 4: kurulumSor(); break;
                 case 5: gunlukPaylas(); break;
                 case 6: UyapMobilServisi.gonder("X"); break;
+                case 7: varsayilanYap(); break;
                 default: break;
             }
         }
+    }
+
+    // ------------------------------------------------------------------------------------ varsayılan uygulama
+    /*
+     * Android'de dosya türü için "varsayılan uygulama" ayarı yoktur: bir .udf ilk açılırken çıkan seçicide "Her zaman"
+     * denir. Bu yardımcı, küçük bir örnek .udf'yi (yalnızca bu uygulamanın sağlayıcısından, salt okunur) ACTION_VIEW ile
+     * açarak o seçiciyi hemen getirir. Başka bir uygulama zaten varsayılansa onun ayar sayfası açılır ("Varsayılan
+     * olarak aç" > varsayılanları temizle), sonra yeniden denenir.
+     */
+    private static final String EK_VARSAYILAN = "com.agy.uyapeditor.VARSAYILAN";
+
+    private Intent ornekGorunum() throws IOException {
+        File d = new File(getCacheDir(), "varsayilan");
+        if (!d.isDirectory() && !d.mkdirs()) throw new IOException("önbellek");
+        File f = new File(d, "Ornek.udf");
+        if (!f.isFile()) {
+            try (java.util.zip.ZipOutputStream z = new java.util.zip.ZipOutputStream(new FileOutputStream(f))) {
+                z.putNextEntry(new java.util.zip.ZipEntry("content.xml"));
+                z.write(("<?xml version=\"1.0\" encoding=\"UTF-8\" ?>\n<template format_id=\"1.8\"><content><![CDATA[ \n]]></content>"
+                        + "<properties><pageFormat mediaSizeName=\"1\" leftMargin=\"70.86614173228347\" rightMargin=\"70.86614173228347\" "
+                        + "topMargin=\"70.86614173228347\" bottomMargin=\"70.86614173228347\" paperOrientation=\"1\" headerFOffset=\"20.0\" footerFOffset=\"20.0\" />"
+                        + "</properties><elements resolver=\"hvl-default\"><paragraph><content startOffset=\"0\" length=\"2\" /></paragraph></elements>"
+                        + "<styles><style name=\"default\" description=\"Geçerli\" family=\"Times New Roman\" size=\"12\" /></styles></template>")
+                        .getBytes(StandardCharsets.UTF_8));
+                z.closeEntry();
+            }
+        }
+        Uri u = Uri.parse("content://" + getPackageName() + ".fileprovider" + f.getAbsolutePath());
+        return new Intent(Intent.ACTION_VIEW).setDataAndType(u, "application/octet-stream")
+                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION).putExtra(EK_VARSAYILAN, true);
+    }
+
+    /** .udf için şu an varsayılan olan uygulama: bu uygulama mı? (null: seçici çıkıyor, varsayılan yok) */
+    private String varsayilanPaket() {
+        try {
+            android.content.pm.ResolveInfo r = getPackageManager().resolveActivity(ornekGorunum(), android.content.pm.PackageManager.MATCH_DEFAULT_ONLY);
+            if (r == null || r.activityInfo == null) return null;
+            String p = r.activityInfo.packageName;
+            return "android".equals(p) || p.contains("resolver") || p.contains("intentresolver") ? null : p;
+        } catch (Exception e) { return null; }
+    }
+
+    private boolean varsayilanMi() { return getPackageName().equals(varsayilanPaket()); }
+
+    private void varsayilanYap() {
+        String p = varsayilanPaket();
+        if (getPackageName().equals(p)) {
+            Toast.makeText(this, "✓ UYAP Editör zaten .udf / .usf dosyalarının varsayılan uygulaması", Toast.LENGTH_LONG).show();
+            return;
+        }
+        if (p != null) {
+            CharSequence ad = p;
+            try { ad = getPackageManager().getApplicationLabel(getPackageManager().getApplicationInfo(p, 0)); } catch (Exception ignored) { }
+            final CharSequence uygulama = ad;
+            new AlertDialog.Builder(this).setTitle("Varsayılan uygulama")
+                    .setMessage(".udf dosyaları şu anda «" + uygulama + "» ile açılıyor.\n\nAçılacak sayfada «Varsayılan olarak aç» > "
+                            + "«Varsayılanları temizle»ye dokunun, sonra buraya dönüp yeniden deneyin.")
+                    .setPositiveButton("Ayarları aç", (d, w) -> {
+                        try { startActivity(new Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + p))); }
+                        catch (Exception e) { Toast.makeText(this, "Ayarlar açılamadı", Toast.LENGTH_SHORT).show(); }
+                    })
+                    .setNegativeButton("Vazgeç", null).show();
+            return;
+        }
+        new AlertDialog.Builder(this).setTitle("UDF / USF varsayılanı")
+                .setMessage("Birazdan çıkan listede «UYAP Editör»ü seçip «Her zaman»a dokunun. Bundan sonra WhatsApp, e-posta, "
+                        + "dosya yöneticisi ve tarayıcıdan açılan tüm .udf / .usf belgeler doğrudan burada açılır.")
+                .setPositiveButton("Devam", (d, w) -> {
+                    try { startActivity(ornekGorunum()); }
+                    catch (Exception e) { Toast.makeText(this, "Açılamadı: " + e.getMessage(), Toast.LENGTH_LONG).show(); }
+                })
+                .setNegativeButton("Vazgeç", null).show();
+    }
+
+    /** İlk açılışta bir kez: varsayılan değilse sor. */
+    private void varsayilanIpucu() {
+        if (ayar().getBoolean("varsayilan_soruldu", false)) return;
+        ayar().edit().putBoolean("varsayilan_soruldu", true).apply();
+        if (varsayilanMi()) return;
+        ekran.postDelayed(() -> { if (!isFinishing()) varsayilanYap(); }, 2500);
     }
 
     @Override public void onBackPressed() {
