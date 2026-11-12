@@ -83,6 +83,7 @@ function parseCssColorToSignedIntJs(colorStr) {
 }
 
 function buildEmptyResult(htmlContent) {
+  window.__udfSource = null;
   return {
     header: "",
     headerHtml: "",
@@ -441,7 +442,100 @@ function udfAttrsData(elem, skip) {
   return ` data-udf-attrs="${escapeHtmlStr(JSON.stringify(o))}"`;
 }
 
+/**
+ * Pre-order XML element span scanner: records the exact character offsets
+ * (start, openEnd, closeStart, end, selfClose) of every XML element in content.xml
+ * in the exact same order as DOMParser's querySelectorAll("*").
+ */
+function scanXmlElements(xml) {
+  const spans = [];
+  const stack = [];
+  const n = xml ? xml.length : 0;
+  let i = 0;
+  while (i < n) {
+    const lt = xml.indexOf("<", i);
+    if (lt < 0) break;
+    if (xml.startsWith("<![CDATA[", lt)) {
+      const endC = xml.indexOf("]]>", lt + 9);
+      i = endC < 0 ? n : endC + 3;
+      continue;
+    }
+    if (xml.startsWith("<!--", lt)) {
+      const endCm = xml.indexOf("-->", lt + 4);
+      i = endCm < 0 ? n : endCm + 3;
+      continue;
+    }
+    if (xml.startsWith("<?", lt) || xml.startsWith("<!", lt)) {
+      const gt = xml.indexOf(">", lt + 2);
+      i = gt < 0 ? n : gt + 1;
+      continue;
+    }
+    let j = lt + 1;
+    let inQuote = null;
+    while (j < n) {
+      const ch = xml[j];
+      if (inQuote) {
+        if (ch === inQuote) inQuote = null;
+      } else if (ch === '"' || ch === "'") {
+        inQuote = ch;
+      } else if (ch === ">") {
+        break;
+      }
+      j++;
+    }
+    if (j >= n) break;
+    const tagEnd = j + 1;
+    const raw = xml.slice(lt + 1, j).trim();
+    if (raw.startsWith("/")) {
+      const closeName = raw.slice(1).trim().split(/[\s/>]/)[0];
+      for (let s = stack.length - 1; s >= 0; s--) {
+        if (stack[s].tag === closeName) {
+          const item = stack.splice(s, 1)[0];
+          item.closeStart = lt;
+          item.end = tagEnd;
+          break;
+        }
+      }
+    } else {
+      const selfClose = raw.endsWith("/");
+      const tagName = raw.replace(/\/$/, "").trim().split(/[\s/>]/)[0];
+      const item = {
+        tag: tagName,
+        start: lt,
+        openEnd: tagEnd,
+        closeStart: selfClose ? lt : -1,
+        end: selfClose ? tagEnd : -1,
+        selfClose
+      };
+      spans.push(item);
+      if (!selfClose) stack.push(item);
+    }
+    i = tagEnd;
+  }
+  return spans;
+}
+
+function getElementTextRange(elem) {
+  let minOff = null;
+  let maxOff = null;
+  const visit = (el) => {
+    if (!el || el.nodeType !== 1) return;
+    if (el.hasAttribute("startOffset") && el.hasAttribute("length")) {
+      const s = parseInt(el.getAttribute("startOffset"), 10);
+      const l = parseInt(el.getAttribute("length"), 10);
+      if (Number.isFinite(s) && Number.isFinite(l) && s >= 0 && l >= 0) {
+        if (minOff === null || s < minOff) minOff = s;
+        if (maxOff === null || s + l > maxOff) maxOff = s + l;
+      }
+    }
+    for (let i = 0; i < el.children.length; i++) visit(el.children[i]);
+  };
+  visit(elem);
+  return { textStart: minOff, textEnd: maxOff };
+}
+
 async function parseUdfArrayBuffer(buffer) {
+  window.__udfSource = null;
   if (!buffer || buffer.byteLength === 0) {
     return buildEmptyResult();
   }
@@ -454,6 +548,7 @@ async function parseUdfArrayBuffer(buffer) {
 
   let contentXml = null;
   let docPropsXml = null;
+  let rawZipEntries = {};
   let signatureInfo = { hasSignature: false, isValid: false, signers: [] };
 
   try {
@@ -464,6 +559,13 @@ async function parseUdfArrayBuffer(buffer) {
     const contentEntry = zip.file("content.xml") || zip.file("Content.xml") || Object.values(zip.files).find(f => !f.dir && f.name.toLowerCase().endsWith("content.xml"));
     if (contentEntry) {
       contentXml = stripBomAndLeadingGarbage(await contentEntry.async("text"));
+    }
+    for (const [entryName, entryObj] of Object.entries(zip.files)) {
+      if (entryObj.dir) continue;
+      if (contentEntry && entryName === contentEntry.name) continue;
+      try {
+        rawZipEntries[entryName] = await entryObj.async("uint8array");
+      } catch (e) {}
     }
     const propsEntry = zip.file("documentproperties.xml") || zip.file("Documentproperties.xml");
     if (propsEntry) {
@@ -497,21 +599,37 @@ async function parseUdfArrayBuffer(buffer) {
   const parser = new DOMParser();
   const xmlDoc = parser.parseFromString(contentXml, "application/xml");
 
+  // Her XML öğesinin orijinal content.xml içindeki tam karakter aralığını (__xmlSpan) eşle
+  try {
+    const allEls = Array.from(xmlDoc.querySelectorAll("*"));
+    const xmlSpans = scanXmlElements(contentXml);
+    if (allEls.length === xmlSpans.length) {
+      for (let idx = 0; idx < allEls.length; idx++) {
+        allEls[idx].__xmlSpan = xmlSpans[idx];
+      }
+    }
+  } catch (e) {}
+
   // Kayıpsız geri yazım için orijinal stiller ve sayfa biçimi saklanır.
   try {
     const ser = new XMLSerializer();
-    const stylesEl = xmlDoc.querySelector("template > styles");
-    const pfEl = xmlDoc.querySelector("properties > pageFormat");
+    const stylesEl = xmlDoc.querySelector("template > styles") || xmlDoc.querySelector("styles");
+    const pfEl = xmlDoc.querySelector("properties > pageFormat") || xmlDoc.querySelector("pageFormat");
     const pfAttrs = {};
     if (pfEl) for (const a of Array.from(pfEl.attributes)) pfAttrs[a.name] = a.value;
     window.__udfSource = {
-      stylesXml: stylesEl ? ser.serializeToString(stylesEl) : "",
-      elementsAttrs: (() => { const e = xmlDoc.querySelector("template > elements"); const o = {}; if (e) for (const a of Array.from(e.attributes)) o[a.name] = a.value; return o; })(),
+      originalContentXml: contentXml,
+      stylesXml: stylesEl ? (stylesEl.__xmlSpan ? contentXml.substring(stylesEl.__xmlSpan.start, stylesEl.__xmlSpan.end) : ser.serializeToString(stylesEl)) : "",
+      elementsAttrs: (() => { const e = xmlDoc.querySelector("template > elements") || xmlDoc.querySelector("elements"); const o = {}; if (e) for (const a of Array.from(e.attributes)) o[a.name] = a.value; return o; })(),
       pageFormat: pfAttrs,
-      headerAttrs: (() => { const e = xmlDoc.querySelector("template > header"); const o = {}; if (e) for (const a of Array.from(e.attributes)) o[a.name] = a.value; return o; })(),
-      footerAttrs: (() => { const e = xmlDoc.querySelector("template > footer"); const o = {}; if (e) for (const a of Array.from(e.attributes)) o[a.name] = a.value; return o; })(),
-      webIdXml: (() => { const w = xmlDoc.querySelector("webID"); return w ? ser.serializeToString(w) : ""; })(),
-      docPropsXml: docPropsXml || ""
+      headerAttrs: (() => { const e = xmlDoc.querySelector("elements > header, template > header, header"); const o = {}; if (e) for (const a of Array.from(e.attributes)) o[a.name] = a.value; return o; })(),
+      footerAttrs: (() => { const e = xmlDoc.querySelector("elements > footer, template > footer, footer"); const o = {}; if (e) for (const a of Array.from(e.attributes)) o[a.name] = a.value; return o; })(),
+      webIdXml: (() => { const w = xmlDoc.querySelector("webID"); return w ? (w.__xmlSpan ? contentXml.substring(w.__xmlSpan.start, w.__xmlSpan.end) : ser.serializeToString(w)) : ""; })(),
+      docPropsXml: docPropsXml || "",
+      rawZipEntries,
+      paragraphMap: {},
+      tableMap: {},
+      origBlocks: []
     };
   } catch (e) { window.__udfSource = null; }
 
@@ -561,8 +679,13 @@ async function parseUdfArrayBuffer(buffer) {
   // Resolve UYAP template fields/groups/data rows exactly like Havelsan's renderer and
   // flatten them into plain <content> runs so display AND re-save match the original.
   const resolvedTemplateText = resolveUdfTemplateDom(xmlDoc, rawText);
-  if (resolvedTemplateText !== null) rawText = resolvedTemplateText;
+  const wasTemplateResolved = resolvedTemplateText !== null;
+  if (wasTemplateResolved) rawText = resolvedTemplateText;
   const textLen = rawText.length;
+  if (window.__udfSource) {
+    window.__udfSource.originalRawText = rawText;
+    window.__udfSource.wasTemplateResolved = wasTemplateResolved;
+  }
 
   // <data> şablon haritası
   const dataMap = {};
@@ -612,8 +735,10 @@ async function parseUdfArrayBuffer(buffer) {
   }
 
   const listCounters = {};
+  let udfSrcCounter = 0;
 
-  function parseParagraphToHtml(p, isHeaderOrFooter = false) {
+  function parseParagraphToHtml(p, isHeaderOrFooter = false, srcIdOverride = "") {
+    const srcId = srcIdOverride || ("p_" + (++udfSrcCounter));
     const al = resolveAttr(p, "Alignment");
     let align = "left";
     if (al === "1") align = "center";
@@ -633,15 +758,8 @@ async function parseUdfArrayBuffer(buffer) {
     let dataAttrsPitch = "";
     // v3.16 Havelsan/Swing birebir dikey ölçü: Swing konumları tamsayı puntodur → paragraf boşlukları kesilir.
     let styleStr = `text-align: ${align}; margin-top: ${Math.floor(spaceAbove + 1e-6)}pt; margin-bottom: ${Math.floor(spaceBelow + 1e-6)}pt;`;
-    // Satır aralığı (javax.swing.text.ParagraphView.Row): satır yüksekliği H = satırdaki en büyük yazı tipinin
-    // (yükselme+alçalma+aralık ≈ 1.149 em) tamsayıya yuvarlanmış değeri; alt boşluk = (int)(H × LineSpacing).
-    // Eski formül "line-height: 1+LineSpacing" (em) Havelsan'dan satır başına ~2 pt kısa kalıyor, sayfalar kayıyordu
-    // (ör. 10 sayfalık dilekçe 8–9 sayfa görünüyordu).
     {
       const ls = Math.max(0, parseFloat(lineSpacing || "0") || 0);
-      // Paragrafı bitiren yalnız-satır-sonu parçası (ör. 16 pt "\n") Swing'de yalnızca SON satırı büyütür;
-      // eskiden tüm satırların aralığına katılıyordu (12 satırlık paragraf 168 yerine 228 pt → sayfa kayması).
-      // A trailing newline-only run only enlarges the LAST row in Swing: keep it out of the pitch, pad the bottom.
       let maxSize = 0, tailSize = 0;
       const runs = Array.from(p.children).filter(ch => /^(content|tab|field)$/i.test(ch.tagName || ""));
       runs.forEach((ch, idx) => {
@@ -667,17 +785,20 @@ async function parseUdfArrayBuffer(buffer) {
     // Havelsan UYAP ParagraphView / RowView birebir matematiksel girinti formülü:
     const totalLeftPt = lIndentPt + hangPt;
     const textIndentPt = fIndentPt - hangPt;
-    if (Math.abs(totalLeftPt) > 0.1) {
-      styleStr += ` margin-left: ${(Math.round((totalLeftPt / 28.3465) * 100) / 100)}cm;`;
+    const renderedLeftCm = Math.abs(totalLeftPt) > 0.1 ? (Math.round((totalLeftPt / 28.3465) * 100) / 100) : 0;
+    const renderedFirstCm = Math.abs(textIndentPt) > 0.1 ? (Math.round((textIndentPt / 28.3465) * 100) / 100) : 0;
+    const renderedRightCm = Math.abs(rIndentPt) > 0.1 ? (Math.round((rIndentPt / 28.3465) * 100) / 100) : 0;
+    if (renderedLeftCm) {
+      styleStr += ` margin-left: ${renderedLeftCm}cm;`;
     }
-    if (Math.abs(textIndentPt) > 0.1) {
-      styleStr += ` text-indent: ${(Math.round((textIndentPt / 28.3465) * 100) / 100)}cm;`;
+    if (renderedFirstCm) {
+      styleStr += ` text-indent: ${renderedFirstCm}cm;`;
     }
-    if (Math.abs(rIndentPt) > 0.1) {
-      styleStr += ` margin-right: ${(Math.round((rIndentPt / 28.3465) * 100) / 100)}cm;`;
+    if (renderedRightCm) {
+      styleStr += ` margin-right: ${renderedRightCm}cm;`;
     }
 
-    let dataAttrs = "";
+    let dataAttrs = ` data-udf-src-id="${escapeHtmlStr(srcId)}" data-orig-mt="${spaceAbove}pt" data-orig-mb="${spaceBelow}pt"`;
     const stops = [];
     if (tabSet && tabSet.trim()) {
       tabSet.split(",").forEach(s => {
@@ -732,8 +853,6 @@ async function parseUdfArrayBuffer(buffer) {
 
     const pFamily = resolveAttr(p, "family");
     const pSize = resolveAttr(p, "size");
-    // Satır yüksekliği (strut) paragrafın puntosundan hesaplanır: Havelsan'daki gibi
-    // gerçek metin puntosu kullanılsın diye paragrafa ilk koşunun puntosu verilir.
     const firstSized = Array.from(p.children).find(ch => ch.hasAttribute && ch.hasAttribute("size"));
     const strutSize = (firstSized && firstSized.getAttribute("size")) || pSize;
     if (strutSize && !isNaN(parseFloat(strutSize))) styleStr += ` font-size: ${parseFloat(strutSize)}pt;`;
@@ -743,8 +862,16 @@ async function parseUdfArrayBuffer(buffer) {
     const pUnderline = resolveAttr(p, "underline") === "true";
 
     let hasContent = false;
+    const visRuns = [];
+    let trailingNlXml = "";
+
     Array.from(p.children).forEach(c => {
       const tag = c.tagName ? c.tagName.toLowerCase() : "";
+      const cSpan = c.__xmlSpan;
+      const cOrigXml = (!wasTemplateResolved && cSpan) ? contentXml.substring(cSpan.start, cSpan.end) : "";
+      const cAttrs = {};
+      for (const a of Array.from(c.attributes || [])) cAttrs[a.name] = a.value;
+
       if (tag === "image") {
         const imgData = c.getAttribute("imageData");
         if (imgData && imgData.trim()) {
@@ -756,7 +883,20 @@ async function parseUdfArrayBuffer(buffer) {
           if (wCm > 0) imgStyle += ` width:${wCm}cm; max-width:${wCm}cm;`;
           else imgStyle += " max-width:95%; width:auto;";
           if (hCm > 0) imgStyle += ` height:${hCm}cm; max-height:${hCm}cm;`;
-          pHtml += `<img data-udf-width="${escapeHtmlStr(wStr)}" data-udf-height="${escapeHtmlStr(hStr)}" src="data:image/png;base64,${imgData.trim()}" style="${imgStyle}" />`;
+          const visRunIdx = visRuns.length;
+          pHtml += `<img data-udf-run="${visRunIdx}" data-udf-width="${escapeHtmlStr(wStr)}" data-udf-height="${escapeHtmlStr(hStr)}" src="data:image/png;base64,${imgData.trim()}" style="${imgStyle}" />`;
+          visRuns.push({
+            visIdx: visRunIdx,
+            tag: "image",
+            origXml: cOrigXml,
+            visibleText: "\u00b8",
+            hasAttachedNewline: false,
+            imageData: imgData.trim(),
+            widthPt: parseFloat(wStr || "0") || 0,
+            heightPt: parseFloat(hStr || "0") || 0,
+            attrs: cAttrs,
+            expected: null
+          });
           hasContent = true;
         }
       } else if (tag === "content" || tag === "space" || tag === "field" || tag === "tab") {
@@ -779,16 +919,18 @@ async function parseUdfArrayBuffer(buffer) {
           }
         }
 
-        // Paragraf sonu satır karakteri yalnızca SON koşuda atılır; şablon `eol` alanlarının
-        // ürettiği ara satır sonları <br> olarak korunur (Havelsan ile aynı).
         const isLastRun = !c.nextElementSibling;
-        if (isLastRun || /^[\r\n]+$/.test(chunk) === false) {
-          if (isLastRun) {
-            if (chunk.endsWith("\r\n")) chunk = chunk.substring(0, chunk.length - 2);
-            else if (chunk.endsWith("\n") || chunk.endsWith("\r")) chunk = chunk.substring(0, chunk.length - 1);
-          }
+        const rawChunk = chunk;
+        let hadTrailingNewline = false;
+        if (isLastRun) {
+          if (chunk.endsWith("\r\n")) { chunk = chunk.substring(0, chunk.length - 2); hadTrailingNewline = true; }
+          else if (chunk.endsWith("\n") || chunk.endsWith("\r")) { chunk = chunk.substring(0, chunk.length - 1); hadTrailingNewline = true; }
         }
         chunk = chunk.replace(/\r\n?/g, "\n");
+
+        if (!chunk && isLastRun && /^[\r\n]+$/.test(rawChunk) && cOrigXml) {
+          trailingNlXml = cOrigXml;
+        }
 
         if (chunk) {
           hasContent = true;
@@ -817,28 +959,83 @@ async function parseUdfArrayBuffer(buffer) {
           if (strike) seg = `<s>${seg}</s>`;
 
           let spanStyle = "";
-          // Yazı tipi ve punto her zaman açıkça yazılır: belge stili (ör. 11pt Arial) editör
-          // varsayılanından farklı olsa bile hem ekranda hem kayıtta birebir korunur.
           if (rFamily && rFamily !== "Dialog") spanStyle += `font-family:'${escapeHtmlStr(rFamily)}';`;
           if (rSize) spanStyle += `font-size:${escapeHtmlStr(rSize)}pt;`;
           const fgHex = parseSignedRgbToHexJs(rFg, true);
           if (fgHex) spanStyle += `color:${fgHex};`;
           const bgHex = parseSignedRgbToHexJs(rBg, false);
           if (bgHex) spanStyle += `background-color:${bgHex};`;
-          // "Dialog" Java'nın mantıksal yazı tipidir: Windows'taki UYAP onu Arial ile çizer (Linux'ta DejaVu Sans).
-          // Satır içi font-family yazılmaz (kayıtta family="Dialog"/eksik hali korunur); görünüm .udf-dialog sınıfından gelir.
-          // Java maps the logical "Dialog" font to Arial on Windows; a class keeps export unchanged.
           const dialogCls = rFamily === "Dialog" ? ' class="udf-dialog"' : "";
-          if (spanStyle || dialogCls) seg = `<span${dialogCls}${spanStyle ? ` style="${spanStyle}"` : ""}>${seg}</span>`;
+          const visRunIdx = visRuns.length;
+          seg = `<span data-udf-run="${visRunIdx}"${dialogCls}${spanStyle ? ` style="${spanStyle}"` : ""}>${seg}</span>`;
           pHtml += seg;
+
+          visRuns.push({
+            visIdx: visRunIdx,
+            tag,
+            origXml: cOrigXml,
+            visibleText: chunk,
+            hasAttachedNewline: hadTrailingNewline,
+            attrs: cAttrs,
+            expected: {
+              bold: !!bold,
+              italic: !!italic,
+              underline: !!underline,
+              subscript: !!sub,
+              superscript: !!sup,
+              strikethrough: !!strike,
+              fontFamily: (rFamily && rFamily !== "Dialog") ? rFamily : "",
+              fontSize: rSize ? parseFloat(rSize) : 0,
+              fgInt: parseCssColorToSignedIntJs(fgHex),
+              bgInt: parseCssColorToSignedIntJs(bgHex)
+            }
+          });
         }
       }
     });
 
+    if (window.__udfSource) {
+      const pSpan = (!wasTemplateResolved && p.__xmlSpan) ? p.__xmlSpan : null;
+      const { textStart, textEnd } = getElementTextRange(p);
+      const origInnerXml = pSpan && pSpan.closeStart >= pSpan.openEnd ? contentXml.substring(pSpan.openEnd, pSpan.closeStart) : "";
+      const leadMatch = /^(\r?\n[ \t]*)/.exec(origInnerXml);
+      const tailMatch = /(\r?\n[ \t]*)$/.exec(origInnerXml);
+      window.__udfSource.paragraphMap[srcId] = {
+        id: srcId,
+        xmlStart: pSpan ? pSpan.start : -1,
+        xmlEnd: pSpan ? pSpan.end : -1,
+        openEnd: pSpan ? pSpan.openEnd : -1,
+        closeStart: pSpan ? pSpan.closeStart : -1,
+        origXml: pSpan ? contentXml.substring(pSpan.start, pSpan.end) : "",
+        origOpenTag: pSpan ? contentXml.substring(pSpan.start, pSpan.openEnd) : "",
+        origInnerXml,
+        childIndent: leadMatch ? leadMatch[1] : "",
+        closeIndent: tailMatch ? tailMatch[1] : "",
+        textStart,
+        textEnd,
+        origText: (textStart !== null && textEnd !== null) ? rawText.substring(textStart, textEnd) : "",
+        visRuns,
+        trailingNlXml,
+        expectedPara: {
+          align: align === "center" ? 1 : align === "right" ? 2 : align === "left" ? 0 : 3,
+          spaceAbove,
+          spaceBelow,
+          lineSpacing: lineSpacing ? (parseFloat(lineSpacing) || 0) : 0,
+          leftIndent: renderedLeftCm,
+          firstLineIndent: renderedFirstCm,
+          rightIndent: renderedRightCm,
+          tabStops: stops.join(","),
+          numbered: !!isNumbered,
+          bulleted: !!isBulleted
+        }
+      };
+    }
+
     return `<p style="${styleStr}"${dataAttrs}>${hasContent ? pHtml : "<br>"}</p>\n`;
   }
 
-  function parseTableToHtml(tableElem) {
+  function parseTableToHtml(tableElem, srcIdOverride = "") {
+    const srcId = srcIdOverride || ("tbl_" + (++udfSrcCounter));
     const border = tableElem.getAttribute("border") || "";
     const isNone = border === "borderNone" || border === "none";
     const colSpans = tableElem.getAttribute("columnSpans") || "";
@@ -853,12 +1050,12 @@ async function parseUdfArrayBuffer(buffer) {
       ? "width:100%; border-collapse:collapse; margin:6px 0; border:none;"
       : "width:100%; border-collapse:collapse; margin:6px 0; border:1px solid #333;";
 
-    let tblHtml = `<table style="${tableStyle}"${border ? ` data-udf-border="${escapeHtmlStr(border)}"` : ""}${colSpans ? ` data-udf-col-spans="${escapeHtmlStr(colSpans)}"` : ""}${udfAttrsData(tableElem)}>\n`;
+    let tblHtml = `<table data-udf-src-id="${escapeHtmlStr(srcId)}" style="${tableStyle}"${border ? ` data-udf-border="${escapeHtmlStr(border)}"` : ""}${colSpans ? ` data-udf-col-spans="${escapeHtmlStr(colSpans)}"` : ""}${udfAttrsData(tableElem)}>\n`;
+    const origRowsMeta = [];
     Array.from(tableElem.children).forEach(r => {
       if ((r.tagName || "").toLowerCase() !== "row") return;
       tblHtml += `  <tr style="border:none;"${udfAttrsData(r)}>\n`;
       const cells = Array.from(r.children).filter(c => (c.tagName || "").toLowerCase() === "cell");
-      // Havelsan satır bazlı sütun genişlikleri (row columnSpans) tablo genelinden önceliklidir.
       const rowSpansAttr = r.getAttribute("columnSpans");
       let rowWidthsPct = null;
       if (rowSpansAttr && rowSpansAttr.trim()) {
@@ -867,6 +1064,7 @@ async function parseUdfArrayBuffer(buffer) {
         if (nums.length === cells.length && sum > 0) rowWidthsPct = nums.map(n => (n / sum) * 100);
       }
       const defaultW = cells.length > 0 ? 100 / cells.length : 100;
+      const origCellsMeta = [];
       cells.forEach((cell, cIdx) => {
         const wPct = rowWidthsPct ? rowWidthsPct[cIdx] : ((colWidthsPct && cIdx < colWidthsPct.length && colWidthsPct.length === cells.length) ? colWidthsPct[cIdx] : defaultW);
         const cBorder = cell.getAttribute("border") || "";
@@ -878,22 +1076,51 @@ async function parseUdfArrayBuffer(buffer) {
         const rowSpan = cell.getAttribute("rowSpan");
         tblHtml += `    <td style="${cellStyle}"${colSpan ? ` colspan="${escapeHtmlStr(colSpan)}"` : ""}${rowSpan ? ` rowspan="${escapeHtmlStr(rowSpan)}"` : ""}${udfAttrsData(cell)}>\n`;
         let hasChild = false;
+        const childIds = [];
         Array.from(cell.children).forEach(cc => {
           const ccTag = (cc.tagName || "").toLowerCase();
           if (ccTag === "paragraph") {
-            tblHtml += parseParagraphToHtml(cc);
+            const cId = "p_" + (++udfSrcCounter);
+            childIds.push({ type: "paragraph", id: cId });
+            tblHtml += parseParagraphToHtml(cc, false, cId);
             hasChild = true;
           } else if (ccTag === "table") {
-            tblHtml += parseTableToHtml(cc);
+            const cId = "tbl_" + (++udfSrcCounter);
+            childIds.push({ type: "table", id: cId });
+            tblHtml += parseTableToHtml(cc, cId);
             hasChild = true;
           }
         });
         if (!hasChild) tblHtml += `<p style="text-align: left;"><br></p>\n`;
         tblHtml += `    </td>\n`;
+        origCellsMeta.push({
+          colSpan: parseInt(colSpan || "1", 10) || 1,
+          rowSpan: parseInt(rowSpan || "1", 10) || 1,
+          childIds
+        });
       });
       tblHtml += `  </tr>\n`;
+      origRowsMeta.push({ cells: origCellsMeta });
     });
     tblHtml += `</table>\n`;
+
+    if (window.__udfSource) {
+      const tSpan = (!wasTemplateResolved && tableElem.__xmlSpan) ? tableElem.__xmlSpan : null;
+      const { textStart, textEnd } = getElementTextRange(tableElem);
+      window.__udfSource.tableMap[srcId] = {
+        id: srcId,
+        xmlStart: tSpan ? tSpan.start : -1,
+        xmlEnd: tSpan ? tSpan.end : -1,
+        origXml: tSpan ? contentXml.substring(tSpan.start, tSpan.end) : "",
+        textStart,
+        textEnd,
+        origText: (textStart !== null && textEnd !== null) ? rawText.substring(textStart, textEnd) : "",
+        border: border || (isNone ? "borderNone" : "borderCell"),
+        colSpans,
+        rows: origRowsMeta
+      };
+    }
+
     return tblHtml;
   }
 
@@ -942,7 +1169,6 @@ async function parseUdfArrayBuffer(buffer) {
     if (footerElem.hasAttribute("pageNumber-start")) footerPageStart = footerElem.getAttribute("pageNumber-start");
 
     let hasFooterImg = false;
-    // Havelsan biçimi: ön ek + numara + ayraç + toplam, boşluksuz ("Sayfa:1/10", ön ek boşsa "1/2"); yazı tipi UDF'den
     const pnFace = footerElem.getAttribute("pageNumber-fontFace") || "Arial";
     const pnSize = parseFloat(footerElem.getAttribute("pageNumber-fontSize") || "11") || 11;
     const pageLabelText = `<span style="font-family:'${escapeHtmlStr(pnFace)}', Arial, sans-serif; font-size:${pnSize}pt;">${escapeHtmlStr(footerForeStr || "")}{PAGE_NUM}${escapeHtmlStr((footerSep || "/").trim())}{TOTAL_PAGES}</span>`;
@@ -975,7 +1201,6 @@ async function parseUdfArrayBuffer(buffer) {
           const dimStyle = `max-height:${hCm}cm;${wCm > 0 ? ` max-width:${wCm}cm;` : " max-width:82%;"} width:auto; object-fit:contain;`;
           const qrPart = verificationCode ? `<div class="udf-footer-qr-container" data-verification-code="${escapeHtmlStr(verificationCode)}" style="width:68px; height:68px; flex:0 0 auto;"></div>` : "";
           if (hasPageNum) {
-            // Havelsan: logo (paragraf hizasıyla, genelde ortada) | "Sayfa:1/10" | karekod — hepsi alta hizalı tek satır
             footerHtml += `<div class="udf-footer-layout udf-hv-footer" data-has-qr="${qrPart ? 1 : 0}" style="display:flex; align-items:flex-end; width:100%; gap:6px;"><div style="flex:1 1 auto; display:flex; justify-content:center; align-items:flex-end;"><img class="udf-footer-img" data-udf-width="${escapeHtmlStr(wStr)}" data-udf-height="${escapeHtmlStr(hStr)}" src="data:image/png;base64,${fImgData.trim()}" style="${dimStyle} max-height:none;" /></div><span class="udf-footer-page-label" style="align-self:flex-end; margin-bottom:2px;">${pageLabelText}</span>${qrPart}</div>`;
           } else {
             footerHtml += `<div class="udf-footer-layout full-banner" style="justify-content:center; border-top:none;"><img class="udf-footer-img" data-udf-width="${escapeHtmlStr(wStr)}" data-udf-height="${escapeHtmlStr(hStr)}" src="data:image/png;base64,${fImgData.trim()}" style="${dimStyle}" />${qrPart}</div>`;
@@ -990,8 +1215,6 @@ async function parseUdfArrayBuffer(buffer) {
     });
     if (!hasFooterImg && hasPageNum) {
       const qrPart = verificationCode ? `<div class="udf-footer-qr-container" data-verification-code="${escapeHtmlStr(verificationCode)}" style="width:68px; height:68px; flex:0 0 auto;"></div>` : "";
-      // Havelsan mahkeme evrakı altbilgisi: "1/2" sağda; altında ince çizgi, çizginin altında küçük doğrulama metni
-      // (kod daha büyük puntoda), en sağda karekod — tamamı sayfanın en altına yaslı.
       const textPart = verificationCode ? `<div class="udf-official-footer-text" style="flex:1 1 auto; border-top:0.75pt solid #000; padding-top:2px; text-align:left; font-family:Arial, sans-serif; font-size:5pt; line-height:1.3; color:#000; white-space:nowrap; overflow:hidden;">UYAP Bilişim Sistemindeki bu dokümana http://vatandas.uyap.gov.tr adresinden <span style="font-size:9pt;">${escapeHtmlStr(verificationCode)}</span> ile erişebilirsiniz.</div>` : "";
       footerHtml += `<div class="udf-footer-layout udf-hv-footer" data-has-qr="${qrPart ? 1 : 0}" style="display:flex; flex-direction:column; align-items:stretch; justify-content:flex-end; width:100%;"><div class="udf-footer-page-label" style="text-align:right; line-height:1.2;">${pageLabelText}</div><div style="display:flex; align-items:flex-end; gap:6px;">${textPart || '<div style="flex:1"></div>'}${qrPart}</div></div>`;
     }
@@ -1010,14 +1233,36 @@ async function parseUdfArrayBuffer(buffer) {
   }
 
   let html = "";
+  const origBlocks = [];
   const elementsNode = xmlDoc.querySelector("template > elements") || xmlDoc.querySelector("elements");
   if (elementsNode && elementsNode.children.length > 0) {
     Array.from(elementsNode.children).forEach(child => {
       const tag = (child.tagName || "").toLowerCase();
-      if (tag === "paragraph") html += parseParagraphToHtml(child);
-      else if (tag === "table") html += parseTableToHtml(child);
-      else if (tag === "page-break" || tag === "pagebreak") {
-        html += `<div class="udf-page-break" data-udf-page-break="true" style="page-break-after:always; break-after:page; height:0; margin:12px 0; border-top:1px dashed #94a3b8;"></div>\n`;
+      if (tag === "paragraph") {
+        const bId = "b" + origBlocks.length;
+        html += parseParagraphToHtml(child, false, bId);
+        const pRec = window.__udfSource && window.__udfSource.paragraphMap[bId];
+        if (pRec) origBlocks.push({ ...pRec, blockType: "paragraph" });
+      } else if (tag === "table") {
+        const bId = "b" + origBlocks.length;
+        html += parseTableToHtml(child, bId);
+        const tRec = window.__udfSource && window.__udfSource.tableMap[bId];
+        if (tRec) origBlocks.push({ ...tRec, blockType: "table" });
+      } else if (tag === "page-break" || tag === "pagebreak") {
+        const bId = "b" + origBlocks.length;
+        html += `<div class="udf-page-break" data-udf-page-break="true" data-udf-src-id="${bId}" style="page-break-after:always; break-after:page; height:0; margin:12px 0; border-top:1px dashed #94a3b8;"></div>\n`;
+        const sp = (!wasTemplateResolved && child.__xmlSpan) ? child.__xmlSpan : null;
+        const { textStart, textEnd } = getElementTextRange(child);
+        origBlocks.push({
+          id: bId,
+          blockType: "pageBreak",
+          xmlStart: sp ? sp.start : -1,
+          xmlEnd: sp ? sp.end : -1,
+          origXml: sp ? contentXml.substring(sp.start, sp.end) : "",
+          textStart,
+          textEnd,
+          origText: (textStart !== null && textEnd !== null) ? rawText.substring(textStart, textEnd) : "\n"
+        });
       }
     });
   } else {
@@ -1026,6 +1271,74 @@ async function parseUdfArrayBuffer(buffer) {
       if (parentTag === "header" || parentTag === "footer" || parentTag === "cell") return;
       html += parseParagraphToHtml(p);
     });
+  }
+
+  // Kaynak-korumalı (Layer 1 & Layer 2) birleştirme meta verilerini hazırla
+  if (window.__udfSource) {
+    const src = window.__udfSource;
+    src.origBlocks = origBlocks;
+    src.initialHeaderHtml = headerHtml;
+    src.initialHeaderStartPage = headerStartPage;
+    src.initialFooterHtml = footerHtml;
+    src.initialFooterPageSpec = footerPageSpec;
+    src.initialMargins = {
+      left: leftMarginCm,
+      right: rightMarginCm,
+      top: topMarginCm,
+      bottom: bottomMarginCm,
+      orientation: paperOrientation
+    };
+
+    const elSpan = (!wasTemplateResolved && elementsNode && elementsNode.__xmlSpan) ? elementsNode.__xmlSpan : null;
+    const cdataRe = /<content><!\[CDATA\[([\s\S]*?)\]\]><\/content>/;
+    const cdataMatch = elSpan ? cdataRe.exec(contentXml) : null;
+    let canSpliceSource = false;
+    if (elSpan && cdataMatch && cdataMatch.index < elSpan.start && origBlocks.length > 0) {
+      const cdataStartIdx = cdataMatch.index + "<content><![CDATA[".length;
+      const cdataEndIdx = cdataStartIdx + cdataMatch[1].length;
+      src.prefixBeforeCdata = contentXml.substring(0, cdataStartIdx);
+      src.betweenCdataAndElementsOpenEnd = contentXml.substring(cdataEndIdx, elSpan.openEnd);
+      src.elementsOpenEnd = elSpan.openEnd;
+      src.elementsCloseStart = elSpan.closeStart;
+      src.suffixFromElementsClose = contentXml.substring(elSpan.closeStart);
+      const afterB0 = contentXml.substring(origBlocks[0].xmlEnd, origBlocks[0].xmlEnd + 2);
+      src.blockSeparator = afterB0.startsWith("\r\n") ? "\r\n" : (afterB0.startsWith("\n") ? "\n" : "");
+      canSpliceSource = true;
+      let prevXml = elSpan.openEnd;
+      let prevTxt = 0;
+      for (let i = 0; i < origBlocks.length; i++) {
+        const ob = origBlocks[i];
+        if (ob.xmlStart < prevXml || ob.xmlEnd < ob.xmlStart) { canSpliceSource = false; break; }
+        if (ob.textStart === null || ob.textEnd === null) {
+          ob.textStart = prevTxt;
+          ob.textEnd = prevTxt;
+          ob.origText = "";
+        }
+        if (ob.textStart < prevTxt || ob.textEnd < ob.textStart) { canSpliceSource = false; break; }
+        prevXml = ob.xmlEnd;
+        prevTxt = ob.textEnd;
+      }
+    }
+    src.canSpliceSource = canSpliceSource;
+
+    // Canlı Havelsan UYAP Uyumluluk Raporu istatistikleri
+    window.__udfCompatStats = {
+      formatId: "1.8",
+      totalBlocks: origBlocks.length,
+      untouchedBlocks: origBlocks.length,
+      partialEditedBlocks: 0,
+      insertedBlocks: 0,
+      preservedFields: xmlDoc.querySelectorAll("field").length,
+      preservedSpaces: xmlDoc.querySelectorAll("space").length,
+      preservedTabs: xmlDoc.querySelectorAll("tab").length,
+      preservedStyles: Object.keys(styleMap).length,
+      hasDocProps: !!docPropsXml,
+      hasSignature: !!signatureInfo.hasSignature,
+      verificationCode: verificationCode || "",
+      sicil: uyapSicil || "",
+      trailingNlMode: origBlocks.some(b => b.trailingNlXml) ? "separate_nl" : "attached_nl",
+      byteIdentical: true
+    };
   }
 
   return {
@@ -1743,6 +2056,9 @@ async function parseOdtArrayBuffer(buffer) {
 
 // -------------------------------------------------------------
 // 3. 1:1 RESMİ HAVELSAN UYAP (format_id="1.8") UDF ÜRETİCİ
+//    Katman 1: Dokunulmamış blok ve belgeleri %100 byte-for-byte korur
+//    Katman 2: Düzenlenen paragraf içinde dokunulmamış <field>/<space>/<tab>/<content>
+//              öğelerini ve paragraf özniteliklerini kayıpsız korur
 // -------------------------------------------------------------
 async function generateUdfBlob(docData) {
   const zip = new JSZip();
@@ -1754,6 +2070,207 @@ async function generateUdfBlob(docData) {
   const near = (a, b, tol) => Math.abs((a || 0) - (b || 0)) <= tol;
   const attrStr = (o) => Object.keys(o).map(k => ` ${k}="${escapeXml(String(o[k]))}"`).join("");
   const TAB_ALIGN_CODE = { left: "0", right: "1", center: "2", decimal: "4" }; // Swing TabStop sabitleri
+  const src0 = window.__udfSource || null;
+
+  function shiftXmlOffsets(xmlSlice, delta) {
+    if (!delta || !xmlSlice) return xmlSlice;
+    return xmlSlice.replace(/\bstartOffset="(\d+)"/g, (_, n) => `startOffset="${parseInt(n, 10) + delta}"`);
+  }
+
+  function updateRunXmlOffsetAndLength(rawTagXml, newOffset, newLength) {
+    return rawTagXml
+      .replace(/\bstartOffset="\d+"/, `startOffset="${newOffset}"`)
+      .replace(/\blength="\d+"/, `length="${newLength}"`);
+  }
+
+  function setOrRemoveXmlAttr(openTag, attrName, newVal) {
+    const re = new RegExp(`(\\s+${attrName}=")[^"]*(")`);
+    if (newVal === null || newVal === undefined || newVal === "") {
+      return openTag.replace(new RegExp(`\\s+${attrName}="[^"]*"`), "");
+    }
+    const escaped = escapeXml(String(newVal));
+    if (re.test(openTag)) {
+      return openTag.replace(re, `$1${escaped}$2`);
+    }
+    return openTag.replace(/(\s*\/?>)$/, ` ${attrName}="${escaped}"$1`);
+  }
+
+  function cleanFontName(f) {
+    if (!f) return "";
+    return String(f).replace(/['"]/g, "").split(",")[0].trim();
+  }
+
+  function runFormattingMatchesOrig(r, origRun) {
+    if (!r || !origRun || !origRun.expected) return false;
+    const exp = origRun.expected;
+    if (!!r.bold !== !!exp.bold) return false;
+    if (!!r.italic !== !!exp.italic) return false;
+    if (!!r.underline !== !!exp.underline) return false;
+    if (!!r.subscript !== !!exp.subscript) return false;
+    if (!!r.superscript !== !!exp.superscript) return false;
+    if (!!(r.strikethrough || r.strikeThrough) !== !!exp.strikethrough) return false;
+    if (cleanFontName(r.fontFamily) !== cleanFontName(exp.fontFamily)) return false;
+    if (Math.abs((r.fontSize || 0) - (exp.fontSize || 0)) > 0.08) return false;
+    const fgInt = parseCssColorToSignedIntJs(r.color);
+    const normFg = (fgInt !== 0 && (fgInt & 0xFFFFFF) !== 0x000000 && (fgInt & 0xFFFFFF) !== 0x333333) ? fgInt : 0;
+    const expFg = (exp.fgInt !== 0 && (exp.fgInt & 0xFFFFFF) !== 0x000000 && (exp.fgInt & 0xFFFFFF) !== 0x333333) ? exp.fgInt : 0;
+    if (normFg !== expFg) return false;
+    const bgInt = parseCssColorToSignedIntJs(r.backgroundColor);
+    const normBg = (bgInt !== 0 && (bgInt & 0xFFFFFF) !== 0xFFFFFF) ? bgInt : 0;
+    const expBg = (exp.bgInt !== 0 && (exp.bgInt & 0xFFFFFF) !== 0xFFFFFF) ? exp.bgInt : 0;
+    if (normBg !== expBg) return false;
+    return true;
+  }
+
+  function isParagraphAttrsUnchanged(p, origRec) {
+    if (!p || !origRec || !origRec.expectedPara) return false;
+    const exp = origRec.expectedPara;
+    const align = p.align !== undefined ? p.align : 3;
+    if (align !== exp.align) return false;
+    if (!near(p.spaceAbove, exp.spaceAbove, 0.015)) return false;
+    if (!near(p.spaceBelow, exp.spaceBelow, 0.015)) return false;
+    if (!near(p.lineSpacing, exp.lineSpacing, 0.005)) return false;
+    if (!near(p.leftIndent, exp.leftIndent, 0.015)) return false;
+    if (!near(p.firstLineIndent, exp.firstLineIndent, 0.015)) return false;
+    if (!near(p.rightIndent, exp.rightIndent, 0.015)) return false;
+    if ((p.tabStops || "") !== (exp.tabStops || "")) return false;
+    if (!!p.numbered !== !!exp.numbered) return false;
+    if (!!p.bulleted !== !!exp.bulleted) return false;
+    return true;
+  }
+
+  function isParagraphRunsUnchanged(p, origRec) {
+    if (!p || !origRec || !Array.isArray(origRec.visRuns)) return false;
+    const runs = (p.runs || []).slice();
+    while (
+      runs.length > origRec.visRuns.length &&
+      runs[runs.length - 1].type !== "image" &&
+      runs[runs.length - 1].text === "\n"
+    ) {
+      runs.pop();
+    }
+    if (runs.length !== origRec.visRuns.length) return false;
+    for (let i = 0; i < runs.length; i++) {
+      const r = runs[i];
+      const origR = origRec.visRuns[i];
+      if (r.udfRunIdx !== i) return false;
+      if (origR.tag === "image") {
+        if (r.type !== "image" || String(r.imageData || "").replace(/\s+/g, "") !== String(origR.imageData || "").replace(/\s+/g, "")) return false;
+        if (!near(r.widthPt, origR.widthPt, 0.5) || !near(r.heightPt, origR.heightPt, 0.5)) return false;
+      } else {
+        if (r.type === "image") return false;
+        if ((r.text || "") !== origR.visibleText) return false;
+        if (!runFormattingMatchesOrig(r, origR)) return false;
+      }
+    }
+    return true;
+  }
+
+  function isParagraphUntouched(p, origRec) {
+    return !!(origRec && origRec.origXml && isParagraphAttrsUnchanged(p, origRec) && isParagraphRunsUnchanged(p, origRec));
+  }
+
+  function isTableUntouched(tbl, origTblRec) {
+    if (!tbl || !origTblRec || !origTblRec.origXml || !src0) return false;
+    const curBorder = tbl.border || "borderCell";
+    if (curBorder !== origTblRec.border) return false;
+    if ((tbl.colSpans || "") !== (origTblRec.colSpans || "")) return false;
+    const rows = tbl.rows || [];
+    if (rows.length !== origTblRec.rows.length) return false;
+    for (let rIdx = 0; rIdx < rows.length; rIdx++) {
+      const cells = rows[rIdx].cells || [];
+      const origCells = origTblRec.rows[rIdx].cells || [];
+      if (cells.length !== origCells.length) return false;
+      for (let cIdx = 0; cIdx < cells.length; cIdx++) {
+        const cell = cells[cIdx];
+        const origCell = origCells[cIdx];
+        if ((cell.colSpan || 1) !== origCell.colSpan || (cell.rowSpan || 1) !== origCell.rowSpan) return false;
+        const cParas = cell.paragraphs || [];
+        if (origCell.childIds.length === 0) {
+          if (cParas.length === 1 && (!cParas[0].runs || cParas[0].runs.length === 0)) continue;
+          return false;
+        }
+        if (cParas.length !== origCell.childIds.length) return false;
+        for (let pIdx = 0; pIdx < cParas.length; pIdx++) {
+          const cp = cParas[pIdx];
+          const expChild = origCell.childIds[pIdx];
+          if (!cp.srcId || cp.srcId !== expChild.id) return false;
+          if (expChild.type === "table") {
+            if (cp.type !== "table" || !isTableUntouched(cp, src0.tableMap[cp.srcId])) return false;
+          } else {
+            if (cp.type === "table" || !isParagraphUntouched(cp, src0.paragraphMap[cp.srcId])) return false;
+          }
+        }
+      }
+    }
+    return true;
+  }
+
+  function updateParagraphOpenTagInPlace(origOpenTag, p, origRec) {
+    if (!origOpenTag) return `<paragraph${attrStr(buildParagraphAttrs(p))}>`;
+    if (isParagraphAttrsUnchanged(p, origRec)) return origOpenTag;
+    let tag = origOpenTag;
+    const exp = origRec.expectedPara;
+    const align = p.align !== undefined ? p.align : 3;
+    if (align !== exp.align) {
+      tag = setOrRemoveXmlAttr(tag, "Alignment", String(align));
+    }
+    if (!near(p.spaceAbove, exp.spaceAbove, 0.015)) {
+      tag = setOrRemoveXmlAttr(tag, "SpaceAbove", (p.spaceAbove || 0) > 0.05 ? p.spaceAbove.toFixed(1) : null);
+    }
+    if (!near(p.spaceBelow, exp.spaceBelow, 0.015)) {
+      tag = setOrRemoveXmlAttr(tag, "SpaceBelow", (p.spaceBelow || 0) > 0.05 ? p.spaceBelow.toFixed(1) : null);
+    }
+    if (!near(p.lineSpacing, exp.lineSpacing, 0.005)) {
+      tag = setOrRemoveXmlAttr(tag, "LineSpacing", (p.lineSpacing || 0) > 0.01 ? p.lineSpacing.toFixed(2) : null);
+    }
+    const firstLineCm = p.firstLineIndent || 0;
+    const leftIndentCm = p.leftIndent || 0;
+    const rightIndentCm = p.rightIndent || 0;
+    if (!near(leftIndentCm, exp.leftIndent, 0.015) || !near(firstLineCm, exp.firstLineIndent, 0.015)) {
+      let udfLeftPt, udfFirstPt, udfHangPt;
+      if (firstLineCm < -0.01) {
+        const firstPosCm = Math.max(0, leftIndentCm + firstLineCm);
+        udfLeftPt = firstPosCm * PT_PER_CM; udfFirstPt = 0;
+        udfHangPt = Math.max(0, leftIndentCm - firstPosCm) * PT_PER_CM;
+      } else {
+        udfLeftPt = Math.max(0, leftIndentCm) * PT_PER_CM;
+        udfFirstPt = Math.max(0, firstLineCm) * PT_PER_CM; udfHangPt = 0;
+      }
+      tag = setOrRemoveXmlAttr(tag, "LeftIndent", udfLeftPt > 0.05 ? udfLeftPt.toFixed(1) : null);
+      tag = setOrRemoveXmlAttr(tag, "FirstLineIndent", udfFirstPt > 0.05 ? udfFirstPt.toFixed(1) : null);
+      tag = setOrRemoveXmlAttr(tag, "Hanging", udfHangPt > 0.05 ? udfHangPt.toFixed(1) : null);
+    }
+    if (!near(rightIndentCm, exp.rightIndent, 0.015)) {
+      tag = setOrRemoveXmlAttr(tag, "RightIndent", rightIndentCm > 0.01 ? (rightIndentCm * PT_PER_CM).toFixed(1) : null);
+    }
+    if ((p.tabStops || "") !== (exp.tabStops || "")) {
+      if (p.tabStops) {
+        const stops = String(p.tabStops).split(",").map(s => s.trim()).filter(Boolean).map(s => {
+          const [cmStr, al] = s.split(":");
+          const cm = parseFloat(cmStr);
+          return isNaN(cm) || cm <= 0 ? null : `${(cm * PT_PER_CM).toFixed(1)}:${TAB_ALIGN_CODE[al] || "0"}:0`;
+        }).filter(Boolean);
+        tag = setOrRemoveXmlAttr(tag, "TabSet", stops.length ? stops.join(",") : null);
+      } else {
+        tag = setOrRemoveXmlAttr(tag, "TabSet", null);
+      }
+    }
+    if (!!p.numbered !== !!exp.numbered || !!p.bulleted !== !!exp.bulleted) {
+      if (p.numbered) {
+        tag = setOrRemoveXmlAttr(tag, "Numbered", "true");
+        tag = setOrRemoveXmlAttr(tag, "NumberType", p.numberType || "NUMBER_TYPE_NUMBER_TRE");
+        tag = setOrRemoveXmlAttr(tag, "Bulleted", null);
+      } else if (p.bulleted) {
+        tag = setOrRemoveXmlAttr(tag, "Bulleted", "true");
+        tag = setOrRemoveXmlAttr(tag, "Numbered", null);
+      } else {
+        tag = setOrRemoveXmlAttr(tag, "Numbered", null);
+        tag = setOrRemoveXmlAttr(tag, "Bulleted", null);
+      }
+    }
+    return tag;
+  }
 
   /**
    * Paragraf öznitelikleri: orijinal UDF öznitelikleri temel alınır, yalnızca kullanıcının
@@ -1799,7 +2316,6 @@ async function generateUdfBlob(docData) {
     if (!orig || !near(p.spaceBelow, num("SpaceBelow"), 0.05)) { delete o.SpaceBelow; if ((p.spaceBelow || 0) > 0.05) o.SpaceBelow = p.spaceBelow.toFixed(1); }
     if (!orig || !near(p.lineSpacing, num("LineSpacing"), 0.005)) { delete o.LineSpacing; if ((p.lineSpacing || 0) > 0.01) o.LineSpacing = p.lineSpacing.toFixed(2); }
 
-    // Sekme durakları: değişmediyse orijinal TabSet (hizalama kodlarıyla) aynen korunur.
     if (p.udfTabSet && (!p.tabStops || p.tabStops === p.origTabStops)) {
       o.TabSet = p.udfTabSet;
     } else if (p.tabStops) {
@@ -1819,16 +2335,53 @@ async function generateUdfBlob(docData) {
 
     const origAlign = o.Alignment;
     if (origAlign === undefined || String(align) !== String(origAlign)) {
-      // Orijinalde Alignment stil üzerinden geliyorsa ve değer aynıysa yazmaya gerek yok
       o.Alignment = String(align);
     }
     return o;
   }
 
-  function runStyleAttrs(r) {
+  function runStyleAttrs(r, refRun) {
+    if (refRun && refRun.attrs && refRun.expected) {
+      const a = { ...refRun.attrs };
+      delete a.startOffset; delete a.length;
+      delete a.fieldName; delete a.fieldType; delete a.isList;
+      delete a.imageData; delete a.width; delete a.height;
+      const exp = refRun.expected;
+      const cf = cleanFontName(r.fontFamily);
+      if (cf !== cleanFontName(exp.fontFamily)) {
+        if (cf) a.family = cf; else delete a.family;
+      }
+      if (Math.abs((r.fontSize || 0) - (exp.fontSize || 0)) > 0.08) {
+        if (r.fontSize && r.fontSize > 1) a.size = Number.isInteger(r.fontSize) ? String(r.fontSize) : r.fontSize.toFixed(1);
+        else delete a.size;
+      }
+      const fgInt = parseCssColorToSignedIntJs(r.color);
+      const normFg = (fgInt !== 0 && (fgInt & 0xFFFFFF) !== 0x000000 && (fgInt & 0xFFFFFF) !== 0x333333) ? fgInt : 0;
+      const expFg = (exp.fgInt !== 0 && (exp.fgInt & 0xFFFFFF) !== 0x000000 && (exp.fgInt & 0xFFFFFF) !== 0x333333) ? exp.fgInt : 0;
+      if (normFg !== expFg) {
+        if (normFg) a.foreground = String(normFg); else delete a.foreground;
+      }
+      const bgInt = parseCssColorToSignedIntJs(r.backgroundColor);
+      const normBg = (bgInt !== 0 && (bgInt & 0xFFFFFF) !== 0xFFFFFF) ? bgInt : 0;
+      const expBg = (exp.bgInt !== 0 && (exp.bgInt & 0xFFFFFF) !== 0xFFFFFF) ? exp.bgInt : 0;
+      if (normBg !== expBg) {
+        if (normBg) a.background = String(normBg); else delete a.background;
+      }
+      if (!!r.bold !== !!exp.bold) { if (r.bold) a.bold = "true"; else delete a.bold; }
+      if (!!r.italic !== !!exp.italic) { if (r.italic) a.italic = "true"; else delete a.italic; }
+      if (!!r.underline !== !!exp.underline) { if (r.underline) a.underline = "true"; else delete a.underline; }
+      if (!!r.subscript !== !!exp.subscript) { if (r.subscript) a.Subscript = "true"; else { delete a.Subscript; delete a.subscript; } }
+      if (!!r.superscript !== !!exp.superscript) { if (r.superscript) a.Superscript = "true"; else { delete a.Superscript; delete a.superscript; } }
+      if (!!(r.strikethrough || r.strikeThrough) !== !!exp.strikethrough) {
+        if (r.strikethrough || r.strikeThrough) a.strikethrough = "true";
+        else { delete a.strikethrough; delete a.StrikeThrough; delete a.strikeThrough; }
+      }
+      return attrStr(a);
+    }
+
     let styleAttrs = "";
     if (r.fontFamily) {
-      const cleanF = r.fontFamily.replace(/['"]/g, "").split(",")[0].trim();
+      const cleanF = cleanFontName(r.fontFamily);
       if (cleanF) styleAttrs += ` family="${escapeXml(cleanF)}"`;
     }
     if (r.fontSize && r.fontSize > 1) {
@@ -1847,20 +2400,36 @@ async function generateUdfBlob(docData) {
     return styleAttrs;
   }
 
-  // Java String (UTF-16) uzunluğu kullanılır: Havelsan offsetleri String.substring ile çözer.
-  function pushText(text, tag, styleAttrs, indent) {
-    if (!text) return;
-    rawContent += text;
-    elementsXml += `${indent}    <${tag} startOffset="${currentOffset}" length="${text.length}"${styleAttrs} />\n`;
-    currentOffset += text.length;
-  }
+  // Katman 2: Düzenlenmiş paragrafı kısmi koşu ve öznitelik korumasıyla XML + metne dönüştürür
+  function renderParagraphWithLayer2(p, origRec, baseOffset, indent = "") {
+    if (origRec && isParagraphUntouched(p, origRec)) {
+      const delta = baseOffset - origRec.textStart;
+      return {
+        xml: shiftXmlOffsets(origRec.origXml, delta),
+        text: origRec.origText,
+        layer: 1
+      };
+    }
+    if (origRec && origRec.origXml && isParagraphRunsUnchanged(p, origRec)) {
+      const delta = baseOffset - origRec.textStart;
+      const openTag = updateParagraphOpenTagInPlace(origRec.origOpenTag, p, origRec);
+      return {
+        xml: `${openTag}${shiftXmlOffsets(origRec.origInnerXml, delta)}</paragraph>`,
+        text: origRec.origText,
+        layer: 2
+      };
+    }
 
-  function appendParagraphXmlJs(p, indent) {
-    const attrs = buildParagraphAttrs(p);
-    // Satır içi <br> (Shift+Enter / şablon eol) Havelsan'da ayrı paragraf demektir:
-    // runs "\n" noktalarından bölünür, her parça aynı özniteliklerle ayrı paragraf olur.
     const runs = (p.runs || []).slice();
-    while (runs.length && runs[runs.length - 1].type !== "image" && runs[runs.length - 1].text === "\n") runs.pop();
+    const minKeep = (origRec && Array.isArray(origRec.visRuns)) ? origRec.visRuns.length : 0;
+    while (
+      runs.length > minKeep &&
+      runs[runs.length - 1].type !== "image" &&
+      runs[runs.length - 1].text === "\n" &&
+      runs[runs.length - 1].udfRunIdx === undefined
+    ) {
+      runs.pop();
+    }
     const pieces = [[]];
     runs.forEach(r => {
       if (r.type === "image") { pieces[pieces.length - 1].push(r); return; }
@@ -1871,33 +2440,139 @@ async function generateUdfBlob(docData) {
       });
     });
 
-    pieces.forEach(pieceRuns => {
-      elementsXml += `${indent}<paragraph${attrStr(attrs)}>\n`;
-      pieceRuns.forEach(r => {
+    const openTag = (origRec && origRec.origOpenTag)
+      ? updateParagraphOpenTagInPlace(origRec.origOpenTag, p, origRec)
+      : `${indent}<paragraph${attrStr(buildParagraphAttrs(p))}>`;
+    const childIndent = origRec ? origRec.childIndent : (indent ? `\n${indent}    ` : "");
+    const closeIndent = origRec ? origRec.closeIndent : (indent ? `\n${indent}` : "");
+    const useAttachedNl = origRec ? !origRec.trailingNlXml : false;
+    const defaultRefRun = (origRec && origRec.visRuns && origRec.visRuns.length > 0)
+      ? origRec.visRuns[origRec.visRuns.length - 1]
+      : null;
+    const blockSep = (src0 && src0.blockSeparator !== undefined) ? src0.blockSeparator : "\n";
+
+    let outXml = "";
+    let outText = "";
+
+    pieces.forEach((pieceRuns, pIdx) => {
+      if (pIdx > 0) outXml += blockSep;
+      outXml += openTag;
+
+      if (pieceRuns.length === 0) {
+        const curOff = baseOffset + outText.length;
+        outText += "\n";
+        if (origRec && origRec.trailingNlXml) {
+          outXml += `${childIndent}${updateRunXmlOffsetAndLength(origRec.trailingNlXml, curOff, 1)}`;
+        } else if (defaultRefRun && defaultRefRun.origXml && defaultRefRun.tag === "content") {
+          outXml += `${childIndent}${updateRunXmlOffsetAndLength(defaultRefRun.origXml, curOff, 1)}`;
+        } else {
+          outXml += `${childIndent}<content startOffset="${curOff}" length="1" />`;
+        }
+        outXml += `${closeIndent}</paragraph>`;
+        return;
+      }
+
+      pieceRuns.forEach((r, m) => {
+        const isLastRun = (m === pieceRuns.length - 1);
+        const origRun = (origRec && r.udfRunIdx !== undefined && origRec.visRuns[r.udfRunIdx]) ? origRec.visRuns[r.udfRunIdx] : null;
+        const refRun = origRun || defaultRefRun;
+
         if (r.type === "image" && r.imageData) {
-          const wPt = (r.widthPt || 100).toFixed(4);
-          const hPt = (r.heightPt || 50).toFixed(4);
-          rawContent += "¸";
-          elementsXml += `${indent}    <image width="${wPt}" height="${hPt}" resolver="hvl-default" imageData="${escapeXml(r.imageData)}" startOffset="${currentOffset}" length="1" />\n`;
-          currentOffset += 1;
+          const curOff = baseOffset + outText.length;
+          outText += "\u00b8";
+          if (origRun && origRun.tag === "image" && origRun.origXml && r.imageData === origRun.imageData && near(r.widthPt, origRun.widthPt, 0.5) && near(r.heightPt, origRun.heightPt, 0.5)) {
+            outXml += `${childIndent}${updateRunXmlOffsetAndLength(origRun.origXml, curOff, 1)}`;
+          } else {
+            const wPt = (r.widthPt || 100).toFixed(4);
+            const hPt = (r.heightPt || 50).toFixed(4);
+            outXml += `${childIndent}<image width="${wPt}" height="${hPt}" resolver="hvl-default" imageData="${escapeXml(r.imageData)}" startOffset="${curOff}" length="1" />`;
+          }
+          if (isLastRun && useAttachedNl) {
+            const nlOff = baseOffset + outText.length;
+            outText += "\n";
+            outXml += `${childIndent}<content startOffset="${nlOff}" length="1" />`;
+          }
           return;
         }
+
         const text = r.text || "";
-        const styleAttrs = runStyleAttrs(r);
-        // Sekmeler ayrı <tab> öğesi olarak yazılır
-        text.split(/(\t+)/).forEach(seg => {
-          if (!seg) return;
-          pushText(seg, seg[0] === "\t" ? "tab" : "content", styleAttrs, indent);
+        const canReuseOrigTag = !!(
+          origRun &&
+          origRun.origXml &&
+          runFormattingMatchesOrig(r, origRun) &&
+          (
+            (origRun.tag === "tab" && /^\t+$/.test(text)) ||
+            (origRun.tag === "space" && /^ +$/.test(text) && !(isLastRun && useAttachedNl && !origRun.hasAttachedNewline)) ||
+            ((origRun.tag === "content" || origRun.tag === "field") && (!text.includes("\t") || origRun.visibleText.includes("\t")))
+          )
+        );
+
+        if (canReuseOrigTag) {
+          const attachNlHere = isLastRun && useAttachedNl && (origRun.tag === "content" || origRun.tag === "field");
+          const fullText = attachNlHere ? (text + "\n") : text;
+          const curOff = baseOffset + outText.length;
+          outText += fullText;
+          outXml += `${childIndent}${updateRunXmlOffsetAndLength(origRun.origXml, curOff, fullText.length)}`;
+          if (isLastRun && useAttachedNl && !attachNlHere) {
+            const nlOff = baseOffset + outText.length;
+            outText += "\n";
+            outXml += `${childIndent}<content startOffset="${nlOff}" length="1"${runStyleAttrs(r, refRun)} />`;
+          }
+          return;
+        }
+
+        const styleAttrs = runStyleAttrs(r, refRun);
+        const segs = text.split(/(\t+)/).filter(Boolean);
+        segs.forEach((seg, sIdx) => {
+          const isLastSeg = isLastRun && (sIdx === segs.length - 1);
+          const segTag = seg[0] === "\t" ? "tab" : "content";
+          const attachNlHere = isLastSeg && useAttachedNl && segTag === "content";
+          const fullSeg = attachNlHere ? (seg + "\n") : seg;
+          const curOff = baseOffset + outText.length;
+          outText += fullSeg;
+          outXml += `${childIndent}<${segTag} startOffset="${curOff}" length="${fullSeg.length}"${styleAttrs} />`;
+          if (isLastSeg && useAttachedNl && !attachNlHere) {
+            const nlOff = baseOffset + outText.length;
+            outText += "\n";
+            outXml += `${childIndent}<content startOffset="${nlOff}" length="1"${styleAttrs} />`;
+          }
         });
       });
-      // Paragraf sonu: son koşunun biçimi ile satır sonu karakteri
-      const last = pieceRuns.filter(r => r.type !== "image").pop();
-      pushText("\n", "content", last ? runStyleAttrs(last) : "", indent);
-      elementsXml += `${indent}</paragraph>\n`;
+
+      if (!useAttachedNl) {
+        const nlOff = baseOffset + outText.length;
+        outText += "\n";
+        if (origRec && origRec.trailingNlXml) {
+          outXml += `${childIndent}${updateRunXmlOffsetAndLength(origRec.trailingNlXml, nlOff, 1)}`;
+        } else {
+          const last = pieceRuns.filter(r => r.type !== "image").pop();
+          const lastOrig = (origRec && last && last.udfRunIdx !== undefined) ? origRec.visRuns[last.udfRunIdx] : defaultRefRun;
+          outXml += `${childIndent}<content startOffset="${nlOff}" length="1"${last ? runStyleAttrs(last, lastOrig) : ""} />`;
+        }
+      }
+      outXml += `${closeIndent}</paragraph>`;
     });
+
+    return { xml: outXml, text: outText, layer: origRec ? 2 : 0 };
+  }
+
+  function appendParagraphXmlJs(p, indent) {
+    const origRec = (src0 && p && p.srcId && src0.paragraphMap) ? src0.paragraphMap[p.srcId] : null;
+    const res = renderParagraphWithLayer2(p, origRec, currentOffset, indent);
+    rawContent += res.text;
+    currentOffset += res.text.length;
+    elementsXml += res.xml + (res.xml.endsWith("\n") ? "" : "\n");
   }
 
   function appendTableXmlJs(tbl, indent) {
+    const origTblRec = (src0 && tbl && tbl.srcId && src0.tableMap) ? src0.tableMap[tbl.srcId] : null;
+    if (origTblRec && isTableUntouched(tbl, origTblRec)) {
+      const delta = currentOffset - origTblRec.textStart;
+      rawContent += origTblRec.origText;
+      currentOffset += origTblRec.origText.length;
+      elementsXml += shiftXmlOffsets(origTblRec.origXml, delta) + (origTblRec.origXml.endsWith("\n") ? "" : "\n");
+      return;
+    }
     const border = tbl.border || "borderCell";
     const rows = tbl.rows || [];
     if (rows.length === 0) return;
@@ -1935,7 +2610,245 @@ async function generateUdfBlob(docData) {
     elementsXml += `${indent}</table>\n`;
   }
 
-  const src0 = window.__udfSource || null;
+  // -------------------------------------------------------------
+  // KATMAN 1 & 2 DOĞRUDAN KAYNAK BİRLEŞTİRİCİ (SOURCE-PRESERVING SPLICER)
+  // -------------------------------------------------------------
+  const m = docData.margins || {};
+  const curLeftCm = m.left !== undefined ? m.left : (docData.leftMarginCm || 1.5);
+  const curRightCm = m.right !== undefined ? m.right : (docData.rightMarginCm || 1.5);
+  const curTopCm = m.top !== undefined ? m.top : (docData.topMarginCm || 1.5);
+  const curBottomCm = m.bottom !== undefined ? m.bottom : (docData.bottomMarginCm || 1.5);
+  const curOrient = (m.orientation === "landscape" || docData.paperOrientation === "2") ? "2" : "1";
+  const initM0 = (src0 && src0.initialMargins) || {};
+  const marginsUnchanged0 =
+    near(curLeftCm, initM0.left, 0.011) &&
+    near(curRightCm, initM0.right, 0.011) &&
+    near(curTopCm, initM0.top, 0.011) &&
+    near(curBottomCm, initM0.bottom, 0.011) &&
+    curOrient === (initM0.orientation || "1");
+
+  // <data> şablonlu belgelerde (wasTemplateResolved=true) kullanıcı belgeyi düzenlemediyse
+  // orijinal content.xml ve sign.sgn %100 bayt-bayt korunur.
+  if (
+    src0 &&
+    !src0.canSpliceSource &&
+    src0.originalContentXml &&
+    marginsUnchanged0 &&
+    typeof window.isDocumentModified === "function" &&
+    !window.isDocumentModified()
+  ) {
+    if (window.__udfCompatStats) {
+      window.__udfCompatStats.byteIdentical = true;
+    }
+    zip.file("content.xml", src0.originalContentXml);
+    if (src0.rawZipEntries && Object.keys(src0.rawZipEntries).length > 0) {
+      for (const [entryName, entryBytes] of Object.entries(src0.rawZipEntries)) {
+        zip.file(entryName, entryBytes);
+      }
+    } else if (src0.docPropsXml) {
+      zip.file("documentproperties.xml", src0.docPropsXml);
+    }
+    return await zip.generateAsync({ type: "blob", compression: "DEFLATE" });
+  }
+
+  if (src0 && src0.canSpliceSource && Array.isArray(src0.origBlocks) && src0.origBlocks.length > 0) {
+    const bodyBlocks = docData.paragraphs || [];
+    const origBlocks = src0.origBlocks;
+    const M = origBlocks.length;
+    const N = bodyBlocks.length;
+
+    const origIdxMap = {};
+    for (let k = 0; k < M; k++) origIdxMap[origBlocks[k].id] = k;
+
+    const anchorForOrig = new Array(M).fill(-1);
+    const origForCur = new Array(N).fill(-1);
+    let lastAnchoredK = -1;
+    for (let j = 0; j < N; j++) {
+      const b = bodyBlocks[j];
+      const sid = b && b.srcId;
+      if (sid && origIdxMap[sid] !== undefined) {
+        const k = origIdxMap[sid];
+        const expectedType = origBlocks[k].blockType;
+        const actualType = b.type === "table" ? "table" : (b.type === "pageBreak" ? "pageBreak" : "paragraph");
+        if (k > lastAnchoredK && actualType === expectedType) {
+          anchorForOrig[k] = j;
+          origForCur[j] = k;
+          lastAnchoredK = k;
+        }
+      }
+    }
+
+    const insertBeforeFirst = [];
+    const insertAfterOrig = Array.from({ length: M }, () => []);
+    let curAnchorK = -1;
+    for (let j = 0; j < N; j++) {
+      if (origForCur[j] >= 0) {
+        curAnchorK = origForCur[j];
+      } else {
+        if (curAnchorK < 0) insertBeforeFirst.push(bodyBlocks[j]);
+        else insertAfterOrig[curAnchorK].push(bodyBlocks[j]);
+      }
+    }
+
+    const renderAnyBlock = (blk, origBlockRec, offset) => {
+      if (blk.type === "pageBreak") {
+        if (origBlockRec && origBlockRec.origXml) {
+          const d = offset - origBlockRec.textStart;
+          return { xml: shiftXmlOffsets(origBlockRec.origXml, d), text: origBlockRec.origText || "\n", layer: 1 };
+        }
+        return { xml: `<page-break startOffset="${offset}" length="1" />`, text: "\n", layer: 0 };
+      }
+      if (blk.type === "table") {
+        const tRec = (blk.srcId && src0.tableMap[blk.srcId]) || origBlockRec;
+        if (tRec && isTableUntouched(blk, tRec)) {
+          const d = offset - tRec.textStart;
+          return { xml: shiftXmlOffsets(tRec.origXml, d), text: tRec.origText, layer: 1 };
+        }
+        const savedRaw = rawContent, savedXml = elementsXml, savedOff = currentOffset;
+        rawContent = ""; elementsXml = ""; currentOffset = offset;
+        appendTableXmlJs(blk, "");
+        const res = { xml: elementsXml.replace(/\r?\n$/, ""), text: rawContent, layer: tRec ? 2 : 0 };
+        rawContent = savedRaw; elementsXml = savedXml; currentOffset = savedOff;
+        return res;
+      }
+      const pRec = (blk.srcId && src0.paragraphMap[blk.srcId]) || origBlockRec;
+      return renderParagraphWithLayer2(blk, pRec, offset, "");
+    };
+
+    const origXml = src0.originalContentXml;
+    const origTxt = src0.originalRawText;
+    const blockSep = src0.blockSeparator !== undefined ? src0.blockSeparator : "\n";
+
+    let xmlCursor = src0.elementsOpenEnd;
+    let textCursor = 0;
+    let outElementsInner = "";
+    let outRawText = "";
+    let untouchedCount = 0;
+    let partialEditedCount = 0;
+    let insertedCount = 0;
+    let deletedCount = 0;
+
+    for (let k = 0; k < M; k++) {
+      const ob = origBlocks[k];
+      if (ob.textStart > textCursor) {
+        outRawText += origTxt.substring(textCursor, ob.textStart);
+      }
+      const gapDelta = outRawText.length - ob.textStart;
+      if (ob.xmlStart > xmlCursor) {
+        outElementsInner += shiftXmlOffsets(origXml.substring(xmlCursor, ob.xmlStart), gapDelta);
+      }
+
+      if (k === 0 && insertBeforeFirst.length > 0) {
+        insertBeforeFirst.forEach(ins => {
+          const r = renderAnyBlock(ins, null, outRawText.length);
+          outRawText += r.text;
+          outElementsInner += r.xml + blockSep;
+          insertedCount++;
+        });
+      }
+
+      const curIdx = anchorForOrig[k];
+      if (curIdx < 0) {
+        deletedCount++;
+        textCursor = ob.textEnd;
+        xmlCursor = ob.xmlEnd;
+        if (insertAfterOrig[k].length === 0) {
+          if (origXml.startsWith("\r\n", xmlCursor)) xmlCursor += 2;
+          else if (origXml.startsWith("\n", xmlCursor)) xmlCursor += 1;
+        }
+      } else {
+        const curBlk = bodyBlocks[curIdx];
+        const r = renderAnyBlock(curBlk, ob, outRawText.length);
+        outRawText += r.text;
+        outElementsInner += r.xml;
+        if (r.layer === 1) untouchedCount++;
+        else partialEditedCount++;
+        textCursor = ob.textEnd;
+        xmlCursor = ob.xmlEnd;
+      }
+
+      if (insertAfterOrig[k].length > 0) {
+        insertAfterOrig[k].forEach(ins => {
+          const r = renderAnyBlock(ins, null, outRawText.length);
+          outRawText += r.text;
+          outElementsInner += blockSep + r.xml;
+          insertedCount++;
+        });
+      }
+    }
+
+    const tailDelta = outRawText.length - textCursor;
+    if (textCursor < origTxt.length) {
+      outRawText += origTxt.substring(textCursor);
+    }
+    if (xmlCursor < src0.elementsCloseStart) {
+      outElementsInner += shiftXmlOffsets(origXml.substring(xmlCursor, src0.elementsCloseStart), tailDelta);
+    }
+
+    const initM = src0.initialMargins || {};
+    const marginsUnchanged =
+      near(curLeftCm, initM.left, 0.011) &&
+      near(curRightCm, initM.right, 0.011) &&
+      near(curTopCm, initM.top, 0.011) &&
+      near(curBottomCm, initM.bottom, 0.011) &&
+      curOrient === (initM.orientation || "1");
+
+    const is100PctUntouched =
+      untouchedCount === M &&
+      partialEditedCount === 0 &&
+      insertedCount === 0 &&
+      deletedCount === 0 &&
+      marginsUnchanged &&
+      outRawText === origTxt;
+
+    let finalXml;
+    if (is100PctUntouched) {
+      finalXml = origXml;
+    } else {
+      let middleXml = src0.betweenCdataAndElementsOpenEnd;
+      if (!marginsUnchanged) {
+        const cmToPt = (cm) => (cm * PT_PER_CM).toFixed(4);
+        middleXml = middleXml.replace(/<pageFormat\b[^>]*\/?>/, (pfTag) => {
+          let t = pfTag;
+          if (!near(curLeftCm, initM.left, 0.011)) t = setOrRemoveXmlAttr(t, "leftMargin", cmToPt(curLeftCm));
+          if (!near(curRightCm, initM.right, 0.011)) t = setOrRemoveXmlAttr(t, "rightMargin", cmToPt(curRightCm));
+          if (!near(curTopCm, initM.top, 0.011)) t = setOrRemoveXmlAttr(t, "topMargin", cmToPt(curTopCm));
+          if (!near(curBottomCm, initM.bottom, 0.011)) t = setOrRemoveXmlAttr(t, "bottomMargin", cmToPt(curBottomCm));
+          if (curOrient !== (initM.orientation || "1")) t = setOrRemoveXmlAttr(t, "paperOrientation", curOrient);
+          return t;
+        });
+      }
+      finalXml =
+        src0.prefixBeforeCdata +
+        outRawText.replace(/]]>/g, "]]]]><![CDATA[>") +
+        middleXml +
+        outElementsInner +
+        src0.suffixFromElementsClose;
+    }
+
+    if (window.__udfCompatStats) {
+      window.__udfCompatStats.totalBlocks = N;
+      window.__udfCompatStats.untouchedBlocks = untouchedCount;
+      window.__udfCompatStats.partialEditedBlocks = partialEditedCount;
+      window.__udfCompatStats.insertedBlocks = insertedCount;
+      window.__udfCompatStats.byteIdentical = is100PctUntouched;
+    }
+
+    zip.file("content.xml", finalXml);
+    if (src0.rawZipEntries && Object.keys(src0.rawZipEntries).length > 0) {
+      for (const [entryName, entryBytes] of Object.entries(src0.rawZipEntries)) {
+        if (!is100PctUntouched && entryName.toLowerCase().endsWith(".sgn")) continue;
+        zip.file(entryName, entryBytes);
+      }
+    } else if (src0.docPropsXml) {
+      zip.file("documentproperties.xml", src0.docPropsXml);
+    }
+    return await zip.generateAsync({ type: "blob", compression: "DEFLATE" });
+  }
+
+  // -------------------------------------------------------------
+  // YEDEK TAM ÜRETİCİ (Yeni oluşturulan belgeler, şablonlar ve DOCX/ODT dönüşümleri)
+  // -------------------------------------------------------------
   // 1. Üstbilgi (<header>)
   const hParas = docData.headerParagraphs || [];
   if (hParas.length > 0 || (docData.header && docData.header.trim())) {
@@ -2004,23 +2917,21 @@ async function generateUdfBlob(docData) {
     elementsXml += `</footer>\n`;
   }
 
-  const m = docData.margins || {};
   const src = window.__udfSource || null;
   const cmToPt = (cm) => (cm * PT_PER_CM).toFixed(4);
-  // Sayfa biçimi: orijinal öznitelikler korunur, kenar boşlukları yalnızca değiştiyse güncellenir.
   const pf = src && src.pageFormat ? { ...src.pageFormat } : { mediaSizeName: "1", headerFOffset: "20.0", footerFOffset: "20.0" };
   const setMargin = (key, cm) => {
     if (!cm && cm !== 0) return;
     const origCm = pf[key] !== undefined ? Math.round((parseFloat(pf[key]) / PT_PER_CM) * 100) / 100 : null;
     if (origCm === null || Math.abs(origCm - cm) > 0.011) pf[key] = cmToPt(cm);
   };
-  setMargin("leftMargin", m.left || docData.leftMarginCm || 1.5);
-  setMargin("rightMargin", m.right || docData.rightMarginCm || 1.5);
-  setMargin("topMargin", m.top || docData.topMarginCm || 1.5);
-  setMargin("bottomMargin", m.bottom || docData.bottomMarginCm || 1.5);
-  pf.paperOrientation = (m.orientation === "landscape" || docData.paperOrientation === "2") ? "2" : "1";
+  setMargin("leftMargin", curLeftCm);
+  setMargin("rightMargin", curRightCm);
+  setMargin("topMargin", curTopCm);
+  setMargin("bottomMargin", curBottomCm);
+  pf.paperOrientation = curOrient;
   const defaultStyles = `<styles><style name="default" description="Geçerli" family="Dialog" size="12" bold="false" italic="false" foreground="-13421773" FONT_ATTRIBUTE_KEY="javax.swing.plaf.FontUIResource[family=Dialog,name=Dialog,style=plain,size=12]" /><style name="hvl-default" family="Times New Roman" size="12" description="Gövde" /></styles>`;
-  const elAttrs = src && src.elementsAttrs ? src.elementsAttrs : { resolver: "hvl-default" };
+  const elAttrs = src && src.elementsAttrs && Object.keys(src.elementsAttrs).length ? src.elementsAttrs : { resolver: "hvl-default" };
 
   const finalXml = `<?xml version="1.0" encoding="UTF-8"?>\n` +
     `<template format_id="1.8">\n` +

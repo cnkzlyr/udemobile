@@ -262,30 +262,41 @@
     }
     const cont = p.cloneNode(false);
     cont.removeAttribute('id');
-    if (p.hasAttribute('data-orig-pb')) { cont.style.paddingBottom = p.getAttribute('data-orig-pb'); cont.removeAttribute('data-orig-pb'); }
+    if (p.hasAttribute('data-split-pb')) { cont.style.paddingBottom = p.getAttribute('data-split-pb'); cont.removeAttribute('data-split-pb'); }
     cont.appendChild(frag);
     cont.setAttribute('data-split-continuation', 'true');
     cont.style.textIndent = '0cm';
     cont.style.marginTop = '0px';
     cont.style.paddingTop = '0px';
-    if (!p.hasAttribute('data-orig-mb')) p.setAttribute('data-orig-mb', p.style.marginBottom || '');
+    if (!p.hasAttribute('data-split-mb')) p.setAttribute('data-split-mb', p.style.marginBottom || '');
     p.style.marginBottom = '0px';
     // son satır dolgusu (büyük puntolu paragraf sonu) yalnızca devam parçasında kalır
-    if (p.style.paddingBottom) { if (!p.hasAttribute('data-orig-pb')) p.setAttribute('data-orig-pb', p.style.paddingBottom); p.style.paddingBottom = '0px'; }
+    if (p.style.paddingBottom) { if (!p.hasAttribute('data-split-pb')) p.setAttribute('data-split-pb', p.style.paddingBottom); p.style.paddingBottom = '0px'; }
     return cont;
   }
   function mergeContinuation(head, cont) {
-    while (cont.firstChild) head.appendChild(cont.firstChild);
-    cont.remove();
-    if (head.hasAttribute('data-orig-mb')) {
-      head.style.marginBottom = head.getAttribute('data-orig-mb');
-      head.removeAttribute('data-orig-mb');
+    if (head.tagName === 'TABLE' && cont.tagName === 'TABLE') {
+      const targetBody = head.tBodies[0] || head;
+      Array.from(cont.rows || []).forEach(r => targetBody.appendChild(r));
+      cont.remove();
+    } else {
+      if (head.lastChild && head.lastChild.nodeName === 'BR') head.lastChild.remove();
+      while (cont.firstChild) head.appendChild(cont.firstChild);
+      cont.remove();
+      if (typeof window.mergeSplitSpansInBlock === 'function') {
+        window.mergeSplitSpansInBlock(head);
+      } else {
+        head.normalize();
+      }
     }
-    if (head.hasAttribute('data-orig-pb')) {
-      head.style.paddingBottom = head.getAttribute('data-orig-pb');
-      head.removeAttribute('data-orig-pb');
+    if (head.hasAttribute('data-split-mb')) {
+      head.style.marginBottom = head.getAttribute('data-split-mb');
+      head.removeAttribute('data-split-mb');
     }
-    head.normalize();
+    if (head.hasAttribute('data-split-pb')) {
+      head.style.paddingBottom = head.getAttribute('data-split-pb');
+      head.removeAttribute('data-split-pb');
+    }
   }
 
   // Gövde kutusunun doğrudan çocuklarını blok düzenine getir:
@@ -337,6 +348,16 @@
     try {
       for (let i = 0; i < all.length; i++) {
         const box = all[i];
+        // Aynı sayfa içinde yan yana kalmış bölünmüş parçaları (head + continuation) hemen birleştir
+        {
+          const sameKids = contentChildren(box);
+          for (let k = sameKids.length - 1; k > 0; k--) {
+            if (sameKids[k].getAttribute('data-split-continuation') === 'true' && sameKids[k - 1].tagName === sameKids[k].tagName) {
+              mergeContinuation(sameKids[k - 1], sameKids[k]);
+              changed = true;
+            }
+          }
+        }
         let guard = 0;
         // 1) Taşanları sonraki sayfaya it
         while (overflows(box) && guard++ < 500) {
@@ -347,6 +368,9 @@
             if (!next) { next = makePageAfter(box.closest('.a4-sheet-page')); all = bodies(); }
             const nk = contentChildren(next);
             next.insertBefore(last, nk[0] || null);
+            if (nk[0] && nk[0].getAttribute('data-split-continuation') === 'true' && last.tagName === nk[0].tagName) {
+              mergeContinuation(last, nk[0]);
+            }
             changed = true;
             continue;
           }
@@ -558,10 +582,88 @@
 
   function onKeyDown(e) {
     if (e.defaultPrevented || e.isComposing || e.ctrlKey || e.metaKey || e.altKey || isMobileFlow()) return;
-    if (!['Backspace', 'Delete', 'ArrowUp', 'ArrowDown', 'PageUp', 'PageDown'].includes(e.key)) return;
+    if (!['Backspace', 'Delete', 'ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End'].includes(e.key)) return;
     const info = caretInfo();
     if (!info || info.idx < 0) return;
     const { box, idx, all } = info;
+
+    if (e.key === 'Home' || e.key === 'End') {
+      const sel = window.getSelection();
+      if (!sel || !sel.focusNode) return;
+      const focusEl = sel.focusNode.nodeType === 1 ? sel.focusNode : sel.focusNode.parentElement;
+      const p = focusEl && focusEl.closest ? focusEl.closest('p, li, h1, h2, h3, h4, h5, h6') : null;
+      if (!p || !box.contains(p)) return;
+      const walker = document.createTreeWalker(p, NodeFilter.SHOW_TEXT, {
+        acceptNode(n) {
+          const pe = n.parentElement;
+          if (pe && pe.closest && pe.closest('.udf-list-prefix, .udf-tab-space')) return NodeFilter.FILTER_REJECT;
+          return n.nodeValue && n.nodeValue.length > 0 ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+        }
+      });
+      const tNodes = [];
+      let tn;
+      while ((tn = walker.nextNode())) tNodes.push(tn);
+      if (!tNodes.length) return;
+
+      const pRect = p.getBoundingClientRect();
+      const lh = parseFloat(getComputedStyle(p).lineHeight) || 18;
+      const scale = box.offsetHeight ? (box.getBoundingClientRect().height / box.offsetHeight) || 1 : 1;
+      const isSingleLine = pRect.height <= lh * scale * 1.65;
+
+      let targetNode, targetOff;
+      if (isSingleLine) {
+        if (e.key === 'Home') {
+          targetNode = tNodes[0];
+          targetOff = 0;
+        } else {
+          targetNode = tNodes[tNodes.length - 1];
+          targetOff = targetNode.nodeValue.length;
+        }
+      } else {
+        const focusRect = lineRect(info.rg) || pRect;
+        const lineMidY = (focusRect.top + focusRect.bottom) / 2;
+        const bandTol = Math.max(6, lh * scale * 0.55);
+        const r = document.createRange();
+        let firstOnLine = null;
+        let lastOnLine = null;
+        for (const t of tNodes) {
+          const len = t.nodeValue.length;
+          for (let ci = 0; ci < len; ci++) {
+            r.setStart(t, ci);
+            r.setEnd(t, ci + 1);
+            const rc = r.getBoundingClientRect();
+            if (!rc || (!rc.height && !rc.width)) continue;
+            const cy = (rc.top + rc.bottom) / 2;
+            if (Math.abs(cy - lineMidY) <= bandTol) {
+              if (!firstOnLine) firstOnLine = { node: t, off: ci };
+              lastOnLine = { node: t, off: ci + 1 };
+            }
+          }
+        }
+        if (e.key === 'Home') {
+          targetNode = firstOnLine ? firstOnLine.node : tNodes[0];
+          targetOff = firstOnLine ? firstOnLine.off : 0;
+        } else {
+          targetNode = lastOnLine ? lastOnLine.node : tNodes[tNodes.length - 1];
+          targetOff = lastOnLine ? lastOnLine.off : targetNode.nodeValue.length;
+        }
+      }
+      e.preventDefault();
+      if (e.shiftKey && typeof sel.extend === 'function') {
+        if (isSingleLine) {
+          const aEl = sel.anchorNode && (sel.anchorNode.nodeType === 1 ? sel.anchorNode : sel.anchorNode.parentElement);
+          if (!aEl || !p.contains(aEl) || (aEl.closest && aEl.closest('.udf-tab-space'))) {
+            const startN = e.key === 'End' ? tNodes[0] : tNodes[tNodes.length - 1];
+            const startO = e.key === 'End' ? 0 : startN.nodeValue.length;
+            sel.collapse(startN, startO);
+          }
+        }
+        sel.extend(targetNode, targetOff);
+      } else {
+        sel.collapse(targetNode, targetOff);
+      }
+      return;
+    }
 
     if (e.key === 'Backspace' && idx > 0 && atBoxStart(info)) {
       const prevBox = all[idx - 1];
@@ -577,7 +679,7 @@
         if (last.lastChild && last.lastChild.nodeName === 'BR') last.lastChild.remove();
         if (isEmptyPara(first)) first.remove();
         else { while (first.firstChild) last.appendChild(first.firstChild); first.remove(); }
-        if (last.hasAttribute('data-orig-mb')) { last.style.marginBottom = last.getAttribute('data-orig-mb'); last.removeAttribute('data-orig-mb'); }
+        if (last.hasAttribute('data-split-mb')) { last.style.marginBottom = last.getAttribute('data-split-mb'); last.removeAttribute('data-split-mb'); }
         if (!last.firstChild) last.appendChild(document.createElement('br'));
         // imleci birleşim noktasına koy
         try { prevBox.focus({ preventScroll: true }); } catch (er) { prevBox.focus(); }

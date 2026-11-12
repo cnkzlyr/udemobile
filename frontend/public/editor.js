@@ -671,71 +671,109 @@ function restoreSelectionState(saved) {
   } catch (e) {}
 }
 
+function mergeSplitSpansInBlock(root) {
+  if (!root || !root.childNodes) return;
+  let cur = root.firstChild;
+  while (cur) {
+    const nxt = cur.nextSibling;
+    if (
+      nxt && cur.nodeType === Node.ELEMENT_NODE && nxt.nodeType === Node.ELEMENT_NODE &&
+      cur.tagName === nxt.tagName &&
+      cur.tagName !== 'BR' && cur.tagName !== 'IMG' &&
+      !cur.classList.contains('udf-tab-space') &&
+      !cur.classList.contains('udf-list-prefix') &&
+      (cur.getAttribute('style') || '') === (nxt.getAttribute('style') || '') &&
+      (cur.getAttribute('class') || '') === (nxt.getAttribute('class') || '') &&
+      (cur.getAttribute('data-udf-run') || '') === (nxt.getAttribute('data-udf-run') || '')
+    ) {
+      while (nxt.firstChild) cur.appendChild(nxt.firstChild);
+      nxt.remove();
+      continue;
+    }
+    if (cur.nodeType === Node.ELEMENT_NODE) mergeSplitSpansInBlock(cur);
+    cur = cur.nextSibling;
+  }
+  root.normalize();
+}
+window.mergeSplitSpansInBlock = mergeSplitSpansInBlock;
+
 function findParagraphSplitIndex(pNode, maxH) {
   const measurer = document.getElementById('pagination-measurer');
   if (!measurer) return null;
-  const mTop = measurer.getBoundingClientRect().top;
-  const cutoffY = mTop + maxH;
 
-  const walker = document.createTreeWalker(pNode, NodeFilter.SHOW_TEXT, null, false);
-  const textNodes = [];
-  let tn;
-  while ((tn = walker.nextNode())) {
-    textNodes.push(tn);
+  const origWalker = document.createTreeWalker(pNode, NodeFilter.SHOW_TEXT, null, false);
+  const origTextNodes = [];
+  let otn;
+  while ((otn = origWalker.nextNode())) {
+    origTextNodes.push(otn);
   }
+  if (origTextNodes.length === 0) return null;
 
-  if (textNodes.length === 0) return null;
+  const mClone = pNode.cloneNode(true);
+  measurer.appendChild(mClone);
+  try {
+    const pTop = mClone.getBoundingClientRect().top;
+    const cutoffY = pTop + maxH;
 
-  const range = document.createRange();
-
-  for (let i = 0; i < textNodes.length; i++) {
-    const tNode = textNodes[i];
-    const text = tNode.nodeValue;
-    if (!text) continue;
-
-    range.setStart(tNode, 0);
-    range.setEnd(tNode, text.length);
-    const rect = range.getBoundingClientRect();
-
-    if (rect.bottom <= cutoffY) {
-      continue;
+    const walker = document.createTreeWalker(mClone, NodeFilter.SHOW_TEXT, null, false);
+    const textNodes = [];
+    let tn;
+    while ((tn = walker.nextNode())) {
+      textNodes.push(tn);
     }
 
-    if (rect.top > cutoffY) {
-      if (i === 0) return null;
-      return { splitTextNode: tNode, splitOffset: 0 };
-    }
+    const range = document.createRange();
 
-    let low = 0, high = text.length;
-    let best = 0;
-    while (low <= high) {
-      const mid = Math.floor((low + high) / 2);
+    for (let i = 0; i < textNodes.length; i++) {
+      const tNode = textNodes[i];
+      const text = tNode.nodeValue;
+      if (!text) continue;
+
       range.setStart(tNode, 0);
-      range.setEnd(tNode, mid);
-      const midRect = range.getBoundingClientRect();
-      if (midRect.bottom <= cutoffY) {
-        best = mid;
-        low = mid + 1;
-      } else {
-        high = mid - 1;
+      range.setEnd(tNode, text.length);
+      const rect = range.getBoundingClientRect();
+
+      if (rect.bottom <= cutoffY + 0.5) {
+        continue;
       }
-    }
 
-    let splitPos = best;
-    while (splitPos > 0 && !/\s/.test(text[splitPos])) {
-      splitPos--;
-    }
-    if (splitPos === 0) {
-      splitPos = best > 0 ? best : 0;
-    } else {
-      splitPos++;
-    }
+      if (rect.top > cutoffY) {
+        if (i === 0) return null;
+        return { splitTextNode: origTextNodes[i], splitOffset: 0 };
+      }
 
-    if (i === 0 && splitPos === 0) return null;
-    return { splitTextNode: tNode, splitOffset: splitPos };
+      let low = 0, high = text.length;
+      let best = 0;
+      while (low <= high) {
+        const mid = Math.floor((low + high) / 2);
+        range.setStart(tNode, 0);
+        range.setEnd(tNode, mid);
+        const midRect = range.getBoundingClientRect();
+        if (midRect.bottom <= cutoffY + 0.5) {
+          best = mid;
+          low = mid + 1;
+        } else {
+          high = mid - 1;
+        }
+      }
+
+      let splitPos = best;
+      while (splitPos > 0 && !/\s/.test(text[splitPos])) {
+        splitPos--;
+      }
+      if (splitPos === 0) {
+        splitPos = best > 0 ? best : 0;
+      } else {
+        splitPos++;
+      }
+
+      if (i === 0 && splitPos === 0) return null;
+      return { splitTextNode: origTextNodes[i], splitOffset: splitPos };
+    }
+    return null;
+  } finally {
+    if (mClone.parentNode === measurer) measurer.removeChild(mClone);
   }
-
-  return null;
 }
 
 function updatePagination() {
@@ -808,8 +846,23 @@ function updatePagination() {
       const n = allNodes[i];
       if (n.getAttribute && n.getAttribute('data-split-continuation') === 'true' && cleanNodes.length > 0) {
         const prev = cleanNodes[cleanNodes.length - 1];
-        while (n.firstChild) {
-          prev.appendChild(n.firstChild);
+        if (prev.tagName === 'TABLE' && n.tagName === 'TABLE') {
+          const targetBody = prev.tBodies[0] || prev;
+          Array.from(n.rows || []).forEach(r => targetBody.appendChild(r));
+        } else {
+          if (prev.lastChild && prev.lastChild.nodeName === 'BR') prev.lastChild.remove();
+          while (n.firstChild) {
+            prev.appendChild(n.firstChild);
+          }
+          mergeSplitSpansInBlock(prev);
+        }
+        if (prev.hasAttribute('data-split-mb')) {
+          prev.style.marginBottom = prev.getAttribute('data-split-mb');
+          prev.removeAttribute('data-split-mb');
+        }
+        if (prev.hasAttribute('data-split-pb')) {
+          prev.style.paddingBottom = prev.getAttribute('data-split-pb');
+          prev.removeAttribute('data-split-pb');
         }
       } else {
         cleanNodes.push(n);
@@ -977,11 +1030,13 @@ function updatePagination() {
             if (fit === 0 && currentPageNodes.length === 0) fit = 1; // tek satır sayfadan büyükse yine de ilerle
             if (fit > 0 && fit < rows.length) {
               const contT = node.cloneNode(false);
+              contT.removeAttribute('id');
               contT.setAttribute('data-split-continuation', 'true');
               contT.style.marginTop = '0px';
               const body = document.createElement('tbody');
               rows.slice(fit).forEach(r => body.appendChild(r));
               contT.appendChild(body);
+              if (!node.hasAttribute('data-split-mb')) node.setAttribute('data-split-mb', node.style.marginBottom || '');
               node.style.marginBottom = '0px';
               currentPageNodes.push(node);
               pagesData.push(currentPageNodes);
@@ -1014,24 +1069,37 @@ function updatePagination() {
             range.setStart(splitRes.splitTextNode, splitRes.splitOffset);
             range.setEndAfter(node.lastChild);
             const fragment = range.extractContents();
+            if (!node.textContent.replace(/\u200B/g, '').trim() && !node.querySelector('img')) {
+              node.appendChild(fragment);
+            } else {
+              const contP = node.cloneNode(false);
+              contP.removeAttribute('id');
+              if (node.hasAttribute('data-split-pb')) {
+                contP.style.paddingBottom = node.getAttribute('data-split-pb');
+                contP.removeAttribute('data-split-pb');
+              }
+              contP.appendChild(fragment);
+              contP.setAttribute('data-split-continuation', 'true');
+              contP.style.textIndent = '0cm';
+              contP.style.marginTop = '0px';
+              contP.style.paddingTop = '0px';
+              if (!node.hasAttribute('data-split-mb')) node.setAttribute('data-split-mb', node.style.marginBottom || '');
+              node.style.marginBottom = '0px';
+              if (node.style.paddingBottom) {
+                if (!node.hasAttribute('data-split-pb')) node.setAttribute('data-split-pb', node.style.paddingBottom);
+                node.style.paddingBottom = '0px';
+              }
 
-            const contP = node.cloneNode(false);
-            contP.appendChild(fragment);
-            contP.setAttribute('data-split-continuation', 'true');
-            contP.style.textIndent = '0cm';
-            contP.style.marginTop = '0px';
-            contP.style.paddingTop = '0px';
-            node.style.marginBottom = '0px';
+              currentPageNodes.push(node);
+              pagesData.push(currentPageNodes);
 
-            currentPageNodes.push(node);
-            pagesData.push(currentPageNodes);
-
-            currentPageNodes = [];
-            currentAccumHeight = 0;
-            prevMb = 0;
-            targetCap = getCapacityForPage(pagesData.length + 1);
-            nodeQueue.unshift(contP);
-            continue;
+              currentPageNodes = [];
+              currentAccumHeight = 0;
+              prevMb = 0;
+              targetCap = getCapacityForPage(pagesData.length + 1);
+              nodeQueue.unshift(contP);
+              continue;
+            }
           }
         }
 
@@ -1509,6 +1577,8 @@ function changeParagraphSpacing(val) {
   targets.forEach(p => {
     p.style.marginTop = beforePt;
     p.style.marginBottom = afterPt;
+    p.setAttribute('data-orig-mt', beforePt);
+    p.setAttribute('data-orig-mb', afterPt);
   });
   updateCounts();
   debouncedPagination();
@@ -1521,6 +1591,10 @@ function changeLineSpacing(val) {
   const targets = getSelectedParagraphs();
   targets.forEach(p => {
     p.style.lineHeight = val;
+    const numLh = parseFloat(val) || 0;
+    if (p.dataset) {
+      p.dataset.udfLinespacing = numLh > 1.15 ? String(Math.max(0, Math.round((numLh - 1.15) * 100) / 100)) : '0.0';
+    }
   });
   updateCounts();
   debouncedPagination();
@@ -2111,28 +2185,26 @@ function realignTabsInParagraph(p) {
   const PT = 1 / 28.3465; // 1pt (cm)
   const hasTabSet = !!(p.dataset && p.dataset.udfTabset && p.dataset.udfTabset.trim());
 
-  const chunkWidthAfter = (ts) => {
-    let w = 0; let n = ts.nextSibling;
-    while (n && !(n.classList && n.classList.contains('udf-tab-space'))) {
-      if (n.nodeType === Node.TEXT_NODE) {
-        const r = document.createRange(); r.selectNodeContents(n); w += r.getBoundingClientRect().width;
-      } else if (n.getBoundingClientRect) {
-        if (n.querySelector && n.querySelector('.udf-tab-space')) break;
-        w += n.getBoundingClientRect().width;
-      }
-      n = n.nextSibling;
+  const chunkWidthAfter = (ts, nextTs) => {
+    try {
+      const r = document.createRange();
+      r.setStartAfter(ts);
+      if (nextTs) r.setEndBefore(nextTs);
+      else if (p.lastChild) r.setEndAfter(p.lastChild);
+      return r.getBoundingClientRect().width / m.ppc;
+    } catch (e) {
+      return 0;
     }
-    return w / m.ppc;
   };
 
-  tabSpaces.forEach(ts => {
+  tabSpaces.forEach((ts, tsIdx) => {
     const tsRect = ts.getBoundingClientRect();
     // Satır kaydırıldıysa x, satırın başlangıcına göre ölçülür
     const curCm = Math.max(0, (tsRect.left - baseLeft) / m.ppc);
     const next = stops.find(st => st.pos > curCm + 0.01);
     let gap;
     if (next) {
-      const chunk = (next.align === 'left') ? 0 : chunkWidthAfter(ts);
+      const chunk = (next.align === 'left') ? 0 : chunkWidthAfter(ts, tabSpaces[tsIdx + 1]);
       if (next.align === 'center') gap = next.pos - curCm - chunk / 2;
       else if (next.align === 'right' || next.align === 'decimal') gap = next.pos - curCm - chunk;
       else gap = next.pos - curCm;
@@ -2151,9 +2223,9 @@ function realignTabsInParagraph(p) {
 }
 
 function realignAllTabs() {
-  const ed = document.getElementById('editor-content');
-  if (!ed) return;
-  ed.querySelectorAll('p, li, blockquote').forEach(p => {
+  const root = document.getElementById('pages-container') || document.getElementById('sheet-container') || document.getElementById('editor-content');
+  if (!root) return;
+  root.querySelectorAll('p, li, blockquote').forEach(p => {
     if (p.querySelector('.udf-tab-space') || (p.dataset && p.dataset.tabStops && p.querySelector('.udf-tab-label'))) {
       realignTabsInParagraph(p);
     }
@@ -2643,9 +2715,15 @@ function applyParagraphSettings() {
   targets.forEach(p => {
     p.style.marginTop = before;
     p.style.marginBottom = after;
+    p.setAttribute('data-orig-mt', before);
+    p.setAttribute('data-orig-mb', after);
     p.style.textIndent = firstLine;
     p.style.marginLeft = left;
     p.style.lineHeight = lineSpacing;
+    const numLh = parseFloat(lineSpacing) || 0;
+    if (p.dataset) {
+      p.dataset.udfLinespacing = numLh > 1.15 ? String(Math.max(0, Math.round((numLh - 1.15) * 100) / 100)) : '0.0';
+    }
     p.style.textAlign = currentPAlign;
   });
 
@@ -4496,6 +4574,8 @@ function setHtmlContent(content) {
     if (typeof realignAllTabs === 'function') realignAllTabs();
     updateRulerFromActiveParagraph();
     updatePagination();
+    if (typeof window.refreshDocumentOutline === 'function') window.refreshDocumentOutline();
+    if (typeof window.refreshUdfCompatBadge === 'function') window.refreshUdfCompatBadge();
   }, 100);
   setTimeout(markDocumentPristine, 350);
 }
@@ -4574,6 +4654,34 @@ function readUdfAttrs(node) {
   } catch (e) { return null; }
 }
 
+function coalesceAdjacentRuns(runs) {
+  if (!Array.isArray(runs) || runs.length < 2) return runs;
+  const out = [runs[0]];
+  for (let i = 1; i < runs.length; i++) {
+    const prev = out[out.length - 1];
+    const curr = runs[i];
+    if (
+      prev.type !== 'image' && curr.type !== 'image' &&
+      prev.udfRunIdx !== undefined && prev.udfRunIdx === curr.udfRunIdx &&
+      !!prev.bold === !!curr.bold &&
+      !!prev.italic === !!curr.italic &&
+      !!prev.underline === !!curr.underline &&
+      !!prev.subscript === !!curr.subscript &&
+      !!prev.superscript === !!curr.superscript &&
+      !!prev.strikethrough === !!curr.strikethrough &&
+      (prev.fontFamily || '') === (curr.fontFamily || '') &&
+      (prev.fontSize || 0) === (curr.fontSize || 0) &&
+      (prev.color || '') === (curr.color || '') &&
+      (prev.backgroundColor || '') === (curr.backgroundColor || '')
+    ) {
+      prev.text = (prev.text || '') + (curr.text || '');
+    } else {
+      out.push(curr);
+    }
+  }
+  return out;
+}
+
 function extractParagraphNode(node) {
   let align = 3;
   const textAlign = node.style ? node.style.textAlign : '';
@@ -4582,9 +4690,9 @@ function extractParagraphNode(node) {
   else if (textAlign === 'left') align = 0;
   else align = 3;
 
-  const runs = [];
+  const rawRuns = [];
   const skipListPrefix = !!(node.dataset && (node.dataset.udfNumbered === 'true' || node.dataset.udfBulleted === 'true'));
-  parseInlineRuns(node, runs, {
+  parseInlineRuns(node, rawRuns, {
     bold: false,
     italic: false,
     underline: false,
@@ -4595,23 +4703,25 @@ function extractParagraphNode(node) {
     fontSize: 0,
     color: '',
     backgroundColor: '',
-    skipListPrefix: skipListPrefix
+    skipListPrefix: skipListPrefix,
+    udfRunIdx: undefined
   });
 
   // Paragrafın en sonundaki tekil boş <br> kaynaklı '\n' karakterini temizle
-  if (runs.length === 1 && runs[0].type !== 'image' && runs[0].text === '\n') {
-    runs.length = 0;
+  if (rawRuns.length === 1 && rawRuns[0].type !== 'image' && rawRuns[0].text === '\n') {
+    rawRuns.length = 0;
   }
+  const runs = coalesceAdjacentRuns(rawRuns);
 
   const pText = runs.map(r => r.type === 'image' ? '\u00b8' : (r.text || '')).join('');
   const rawMt = (node.getAttribute && node.getAttribute('data-orig-mt')) || (node.style && node.style.marginTop) || '';
-  const rawMb = (node.getAttribute && node.getAttribute('data-orig-mb')) || (node.style && node.style.marginBottom) || '';
+  const rawMb = (node.getAttribute && node.getAttribute('data-orig-mb')) || (node.getAttribute && node.getAttribute('data-split-mb')) || (node.style && node.style.marginBottom) || '';
   const spaceAbove = rawMt ? (parseFloat(rawMt) || 0.0) : 0.0;
   const spaceBelow = rawMb ? (parseFloat(rawMb) || 0.0) : 0.0;
   let lineSpacing = 0.0;
   if (node.dataset && node.dataset.udfLinespacing !== undefined && node.dataset.udfLinespacing !== '') {
     lineSpacing = parseFloat(node.dataset.udfLinespacing) || 0.0;
-  } else if (node.style && node.style.lineHeight) {
+  } else if (node.style && node.style.lineHeight && !/pt|px/i.test(node.style.lineHeight)) {
     const lh = parseFloat(node.style.lineHeight) || 0.0;
     if (lh > 1.2) lineSpacing = Math.max(0, Math.round((lh - 1.15) * 100) / 100);
   }
@@ -4621,6 +4731,7 @@ function extractParagraphNode(node) {
 
   const pObj = {
     type: 'paragraph',
+    srcId: (node.getAttribute && node.getAttribute('data-udf-src-id')) || '',
     text: pText,
     align: align,
     spaceAbove: spaceAbove,
@@ -4701,6 +4812,7 @@ function extractTableNode(tableNode) {
 
   return {
     type: 'table',
+    srcId: (tableNode.getAttribute && tableNode.getAttribute('data-udf-src-id')) || '',
     border: border,
     colSpans: colSpans,
     origAttrs: readUdfAttrs(tableNode),
@@ -4789,7 +4901,7 @@ function getStructuredDocument() {
         }
         if (tagC !== 'table' && prevBlock.type === 'paragraph') {
           const contObj = extractParagraphNode(node);
-          prevBlock.runs = (prevBlock.runs || []).concat(contObj.runs || []);
+          prevBlock.runs = coalesceAdjacentRuns((prevBlock.runs || []).concat(contObj.runs || []));
           prevBlock.text = (prevBlock.text || '') + (contObj.text || '');
           continue;
         }
@@ -4798,7 +4910,7 @@ function getStructuredDocument() {
         continue;
       }
       if (node.classList && (node.classList.contains('udf-page-break') || node.classList.contains('mobile-page-divider'))) {
-        paragraphs.push({ type: 'pageBreak' });
+        paragraphs.push({ type: 'pageBreak', srcId: (node.getAttribute && node.getAttribute('data-udf-src-id')) || '' });
         continue;
       }
       const tag = node.tagName ? node.tagName.toLowerCase() : '';
@@ -4899,6 +5011,7 @@ function parseInlineRuns(element, runs, state) {
         if (st.fontSize > 0) runObj.fontSize = st.fontSize;
         if (st.color) runObj.color = st.color;
         if (st.backgroundColor) runObj.backgroundColor = st.backgroundColor;
+        if (st.udfRunIdx !== undefined && Number.isFinite(st.udfRunIdx)) runObj.udfRunIdx = st.udfRunIdx;
         runs.push(runObj);
       }
     } else if (child.nodeType === Node.ELEMENT_NODE) {
@@ -4946,12 +5059,15 @@ function parseInlineRuns(element, runs, state) {
         };
         if (st.fontFamily) tabRun.fontFamily = st.fontFamily;
         if (st.fontSize > 0) tabRun.fontSize = st.fontSize;
+        if (st.color) tabRun.color = st.color;
+        if (st.backgroundColor) tabRun.backgroundColor = st.backgroundColor;
+        if (st.udfRunIdx !== undefined && Number.isFinite(st.udfRunIdx)) tabRun.udfRunIdx = st.udfRunIdx;
         runs.push(tabRun);
         continue;
       }
       const tag = child.tagName ? child.tagName.toLowerCase() : '';
       if (tag === 'br') {
-        runs.push({
+        const brRun = {
           text: '\n',
           bold: !!st.bold,
           italic: !!st.italic,
@@ -4959,7 +5075,13 @@ function parseInlineRuns(element, runs, state) {
           subscript: !!st.subscript,
           superscript: !!st.superscript,
           strikethrough: !!st.strikethrough
-        });
+        };
+        if (st.fontFamily) brRun.fontFamily = st.fontFamily;
+        if (st.fontSize > 0) brRun.fontSize = st.fontSize;
+        if (st.color) brRun.color = st.color;
+        if (st.backgroundColor) brRun.backgroundColor = st.backgroundColor;
+        if (st.udfRunIdx !== undefined && Number.isFinite(st.udfRunIdx)) brRun.udfRunIdx = st.udfRunIdx;
+        runs.push(brRun);
         continue;
       }
       if (tag === 'img') {
@@ -4968,20 +5090,28 @@ function parseInlineRuns(element, runs, state) {
           const b64 = src.split('base64,')[1].trim();
           let wPt = parseFloat(child.dataset ? child.dataset.udfWidth : '') || 0;
           let hPt = parseFloat(child.dataset ? child.dataset.udfHeight : '') || 0;
+          const hasOrigUdfRun = !!(child.dataset && child.dataset.udfRun !== undefined && child.dataset.udfRun !== '');
           if (!wPt && child.style && child.style.width) {
             wPt = parseToCm(child.style.width) * 28.3465;
           }
           if (!hPt && child.style && child.style.height) {
             hPt = parseToCm(child.style.height) * 28.3465;
           }
-          if (!wPt) wPt = (child.width || 120) * 0.75;
-          if (!hPt) hPt = (child.height || 60) * 0.75;
-          runs.push({
+          if (!hasOrigUdfRun) {
+            if (!wPt) wPt = (child.width || 120) * 0.75;
+            if (!hPt) hPt = (child.height || 60) * 0.75;
+          }
+          const imgRun = {
             type: 'image',
             imageData: b64,
             widthPt: wPt,
             heightPt: hPt
-          });
+          };
+          const imgUdfRun = (child.dataset && child.dataset.udfRun !== undefined && child.dataset.udfRun !== '')
+            ? parseInt(child.dataset.udfRun, 10)
+            : st.udfRunIdx;
+          if (imgUdfRun !== undefined && Number.isFinite(imgUdfRun)) imgRun.udfRunIdx = imgUdfRun;
+          runs.push(imgRun);
         }
         continue;
       }
@@ -5013,6 +5143,10 @@ function parseInlineRuns(element, runs, state) {
       let bgColor = st.backgroundColor || '';
       if (child.style && child.style.backgroundColor) bgColor = child.style.backgroundColor;
 
+      const nextUdfRunIdx = (child.dataset && child.dataset.udfRun !== undefined && child.dataset.udfRun !== '')
+        ? parseInt(child.dataset.udfRun, 10)
+        : st.udfRunIdx;
+
       parseInlineRuns(child, runs, {
         bold: isB,
         italic: isI,
@@ -5024,7 +5158,8 @@ function parseInlineRuns(element, runs, state) {
         fontSize: fontSize,
         color: color,
         backgroundColor: bgColor,
-        skipListPrefix: st.skipListPrefix
+        skipListPrefix: st.skipListPrefix,
+        udfRunIdx: nextUdfRunIdx
       });
     }
   }

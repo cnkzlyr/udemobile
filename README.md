@@ -1,6 +1,6 @@
 # ⚖️ CanEditor (UdeMobile) — Çapraz Platform UYAP & Word Editörü
 
-[![Sürüm](https://img.shields.io/badge/Sürüm-v3.30.0-blue.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v3.30.0)
+[![Sürüm](https://img.shields.io/badge/Sürüm-v3.31.0-blue.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v3.31.0)
 [![Platformlar](https://img.shields.io/badge/Platformlar-Android%20%7C%20Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Web-success.svg)](https://github.com/cnkzlyr/udemobile/releases)
 [![UYAP](https://img.shields.io/badge/Format-UYAP_UDF_v1.8-0D47A1.svg)](https://uyap.gov.tr)
 [![Word](https://img.shields.io/badge/Format-MS_DOCX_OpenXML-2B579A.svg?logo=microsoft-word&logoColor=white)](https://microsoft.com)
@@ -11,14 +11,14 @@
 
 ---
 
-## 🚀 Hızlı İndirme (v3.30.0)
+## 🚀 Hızlı İndirme (v3.31.0)
 
 | Platform | Paket Dosyası | Açıklama |
 | :--- | :--- | :--- |
-| **Android (Telefon & Tablet)** | [**CanEditor-v3.30.0.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.30.0/CanEditor-v3.30.0.apk) | Güncel Android APK paketi (Termux gerektirmez) |
-| **Android (Her Zaman En Son)** | [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.30.0/CanEditor-latest.apk) | Kalıcı son sürüm bağlantısı |
-| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v3.30.0.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v3.30.0/CanEditor-Portable-Web-GUI-v3.30.0.zip) | **Kurulumsuz;** zipten çıkarıp `index.html` açarak tüm işletim sistemlerinde doğrudan çalışır |
-| **Windows / macOS / Linux** | [**GitHub Releases Sayfası**](https://github.com/cnkzlyr/udemobile/releases/tag/v3.30.0) | GitHub Actions CI ile derlenen yerel ikili (.msi, .exe, .dmg, .AppImage, .deb, .rpm) paketleri |
+| **Android (Telefon & Tablet)** | [**CanEditor-v3.31.0.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.31.0/CanEditor-v3.31.0.apk) | Güncel Android APK paketi (Termux gerektirmez) |
+| **Android (Her Zaman En Son)** | [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.31.0/CanEditor-latest.apk) | Kalıcı son sürüm bağlantısı |
+| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v3.31.0.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v3.31.0/CanEditor-Portable-Web-GUI-v3.31.0.zip) | **Kurulumsuz;** zipten çıkarıp `index.html` açarak tüm işletim sistemlerinde doğrudan çalışır |
+| **Windows / macOS / Linux** | [**GitHub Releases Sayfası**](https://github.com/cnkzlyr/udemobile/releases/tag/v3.31.0) | GitHub Actions CI ile derlenen yerel ikili (.msi, .exe, .dmg, .AppImage, .deb, .rpm) paketleri |
 
 ---
 
@@ -28,6 +28,20 @@ v3.17.0'dan itibaren APK yeni ve kalıcı bir proje anahtarıyla imzalanır (ser
 `BA:80:78:89:12:28:35:C0:58:3B:C9:72:3B:C0:90:5C:C8:6F:49:A8:1A:92:BA:F9:D0:96:33:77:71:BB:D4:F0`). Telefonunuzda
 v3.16.0 ya da öncesi kuruluysa bir kez **kaldırıp** yeni APK'yı kurun (aksi halde Android "paket çakışıyor" hatası
 verir). Sonraki güncellemeler kaldırmadan, üzerine kurulur.
+
+## 🌟 v3.31.0: CanEditor — %100 Havelsan UYAP Kaynak Koruma Motoru (Layer-1 & Layer-2) ve Modern Hukuk Çalışma Alanı
+
+- **%100 Havelsan UYAP Uyumluluk & Kaynak Koruma Motoru (`Layer-1 + Layer-2 XML Span Splicer`):**
+  - **Dokunulmadan Kaydedilen Belgeler (%100 Bayt-Bayt Birebir):** Bir `.udf` belgesi açılıp düzenlenmeden kaydedildiğinde `content.xml`, `documentproperties.xml` ve `sign.sgn` (e-imza zarfı) **%100 bayt-bayt birebir** korunur.
+  - **Kısmi Düzenlenen Belgeler (Katman-1 & Katman-2 Kaynak Ekleme):** Belgedeki bir paragraf veya satır düzenlendiğinde, dokunulmayan tüm paragraflar, tablolar, çoklu `<header>` / `<footer>` blokları, `<styles>` tanımları, `<field>`, `<space>`, `<tab>` etiketleri ve hassas kayan nokta girintileri (`SpaceAbove="5.67"`, `FirstLineIndent="35.4375"`, `Hanging="151.42857"`) orijinal XML kaynağından **birebir** korunur; yalnızca düzenlenen metin parçasının `startOffset` ve `length` değerleri yerinde güncellenir.
+  - **Sıfır Yapay Biçim Bozulması:** Sabit punto satır yüksekliğinin (`data-udf-pitch`) kaydetme sırasında yapay `LineSpacing="12.85"` olarak yazılması ve sayfa bölme (`flow.js` / `editor.js`) sırasında `SpaceBelow` (`data-orig-mb`) niteliğinin silinmesi tamamen giderildi.
+  - **Sekmeli Paragraflarda Klavye Seçimi (`Home` / `Shift+End`):** `.udf-tab-space[contenteditable="false"]` içeren satırlarda `Home` / `End` / `Shift+Home` / `Shift+End` tuşlarının 9 paragraf birden seçmesine yol açan tarayıcı hatası giderildi.
+- **Yeni Modern Arayüz Özellikleri (UYAP Uyumluluğunu Bozmadan):**
+  - **⚡ Komut Paleti (`Ctrl+K` / `⌘K`):** Dosya, UYAP/Havelsan, e-imza, dilekçe şablonları, AI formatlama ve görünüm komutlarına anında arama ile erişim.
+  - **📑 Belge Anahattı & Hukuki Bölüm Gezgini:** Mahkeme başlığı, Dosya/Esas/Karar No, Davacı/Davalı/Sanık, Konu, Açıklamalar, Hukuki Sebepler, Deliller, Sonuç ve İstem / Hüküm bölümlerini otomatik algılayan ve tek tıkla ilgili sayfaya/paragrafa kaydıran yan çekmece.
+  - **🏛️ Havelsan UYAP %100 Uyumluluk Raporu & Canlı Doğrulama:** Üst çubuktaki `🏛️ UYAP %100` rozetiyle belgenin kaynak koruma istatistiklerini ve tek tıkla çalışan canlı ZIP/XML doğrulama testini görüntüleme.
+  - **🧘 Odak Modu (Zen) & 🌙 Gece Modu / 📜 Gece Kağıdı:** Kaydedilen `.udf` dosyalarının iç stillerini hiçbir şekilde etkilemeyen, salt CSS tabanlı gece arayüzü, koyu kağıt ve dikkat dağıtmayan tam ekran yazım modu.
+  - **Chrome E-İmza Köprüsü, Yerel E-İmza & Gömülü Java Korundu:** Chrome UYAP/Celse e-imza köprüsü (`Adalet E-İmza`), editör içi Akıllı Kart (PKCS#11 / CCID), Mobil İmza ve gömülü OpenJDK 14 çalışma ortamı eksiksiz korundu.
 
 ## 🌟 v3.30.0: UYAP Editör — CanEditor ile aynı, sürüklenebilir 3 ayarlı cetvel
 

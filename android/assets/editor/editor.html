@@ -24,6 +24,7 @@
       </span>
       <input type="text" id="desktopDocTitle" value="Dilekce.udf" class="header-doc-title-input ce-title" title="Belge adı" oninput="if(window.AndroidBridge&amp;&amp;window.AndroidBridge.syncDocumentTitle)window.AndroidBridge.syncDocumentTitle(this.value)">
       <span id="desktopSigBadge" class="header-sig-badge ce-chip" onclick="checkDocumentSignature()" title="Elektronik imza durumu">⚪ İmzasız</span>
+      <span id="udfCompatBadge" class="header-sig-badge ce-chip ce-compat-chip" onclick="openUdfCompatModal()" title="Havelsan UYAP %100 Uyumluluk ve Kaynak Koruma Raporu">🏛️ UYAP %100</span>
       <span id="desktopStatusMsg" class="header-status-text ce-status">Hazır</span>
     </div>
 
@@ -39,11 +40,15 @@
           <button type="button" class="udv-search-btn" onclick="navigateInDocSearch('next')" title="Sonraki">▼</button>
         </div>
       </div>
+      <button type="button" id="btn-outline-drawer" class="ce-btn ce-btn-ghost hide-on-mobile" onclick="toggleOutlineDrawer()" title="Belge Anahattı ve Hukuki Bölümler">📑 <span class="hide-on-narrow">Anahat</span></button>
+      <button type="button" id="btn-cmd-palette" class="ce-btn ce-btn-ghost hide-on-mobile" onclick="openCommandPalette()" title="Komut Paleti (Ctrl+K)">⌘K</button>
       <button type="button" class="ce-btn ce-btn-ghost hide-on-mobile" onclick="triggerOpenDocument()" title="Aç (Ctrl+O)">Aç</button>
       <button type="button" id="btn-quick-save" class="ce-btn ce-btn-primary" onclick="triggerQuickSave()" title="Kaydet (Ctrl+S)">
         <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M17 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7l-4-4zm-5 16a3 3 0 1 1 0-6 3 3 0 0 1 0 6zm3-10H5V5h10v4z"/></svg>
         <span class="hide-on-mobile">Kaydet</span>
       </button>
+      <button type="button" id="btn-focus-mode" class="ce-icon-btn hide-on-mobile" onclick="toggleFocusMode()" title="Odak Modu (Dikkat dağıtmayan yazım)">🧘</button>
+      <button type="button" id="btn-dark-mode" class="ce-icon-btn" onclick="toggleDarkMode()" title="Gece Modu (Koyu arayüz)">🌙</button>
       <button type="button" id="pill-toggle-view" class="ce-icon-btn" onclick="toggleViewMode()" title="Görünüm: Sayfa / Mobil akış">📱</button>
       <button type="button" id="pill-mobile-menu" class="ce-icon-btn show-on-mobile-only" onclick="openMobileMenuModal()" title="Tüm işlemler">☰</button>
     </div>
@@ -107,6 +112,11 @@
       <div class="ce-menu-pop">
         <button onclick="switchToPaperViewFlow()">Sayfa Görünümü</button>
         <button onclick="switchToMobileViewFlow()">Mobil Akış Görünümü</button>
+        <hr>
+        <button onclick="toggleOutlineDrawer()">📑 Belge Anahattı (Bölümler)</button>
+        <button onclick="toggleFocusMode()">🧘 Odak Modu (Zen Yazım)</button>
+        <button onclick="toggleDarkMode()">🌙 Gece Modu (Koyu Arayüz)</button>
+        <button onclick="toggleDarkPaperMode()">📜 Gece Kağıdı (Koyu Sayfa)</button>
         <hr>
         <button id="btn-toggle-ruler" onclick="toggleRuler()">Cetvel</button>
         <button onclick="fitToWidth()">Genişliğe Sığdır</button>
@@ -181,6 +191,10 @@
     </div>
     <div class="ce-menu"><button type="button" class="ce-menu-title">Araçlar</button>
       <div class="ce-menu-pop">
+        <button onclick="openCommandPalette()">⚡ Komut Paleti… <kbd>Ctrl+K</kbd></button>
+        <button onclick="openUdfCompatModal()">🏛️ Havelsan UYAP Uyumluluk Raporu…</button>
+        <button onclick="toggleOutlineDrawer()">📑 Belge Anahattı ve Hukuki Bölümler</button>
+        <hr>
         <button onclick="openAiFormatModal()">Dilekçeyi Otomatik Biçimlendir…</button>
         <button onclick="openDocStatsModal()">Kelime Sayısı…</button>
       </div>
@@ -997,6 +1011,14 @@
         <button type="button" class="drawer-item" onclick="closeModal('modal-mobile-menu'); triggerDirectPrint();">🖨️ Yazıcıya Yazdır</button>
         <button type="button" class="drawer-item" onclick="closeModal('modal-mobile-menu'); openPrintPreview();">👁️ Yazdırma Önizleme</button>
         <div class="drawer-divider"></div>
+        <div class="drawer-section-label">MODERN GÖRÜNÜM &amp; UYAP UYUM</div>
+        <button type="button" class="drawer-item" onclick="closeModal('modal-mobile-menu'); openCommandPalette();">⚡ Komut Paleti (Hızlı İşlem Ara)</button>
+        <button type="button" class="drawer-item" onclick="closeModal('modal-mobile-menu'); toggleOutlineDrawer();">📑 Belge Anahattı ve Hukuki Bölümler</button>
+        <button type="button" class="drawer-item" onclick="closeModal('modal-mobile-menu'); openUdfCompatModal();">🏛️ Havelsan UYAP %100 Uyum Raporu</button>
+        <button type="button" class="drawer-item" onclick="closeModal('modal-mobile-menu'); toggleFocusMode();">🧘 Odak Modu (Zen Yazım)</button>
+        <button type="button" class="drawer-item" onclick="closeModal('modal-mobile-menu'); toggleDarkMode();">🌙 Gece Modu (Koyu Arayüz)</button>
+        <button type="button" class="drawer-item" onclick="closeModal('modal-mobile-menu'); toggleDarkPaperMode();">📜 Gece Kağıdı (Koyu Sayfa)</button>
+        <div class="drawer-divider"></div>
         <div class="drawer-section-label">HUKUK &amp; E-İMZA ARAÇLARI</div>
         <button type="button" class="drawer-item" onclick="closeModal('modal-mobile-menu'); openFindReplaceModal();">🔍 Bul ve Değiştir</button>
         <button type="button" class="drawer-item" onclick="closeModal('modal-mobile-menu'); insertAmountInWords();">💰 Tutarı Yazıyla Ekle</button>
@@ -1007,6 +1029,112 @@
         <button type="button" class="drawer-item" onclick="closeModal('modal-mobile-menu'); openPageSetupModal();">📐 Sayfa Yapısı &amp; Kenarlar</button>
         <button type="button" class="drawer-item" onclick="closeModal('modal-mobile-menu'); openDocStatsModal();">ℹ️ Belge İstatistikleri</button>
         <button type="button" class="drawer-item" onclick="closeModal('modal-mobile-menu'); checkForUpdates(true);">🔄 Güncellemeleri Denetle</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ODAK MODU ÇIKIŞ HAPI -->
+  <button type="button" id="ce-focus-exit-pill" class="ce-focus-exit-pill" onclick="toggleFocusMode()" style="display: none;">
+    🧘 Odak Modundan Çık <kbd>Esc</kbd>
+  </button>
+
+  <!-- BELGE ANAHATTI VE HUKUKİ BÖLÜM GEZGİNİ (YAN ÇEKMECE) -->
+  <aside id="ce-outline-drawer" class="ce-outline-drawer" aria-label="Belge Anahattı" style="display: none;">
+    <div class="ce-outline-header">
+      <div class="ce-outline-title">
+        <span>📑</span>
+        <strong>Belge Anahattı</strong>
+      </div>
+      <div class="ce-outline-actions">
+        <button type="button" class="ce-outline-icon-btn" onclick="refreshDocumentOutline()" title="Anahattı Yenile">↻</button>
+        <button type="button" class="ce-outline-icon-btn" onclick="toggleOutlineDrawer(false)" title="Kapat">✕</button>
+      </div>
+    </div>
+    <div class="ce-outline-search-wrap">
+      <input type="text" id="ce-outline-search" class="ce-outline-search" placeholder="Başlık, mahkeme veya bölüm ara…" oninput="filterDocumentOutline(this.value)">
+    </div>
+    <div id="ce-outline-summary" class="ce-outline-summary">
+      <span id="ce-outline-page-pill">1 Sayfa</span>
+      <span id="ce-outline-para-pill">1 Paragraf</span>
+      <span id="ce-outline-sec-pill">0 Bölüm</span>
+    </div>
+    <div id="ce-outline-list" class="ce-outline-list"></div>
+  </aside>
+
+  <!-- KOMUT PALETİ MODALI (Ctrl+K / ⌘K) -->
+  <div id="modal-command-palette" class="ce-cmd-backdrop" style="display: none;" onclick="if(event.target===this)closeCommandPalette()">
+    <div class="ce-cmd-card" role="dialog" aria-modal="true" aria-label="Komut Paleti">
+      <div class="ce-cmd-search-bar">
+        <span class="ce-cmd-search-icon">⚡</span>
+        <input type="text" id="ce-cmd-input" class="ce-cmd-input" placeholder="Komut, şablon, biçimlendirme veya e-imza işlemi arayın… (Esc ile kapat)" autocomplete="off" spellcheck="false">
+        <kbd class="ce-cmd-esc-hint">Esc</kbd>
+      </div>
+      <div id="ce-cmd-list" class="ce-cmd-list"></div>
+      <div class="ce-cmd-footer">
+        <span><kbd>↑</kbd> <kbd>↓</kbd> Gezin</span>
+        <span><kbd>Enter</kbd> Çalıştır</span>
+        <span><kbd>Ctrl+K</kbd> Komut Paleti</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- HAVELSAN UYAP %100 UYUMLULUK VE KAYNAK KORUMA RAPORU MODALI -->
+  <div id="modal-udf-compat" class="modal-backdrop" style="display: none;" onclick="if(event.target===this)closeModal('modal-udf-compat')">
+    <div class="modal-card ce-compat-modal-card">
+      <div class="modal-header ce-compat-header">
+        <h3>🏛️ Havelsan UYAP %100 Uyumluluk &amp; Kaynak Koruma Raporu</h3>
+        <button class="modal-close" onclick="closeModal('modal-udf-compat')">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="ce-compat-hero">
+          <div class="ce-compat-hero-badge">✓ %100 HAVELSAN UYAP FORMAT_ID 1.8 GARANTİSİ</div>
+          <p class="ce-compat-hero-desc">
+            CanEditor, açılan <code>.udf</code> belgelerinin <code>content.xml</code> yapısını, <code>documentproperties.xml</code> ikili verisini ve <code>sign.sgn</code> e-imza zarfını doğrudan kaynak koruma (Layer-1 &amp; Layer-2 XML Span Splicing) motoruyla işler.
+          </p>
+        </div>
+
+        <div class="ce-compat-grid">
+          <div class="ce-compat-stat-box">
+            <span class="ce-compat-stat-label">Kaynak Koruma Motoru</span>
+            <strong id="compat-stat-mode" class="ce-compat-stat-val">Katman 1 + Katman 2 Aktif</strong>
+          </div>
+          <div class="ce-compat-stat-box">
+            <span class="ce-compat-stat-label">Toplam Belge Bloğu</span>
+            <strong id="compat-stat-total-blocks" class="ce-compat-stat-val">0</strong>
+          </div>
+          <div class="ce-compat-stat-box">
+            <span class="ce-compat-stat-label">Birebir Korunan Blok</span>
+            <strong id="compat-stat-untouched" class="ce-compat-stat-val" style="color: #16A34A;">0</strong>
+          </div>
+          <div class="ce-compat-stat-box">
+            <span class="ce-compat-stat-label">Kısmi Düzenlenen (Layer-2)</span>
+            <strong id="compat-stat-partial" class="ce-compat-stat-val" style="color: #2563EB;">0</strong>
+          </div>
+          <div class="ce-compat-stat-box">
+            <span class="ce-compat-stat-label">Korunan Özel Etiket (&lt;field&gt;/&lt;tab&gt;/&lt;space&gt;)</span>
+            <strong id="compat-stat-runs" class="ce-compat-stat-val">0</strong>
+          </div>
+          <div class="ce-compat-stat-box">
+            <span class="ce-compat-stat-label">Paragraf Satır Sonu Modu</span>
+            <strong id="compat-stat-nl-mode" class="ce-compat-stat-val">Standart</strong>
+          </div>
+        </div>
+
+        <div class="ce-compat-checklist" id="compat-checklist-box">
+          <div class="ce-compat-check-item"><span>🟢</span> <div><strong>Dokunulmamış Paragraflar:</strong> Hassas kayan nokta girintileri (örn. <code>SpaceAbove="5.67"</code>, <code>FirstLineIndent="35.204082"</code>), <code>&lt;field&gt;</code>, <code>&lt;space&gt;</code>, <code>&lt;tab&gt;</code> ve <code>&lt;style&gt;</code> nitelikleri bayt-bayt korunur.</div></div>
+          <div class="ce-compat-check-item"><span>🟢</span> <div><strong>Düzenlenen Paragraflar:</strong> Yalnızca değişen metin parçasının <code>startOffset</code> ve <code>length</code> değerleri güncellenir; yapay <code>LineSpacing</code> eklenmez.</div></div>
+          <div class="ce-compat-check-item"><span>🟢</span> <div><strong>Üstbilgi / Altbilgi / ZIP Zarfı:</strong> Çoklu <code>&lt;footer&gt;</code> blokları, <code>&lt;styles&gt;</code>, <code>documentproperties.xml</code> ve <code>sign.sgn</code> korunur.</div></div>
+          <div class="ce-compat-check-item"><span>🟢</span> <div><strong>E-İmza &amp; Chrome Köprüsü:</strong> Masaüstü/Mobil yerel Akıllı Kart (PKCS#11 / CCID), Mobil İmza, gömülü Java (OpenJDK) ve Chrome UYAP e-imza köprüsü tam aktiftir.</div></div>
+        </div>
+
+        <div id="compat-live-test-result" class="ce-compat-live-result" style="display: none;"></div>
+      </div>
+      <div class="modal-footer" style="display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap;">
+        <button type="button" class="modal-btn secondary" onclick="runLiveUdfCompatCheck()">🔬 Anlık UDF Uyumluluk Testi Çalıştır</button>
+        <div style="display: flex; gap: 8px;">
+          <button type="button" class="modal-btn secondary" onclick="uyapEditordeAc()">🏛️ Orijinal UYAP Editör'de Aç</button>
+          <button type="button" class="modal-btn primary" onclick="closeModal('modal-udf-compat')">Tamam</button>
+        </div>
       </div>
     </div>
   </div>
@@ -1030,11 +1158,13 @@
       <span id="desktopWordCount">0 kelime, 0 karakter</span>
       <span>•</span>
       <span>A4 Baskı Düzeni</span>
+      <span>•</span>
+      <span id="footerCompatStatus" style="color: #4ADE80; cursor: pointer; font-weight: 600;" onclick="openUdfCompatModal()">✓ Havelsan UYAP %100 Uyumlu</span>
     </div>
     <div style="display: flex; gap: 16px; align-items: center;">
-      <span style="opacity: 0.7;">Kısayollar: <b>Ctrl+O</b> Aç • <b>Ctrl+S</b> UDF • <b>Ctrl+Shift+S</b> Word • <b>Ctrl+P</b> PDF/Yazdır</span>
+      <span style="opacity: 0.7;">Kısayollar: <b>Ctrl+K</b> Komut Paleti • <b>Ctrl+O</b> Aç • <b>Ctrl+S</b> UDF • <b>Ctrl+P</b> PDF/Yazdır</span>
       <span>•</span>
-      <span style="color: #38BDF8; font-weight: 600;">CanEditor v3.16.0 (Cross-Platform)</span>
+      <span style="color: #38BDF8; font-weight: 600;">CanEditor v3.31.0 (Cross-Platform)</span>
     </div>
   </footer>
 
