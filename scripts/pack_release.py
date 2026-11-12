@@ -7,7 +7,7 @@ import shutil
 import zipfile
 import subprocess
 
-VERSION = "3.20.0"
+VERSION = "3.27.0"
 XZ_SHA256 = "211b306cfc44f8f96df3a0a3ddaf75ba8c5289eed77d60d72f889bb855f535e5"
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 IS_WINDOWS = os.name == "nt"

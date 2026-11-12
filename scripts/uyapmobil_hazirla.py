@@ -51,6 +51,11 @@ FLATLAF = ("https://repo1.maven.org/maven2/com/formdev/flatlaf/3.5.4/flatlaf-3.5
            "3c34b6aeb2f170a954c4358647eb43b68b447a2c351ff311072f7157a5d4e2fe")
 FONTLAR = ("http://deb.debian.org/debian/pool/main/f/fonts-liberation/fonts-liberation_2.1.5-3_all.deb",
            "3d5c47480067b9615f6bf9b0eda6eefcab9d837af609827015445e8e759b5b8c")
+# Windows yazı tiplerinin orijinal kurulum dosyalarını (LZX sıkıştırmalı CAB) telefonda açmak için (YaziTipleri.java)
+CABEXTRACT = [("http://deb.debian.org/debian/pool/main/c/cabextract/cabextract_1.11-2+b3_arm64.deb",
+               "aeadb8e1ddc330f5509f312a236f2f3592e1eec662ee4e0b7da53a923f1447d4"),
+              ("http://deb.debian.org/debian/pool/main/libm/libmspack/libmspack0t64_0.11-2_arm64.deb",
+               "599f2e3ed95729b91210628907e3dda28e0f319bb18217007d644f5c0745fc1c")]
 GLIBC_DEPO = "https://packages-cf.termux.dev/apt/termux-glibc"
 GLIBC_PAKETLER = ["glibc", "gcc-libs-glibc", "zlib-glibc", "libx11-glibc", "libxext-glibc", "libxrender-glibc",
                   "libxtst-glibc", "libxi-glibc", "libxau-glibc", "libxdmcp-glibc", "libxcb-glibc", "freetype-glibc",
@@ -303,13 +308,27 @@ def main():
             sys.exit("aarch64-linux-gnu-gcc yok (apt install gcc-aarch64-linux-gnu)")
         os.makedirs(os.path.join(rt, "bin"), exist_ok=True)
         uyapjava = os.path.join(rt, "bin", "uyapjava")
-        subprocess.run([gcc, "-O2", "-s", "-I", os.path.join(jdk_x64, "include"), "-I", os.path.join(jdk_x64, "include", "linux"),
+        subprocess.run([gcc, "-O2", "-s", "-rdynamic", "-I", os.path.join(jdk_x64, "include"), "-I", os.path.join(jdk_x64, "include", "linux"),
                         "-o", uyapjava, os.path.join(KAYNAK, "baslatici", "uyapjava.c"), "-ldl", "-lpthread"], check=True)
         glibc_ham = os.path.join(ON, "glibc-ham")
         shutil.rmtree(glibc_ham, ignore_errors=True)
         surumler = glibc_paketleri(glibc_ham)
         glibc_sec(jre, uyapjava, glibc_ham, os.path.join(rt, "glibc"))
         soy(rt)
+        adim("cabextract (aarch64, Debian; Windows yazı tipi kurulumları için)")
+        for url, sha in CABEXTRACT:
+            with deb_veri(indir(url, sha)) as t:
+                for m in t.getmembers():
+                    ad = os.path.basename(m.name)
+                    if m.isfile() and ad == "cabextract":
+                        hedef = os.path.join(rt, "bin", "cabextract")
+                    elif m.isfile() and ad.startswith("libmspack.so"):
+                        hedef = os.path.join(rt, "glibc", "libmspack.so.0")
+                    else:
+                        continue
+                    with t.extractfile(m) as kaynak, open(hedef, "wb") as f:
+                        shutil.copyfileobj(kaynak, f)
+                    os.chmod(hedef, 0o755)
         adim("yazı tipleri (Liberation)")
         fd = os.path.join(rt, "fonts")
         os.makedirs(fd, exist_ok=True)
@@ -327,6 +346,7 @@ def main():
                     "- Termux glibc paketleri (LGPL-2.1+/GPL; gcc-libs: GPLv3 + GCC Runtime Library Exception; X11: MIT)\n"
                     "  kaynak: https://github.com/termux-pacman/glibc-packages · sürümler: " + ", ".join(f"{k} {v}" for k, v in surumler.items()) + "\n"
                     "- Liberation Fonts 2.1.5 (SIL Open Font License 1.1)\n"
+                    "- cabextract 1.11 (GPLv3) ve libmspack 0.11 (LGPL-2.1) — Debian arm64; kaynak: https://www.cabextract.org.uk/\n"
                     "- Caciocavallo 1.11.1 (GPLv2 + Classpath Exception)\n")
         for lis in glob.glob(os.path.join(jre, "legal", "java.base", "*")):
             shutil.copyfile(lis, os.path.join(hk, "JDK-" + os.path.basename(lis)))

@@ -1,6 +1,6 @@
 # ⚖️ CanEditor (UdeMobile) — Çapraz Platform UYAP & Word Editörü
 
-[![Sürüm](https://img.shields.io/badge/Sürüm-v3.20.0-blue.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v3.20.0)
+[![Sürüm](https://img.shields.io/badge/Sürüm-v3.27.0-blue.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v3.27.0)
 [![Platformlar](https://img.shields.io/badge/Platformlar-Android%20%7C%20Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Web-success.svg)](https://github.com/cnkzlyr/udemobile/releases)
 [![UYAP](https://img.shields.io/badge/Format-UYAP_UDF_v1.8-0D47A1.svg)](https://uyap.gov.tr)
 [![Word](https://img.shields.io/badge/Format-MS_DOCX_OpenXML-2B579A.svg?logo=microsoft-word&logoColor=white)](https://microsoft.com)
@@ -11,14 +11,14 @@
 
 ---
 
-## 🚀 Hızlı İndirme (v3.20.0)
+## 🚀 Hızlı İndirme (v3.27.0)
 
 | Platform | Paket Dosyası | Açıklama |
 | :--- | :--- | :--- |
-| **Android (Telefon & Tablet)** | [**CanEditor-v3.20.0.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.20.0/CanEditor-v3.20.0.apk) | Güncel Android APK paketi (Termux gerektirmez) |
-| **Android (Her Zaman En Son)** | [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.20.0/CanEditor-latest.apk) | Kalıcı son sürüm bağlantısı |
-| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v3.20.0.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v3.20.0/CanEditor-Portable-Web-GUI-v3.20.0.zip) | **Kurulumsuz;** zipten çıkarıp `index.html` açarak tüm işletim sistemlerinde doğrudan çalışır |
-| **Windows / macOS / Linux** | [**GitHub Releases Sayfası**](https://github.com/cnkzlyr/udemobile/releases/tag/v3.20.0) | GitHub Actions CI ile derlenen yerel ikili (.msi, .exe, .dmg, .AppImage, .deb, .rpm) paketleri |
+| **Android (Telefon & Tablet)** | [**CanEditor-v3.27.0.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.27.0/CanEditor-v3.27.0.apk) | Güncel Android APK paketi (Termux gerektirmez) |
+| **Android (Her Zaman En Son)** | [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.27.0/CanEditor-latest.apk) | Kalıcı son sürüm bağlantısı |
+| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v3.27.0.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v3.27.0/CanEditor-Portable-Web-GUI-v3.27.0.zip) | **Kurulumsuz;** zipten çıkarıp `index.html` açarak tüm işletim sistemlerinde doğrudan çalışır |
+| **Windows / macOS / Linux** | [**GitHub Releases Sayfası**](https://github.com/cnkzlyr/udemobile/releases/tag/v3.27.0) | GitHub Actions CI ile derlenen yerel ikili (.msi, .exe, .dmg, .AppImage, .deb, .rpm) paketleri |
 
 ---
 
@@ -28,6 +28,101 @@ v3.17.0'dan itibaren APK yeni ve kalıcı bir proje anahtarıyla imzalanır (ser
 `BA:80:78:89:12:28:35:C0:58:3B:C9:72:3B:C0:90:5C:C8:6F:49:A8:1A:92:BA:F9:D0:96:33:77:71:BB:D4:F0`). Telefonunuzda
 v3.16.0 ya da öncesi kuruluysa bir kez **kaldırıp** yeni APK'yı kurun (aksi halde Android "paket çakışıyor" hatası
 verir). Sonraki güncellemeler kaldırmadan, üzerine kurulur.
+
+## 🌟 v3.27.0: UYAP Editör — tam dokunmatik seçim, yerel pencere paneli (mobil imza / e-imza), iki parmakla yakınlaştırma
+
+- **Seçim:** çift dokunma kelimeyi seçer; basılı tutup sürükleme kelime kelime genişletir (büyüteçle); mavi tutamaçlar
+  seçimin uçlarını sürükler; seçimin üstünde **Kes · Kopyala · Yapıştır · Tümünü seç** çubuğu. Hem kağıt hem mobil görünümde.
+- **Yerel pencere paneli:** resmi editörün pencereleri (Mobil İmza, e-imza PIN'i, sertifika/imza seçimi, uyarı ve soru
+  pencereleri, İmzalar) alttan kayan, dokunmaya uygun bir panel olarak açılır: büyük alanlar, sayısal klavye, radyo ve
+  onay seçenekleri, listeler; yazılanlar orijinal pencereye gider, düğmeler orijinal düğmeye basar. Pencere değişince
+  (ör. doğrulama kodu gelince) panel yerinde güncellenir. Yansıtılamayan pencereler (yazdırma önizlemesi) büyütülerek
+  gösterilir; "Orijinal" ile her zaman asıl pencereye geçilebilir.
+- **İki parmakla yakınlaştırma** kağıt ve mobil görünümde (odak noktası sabit); sayfalar yumuşak belirir.
+
+## 🌟 v3.26.1: UYAP Editör — imleç dokunulan yere gider
+
+- **Düzeltme:** kağıt görünümünde imleç dokunulan yere gitmiyordu; resmi editörün %98 iç yakınlaştırması hesaba
+  katılmıyordu (sapma belge sonuna doğru büyüyordu). Artık dokunulan kelimeye konur, imleç satırla hizalıdır.
+- Mobil görünüm boş belgede de tam sayfa görünür; uygulama her açılışta kağıt görünümüyle başlar.
+
+## 🌟 v3.26.0: UYAP Editör — anında yazma, tüm Windows yazı tipleri, düzgün sayfa sayısı
+
+- **Yazma gecikmesi giderildi:** görünüm artık artımlı güncellenir (yalnızca değişen paragraf); basılan harf motor
+  yanıtını beklemeden anında görünür. Kağıt görünümünde yazma çalışır; uzun belgelerde yalnızca ekrandaki sayfalar çizilir.
+- **Windows yazı tipleri:** Times New Roman, Arial, Arial Black, Courier New, Georgia, Verdana, Trebuchet MS,
+  Comic Sans MS, Impact, Andale Mono, Webdings — ilk açılışta Microsoft'un orijinal kurulum dosyalarından bu cihaza
+  kurulur; yazı tipi listesinde gerçek adlarıyla, kendi görünümleriyle çıkar.
+- **Düzeltmeler:** fazladan boş sayfalar, büyük imleç; ek tuş satırı yalnızca klavye açıkken (klavyenin üstünde),
+  yakınlaştırma kapsülü klavye açıkken gizli; görünüm düğmesi mevcut görünümü gösterir; "Dialog" → "Varsayılan".
+
+## 🌟 v3.25.0: UYAP Editör — CanEditor arayüzü + arkada orijinal Havelsan motoru (Kağıt / Mobil)
+
+- **Kağıt görünümü (varsayılan):** resmi motorun kendi sayfa, satır ve kelime konumlarıyla birebir A4 sayfalar —
+  satır kırılımı, iki yana yaslama, sekmeler, üst/alt bilgi ve sayfa sonları orijinalle aynı; metin HTML olduğu için
+  her yakınlaştırmada keskin. Dokunduğunuz yer motorda imleç olur, uzun basıp sürükleyince seçilir, yazdıklarınız ve
+  araç çubuğu komutları orijinal belgede uygulanır.
+- **📱 Mobil ⇄ 📄 Kağıt anında**, kaydetmeden. Orijinal ekran ☰ menüde (ya da 📱'ya uzun basın).
+- **Motorun pencereleri** (imza, mobil imza, yazdırma önizlemesi, uyarılar) açılınca büyütülerek gösterilir, kapanınca
+  görünüm geri gelir; pencere metinleri günlüğe yazılır.
+- **Düzeltme — internet:** gömülü glibc DNS ayarını Termux klasöründe arıyordu; motor hiçbir sunucuya ulaşamıyordu
+  (mobil imza hatası, "Sertifika Zinciri Sorunlu / geçersiz imza"). Artık telefonun DNS sunucuları kullanılır.
+- Yakınlaştırma kapsülü ve ek tuşlar opak; PDF/ODT olarak kaydederken belgenin adı önerilir.
+
+## 🌟 v3.24.1: UYAP Editör — Türkçe harfli dosyalar açılıyor
+
+- **Düzeltme:** adında İ, ş, ç, ı, ğ, ö, ü olan belgeler açılmıyor, Aç/Kaydet pencereleri hata veriyordu
+  ("Malformed input or input contains unmappable characters"). Telefonda Java'nın dosya adı kodlaması ASCII
+  kalıyordu; başlatıcı artık her zaman UTF-8 kullanır.
+
+## 🌟 v3.24.0: UYAP Editör — anlık mobil görünüm (kaydetmeden, imzalara dokunmadan)
+
+- **📱 ⇄ 📄 anında:** mobil görünüm, resmi editörün BELLEKTEKİ belgesini telefon genişliğinde satır kırarak gösterir.
+  Kaydetme, dönüştürme ya da başka editöre aktarma yok: belge, imzalar ve dosya olduğu gibi kalır.
+- **Mobilde düzenleme:** dokunduğunuz yer resmi editörde imleç olur, klavyeyle yazdıklarınız resmi editöre gider ve mobil
+  görünüm anında güncellenir; araç çubuğu (K, T, A, hizalama…) seçili metne resmi editörde uygulanır.
+- **Belge açılmazsa** neden ekranda gösterilir (açık uyarı penceresi, hata, dosya durumu) ve "Günlüğü gönder" ile
+  WhatsApp/e-posta üzerinden tek dokunuşla iletilir.
+- "CanEditor'da düzenle" isteğe bağlı olarak menüde (dosyayı kaydeder).
+
+## 🌟 v3.23.0: UYAP Editör — CanEditor düzeninde orijinal editör, anında Mobil ⇄ Sayfa
+
+- **Düzeltme:** 3.22.0'da bulanık zemin tüm ekranı kaplıyor, üst çubuk ve editör görünmüyordu.
+- **CanEditor düzeni:** üstte 🏛 · belge adı · mavi 💾 Kaydet · 📱 Mobil · ☰; ikinci satırda geri al/yinele, yazı tipi ve
+  boyut kutuları, K T A S, renk, vurgu, hizalama, listeler, girinti. Altta yakınlaştırma kapsülü
+  (− %100 Sığdır + ↔ Sığdır ↕ Sayfa, bulanık cam) ve mavi klavye düğmesi.
+- **☰ Menü (CanEditor gibi):** Kaydet (1-tık), Belge Aç, Yeni, Mobil görünüm; Farklı kaydet (UDF/PDF/ODT), Yazdır,
+  E-imza araçları ve resmi editörün TÜM menüleri.
+- **Sayfa görünümü = orijinal UYAP Editör** (pencere başlığı gizli, üstte cetvel). **📱 Mobil** ile belge kaydedilip
+  CanEditor'ın akış görünümünde açılır; "🏛 Orijinal Sayfa Görünümü" ile kaydedip geri dönülür, belge yeniden yüklenir.
+
+## 🌟 v3.22.0: UYAP Editör — yeni arayüz (Google Dokümanlar tarzı) ve mobil görünüm
+
+- **Yeni arayüz:** üstte belge adı, geri al / yinele, mobil görünüm; altta biçim çubuğu (K, T, A, renk, vurgu, hizalama,
+  listeler, girinti). Çubuklar yarı saydam **bulanık cam**: belge altlarından kayar (Android 12+). Çekmece menü, alttan
+  kayan sayfalar ve dokunma efektleri animasyonlu.
+- **"A" biçim sayfası:** Metin (yazı tipi, boyut −/+, K T A S, alt/üst simge, renk, vurgu, temizle, stil) ve
+  Paragraf (hizalama, listeler, girinti, satır aralığı) sekmeleri.
+- **Mobil görünüm:** belge UdeMobile'ın telefon ekranına göre satır kıran editöründe açılır; orada kaydedip dönünce
+  UYAP Editör'de yeniden yüklenir.
+- **Düzeltme:** telefondan açılan belge için yanlış "Kaydedildi: İndirilenler/UYAP" mesajı ve gereksiz kopya kaldırıldı;
+  belge açılınca arkadaki boş pencere kapatılır, açılırken "Belge açılıyor…" göstergesi çıkar.
+
+## 🌟 v3.21.0: UYAP Editör — dokunmatik menüler ve telefonun dosya seçicisi
+
+- **☰ Menü:** Resmi editörün TÜM komutları (Dosya, Giriş, Düzenle, Ekle, Biçim, Araçlar, Görünüm) büyük, dokunmaya
+  uygun satırlarla soldan açılan menüde. Komutlar editörün kendi menü öğelerine tıklanarak çalışır (birebir aynı davranış).
+- **Aa biçim çubuğu:** Stil, yazı tipi, boyut, Kalın/İtalik/Altı çizili, renk, hizalama ve listeler büyük düğmelerle.
+- **Şerit menü gizlenir** (☰ > Şeridi göster ile geri gelir): belgeye daha çok yer kalır.
+- **Aç / Kaydet / Farklı kaydet / Resim ekle** artık telefonun kendi dosya seçicisini açar (İndirilenler, sdcard, Drive,
+  WhatsApp…; depolama izni gerekmez). Kaydedilen belge seçtiğiniz yere yazılır.
+
+## 🌟 v3.20.1: UYAP Editör — dosyaya dokununca belge açılıyor, Aç/Kaydet /sdcard'da
+
+- **Düzeltme:** Dosya yöneticisinden / WhatsApp'tan .udf'ye dokununca UYAP Editör boş belge açıyordu. Telefonda editörün
+  ana penceresi geç kurulduğu için belge çok erken isteniyor ve kayboluyordu; artık ana pencere hazır olana kadar beklenir.
+- **Aç / Kaydet / Farklı kaydet** pencereleri telefonun depolamasında (`/sdcard`) başlar (ilk açılışta depolama izni istenir).
+- İndirme: `UYAP-Editor-v3.20.1.apk`, `CanEditor-v3.20.1.apk`.
 
 ## 🌟 v3.20.0: 🏛️ UYAP Editör artık AYRI uygulama (UYAP-Editor-v3.20.0.apk)
 

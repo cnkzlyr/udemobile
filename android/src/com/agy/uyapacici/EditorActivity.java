@@ -127,6 +127,62 @@ public class EditorActivity extends Activity {
         new Thread(this::ensureEimzaServiceRunning).start();
 
         loadIncomingFile();
+        if (getIntent().getBooleanExtra(EXTRA_UYAP_SAYFA, false)) sayfaGorunumuDugmesi();
+    }
+
+    /** UYAP Editör uygulamasından "📱 Mobil görünüm" ile açıldı: geri dönüş düğmesi gösterilir. */
+    public static final String EXTRA_UYAP_SAYFA = "uyap_sayfa_gorunumu";
+
+    /**
+     * "🏛 Orijinal Sayfa Görünümü": belge değiştiyse önce kaydedilir (aynı dosyaya), sonra UYAP Editör'e dönülür;
+     * UYAP Editör belgeyi yeniden yükler.
+     */
+    private void sayfaGorunumuDugmesi() {
+        final android.widget.TextView t = new android.widget.TextView(this);
+        t.setText("🏛  Orijinal Sayfa Görünümü");
+        t.setTextColor(android.graphics.Color.WHITE);
+        t.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 15);
+        t.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        float d = getResources().getDisplayMetrics().density;
+        t.setPadding(Math.round(18 * d), Math.round(12 * d), Math.round(20 * d), Math.round(12 * d));
+        android.graphics.drawable.GradientDrawable g = new android.graphics.drawable.GradientDrawable();
+        g.setColor(android.graphics.Color.rgb(121, 59, 34));
+        g.setCornerRadius(24 * d);
+        t.setBackground(g);
+        if (Build.VERSION.SDK_INT >= 21) t.setElevation(10 * d);
+        android.widget.FrameLayout.LayoutParams lp = new android.widget.FrameLayout.LayoutParams(
+                android.view.ViewGroup.LayoutParams.WRAP_CONTENT, android.view.ViewGroup.LayoutParams.WRAP_CONTENT,
+                android.view.Gravity.BOTTOM | android.view.Gravity.CENTER_HORIZONTAL);
+        lp.bottomMargin = Math.round(84 * d);
+        ((android.widget.FrameLayout) findViewById(android.R.id.content)).addView(t, lp);
+        t.setAlpha(0f);
+        t.setTranslationY(20 * d);
+        t.animate().alpha(1f).translationY(0).setStartDelay(400).setDuration(260).start();
+        t.setOnClickListener(v -> {
+            t.setEnabled(false);
+            t.setText("⏳  Kaydediliyor…");
+            // değişikliği editörün kendi bildirimiyle öğren, gerekirse kaydet, dosya yazılınca dön
+            editorWebView.evaluateJavascript("(function(){try{return isDocumentModified()?'1':'0';}catch(e){return '1';}})()", r -> {
+                boolean degisti = r != null && r.contains("1");
+                if (!degisti) { sayfayaDon(); return; }
+                final long once = currentFile != null ? currentFile.lastModified() : 0;
+                saveDocument(false, false);
+                final long son = System.currentTimeMillis() + 10000;
+                t.postDelayed(new Runnable() {
+                    @Override public void run() {
+                        boolean yazildi = currentFile != null && currentFile.lastModified() != once;
+                        if (yazildi || System.currentTimeMillis() > son) t.postDelayed(EditorActivity.this::sayfayaDon, 300);
+                        else t.postDelayed(this, 200);
+                    }
+                }, 300);
+            });
+        });
+    }
+
+    private void sayfayaDon() {
+        setResult(RESULT_OK);
+        finish();
+        overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out);
     }
 
     private final BroadcastReceiver usbReceiver = new BroadcastReceiver() {

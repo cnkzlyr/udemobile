@@ -5,8 +5,8 @@ UYAP Editör — ayrı Android uygulaması (paket: com.agy.uyapeditor).
 Resmi UYAP Doküman Editörü'nü Java 14 ile Termux / X11 olmadan çalıştıran ekran CanEditor'dan ayrıldı: bazı telefonların
 "Şununla aç" penceresi aynı uygulamanın iki ekranını tek simgede topladığı için .udf açılırken UYAP Editör seçilemiyordu.
 Kaynak kod CanEditor ile ortaktır (android/src); manifest android/uyapeditor/AndroidManifest.xml, paket adı aapt2
-"--rename-manifest-package" ile değiştirilir (sınıflar com.agy.uyapacici paketinde kalır). Varlıklar: yalnızca
-assets/uyapmobil (scripts/uyapmobil_hazirla.py). İmza: CanEditor ile aynı anahtar.
+"--rename-manifest-package" ile değiştirilir (sınıflar com.agy.uyapacici paketinde kalır). Varlıklar:
+assets/uyapmobil (scripts/uyapmobil_hazirla.py) ve mobil görünüm için assets/editor. İmza: CanEditor ile aynı anahtar.
 
 Çıktı: release/UYAP-Editor-v<sürüm>.apk ve release/UYAP-Editor-latest.apk
 """
@@ -73,6 +73,14 @@ def main():
             for g in gerekli:
                 z.write(os.path.join(um, g), "assets/uyapmobil/" + g,
                         compress_type=zipfile.ZIP_STORED if g.endswith(".zip") else zipfile.ZIP_DEFLATED)
+            # Anlık mobil görünüm sayfası (MobilGorunum)
+            z.write(os.path.join(KOK, "android", "uyapmobil", "mobil", "mobil.html"), "assets/uyapmobil/mobil.html")
+            # Mobil görünüm (EditorActivity): UdeMobile web editörü
+            ed = os.path.join(KOK, "android", "assets", "editor")
+            for kok, _, dosyalar in os.walk(ed):
+                for d in sorted(dosyalar):
+                    tam = os.path.join(kok, d)
+                    z.write(tam, "assets/" + os.path.relpath(tam, os.path.join(KOK, "android", "assets")).replace(os.sep, "/"))
         hizali = os.path.join(tmp, "h.apk")
         if pr.ZIPALIGN and (os.path.exists(pr.ZIPALIGN) or shutil.which(pr.ZIPALIGN)):
             subprocess.run([pr.ZIPALIGN, "-f", "-p", "4", apk0, hizali], check=True)

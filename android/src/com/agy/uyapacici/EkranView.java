@@ -186,6 +186,62 @@ public class EkranView extends View implements Choreographer.FrameCallback {
         m.postScale(olcek, olcek);
         m.postTranslate(ox, oy);
         c.drawBitmap(bmp, m, boya);
+        for (View a : aynalar) a.invalidate();
+        if (olcek != sonBildirilen && olcekDinleyici != null) { sonBildirilen = olcek; post(olcekDinleyici); }
+    }
+
+    // ------------------------------------------------------------------------------------ yakınlaştırma (alt kapsül)
+    /** Ölçek değişince (yakınlaştırma kapsülündeki yüzde için). */
+    Runnable olcekDinleyici;
+    private float sonBildirilen = -1;
+
+    /** Genişliğe sığdırmaya göre yüzde (CanEditor'daki "%100 Sığdır" gibi). */
+    int yuzde() { return Math.round(olcek / sigdirOlcegi() * 100f); }
+
+    void yakinlastir(float f) {
+        float yeni = Math.max(sigdirOlcegi() * 0.5f, Math.min(olcek * f, sigdirOlcegi() * 5f));
+        float cx = getWidth() / 2f, cy = getHeight() / 2f, k = yeni / olcek;
+        ox = cx - (cx - ox) * k;
+        oy = cy - (cy - oy) * k;
+        olcek = yeni;
+        kullaniciYakinlasti = true;
+        sinirla();
+        invalidate();
+    }
+
+    /** Mantıksal ekrandaki bir dikdörtgeni (ör. resmi editörün açtığı pencere) ekrana sığdırıp ortala. */
+    void odakla(int x, int y, int w, int h) {
+        if (W == 0 || getWidth() == 0 || w <= 0 || h <= 0) return;
+        float k = Math.min(getWidth() * 0.97f / w, getHeight() * 0.92f / h);
+        olcek = Math.max(sigdirOlcegi() * 0.5f, Math.min(k, sigdirOlcegi() * 3.2f));
+        ox = getWidth() / 2f - (x + w / 2f) * olcek;
+        oy = getHeight() / 2f - (y + h / 2f) * olcek;
+        kullaniciYakinlasti = true;
+        sinirla();
+        invalidate();
+    }
+
+    /** Ekranın tamamını göster (tüm sayfa, CanEditor'daki "↕ Sayfa"). */
+    void sayfaSigdir() {
+        if (W == 0 || H == 0 || getWidth() == 0) return;
+        olcek = Math.min(getWidth() / (float) W, getHeight() / (float) H);
+        kullaniciYakinlasti = true;
+        ox = 0;
+        oy = 0;
+        sinirla();
+        invalidate();
+    }
+
+    /** Bulanık üst/alt çubuklar ekranın kendi altında kalan parçasını çizer (Arayuz.BulanikZemin). */
+    final java.util.List<View> aynalar = new java.util.concurrent.CopyOnWriteArrayList<>();
+
+    /** Görüntüyü başka bir tuvale çiz; (dx, dy): o görünümün bu görünüme göre konumu (eksi yönde kaydırılır). */
+    void aynaCiz(Canvas c, float dx, float dy) {
+        if (bmp == null) return;
+        Matrix a = new Matrix();
+        a.postScale(olcek, olcek);
+        a.postTranslate(ox - dx, oy - dy);
+        c.drawBitmap(bmp, a, boya);
     }
 
     private int[] mantiksal(float x, float y) {
@@ -378,8 +434,13 @@ public class EkranView extends View implements Choreographer.FrameCallback {
         }
         if ((mod & SHIFT) != 0) s = s.toUpperCase(new java.util.Locale("tr", "TR"));
         UyapMobilServisi.gonder("T " + UyapMobilServisi.hex(s.getBytes(StandardCharsets.UTF_8)));
+        if (yazildi != null) yazildi.yazildi(s);     // kağıt/mobil görünümde anında yerel yankı
         if (mod != 0) yapiskanBirak();
     }
+
+    /** Yazılan metin (Arayuz → MobilGorunum.yerel). */
+    interface Yazildi { void yazildi(String s); }
+    Yazildi yazildi;
 
     /** AWT tuş kodu (VK_*) + değiştiriciler. */
     public void tus(int vk, int mod) {

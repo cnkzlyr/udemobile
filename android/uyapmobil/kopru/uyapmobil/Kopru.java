@@ -2,6 +2,7 @@ package uyapmobil;
 
 import java.awt.AWTEvent;
 import java.awt.Component;
+import javax.swing.Icon;
 import java.awt.EventQueue;
 import java.awt.KeyboardFocusManager;
 import java.awt.Toolkit;
@@ -54,7 +55,17 @@ public final class Kopru {
         return System.err;
     }
 
+    /** Son yakalanmamış hata (belge açılmazsa tanıda gösterilir). */
+    static volatile String sonHata;
+
     public static void premain(String args, Instrumentation inst) {
+        Thread.UncaughtExceptionHandler eski = Thread.getDefaultUncaughtExceptionHandler();
+        Thread.setDefaultUncaughtExceptionHandler((t, e) -> {
+            sonHata = e + (e.getStackTrace().length > 0 ? " @ " + e.getStackTrace()[0] : "");
+            LOG.println("[uyapmobil] yakalanmamış hata (" + t.getName() + "): " + sonHata);
+            e.printStackTrace(LOG);
+            if (eski != null) eski.uncaughtException(t, e);
+        });
         Thread t = new Thread(Kopru::calis, "uyapmobil-kopru");
         t.setDaemon(true);
         t.start();
@@ -71,6 +82,7 @@ public final class Kopru {
             if (img == null) { LOG.println("[uyapmobil] Cacio ekranı bulunamadı"); return; }
             ekran = img;
             pencereleriOturt(img.getWidth(), img.getHeight());
+            EventQueue.invokeLater(() -> Form.yansitiliyor());      // pencere yansıtma zamanlayıcısı başlasın
             yaziTipiEslestir();
             LOG.println("[uyapmobil] ekran " + img.getWidth() + "x" + img.getHeight());
             String port = System.getProperty("uyapmobil.port");
@@ -78,6 +90,9 @@ public final class Kopru {
                 Thread d = new Thread(() -> denetim(Integer.parseInt(port), System.getProperty("uyapmobil.jeton", "")), "uyapmobil-denetim");
                 d.setDaemon(true);
                 d.start();
+                Thread b = new Thread(Kopru::baslikIzle, "uyapmobil-baslik");
+                b.setDaemon(true);
+                b.start();
             }
             String yol = System.getProperty("uyapmobil.ekran");
             if (yol != null) kareDongusu(img, new File(yol));
@@ -147,17 +162,381 @@ public final class Kopru {
             Window win = (Window) src;
             java.awt.Rectangle b = win.getBounds();
             if (win instanceof java.awt.Frame) {
-                if (b.x != 0 || b.y != 0 || b.width != w || b.height != h) EventQueue.invokeLater(() -> { win.setBounds(0, 0, w, h); yenidenCiz(win); });
+                // Cacio'nun çizdiği pencere başlığı (noktalı çubuk) ekranın üstüne itilir: telefonda yer kaplamasın,
+                // üstte doğrudan cetvel ve sayfa görünsün (CanEditor gibi).
+                int ust = baslikYuksekligi(win);
+                if (b.x != 0 || b.y != -ust || b.width != w || b.height != h + ust)
+                    EventQueue.invokeLater(() -> { win.setBounds(0, -ust, w, h + ust); yenidenCiz(win); });
             } else if (b.width > w || b.height > h || b.x < 0 || b.y < 0 || b.x + b.width > w || b.y + b.height > h) {
                 int nw = Math.min(b.width, w), nh = Math.min(b.height, h);
                 EventQueue.invokeLater(() -> { win.setBounds((w - nw) / 2, (h - nh) / 2, nw, nh); yenidenCiz(win); });
             }
         };
         Toolkit.getDefaultToolkit().addAWTEventListener(l, AWTEvent.WINDOW_EVENT_MASK | AWTEvent.COMPONENT_EVENT_MASK);
+        Toolkit.getDefaultToolkit().addAWTEventListener(e -> {
+            int id = e.getID();
+            if (e.getSource() instanceof Window && !(e.getSource() instanceof java.awt.Frame)
+                    && (id == java.awt.event.WindowEvent.WINDOW_OPENED || id == java.awt.event.WindowEvent.WINDOW_CLOSED
+                    || id == java.awt.event.ComponentEvent.COMPONENT_SHOWN || id == java.awt.event.ComponentEvent.COMPONENT_HIDDEN
+                    || id == java.awt.event.ComponentEvent.COMPONENT_RESIZED || id == java.awt.event.ComponentEvent.COMPONENT_MOVED)) {
+                diyalogDegisti((Window) e.getSource(), id == java.awt.event.WindowEvent.WINDOW_OPENED);
+            }
+            if (e.getID() == java.awt.event.WindowEvent.WINDOW_OPENED && e.getSource() instanceof java.awt.Container)
+                dosyaSeciciDepolamada((java.awt.Container) e.getSource());
+            if (e.getID() == java.awt.event.WindowEvent.WINDOW_OPENED && e.getSource() instanceof java.awt.Frame && !seritAcik)
+                EventQueue.invokeLater(() -> seritGoster(false));   // yeni belge penceresinde de şerit gizli kalsın
+        }, AWTEvent.WINDOW_EVENT_MASK | AWTEvent.COMPONENT_EVENT_MASK);
         EventQueue.invokeLater(() -> {
-            for (Window win : Window.getWindows()) if (win.isShowing() && win instanceof java.awt.Frame) { win.setBounds(0, 0, w, h); yenidenCiz(win); }
+            for (Window win : Window.getWindows())
+                if (win.isShowing() && win instanceof java.awt.Frame) { int ust = baslikYuksekligi(win); win.setBounds(0, -ust, w, h + ust); yenidenCiz(win); }
         });
         panoIzle();
+    }
+
+    /**
+     * "Aç" / "Kaydet" / "Farklı kaydet" pencereleri (JFileChooser) varsayılan olarak user.home'da, yani uygulamanın
+     * kullanıcıya görünmeyen özel klasöründe açılıyordu. Seçici telefonun ortak depolamasının dışındaysa
+     * (uyapmobil.depolama, ör. /storage/emulated/0 = /sdcard) oraya taşınır; kaydederken önerilen dosya adı korunur.
+     * Kullanıcı önceden depolamada bir klasöre gittiyse ona dokunulmaz.
+     */
+    private static void dosyaSeciciDepolamada(java.awt.Container kok) {
+        javax.swing.JFileChooser fc = seciciBul(kok);
+        if (fc == null) return;
+        LOG.println("[uyapmobil] dosya seçici açıldı: tür=" + fc.getDialogType() + " kip=" + fc.getFileSelectionMode()
+                + " dizin=" + fc.getCurrentDirectory() + " depolama=" + System.getProperty("uyapmobil.depolama"));
+        if ("android".equals(System.getProperty("uyapmobil.secici")) && fc.getFileSelectionMode() != javax.swing.JFileChooser.DIRECTORIES_ONLY) {
+            EventQueue.invokeLater(() -> androidSecici(fc));
+            return;
+        }
+        swingSeciciDepolamada(fc);
+    }
+
+    /** Swing seçicisini telefon depolamasına taşı (Android seçicisi kullanılamazsa yedek yol). */
+    static void swingSeciciDepolamada(javax.swing.JFileChooser fc) {
+        String d = System.getProperty("uyapmobil.depolama");
+        if (d == null) return;
+        File depo = new File(d);
+        if (!depo.isDirectory()) { LOG.println("[uyapmobil] depolama okunamıyor: " + depo); return; }
+        EventQueue.invokeLater(() -> {
+            try {
+                File simdi = fc.getCurrentDirectory();
+                String dp = depo.getCanonicalPath();
+                if (simdi != null && (simdi.getCanonicalPath() + "/").startsWith(dp + "/")) return;
+                File secili = fc.getSelectedFile();
+                fc.setCurrentDirectory(depo);
+                if (secili != null && fc.getDialogType() == javax.swing.JFileChooser.SAVE_DIALOG)
+                    fc.setSelectedFile(new File(depo, secili.getName()));
+                LOG.println("[uyapmobil] dosya seçici → " + depo);
+            } catch (Exception ex) {
+                LOG.println("[uyapmobil] dosya seçici: " + ex);
+            }
+        });
+    }
+
+    // ------------------------------------------------------------------------------------ Android dosya seçicisi
+    /*
+     * Editörün Aç / Kaydet / Farklı kaydet / Resim ekle … pencereleri (JFileChooser) telefonda küçük ve dokunmaya
+     * uygun değil; ayrıca uygulamanın göremediği klasörlerde açılıyordu. Seçici açılınca Android'e
+     *   SEC <no> <ac|kaydet> <base64 önerilen ad> <base64 uzantılar, virgülle>
+     * bildirilir; Android kendi seçicisini (Storage Access Framework: İndirilenler, sdcard, Drive, WhatsApp…) gösterir ve
+     *   SF <no> <base64 yerel yol>   → seçilen dosya (Aç) ya da yazılacak yerel dosya (Kaydet; Android asıl yere kopyalar)
+     *   SF <no>                      → vazgeçildi
+     *   SK <no>                      → Android seçicisi yok: Swing seçicisi depolamada kalsın
+     * yanıtlarından birini gönderir. Swing penceresi bu sırada arkada açık bekler (modal döngü bozulmaz).
+     */
+    private static final java.util.Map<Integer, javax.swing.JFileChooser> SECICILER = new java.util.concurrent.ConcurrentHashMap<>();
+    private static final java.util.concurrent.atomic.AtomicInteger SECICI_NO = new java.util.concurrent.atomic.AtomicInteger();
+
+    private static String b64(String s) {
+        return java.util.Base64.getEncoder().encodeToString((s == null ? "" : s).getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static String b64coz(String s) {
+        return new String(java.util.Base64.getDecoder().decode(s), StandardCharsets.UTF_8);
+    }
+
+    private static void androidSecici(javax.swing.JFileChooser fc) {
+        int no = SECICI_NO.incrementAndGet();
+        SECICILER.put(no, fc);
+        boolean kaydet = fc.getDialogType() == javax.swing.JFileChooser.SAVE_DIALOG;
+        String ad = "";
+        File sec = fc.getSelectedFile();
+        if (sec != null) ad = sec.getName();
+        StringBuilder uz = new StringBuilder();
+        javax.swing.filechooser.FileFilter f = fc.getFileFilter();
+        if (f instanceof javax.swing.filechooser.FileNameExtensionFilter) {
+            for (String e : ((javax.swing.filechooser.FileNameExtensionFilter) f).getExtensions()) uz.append(uz.length() > 0 ? "," : "").append(e);
+        } else if (f != null && f.getDescription() != null) {
+            java.util.regex.Matcher m = java.util.regex.Pattern.compile("\\.([A-Za-z0-9]{2,5})").matcher(f.getDescription());
+            while (m.find()) uz.append(uz.length() > 0 ? "," : "").append(m.group(1).toLowerCase(java.util.Locale.ROOT));
+        }
+        LOG.println("[uyapmobil] Android seçicisi #" + no + (kaydet ? " kaydet " : " aç ") + ad + " [" + uz + "]");
+        bildir("SEC " + no + " " + (kaydet ? "kaydet" : "ac") + " " + b64(ad) + " " + b64(uz.toString()));
+    }
+
+    private static void seciciYanit(String[] p, boolean swing) {
+        javax.swing.JFileChooser fc = SECICILER.remove(Integer.parseInt(p[1]));
+        if (fc == null) return;
+        if (swing) { swingSeciciDepolamada(fc); return; }
+        final String yol = p.length > 2 ? b64coz(p[2]) : null;
+        EventQueue.invokeLater(() -> {
+            if (yol == null || yol.isEmpty()) { fc.cancelSelection(); return; }
+            File f = new File(yol);
+            fc.setCurrentDirectory(f.getParentFile());
+            fc.setSelectedFile(f);
+            boolean ac = fc.getDialogType() != javax.swing.JFileChooser.SAVE_DIALOG;
+            fc.approveSelection();
+            LOG.println("[uyapmobil] seçici → " + f + " (var=" + f.isFile() + ", " + f.length() + " bayt)");
+            if (ac && yol.toLowerCase(java.util.Locale.ROOT).matches(".*\\.(udf|usf)$")) acilisIzle(yol);
+        });
+    }
+
+    // ------------------------------------------------------------------------------------ menü yansıtma
+    /*
+     * Resmi editörün klasik menü çubuğu (Dosya, Giriş, Düzenle, Ekle, Biçim, Araçlar, Görünüm, Modernizasyon) şerit
+     * görünümde gizli durur ama tüm komutları dinleyicileriyle içerir. "MN" isteğine bütün ağaç JSON olarak (simgeler PNG,
+     * base64) gönderilir: Android bunu büyük dokunmatik bir ☰ menüde ve "Aa" biçim çubuğunda gösterir.
+     *   MENU <base64 json>   {"m":[{"t":"Dosya","o":[öğe…]}…]}
+     *   öğe: {"k":"i","id":n,"t":"Yeni","e":1,"s":-1|0|1,"ic":"png64"}   menü öğesi / onay kutusu
+     *        {"k":"-"}                                                     ayraç
+     *        {"k":"b","o":[{"id":n,"e":1,"s":-1|0|1,"ic":"…","ip":"ipucu"}…]} araç çubuğu düğmeleri
+     *        {"k":"c","id":n,"t":"seçili","l":["…"]}                        açılır liste (yazı tipi, boyut, stil)
+     * Komutlar: "MC <id>" tıkla, "MS <id> <sıra>" listeden seç, "MT <id> <base64 metin>" listeye metin yaz (boyut).
+     */
+    private static final java.util.List<Component> MENU_OGELERI = new java.util.ArrayList<>();
+    private static final java.util.Map<Icon, String> SIMGE_ONBELLEK = new java.util.WeakHashMap<>();
+
+    private static javax.swing.JMenuBar menuCubugu() {
+        javax.swing.JFrame en = null;
+        for (Window w : Window.getWindows())
+            if (w.isShowing() && w instanceof javax.swing.JFrame && ((javax.swing.JFrame) w).getJMenuBar() != null) {
+                en = (javax.swing.JFrame) w;
+                if (w.isFocused() || w.isActive()) break;
+            }
+        return en == null ? null : en.getJMenuBar();
+    }
+
+    private static String js(String s) {
+        if (s == null) return "\"\"";
+        StringBuilder b = new StringBuilder("\"");
+        for (char ch : s.toCharArray()) {
+            if (ch == '"' || ch == '\\') b.append('\\').append(ch);
+            else if (ch < 0x20) b.append(String.format("\\u%04x", (int) ch));
+            else b.append(ch);
+        }
+        return b.append('"').toString();
+    }
+
+    private static String simge(Icon ic, Component c) {
+        if (ic == null || ic.getIconWidth() <= 0 || ic.getIconHeight() <= 0) return "";
+        String v = SIMGE_ONBELLEK.get(ic);
+        if (v != null) return v;
+        try {
+            int w = Math.min(ic.getIconWidth(), 96), h = Math.min(ic.getIconHeight(), 96);
+            BufferedImage im = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+            java.awt.Graphics2D g = im.createGraphics();
+            ic.paintIcon(c, g, 0, 0);
+            g.dispose();
+            java.io.ByteArrayOutputStream bo = new java.io.ByteArrayOutputStream();
+            javax.imageio.ImageIO.write(im, "png", bo);
+            v = java.util.Base64.getEncoder().encodeToString(bo.toByteArray());
+        } catch (Throwable e) { v = ""; }
+        SIMGE_ONBELLEK.put(ic, v);
+        return v;
+    }
+
+    private static int sec(javax.swing.AbstractButton b) {
+        return (b instanceof javax.swing.JCheckBoxMenuItem || b instanceof javax.swing.JRadioButtonMenuItem
+                || b instanceof javax.swing.JToggleButton) ? (b.isSelected() ? 1 : 0) : -1;
+    }
+
+    private static int kaydetOge(Component c) { MENU_OGELERI.add(c); return MENU_OGELERI.size() - 1; }
+
+    private static void ogeJson(StringBuilder sb, Component k) {
+        if (k instanceof javax.swing.JMenu) {
+            javax.swing.JMenu alt = (javax.swing.JMenu) k;
+            sb.append("{\"k\":\"g\",\"t\":").append(js(alt.getText())).append(",\"o\":[");
+            boolean ilk = true;
+            for (Component kk : alt.getMenuComponents()) { if (!ilk) sb.append(','); ilk = false; ogeJson(sb, kk); }
+            sb.append("]}");
+        } else if (k instanceof javax.swing.AbstractButton) {
+            javax.swing.AbstractButton b = (javax.swing.AbstractButton) k;
+            sb.append("{\"k\":\"i\",\"id\":").append(kaydetOge(b)).append(",\"t\":").append(js(b.getText()))
+              .append(",\"e\":").append(b.isEnabled() ? 1 : 0).append(",\"s\":").append(sec(b))
+              .append(",\"ic\":\"").append(simge(b.getIcon(), b)).append("\"}");
+        } else if (k instanceof javax.swing.JToolBar) {
+            sb.append("{\"k\":\"b\",\"o\":[");
+            boolean ilk = true;
+            for (Component kk : ((javax.swing.JToolBar) k).getComponents()) {
+                if (kk instanceof javax.swing.AbstractButton) {
+                    javax.swing.AbstractButton b = (javax.swing.AbstractButton) kk;
+                    if (!ilk) sb.append(','); ilk = false;
+                    sb.append("{\"k\":\"t\",\"id\":").append(kaydetOge(b)).append(",\"e\":").append(b.isEnabled() ? 1 : 0)
+                      .append(",\"s\":").append(sec(b)).append(",\"ip\":").append(js(b.getToolTipText()))
+                      .append(",\"ic\":\"").append(simge(b.getIcon(), b)).append("\"}");
+                } else if (kk instanceof javax.swing.JComboBox) {
+                    javax.swing.JComboBox<?> cb = (javax.swing.JComboBox<?>) kk;
+                    if (!ilk) sb.append(','); ilk = false;
+                    sb.append("{\"k\":\"c\",\"id\":").append(kaydetOge(cb)).append(",\"t\":").append(js(String.valueOf(cb.getSelectedItem())))
+                      .append(",\"ed\":").append(cb.isEditable() ? 1 : 0).append(",\"l\":[");
+                    for (int i = 0; i < cb.getItemCount(); i++) sb.append(i > 0 ? "," : "").append(js(String.valueOf(cb.getItemAt(i))));
+                    sb.append("]}");
+                }
+            }
+            sb.append("]}");
+        } else {
+            sb.append("{\"k\":\"-\"}");
+        }
+    }
+
+    private static void menuGonder() {
+        javax.swing.JMenuBar mb = menuCubugu();
+        if (mb == null) { bildir("MENU " + b64("{\"m\":[]}")); return; }
+        MENU_OGELERI.clear();
+        StringBuilder sb = new StringBuilder("{\"m\":[");
+        boolean ilk = true;
+        for (int i = 0; i < mb.getMenuCount(); i++) {
+            javax.swing.JMenu m = mb.getMenu(i);
+            if (m == null) continue;
+            if (!ilk) sb.append(','); ilk = false;
+            sb.append("{\"t\":").append(js(m.getText())).append(",\"o\":[");
+            boolean ilk2 = true;
+            for (Component k : m.getMenuComponents()) { if (!ilk2) sb.append(','); ilk2 = false; ogeJson(sb, k); }
+            sb.append("]}");
+        }
+        sb.append("]}");
+        bildir("MENU " + b64(sb.toString()));
+    }
+
+    private static void menuKomut(String[] p) {
+        int id = Integer.parseInt(p[1]);
+        if (id < 0 || id >= MENU_OGELERI.size()) return;
+        Component c = MENU_OGELERI.get(id);
+        if (c instanceof javax.swing.AbstractButton && "MC".equals(p[0])) {
+            javax.swing.AbstractButton b = (javax.swing.AbstractButton) c;
+            if (!b.isEnabled()) return;
+            LOG.println("[uyapmobil] komut: " + (b.getText() != null && !b.getText().isEmpty() ? b.getText() : b.getToolTipText()));
+            b.doClick(0);
+        } else if (c instanceof javax.swing.JComboBox) {
+            javax.swing.JComboBox<?> cb = (javax.swing.JComboBox<?>) c;
+            if ("MS".equals(p[0])) cb.setSelectedIndex(Integer.parseInt(p[2]));
+            else if ("MT".equals(p[0]) && cb.isEditable()) {
+                String v = b64coz(p[2]);
+                cb.getEditor().setItem(v);
+                cb.setSelectedItem(v);
+            }
+        }
+        // komuttan sonra odak belgeye dönsün (klavye yazmaya devam edebilsin)
+        EventQueue.invokeLater(() -> {
+            Component o = odak();
+            if (!(o instanceof javax.swing.text.JTextComponent)) {
+                for (Window w : Window.getWindows())
+                    if (w.isShowing() && w instanceof java.awt.Frame) { metinBul(w); break; }
+            }
+        });
+    }
+
+    private static void seritGoster(boolean goster) {
+        for (Window w : Window.getWindows())
+            if (w instanceof java.awt.Frame && w.isShowing()) {
+                Component r = sinifBul(w, "org.pushingpixels.flamingo.api.ribbon.JRibbon");
+                if (r == null) continue;
+                // Flamingo JRibbon: setVisible çerçeve düzeninde yok sayılabiliyor; önce "küçült" (yalnızca sekme satırı),
+                // ardından tamamen gizle.
+                try { r.getClass().getMethod("setMinimized", boolean.class).invoke(r, !goster); } catch (Exception ex) { LOG.println("[uyapmobil] şerit küçültülemedi: " + ex); }
+                // JRibbonFrame'de JRibbon.setVisible(false) "Can't hide ribbon" hatası verir: yükseklik 0'a indirilir.
+                ((javax.swing.JComponent) r).setPreferredSize(goster ? null : new java.awt.Dimension(r.getWidth(), 0));
+                ((javax.swing.JComponent) r).setMinimumSize(goster ? null : new java.awt.Dimension(0, 0));
+                java.awt.Container ust = r.getParent();
+                if (ust != null) { ust.invalidate(); ust.validate(); }
+                w.validate();
+                yenidenCiz(w);
+                LOG.println("[uyapmobil] şerit " + (goster ? "gösterildi" : "gizlendi") + " (görünür=" + r.isVisible() + ", " + r.getHeight() + " px)");
+            }
+        seritAcik = goster;
+    }
+    static volatile boolean seritAcik = true;
+
+    private static Component sinifBul(java.awt.Container c, String sinif) {
+        for (Component k : c.getComponents()) {
+            if (k.getClass().getName().equals(sinif)) return k;
+            if (k instanceof java.awt.Container) { Component b = sinifBul((java.awt.Container) k, sinif); if (b != null) return b; }
+        }
+        return null;
+    }
+
+    private static boolean metinBul(java.awt.Container c) {
+        for (Component k : c.getComponents()) {
+            if (k instanceof javax.swing.text.JTextComponent && k.isShowing() && ((javax.swing.text.JTextComponent) k).isEditable()
+                    && k.getWidth() > 200) { k.requestFocusInWindow(); return true; }
+            if (k instanceof java.awt.Container && metinBul((java.awt.Container) k)) return true;
+        }
+        return false;
+    }
+
+    private static javax.swing.JFileChooser seciciBul(java.awt.Container c) {
+        if (c instanceof javax.swing.JFileChooser) return (javax.swing.JFileChooser) c;
+        for (Component k : c.getComponents())
+            if (k instanceof java.awt.Container) {
+                javax.swing.JFileChooser f = seciciBul((java.awt.Container) k);
+                if (f != null) return f;
+            }
+        return null;
+    }
+
+    // ------------------------------------------------------------------------------------ diyaloglar
+    /*
+     * Resmi editörün açtığı pencereler (imza, mobil imza, yazdırma önizlemesi, uyarılar, açılır menüler) Android'e
+     * bildirilir: "DIYALOG 1 x y g y" (en üstteki görünür pencerenin ekran dikdörtgeni) / "DIYALOG 0". Kağıt ve mobil
+     * görünümde Android bu pencereyi resmi ekrandan büyüterek gösterir. Pencere kapanınca belge pencereleri yeniden
+     * çizilir (Cacio arkada iz bırakıyordu) ve pencerenin metinleri günlüğe yazılır (hata mesajları tanı için).
+     */
+    private static volatile String sonDiyalog = "";
+    private static final javax.swing.Timer diyalogZamanlayici = new javax.swing.Timer(120, ev -> diyalogBildir());
+    static { diyalogZamanlayici.setRepeats(false); }
+
+    private static void diyalogDegisti(Window w, boolean acildi) {
+        if (w.getClass().getName().startsWith("com.github.caciocavallosilano")) return;
+        if (acildi) {
+            EventQueue.invokeLater(() -> {
+                StringBuilder m = new StringBuilder();
+                etiketler(w, m);
+                LOG.println("[uyapmobil] pencere açıldı: " + w.getClass().getName()
+                        + (w instanceof java.awt.Dialog ? " «" + ((java.awt.Dialog) w).getTitle() + "»" : "") + " " + w.getBounds()
+                        + (m.length() > 0 ? " — " + (m.length() > 500 ? m.substring(0, 500) : m) : ""));
+            });
+        }
+        diyalogZamanlayici.restart();
+    }
+
+    private static void diyalogBildir() {
+        Window en = null;
+        for (Window w : Window.getWindows())
+            if (w.isShowing() && !(w instanceof java.awt.Frame) && w.getWidth() > 8 && w.getHeight() > 8
+                    && !w.getClass().getName().startsWith("com.github.caciocavallosilano")) en = w;   // en son açılan en üstte
+        String m;
+        if (en == null) m = "DIYALOG 0";
+        else {
+            java.awt.Rectangle b = en.getBounds();
+            // aynı sahibin bütün açık pencerelerini kapsa (ör. imzalar + imza detayı)
+            for (Window w : Window.getWindows())
+                if (w.isShowing() && !(w instanceof java.awt.Frame) && w.getWidth() > 8 && !w.getClass().getName().startsWith("com.github.caciocavallosilano"))
+                    b = b.union(w.getBounds());
+            m = "DIYALOG 1 " + b.x + " " + b.y + " " + b.width + " " + b.height;
+        }
+        if (!m.equals(sonDiyalog)) {
+            boolean kapandi = m.equals("DIYALOG 0") && !sonDiyalog.isEmpty();
+            sonDiyalog = m;
+            bildir(m);
+            if (kapandi) for (Window w : Window.getWindows()) if (w.isShowing() && w instanceof java.awt.Frame) yenidenCiz(w);
+        }
+    }
+
+    /** Pencere başlığı yüksekliği (Cacio dekorasyonu); "uyapmobil.baslik=1" ile görünür bırakılabilir. */
+    static int baslikYuksekligi(Window w) {
+        if ("1".equals(System.getProperty("uyapmobil.baslik"))) return 0;
+        java.awt.Insets i = w.getInsets();
+        return i == null ? 0 : Math.max(0, Math.min(40, i.top));
     }
 
     /**
@@ -201,6 +580,8 @@ public final class Kopru {
         win.invalidate();
         win.validate();
         win.repaint();
+        // Cacio bazen yalnızca değişen bölgeyi çizer: tüm ağacı yeniden boyat
+        if (win instanceof javax.swing.RootPaneContainer) ((javax.swing.RootPaneContainer) win).getRootPane().repaint();
     }
 
     // ------------------------------------------------------------------------------------ pano + istemciler
@@ -245,17 +626,211 @@ public final class Kopru {
         return false;
     }
 
-    /** Çalışan editörde yeni belge aç (resmi editörün kendi giriş noktası: WPAppManager getNewWPInstance). */
-    static void belgeAc(String yol) {
+    /** YB: mobil görünümde değişen belgeyi yeniden yükle. */
+
+    static void yenidenYukle(String yol) {
         Thread t = new Thread(() -> {
             try {
-                // Açık bir modal pencere (ör. açılıştaki "Son sürümlerde yapılan güncellemeler") kapanana kadar bekle:
+                java.util.List<Window> eski = new java.util.ArrayList<>();
+                for (Window w : Window.getWindows())
+                    if (w instanceof java.awt.Frame && w.isShowing() && String.valueOf(((java.awt.Frame) w).getTitle()).contains("(" + yol + ")")) eski.add(w);
+                if (!eski.isEmpty()) {
+                    // Editör aynı dosyayı ikinci kez açmıyor ("Dosya Zaten Açık"); son pencere kapanınca da kapanıyor.
+                    // 1) Dosya > Yeni ile boş bir pencere aç  2) eski pencereyi editörün kendi kapatma yoluyla kapat  3) yeniden aç
+                    java.util.Set<Window> once = new java.util.HashSet<>(java.util.Arrays.asList(Window.getWindows()));
+                    EventQueue.invokeAndWait(() -> menuOgesiTikla("Dosya", "Yeni"));
+                    for (int i = 0; i < 75 && yeniCerceve(once) == null; i++) Thread.sleep(200);
+                    for (Window w : eski) EventQueue.invokeLater(() -> gonder(new java.awt.event.WindowEvent(w, java.awt.event.WindowEvent.WINDOW_CLOSING)));
+                    for (int i = 0; i < 100; i++) {
+                        boolean acik = false;
+                        for (Window w : eski) acik |= w.isShowing();
+                        if (!acik) break;
+                        Thread.sleep(200);
+                    }
+                }
+                belgeAc(yol);
+            } catch (Exception e) {
+                LOG.println("[uyapmobil] yeniden yükleme: " + e);
+            }
+        }, "uyapmobil-yb");
+        t.setDaemon(true);
+        t.start();
+    }
+
+    private static Window yeniCerceve(java.util.Set<Window> once) {
+        for (Window w : Window.getWindows())
+            if (w instanceof java.awt.Frame && w.isShowing() && !once.contains(w) && !w.getClass().getName().startsWith("com.github.caciocavallosilano")) return w;
+        return null;
+    }
+
+    private static void menuOgesiTikla(String menu, String ad) {
+        javax.swing.JMenuBar mb = menuCubugu();
+        if (mb == null) return;
+        for (int i = 0; i < mb.getMenuCount(); i++) {
+            javax.swing.JMenu m = mb.getMenu(i);
+            if (m == null || !menu.equals(m.getText())) continue;
+            for (Component k : m.getMenuComponents())
+                if (k instanceof javax.swing.JMenuItem && ad.equals(((javax.swing.JMenuItem) k).getText())) { ((javax.swing.JMenuItem) k).doClick(0); return; }
+        }
+    }
+
+    /**
+     * Belge yeni bir pencerede açıldıktan sonra: yeni pencere öne alınır; açılıştaki dokunulmamış boş "isimsiz" pencere ve
+     * (yeniden yüklemede) eski kopya kapatılır. Telefonda arkada kalan boş pencere bazen öne geçip belgeyi gizliyordu.
+     */
+    private static void pencereleriDuzenle(java.util.Set<Window> once, java.util.List<Window> eskiler) {
+        for (int i = 0; i < 100; i++) {          // yeni pencere görünene kadar (en çok 20 sn)
+            Window yeni = null;
+            for (Window w : Window.getWindows())
+                if (w instanceof java.awt.Frame && w.isShowing() && !once.contains(w)
+                        && !w.getClass().getName().startsWith("com.github.caciocavallosilano")) yeni = w;
+            if (yeni != null) {
+                final Window y = yeni;
+                try { Thread.sleep(800); } catch (InterruptedException ignored) { }
+                EventQueue.invokeLater(() -> {
+                    for (Window w : once)
+                        if (w != y && w instanceof java.awt.Frame && w.isShowing()
+                                && ((eskiler != null && eskiler.contains(w)) || bosIsimsiz((java.awt.Frame) w))) {
+                            LOG.println("[uyapmobil] pencere kapatıldı: " + ((java.awt.Frame) w).getTitle());
+                            w.setVisible(false);
+                            w.dispose();
+                        }
+                    y.toFront();
+                    yenidenCiz(y);
+                    if (!seritAcik) seritGoster(false);
+                });
+                return;
+            }
+            try { Thread.sleep(200); } catch (InterruptedException e) { return; }
+        }
+    }
+
+    private static boolean bosIsimsiz(java.awt.Frame f) {
+        String t = String.valueOf(f.getTitle()).toLowerCase(java.util.Locale.ROOT);
+        if (!t.contains("isimsiz")) return false;
+        javax.swing.text.JTextComponent m = metinBilesen(f);
+        return m != null && m.getDocument().getLength() <= 1;
+    }
+
+    static javax.swing.text.JTextComponent metinBilesenAc(java.awt.Container c) { return metinBilesen(c); }
+
+    private static javax.swing.text.JTextComponent metinBilesen(java.awt.Container c) {
+        for (Component k : c.getComponents()) {
+            if (k instanceof javax.swing.text.JTextComponent && ((javax.swing.text.JTextComponent) k).isEditable() && k.getWidth() > 200)
+                return (javax.swing.text.JTextComponent) k;
+            if (k instanceof java.awt.Container) { javax.swing.text.JTextComponent r = metinBilesen((java.awt.Container) k); if (r != null) return r; }
+        }
+        return null;
+    }
+
+    /** Ön plandaki belge penceresinin başlığı değişince Android'e "BASLIK <base64>" (belge adı ve yolu üst çubukta). */
+    private static void baslikIzle() {
+        String son = null;
+        while (true) {
+            try {
+                Thread.sleep(700);
+                java.awt.Frame on = null;
+                for (Window w : Window.getWindows())
+                    if (w instanceof java.awt.Frame && w.isShowing() && ((java.awt.Frame) w).getTitle() != null
+                            && !w.getClass().getName().startsWith("com.github.caciocavallosilano")) {
+                        if (on == null || w.isFocused() || w.isActive()) on = (java.awt.Frame) w;
+                    }
+                String t = on == null ? null : on.getTitle();
+                if (t != null && !t.equals(son) && !ISTEMCILER.isEmpty()) { son = t; bildir("BASLIK " + b64(t)); }
+            } catch (InterruptedException e) {
+                return;
+            } catch (Throwable ignored) { }
+        }
+    }
+
+    /**
+     * Belge 35 sn içinde bir pencere başlığında görünmezse neden toplanır (açık uyarı pencereleri ve metinleri, son hata,
+     * dosya durumu) ve Android'e "ACILMADI <base64>" bildirilir; günlüğe de yazılır.
+     */
+    static void acilisIzle(String yol) {
+        final String ad = new File(yol).getName();
+        final String onceHata = sonHata;
+        Thread t = new Thread(() -> {
+            long son = System.currentTimeMillis() + 35_000;
+            try {
+                while (System.currentTimeMillis() < son) {
+                    for (Window w : Window.getWindows())
+                        if (w instanceof java.awt.Frame && w.isShowing() && String.valueOf(((java.awt.Frame) w).getTitle()).contains(ad)) {
+                            LOG.println("[uyapmobil] açıldı (" + ad + ")");
+                            return;
+                        }
+                    Thread.sleep(500);
+                }
+            } catch (InterruptedException e) { return; }
+            StringBuilder n = new StringBuilder();
+            File f = new File(yol);
+            if (!f.isFile()) n.append("Dosya bulunamadı: ").append(yol).append('\n');
+            else if (!f.canRead()) n.append("Dosya okunamıyor: ").append(yol).append('\n');
+            for (Window w : Window.getWindows())
+                if (w.isShowing() && w instanceof java.awt.Dialog) {
+                    n.append("Açık pencere: ").append(((java.awt.Dialog) w).getTitle());
+                    StringBuilder m = new StringBuilder();
+                    etiketler(w, m);
+                    if (m.length() > 0) n.append(" — ").append(m.length() > 300 ? m.substring(0, 300) : m);
+                    n.append('\n');
+                }
+            if (sonHata != null && sonHata != onceHata) n.append("Hata: ").append(sonHata).append('\n');
+            if (n.length() == 0) n.append("Editör 35 sn içinde belgeyi göstermedi (yanıt yok).");
+            LOG.println("[uyapmobil] AÇILMADI " + ad + ": " + n);
+            for (Window w : Window.getWindows())
+                LOG.println("[uyapmobil]   pencere " + w.getClass().getName() + (w instanceof java.awt.Frame ? " başlık=" + ((java.awt.Frame) w).getTitle() : "") + " görünür=" + w.isShowing());
+            bildir("ACILMADI " + b64(n.toString().trim()));
+        }, "uyapmobil-acilis");
+        t.setDaemon(true);
+        t.start();
+    }
+
+    private static void etiketler(java.awt.Container c, StringBuilder sb) {
+        for (Component k : c.getComponents()) {
+            String t = null;
+            if (k instanceof javax.swing.JLabel) t = ((javax.swing.JLabel) k).getText();
+            else if (k instanceof javax.swing.text.JTextComponent && !((javax.swing.text.JTextComponent) k).isEditable()) t = ((javax.swing.text.JTextComponent) k).getText();
+            if (t != null && !t.trim().isEmpty()) sb.append(t.replaceAll("<[^>]+>", " ").trim()).append(' ');
+            if (k instanceof java.awt.Container) etiketler((java.awt.Container) k, sb);
+        }
+    }
+
+    /** Editörün ana belge penceresi (ekranı kaplayan, görünür bir Frame) kuruldu mu? */
+    static boolean anaPencereHazir() {
+        for (Window w : Window.getWindows())
+            if (w instanceof java.awt.Frame && w.isShowing() && w.getWidth() > 0 && w.getHeight() > 0
+                    && !w.getClass().getName().startsWith("com.github.caciocavallosilano")) return true;
+        return false;
+    }
+
+    /**
+     * Çalışan editörde yeni belge aç (resmi editörün kendi giriş noktası: WPAppManager getNewWPInstance).
+     * 3.20.0 hatası: telefon yavaş olduğu için köprü portu editörün ana penceresinden çok önce açılıyor; belge
+     * erken istenirse editör onu açılıştaki boş belge penceresinin arkasında kaybediyordu (dosyaya dokununca boş
+     * belge). Artık ana pencere görünür olup ~1,5 sn sakinleşene, modal pencere de kapanana kadar beklenir.
+     */
+    static void belgeAc(String yol) {
+        acilisIzle(yol);
+        Thread t = new Thread(() -> {
+            try {
+                // 1) Ana pencere en az 1,5 sn kesintisiz görünür olsun (en çok 3 dk).
+                int sakin = 0;
+                for (int i = 0; i < 900 && sakin < 8; i++) {
+                    sakin = anaPencereHazir() ? sakin + 1 : 0;
+                    Thread.sleep(200);
+                }
+                // 2) Açık bir modal pencere (ör. açılıştaki "Son sürümlerde yapılan güncellemeler") kapanana kadar bekle:
                 // modal pencere açıkken yeni belge penceresi engelleniyor.
-                for (int i = 0; i < 600 && modalAcik(); i++) Thread.sleep(200);
+                for (int i = 0; i < 1500 && modalAcik(); i++) Thread.sleep(200);
+                // 3) Olay kuyruğu boşalsın (ana pencerenin ilk çizimi bitsin).
+                EventQueue.invokeAndWait(() -> { });
+                Thread.sleep(500);
                 String tip = yol.toLowerCase(java.util.Locale.ROOT).endsWith(".usf") ? "EDITOR_TYPE_TEMPLATE" : "EDITOR_TYPE_DOCUMENT";
                 Class<?> c = Class.forName("tr.com.havelsan.uyap.system.editor.common.WPAppManager", true, ClassLoader.getSystemClassLoader());
+                java.util.Set<Window> once = new java.util.HashSet<>(java.util.Arrays.asList(Window.getWindows()));
                 c.getMethod("main", String[].class).invoke(null, (Object) new String[]{"getNewWPInstance", tip, yol});
                 LOG.println("[uyapmobil] belge açıldı: " + yol);
+                pencereleriDuzenle(once, null);
             } catch (Throwable e) {
                 LOG.println("[uyapmobil] belge açılamadı: " + e);
             }
@@ -356,11 +931,74 @@ public final class Kopru {
                 break;
             case "L":   // tanı: açık pencereler ve odak
                 for (Window w : Window.getWindows())
-                    LOG.println("[uyapmobil] pencere " + w.getClass().getName() + " görünür=" + w.isShowing() + " " + w.getBounds() + " odak=" + w.isFocused());
+                    LOG.println("[uyapmobil] pencere " + w.getClass().getName() + (w instanceof java.awt.Frame ? " başlık=" + ((java.awt.Frame) w).getTitle() : "") + " görünür=" + w.isShowing() + " " + w.getBounds() + " odak=" + w.isFocused());
                 LOG.println("[uyapmobil] odak bileşeni: " + odak());
                 break;
             case "R":   // tanı: tüm pencereleri yeniden düzenle ve çiz
                 EventQueue.invokeLater(() -> { for (Window w : Window.getWindows()) if (w.isShowing()) { w.invalidate(); w.validate(); w.repaint(); } });
+                break;
+            case "SF": seciciYanit(p, false); break;
+            case "SK": seciciYanit(p, true); break;
+            case "MN": EventQueue.invokeLater(Kopru::menuGonder); break;
+            case "MC": case "MS": case "MT": EventQueue.invokeLater(() -> menuKomut(p)); break;
+            case "YB": yenidenYukle(b64coz(p[1])); break;
+            case "SG":  // şerit menüyü gizle (0) / göster (1): ☰ menü kullanılırken belgeye daha çok yer kalsın
+                EventQueue.invokeLater(() -> seritGoster(!"0".equals(p.length > 1 ? p[1] : "1")));
+                break;
+            case "DT":  // tanı: belge öğe ağacı
+                EventQueue.invokeLater(() -> {
+                    javax.swing.text.JTextComponent m = null;
+                    for (Window w : Window.getWindows()) if (w.isShowing() && w instanceof java.awt.Frame) { javax.swing.text.JTextComponent x = metinBilesen(w); if (x != null) m = x; }
+                    if (m == null) return;
+                    LOG.println("[belge] sınıf=" + m.getDocument().getClass().getName() + " uzunluk=" + m.getDocument().getLength());
+                    ogeDok(m.getDocument().getDefaultRootElement(), 0, new int[]{0});
+                });
+                break;
+            case "MM": EventQueue.invokeLater(() -> Mobil.kip(p.length > 1 ? Integer.parseInt(p[1]) : 0)); break;
+            case "MP": EventQueue.invokeLater(() -> Mobil.nokta(Integer.parseInt(p[1]), Integer.parseInt(p[2]),
+                    p.length > 4 ? Integer.parseInt(p[3]) : -1, p.length > 4 ? Integer.parseInt(p[4]) : -1)); break;
+            case "MK": EventQueue.invokeLater(() -> Mobil.imlec(Integer.parseInt(p[1]), p.length > 2 ? Integer.parseInt(p[2]) : -1)); break;
+            case "VD":  // tanı: belge çizim (View) ağacı
+                EventQueue.invokeLater(() -> {
+                    javax.swing.text.JTextComponent m = null;
+                    for (Window w : Window.getWindows()) if (w.isShowing() && w instanceof java.awt.Frame) { javax.swing.text.JTextComponent x = metinBilesen(w); if (x != null) m = x; }
+                    if (m == null) return;
+                    javax.swing.text.View k = m.getUI().getRootView(m);
+                    LOG.println("[view] bileşen " + m.getWidth() + "x" + m.getHeight() + " insets=" + m.getInsets());
+                    viewDok(k, new java.awt.Rectangle(0, 0, m.getWidth(), m.getHeight()), 0);
+                    alanTara("bileşen", m, 0, new java.util.IdentityHashMap<>());
+                    alanTara("belge", m.getDocument(), 0, new java.util.IdentityHashMap<>());
+                    alanTara("kökView", k.getView(0), 0, new java.util.IdentityHashMap<>());
+                });
+                break;
+            case "FA": case "FT": case "FS": Form.komut(p); break;
+            case "ZD":  // tanı: model→ekran ile yerleşim karşılaştırması
+                EventQueue.invokeLater(() -> {
+                    javax.swing.text.JTextComponent m = null;
+                    for (Window w : Window.getWindows()) if (w.isShowing() && w instanceof java.awt.Frame) { javax.swing.text.JTextComponent x = metinBilesen(w); if (x != null) m = x; }
+                    if (m == null) return;
+                    javax.swing.text.View kok = m.getUI().getRootView(m), sec = kok.getView(0);
+                    java.awt.Rectangle alan = new java.awt.Rectangle(0, 0, m.getWidth(), m.getHeight());
+                    for (int i = 0; i < sec.getViewCount(); i += Math.max(1, sec.getViewCount() / 8)) {
+                        try {
+                            java.awt.Rectangle r = sec.getChildAllocation(i, alan).getBounds();
+                            @SuppressWarnings("deprecation") java.awt.Rectangle mv = m.modelToView(sec.getView(i).getStartOffset());
+                            LOG.println("[zoom] i=" + i + " görünüm=" + r.x + "," + r.y + " modelToView=" + mv.x + "," + mv.y + " oran=" + (r.y == 0 ? 0 : mv.y / (double) r.y));
+                        } catch (Exception ex) { LOG.println("[zoom] " + ex); }
+                    }
+                });
+                break;
+            case "BD":  // tanı: ana penceredeki bileşen ağacı (düğmeler, etiketler, sekmeler)
+                EventQueue.invokeLater(() -> { for (Window w : Window.getWindows()) if (w.isShowing() && w instanceof java.awt.Frame) agacDok(w, 0); });
+                break;
+            case "MD":  // tanı: menü çubuğu ağacı
+                EventQueue.invokeLater(() -> {
+                    for (Window w : Window.getWindows())
+                        if (w.isShowing() && w instanceof javax.swing.JFrame && ((javax.swing.JFrame) w).getJMenuBar() != null) {
+                            javax.swing.JMenuBar mb = ((javax.swing.JFrame) w).getJMenuBar();
+                            for (int i = 0; i < mb.getMenuCount(); i++) if (mb.getMenu(i) != null) menuDok(mb.getMenu(i), 0);
+                        }
+                });
                 break;
             case "G":   // tanı: fare/tuş olaylarını günlüğe yaz
                 Toolkit.getDefaultToolkit().addAWTEventListener(e -> LOG.println("[uyapmobil] olay " + e.paramString() + " @ " + e.getSource().getClass().getSimpleName()),
@@ -368,6 +1006,118 @@ public final class Kopru {
                 break;
             default: break;
         }
+    }
+
+    private static void ogeDok(javax.swing.text.Element e, int d, int[] say) {
+        if (say[0]++ > 400) return;
+        StringBuilder sb = new StringBuilder("[belge] ");
+        for (int i = 0; i < d; i++) sb.append("  ");
+        sb.append(e.getName()).append(" [").append(e.getStartOffset()).append(',').append(e.getEndOffset()).append("] ");
+        javax.swing.text.AttributeSet a = e.getAttributes();
+        java.util.Enumeration<?> n = a.getAttributeNames();
+        while (n.hasMoreElements()) {
+            Object k = n.nextElement();
+            Object v = a.getAttribute(k);
+            String vs = String.valueOf(v);
+            if (vs.length() > 40) vs = vs.substring(0, 40) + "…";
+            sb.append(k).append('=').append(vs).append("; ");
+        }
+        if (e.isLeaf()) {
+            try {
+                String t = e.getDocument().getText(e.getStartOffset(), Math.min(30, e.getEndOffset() - e.getStartOffset()));
+                sb.append(" «").append(t.replace("\n", "⏎")).append('»');
+            } catch (Exception ignored) { }
+        }
+        LOG.println(sb);
+        for (int i = 0; i < e.getElementCount(); i++) ogeDok(e.getElement(i), d + 1, say);
+    }
+
+    /** Tanı: nesne alanlarında sayfa biçimi (PageFormat/Paper/Insets/float kenar boşlukları) ara. */
+    private static void alanTara(String yol, Object o, int d, java.util.Map<Object, Boolean> gorulen) {
+        if (o == null || d > 2 || gorulen.put(o, true) != null) return;
+        for (Class<?> c = o.getClass(); c != null && c != Object.class && !c.getName().startsWith("java.awt.Component") && !c.getName().startsWith("javax.swing.JComponent"); c = c.getSuperclass()) {
+            for (Field f : c.getDeclaredFields()) {
+                if (java.lang.reflect.Modifier.isStatic(f.getModifiers())) continue;
+                Class<?> t = f.getType();
+                try {
+                    f.setAccessible(true);
+                    Object v = f.get(o);
+                    if (v == null) continue;
+                    String tn = t.getName();
+                    if (v instanceof java.awt.print.PageFormat) {
+                        java.awt.print.PageFormat p = (java.awt.print.PageFormat) v;
+                        LOG.println("[sayfa] " + yol + "." + c.getSimpleName() + "#" + f.getName() + " PageFormat " + p.getWidth() + "x" + p.getHeight() + " görüntü " + p.getImageableX() + "," + p.getImageableY() + " " + p.getImageableWidth() + "x" + p.getImageableHeight() + " yön=" + p.getOrientation());
+                    } else if (v instanceof java.awt.print.Paper) {
+                        java.awt.print.Paper p = (java.awt.print.Paper) v;
+                        LOG.println("[sayfa] " + yol + "." + c.getSimpleName() + "#" + f.getName() + " Paper " + p.getWidth() + "x" + p.getHeight() + " " + p.getImageableX() + "," + p.getImageableY());
+                    } else if (v instanceof java.awt.Insets || v instanceof java.awt.Dimension || v instanceof java.awt.Rectangle) {
+                        LOG.println("[sayfa] " + yol + "." + c.getSimpleName() + "#" + f.getName() + " " + v);
+                    } else if ((t == float.class || t == double.class || t == int.class) && d <= 1 && yol.startsWith("kökView")) {
+                        LOG.println("[sayfa] " + yol + "." + c.getSimpleName() + "#" + f.getName() + " = " + v);
+                    } else if (t == int[].class && yol.startsWith("kökView")) {
+                        int[] dz = (int[]) v;
+                        LOG.println("[sayfa] " + yol + "." + c.getSimpleName() + "#" + f.getName() + " int[" + dz.length + "] " + java.util.Arrays.toString(java.util.Arrays.copyOf(dz, Math.min(12, dz.length))));
+                    } else if ((t == float.class || t == double.class) && d <= 1) {
+                        LOG.println("[sayfa] " + yol + "." + c.getSimpleName() + "#" + f.getName() + " = " + v);
+                    } else if (tn.startsWith("tr.com.havelsan") && !(v instanceof Component)) {
+                        alanTara(yol + "." + f.getName(), v, d + 1, gorulen);
+                    }
+                } catch (Throwable ignored) { }
+            }
+        }
+    }
+
+    private static void viewDok(javax.swing.text.View v, java.awt.Shape a, int d) {
+        if (v == null || d > 5) return;
+        java.awt.Rectangle r = a == null ? null : a.getBounds();
+        StringBuilder sb = new StringBuilder("[view] ");
+        for (int i = 0; i < d; i++) sb.append("  ");
+        sb.append(v.getClass().getName()).append(" n=").append(v.getViewCount()).append(" [").append(v.getStartOffset()).append(',').append(v.getEndOffset()).append("] ").append(r);
+        if (v.getElement() != null) sb.append(" el=").append(v.getElement().getName());
+        LOG.println(sb);
+        int n = Math.min(v.getViewCount(), d == 0 ? 3 : 4);
+        for (int i = 0; i < n; i++) {
+            java.awt.Shape c = null;
+            try { c = v.getChildAllocation(i, a); } catch (Exception ignored) { }
+            viewDok(v.getView(i), c, d + 1);
+        }
+    }
+
+    private static void menuDok(javax.swing.JMenuItem m, int d) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < d; i++) sb.append("  ");
+        sb.append(m.getText()).append(" | ").append(m.getClass().getSimpleName()).append(" etkin=").append(m.isEnabled())
+          .append(" kısa=").append(m.getAccelerator()).append(" ikon=").append(m.getIcon() != null)
+          .append(" eylem=").append(m.getAction() != null ? m.getAction().getClass().getName() : "-")
+          .append(" dinleyici=").append(m.getActionListeners().length);
+        LOG.println("[menü] " + sb);
+        if (m instanceof javax.swing.JMenu)
+            for (Component k : ((javax.swing.JMenu) m).getMenuComponents())
+                if (k instanceof javax.swing.JMenuItem) menuDok((javax.swing.JMenuItem) k, d + 1);
+                else { LOG.println("[menü] " + "  ".repeat(d + 1) + "-- " + k.getClass().getSimpleName()); if (k instanceof javax.swing.JToolBar || k instanceof javax.swing.JCheckBox) agacDok(k, 2 * d + 6); }
+    }
+
+    private static void agacDok(Component c, int d) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < d; i++) sb.append(' ');
+        sb.append(c.getClass().getName());
+        if (c.getName() != null) sb.append(" ad=").append(c.getName());
+        if (c instanceof javax.swing.AbstractButton) {
+            javax.swing.AbstractButton b = (javax.swing.AbstractButton) c;
+            sb.append(" [DÜĞME metin=").append(b.getText()).append(" ipucu=").append(b.getToolTipText())
+              .append(" komut=").append(b.getActionCommand()).append(" etkin=").append(b.isEnabled())
+              .append(" eylem=").append(b.getAction() != null ? b.getAction().getClass().getName() : null).append(']');
+        } else if (c instanceof javax.swing.JLabel) sb.append(" [ETİKET ").append(((javax.swing.JLabel) c).getText()).append(']');
+        else if (c instanceof javax.swing.JComponent && ((javax.swing.JComponent) c).getToolTipText() != null)
+            sb.append(" ipucu=").append(((javax.swing.JComponent) c).getToolTipText());
+        if (c instanceof javax.swing.JTabbedPane) {
+            javax.swing.JTabbedPane t = (javax.swing.JTabbedPane) c;
+            for (int i = 0; i < t.getTabCount(); i++) sb.append(" sekme").append(i).append('=').append(t.getTitleAt(i));
+        }
+        sb.append(" g=").append(c.isVisible()).append(' ').append(c.getBounds().width).append('x').append(c.getBounds().height);
+        LOG.println(sb);
+        if (c instanceof java.awt.Container && d < 40)
+            for (Component k : ((java.awt.Container) c).getComponents()) agacDok(k, d + 1);
     }
 
     private static Component odak() {

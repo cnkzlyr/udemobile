@@ -1,0 +1,362 @@
+<!doctype html>
+<html lang="tr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<style>
+/*
+ * UYAP Editör — Kağıt ve Mobil görünüm (3.26.0). İçerik resmi motorun BELLEKTEKİ belgesinden artımlı gelir:
+ *   MOBIL  [[kimlik, taban, html|0]...]                      — üst düzey öğeler; 0: önceki DOM düğümü yeniden kullanılır
+ *   MKAGIT {pw,ph,px,pitch,n,B:[[kimlik,y,h,bölge,taban,{L,I}|0]...]}  — motor koordinatları (1 birim = 1 pt)
+ * Ofsetler öğe başına göreli (data-o); mutlak ofset = taban (data-b) + data-o.
+ */
+:root{--g:.45;--olcek:1}
+html,body{margin:0;background:#e8eaed;-webkit-text-size-adjust:none;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+body{font-family:'Times New Roman','Liberation Serif',serif;color:#202124}
+/* ---- mobil ---- */
+#mobil{background:#fff;margin:10px 8px 160px;padding:18px 16px 28px;border-radius:12px;min-height:calc(100vh - 70px);box-sizing:border-box;
+  box-shadow:0 1px 3px rgba(60,64,67,.15),0 4px 12px rgba(60,64,67,.08);font-size:calc(12pt*var(--olcek));
+  line-height:1.38;word-wrap:break-word;overflow-wrap:anywhere}
+#mobil p,.mb p{margin:0;white-space:pre-wrap;tab-size:3;min-height:1em}
+#mobil img,.mb img{max-width:100%;height:auto !important;vertical-align:middle}
+#mobil header,#mobil footer,.mb header,.mb footer{display:block;color:#5f6368;font-size:.9em}
+#mobil header{border-bottom:1px dashed #dadce0;padding-bottom:8px;margin-bottom:12px}
+#mobil footer{border-top:1px dashed #dadce0;padding-top:8px;margin-top:16px}
+#mobil table,.mb table{border-collapse:collapse;width:100%;margin:6px 0}
+#mobil td,.mb td{border:1px solid #9aa0a6;padding:4px 6px;vertical-align:top}
+#mobil .sec{background:rgba(26,115,232,.28)}
+/* ---- kağıt ---- */
+#kagit{display:none;padding:12px 0 170px}
+body.kagit #kagit{display:block} body.kagit #mobil{display:none}
+#dis{position:relative;margin:0 auto}
+#ic{position:absolute;left:0;top:0;transform-origin:0 0}
+.sf{position:absolute;left:0;background:#fff;animation:belir .18s ease-out;box-shadow:0 1px 3px rgba(60,64,67,.18),0 6px 16px rgba(60,64,67,.10)}
+.bk{position:absolute;left:0;top:0}
+.w{position:absolute;white-space:pre;font-family:'Times New Roman','Liberation Serif',serif;color:#202124}
+.w.sec{background:rgba(26,115,232,.28)}
+.bk img{position:absolute}
+/* ---- imleç ---- */
+#imlec{position:absolute;width:2px;background:#1a73e8;border-radius:1px;pointer-events:none;z-index:5;display:none;animation:yanip 1.05s steps(1) infinite}
+@keyframes yanip{50%{opacity:0}}
+
+/* ---- seçim: vurgu, tutamaçlar, büyüteç, eylem çubuğu ---- */
+#secim{position:absolute;left:0;top:0;pointer-events:none;z-index:4}
+#secim i{position:absolute;background:rgba(26,115,232,.30);border-radius:2px}
+.tut{position:absolute;width:26px;height:26px;z-index:7;display:none;touch-action:none}
+.tut:after{content:'';position:absolute;left:3px;top:3px;width:20px;height:20px;background:#1a73e8;border-radius:0 50% 50% 50%;box-shadow:0 1px 3px rgba(0,0,0,.3)}
+#tutA:after{border-radius:50% 0 50% 50%}
+#lupa{position:fixed;width:140px;height:64px;border-radius:32px;overflow:hidden;background:#fff;z-index:9;display:none;pointer-events:none;
+  box-shadow:0 4px 16px rgba(0,0,0,.28),0 0 0 1px rgba(0,0,0,.06)}
+#lupa .ic{position:absolute;left:0;top:0;transform-origin:0 0}
+#eylem{position:absolute;z-index:8;display:none;background:#fff;border-radius:22px;padding:4px;white-space:nowrap;
+  box-shadow:0 4px 14px rgba(0,0,0,.22);font:500 15px system-ui,sans-serif;animation:belir .16s ease-out}
+#eylem b{display:inline-block;padding:10px 14px;color:#202124;font-weight:500;border-radius:18px}
+#eylem b:active{background:#e8f0fe}
+@keyframes belir{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+</style></head>
+<body>
+<div id="mobil" class="mb"></div>
+<div id="kagit"><div id="dis"><div id="ic"></div></div></div>
+<div id="imlec"></div><div id="secim"></div><div class="tut" id="tutA"></div><div class="tut" id="tutB"></div>
+<div id="lupa"><div class="ic"></div></div>
+<div id="eylem"><b data-e="kes">Kes</b><b data-e="kopyala">Kopyala</b><b data-e="yapistir">Yapıştır</b><b data-e="tumu">Tümünü seç</b></div>
+<script>
+var R={}, mobilEl=document.getElementById('mobil'), dis=document.getElementById('dis'), ic=document.getElementById('ic'), imlecEl=document.getElementById('imlec');
+var kip=1, olcekK=1, sec=[0,0], kar=null, ilk=true;
+var MB={}, KB={}, KD=null, nesil=-1;
+function nesilBak(g){ if(g!==nesil){ nesil=g; MB={}; for(var k in KB) blokKaldir(KB[k]); KB={}; ST=[]; mobilEl.innerHTML=''; } }      // kimlik → düğüm
+function b64(s){ return decodeURIComponent(escape(atob(s))); }
+function resim(no,png){ R[no]='data:image/png;base64,'+png; var l=document.querySelectorAll('img[data-r="'+no+'"]'); for(var i=0;i<l.length;i++) l[i].src=R[no]; }
+function resimleriBagla(k){ var l=k.querySelectorAll('img[data-r]'); for(var i=0;i<l.length;i++){ var r=R[l[i].getAttribute('data-r')]; if(r) l[i].src=r; } }
+
+// ======================================================================= mobil
+function mobilCiz(js,a,b){
+  kipSec(1); var J=JSON.parse(js); nesilBak(J.g); var bl=J.B, yeni={}, once=null;
+  for(var i=0;i<bl.length;i++){
+    var k=bl[i][0], t=bl[i][1], h=bl[i][2], d=MB[k];
+    if(h!==0||!d){ var tmp=document.createElement('div'); tmp.innerHTML=h; d=document.createElement('div'); d.className='bl';
+      while(tmp.firstChild) d.appendChild(tmp.firstChild); resimleriBagla(d);
+      var s=d.querySelectorAll('span[style*="font-size"]'); for(var j=0;j<s.length;j++){var m=/font-size:\s*([\d.]+)pt/.exec(s[j].getAttribute('style')); if(m) s[j].style.fontSize='calc('+m[1]+'pt*var(--olcek))';} }
+    d.dataset.b=t; yeni[k]=d;
+    var sonraki=once?once.nextSibling:mobilEl.firstChild; if(sonraki!==d) mobilEl.insertBefore(d,sonraki); once=d;
+  }
+  for(var k in MB) if(!yeni[k] && MB[k].parentNode) MB[k].parentNode.removeChild(MB[k]);
+  while(once&&once.nextSibling) mobilEl.removeChild(once.nextSibling);
+  MB=yeni; gecersiz(); imlecAyarla(a,b,null,ilk); ilk=false;
+}
+function taban(el){ while(el&&el!==document.body){ if(el.dataset&&el.dataset.b!==undefined) return +el.dataset.b; el=el.parentNode; } return 0; }
+function mutlak(el){ return taban(el)+(+el.getAttribute('data-o')); }
+/** mutlak ofset → DOM aralığı (mobil) */
+function aralik(o){
+  var bl=mobilEl.children, b=null;
+  for(var i=0;i<bl.length;i++){ if(+bl[i].dataset.b<=o) b=bl[i]; else break; }
+  if(!b) return null; var t=+b.dataset.b, best=null, l=b.querySelectorAll('span[data-o],img[data-o]');
+  for(var i=0;i<l.length;i++){ if(t+(+l[i].getAttribute('data-o'))<=o) best=l[i]; else break; }
+  var r=document.createRange();
+  if(!best){ var p=b.querySelector('p')||b; r.setStart(p,0); return r; }
+  var d=o-mutlak(best);
+  if(best.tagName==='IMG'){ if(d>0) r.setStartAfter(best); else r.setStartBefore(best); return r; }
+  var tn=best.firstChild; if(!tn){ r.setStart(best,0); return r; }
+  if(d>tn.textContent.length) r.setStartAfter(best); else r.setStart(tn,Math.max(0,d)); return r;
+}
+function domOfset(node,off){
+  var e=node.nodeType===3?node.parentNode:node;
+  while(e&&e!==document.body&&!(e.hasAttribute&&e.hasAttribute('data-o'))) e=e.parentNode;
+  if(!e||e===document.body) return -1;
+  if(e.tagName==='P'){ var son=e.querySelectorAll('[data-o]'); son=son[son.length-1]; if(son) return mutlak(son)+(son.tagName==='IMG'?1:son.textContent.length); return mutlak(e); }
+  return mutlak(e)+(node.nodeType===3?off:0);
+}
+
+// ======================================================================= kağıt
+// Yalnızca görünen sayfaların yakınındaki bloklar DOM'a yerleştirilir (uzun belgelerde akıcılık).
+var ST=[], cizZ=null;
+function sc(){ return KD ? Math.max(0.2,(window.innerWidth-12)/KD.pw)*olcekK : 1; }
+function blokDugum(p){
+  var d=document.createElement('div'); d.className='bk';
+  for(var i=0;i<p.L.length;i++){ var L=p.L[i], ly=L[0], lh=L[1], q=L[2];
+    for(var j=0;j<q.length;j++){ var w=q[j], e=document.createElement('span'), fs=w[5]||12, lb=fs*1.17;
+      e.className='w'; e.textContent=w[3]; e.setAttribute('data-o',w[2]);
+      e.style.cssText=(ST[w[4]]||'')+'left:'+(w[0]-KD.px)+'px;top:'+(ly+lh-lb-fs*0.06)+'px;font-size:'+fs+'px;line-height:'+lb+'px;';
+      d.appendChild(e); } }
+  for(var i=0;i<p.I.length;i++){ var q=p.I[i], im=document.createElement('img');
+    im.style.cssText='left:'+(q[0]-KD.px)+'px;top:'+q[1]+'px;width:'+q[2]+'px;height:'+q[3]+'px'; im.setAttribute('data-r',q[4]); if(R[q[4]]) im.src=R[q[4]]; d.appendChild(im); }
+  return d;
+}
+function kagitCiz(js,a,b,cx,cy,ch){
+  kipSec(2); var d=JSON.parse(js); nesilBak(d.g);
+  for(var i=0;i<d.S.length;i++) ST[d.S0+i]=d.S[i];
+  var ilkKez=!KD; KD=d;
+  var s=sc(); dis.style.width=(d.pw*s)+'px'; dis.style.height=(d.n*d.pitch*s)+'px';
+  ic.style.width=d.pw+'px'; ic.style.height=(d.n*d.pitch)+'px'; ic.style.transform='scale('+s+')';
+  var yeni={};
+  for(var i=0;i<d.B.length;i++){
+    var B=d.B[i], k=B[0], n=KB[k];
+    if(B[5]!==0||!n){ if(n) blokKaldir(n); n={p:B[5]===0?null:B[5], d:null, k:{}}; }
+    n.y=B[1]; n.h=B[2]; n.bolge=B[3]; n.t=B[4];
+    yeni[k]=n;
+  }
+  for(var k in KB) if(!yeni[k]) blokKaldir(KB[k]);
+  KB=yeni; ciz(); gecersiz();
+  imlecAyarla(a,b,cx===undefined?null:[cx,cy,ch], ilkKez);
+}
+function blokKaldir(n){ if(n.d) n.d.remove(); for(var x in n.k) n.k[x].remove(); n.d=null; n.k={}; }
+/** Görünür aralıktaki sayfaları ve blokları yerleştir, uzaktakileri DOM'dan çıkar. */
+function ciz(){
+  if(!KD) return; var s=sc(), r=dis.getBoundingClientRect();
+  var y0=(-r.top)/s - KD.pitch, y1=(-r.top+window.innerHeight)/s + KD.pitch;
+  var p0=Math.max(0,Math.floor(y0/KD.pitch)), p1=Math.min(KD.n-1,Math.floor(y1/KD.pitch));
+  // sayfa zeminleri
+  var var_={}, sf=ic.querySelectorAll('.sf');
+  for(var i=0;i<sf.length;i++){ var k=+sf[i].dataset.k; if(k<p0||k>p1) sf[i].remove(); else var_[k]=1; }
+  for(var k=p0;k<=p1;k++) if(!var_[k]){ var z=document.createElement('div'); z.className='sf'; z.dataset.k=k; z.style.cssText='top:'+(k*KD.pitch)+'px;width:'+KD.pw+'px;height:'+KD.ph+'px'; ic.insertBefore(z,ic.firstChild); }
+  for(var id in KB){ var n=KB[id]; if(!n.p) continue;
+    if(n.bolge===0){
+      var gor=n.y+n.h>=y0 && n.y<=y1;
+      if(gor){ if(!n.d){ n.d=blokDugum(n.p); ic.appendChild(n.d); } n.d.style.top=n.y+'px'; n.d.dataset.b=n.t; }
+      else if(n.d){ n.d.remove(); n.d=null; }
+    } else {
+      var ry=n.bolge===1? n.y : n.y-Math.floor(n.y/KD.pitch)*KD.pitch;
+      for(var x in n.k){ if(x<p0||x>p1){ n.k[x].remove(); delete n.k[x]; } }
+      for(var k=p0;k<=p1;k++){ var c=n.k[k]; if(!c){ c=blokDugum(n.p); ic.appendChild(c); n.k[k]=c; } c.style.top=(k*KD.pitch+ry)+'px'; c.dataset.b=n.t; }
+    }
+  }
+}
+window.addEventListener('scroll',function(){ if(kip!==2||cizZ) return; cizZ=requestAnimationFrame(function(){ cizZ=null; ciz(); gecersiz(); if(!surukle) imlecAyarla(sec[0],sec[1],null,false,true); }); },{passive:true});
+function kMotor(cx,cy){ var r=ic.getBoundingClientRect(), s=sc(); return [Math.round((cx-r.left)/s+KD.px), Math.round((cy-r.top)/s)]; }
+
+// ======================================================================= ofset ↔ DOM
+/** Çizili (görünen) metin parçaları, mutlak ofset sırasıyla. Her çizimde yenilenir. */
+var PS=null;
+function parcalar(){
+  if(PS) return PS;
+  var l=document.querySelectorAll(kip===2?'#ic .bk .w':'#mobil span[data-o]'), r=[], gor={};
+  for(var i=0;i<l.length;i++){ var o=mutlak(l[i]); if(gor[o]) continue; gor[o]=1; r.push({e:l[i],o:o,n:l[i].textContent.length}); }
+  r.sort(function(x,y){return x.o-y.o;}); PS=r; return r;
+}
+function gecersiz(){ PS=null; }
+/** mutlak ofset → {e,d}: parça ve içindeki konum */
+function parcaBul(o){
+  var p=parcalar(), lo=0, hi=p.length-1, b=-1;
+  while(lo<=hi){ var m=(lo+hi)>>1; if(p[m].o<=o){ b=m; lo=m+1; } else hi=m-1; }
+  if(b<0) return p.length?{e:p[0].e,d:0}:null;
+  return {e:p[b].e, d:Math.min(o-p[b].o,p[b].n)};
+}
+/** Ekrandaki bir noktadaki mutlak ofset (metin üstündeyse). */
+function noktaOfset(x,y){
+  var r=document.caretRangeFromPoint(x,y); if(!r) return -1;
+  var n=r.startContainer, e=n.nodeType===3?n.parentNode:n;
+  if(!e||!e.hasAttribute||!e.hasAttribute('data-o')){ // metin dışında: aynı satırdaki en yakın parça
+    return enYakin(x,y);
+  }
+  return mutlak(e)+(n.nodeType===3?r.startOffset:0);
+}
+function enYakin(x,y){
+  var p=parcalar(), en=null, ed=1e9;
+  for(var i=0;i<p.length;i++){ var b=p[i].e.getBoundingClientRect(); if(b.bottom<y-40||b.top>y+40) continue;
+    var dy=y<b.top?b.top-y:(y>b.bottom?y-b.bottom:0), dx=x<b.left?b.left-x:(x>b.right?x-b.right:0), d=dy*4+dx;
+    if(d<ed){ ed=d; en={p:p[i], son:x>b.right}; } }
+  if(!en) return -1;
+  if(en.son) return en.p.o+en.p.n;
+  var b=en.p.e.getBoundingClientRect(); if(x<b.left) return en.p.o;
+  var r=document.createRange(), t=en.p.e.firstChild; if(!t) return en.p.o;
+  for(var k=0;k<=t.length;k++){ r.setStart(t,k); r.setEnd(t,k); var q=r.getBoundingClientRect(); if(q.left>=x) return en.p.o+Math.max(0,k-(q.left-x>3?1:0)); }
+  return en.p.o+en.p.n;
+}
+/** Ofsetin ekran dikdörtgeni (imleç/tutamaç için). */
+function ofsetDik(o){
+  var f=parcaBul(o); if(!f) return null; var t=f.e.firstChild, r=document.createRange();
+  if(!t){ var b=f.e.getBoundingClientRect(); return {x:b.left,y:b.top,h:b.height}; }
+  r.setStart(t,Math.min(f.d,t.length)); r.setEnd(t,Math.min(f.d,t.length));
+  var q=r.getClientRects(), k=q.length?q[0]:f.e.getBoundingClientRect(), fs=parseFloat(getComputedStyle(f.e).fontSize)*(kip===2?sc():1);
+  var h=Math.min(k.height||fs*1.2, fs*1.3);
+  return {x:k.left, y:k.top+Math.max(0,(k.height-h)/2), h:h};
+}
+/** Kelime sınırları (Türkçe harfler dahil). */
+function kelime(o){
+  var f=parcaBul(o); if(!f) return [o,o]; var t=f.e.textContent, d=f.d, b=mutlak(f.e), h=/[\p{L}\p{N}_'’\-]/u;
+  if(d>=t.length && d>0) d=t.length-1;
+  if(!h.test(t[d]||'') && d>0 && h.test(t[d-1])) d--;
+  if(!h.test(t[d]||'')) return [b+d,b+d+1];
+  var a=d, z=d; while(a>0&&h.test(t[a-1])) a--; while(z<t.length&&h.test(t[z])) z++;
+  return [b+a,b+z];
+}
+
+// ======================================================================= imleç ve seçim
+var secEl=document.getElementById('secim'), tutA=document.getElementById('tutA'), tutB=document.getElementById('tutB'), lupa=document.getElementById('lupa'), eylem=document.getElementById('eylem');
+var surukle=null, eylemGoster=false;
+function imlecAyarla(a,b,kr,kaydir,kaydirma){
+  if(a<0) return; if(kr) kar=kr;
+  if(surukle) return;          // kullanıcı sürüklerken motor yanıtı yerel seçimi bozmasın
+  sec=[Math.min(a,b),Math.max(a,b)];
+  secimCiz();
+  if(a!==b){ imlecEl.style.display='none'; return; }
+  var x,y,h;
+  if(kip===2 && kar && KD){ var s=sc(), r=ic.getBoundingClientRect(); x=r.left+(kar[0]-KD.px)*s; y=r.top+kar[1]*s; h=Math.min(kar[2],20)*s; }
+  else { var d=ofsetDik(b); if(!d){ imlecEl.style.display='none'; return; } x=d.x; y=d.y; h=d.h; }
+  imlecEl.style.display='block'; imlecEl.style.left=(x+window.scrollX)+'px'; imlecEl.style.top=(y+window.scrollY)+'px'; imlecEl.style.height=Math.max(8,h)+'px';
+  imlecEl.style.animation='none'; void imlecEl.offsetWidth; imlecEl.style.animation='';
+  if(kaydirma) return;
+  if(kaydir) window.scrollTo({top:Math.max(0,y+window.scrollY-window.innerHeight/3)});
+  else if(y<60||y>window.innerHeight-190) window.scrollBy({top:y-window.innerHeight/3,behavior:'smooth'});
+}
+function imlec(a,b,cx,cy,ch){ imlecAyarla(a,b,cx===undefined||cx===null?null:[cx,cy,ch],false); }
+/** Seçimi satır parçaları hâlinde çiz; tutamaçları ve eylem çubuğunu yerleştir. */
+function secimCiz(){
+  secEl.innerHTML=''; var a=sec[0], b=sec[1];
+  if(a===b){ tutA.style.display=tutB.style.display='none'; eylem.style.display='none'; return; }
+  var p=parcalar(), ilkR=null, sonR=null, sx=window.scrollX, sy=window.scrollY, r=document.createRange();
+  for(var i=0;i<p.length;i++){ var q=p[i]; if(q.o+q.n<=a) continue; if(q.o>=b) break; var t=q.e.firstChild; if(!t) continue;
+    r.setStart(t,Math.max(0,a-q.o)); r.setEnd(t,Math.min(q.n,b-q.o)); var k=r.getClientRects();
+    for(var j=0;j<k.length;j++){ var z=document.createElement('i'); z.style.cssText='left:'+(k[j].left+sx)+'px;top:'+(k[j].top+sy)+'px;width:'+k[j].width+'px;height:'+k[j].height+'px'; secEl.appendChild(z);
+      if(!ilkR) ilkR=k[j]; sonR=k[j]; } }
+  if(ilkR){ tutA.style.display='block'; tutA.style.left=(ilkR.left+sx-26)+'px'; tutA.style.top=(ilkR.bottom+sy-2)+'px'; } else tutA.style.display='none';
+  if(sonR){ tutB.style.display='block'; tutB.style.left=(sonR.right+sx)+'px'; tutB.style.top=(sonR.bottom+sy-2)+'px'; } else tutB.style.display='none';
+  if(ilkR && eylemGoster && !surukle){ eylem.style.display='block'; var ew=eylem.offsetWidth||300;
+    eylem.style.left=Math.max(8,Math.min(window.innerWidth-ew-8,(ilkR.left+(sonR?sonR.right:ilkR.right))/2-ew/2))+sx+'px';
+    var ey=ilkR.top-56; if(ey<70) ey=(sonR?sonR.bottom:ilkR.bottom)+36; eylem.style.top=(ey+sy)+'px'; }
+  else eylem.style.display='none';
+}
+/** Yerel seçim (anında çiz) + motora bildir (kısıtlı sıklıkla). */
+var secGonZ=null;
+function secimYap(a,b,hemen){
+  sec=[Math.min(a,b),Math.max(a,b)]; imlecEl.style.display=a===b?'block':'none'; secimCiz();
+  clearTimeout(secGonZ); var gonder=function(){ if(window.K) K.imlec(a,b); };
+  if(hemen) gonder(); else secGonZ=setTimeout(gonder,120);
+}
+eylem.addEventListener('touchend',function(ev){ var e=ev.target.closest('b'); if(!e) return; ev.preventDefault(); ev.stopPropagation();
+  if(window.K&&K.eylem) K.eylem(e.dataset.e); if(e.dataset.e!=='tumu') { eylemGoster=false; eylem.style.display='none'; } },{passive:false});
+
+/** Anında yerel yankı: basılan harf motorun yanıtını beklemeden görünür (motor güncellemesi gelince düzeltilir). */
+function yerel(t){
+  var o=sec[1], f=parcaBul(o); if(!f) return; var hedef=f.e, d=f.d;
+  var x=hedef.textContent; hedef.textContent=x.slice(0,d)+t+x.slice(d);
+  var p=parcalar(); for(var i=0;i<p.length;i++){ if(p[i].e!==hedef && p[i].o>=o){ p[i].e.setAttribute('data-o',(+p[i].e.getAttribute('data-o'))+t.length); } }
+  gecersiz(); sec=[o+t.length,o+t.length]; eylemGoster=false;
+  if(kip===2 && kar){ var cv=document.createElement('canvas').getContext('2d'), cs=getComputedStyle(hedef); cv.font=cs.fontWeight+' '+cs.fontStyle+' '+cs.fontSize+' '+cs.fontFamily; kar=[kar[0]+cv.measureText(t).width,kar[1],kar[2]]; }
+  imlecAyarla(sec[0],sec[1],null,false);
+}
+
+// ======================================================================= büyüteç
+var lupaKap=null, lupaKaynak=null;
+function lupaBas(x,y){
+  var el=document.elementFromPoint(x,y); el=el&&el.closest?el.closest(kip===2?'.bk':'.bl'):null;
+  if(!el){ lupaBitir(); return; }
+  if(el!==lupaKaynak){ lupaKaynak=el; var ic2=lupa.firstChild; ic2.innerHTML=''; var c=el.cloneNode(true);
+    c.style.position='absolute'; c.style.left='0'; c.style.top='0'; if(kip===1){ c.style.width=el.offsetWidth+'px'; ic2.className='ic mb'; ic2.style.fontSize=getComputedStyle(mobilEl).fontSize; ic2.style.lineHeight='1.38'; } else ic2.className='ic';
+    ic2.appendChild(c); lupaKap=c; }
+  var r=el.getBoundingClientRect(), Z=1.7, s=kip===2?sc():1, lw=140, lh=64;
+  var px=(x-r.left)/s, py=(y-r.top)/s;
+  lupa.firstChild.style.transform='translate('+(lw/2-px*Z*s)+'px,'+(lh/2-py*Z*s)+'px) scale('+(Z*s)+')';
+  lupa.style.display='block'; lupa.style.left=Math.max(6,Math.min(window.innerWidth-lw-6,x-lw/2))+'px'; lupa.style.top=Math.max(6,y-lh-56)+'px';
+}
+function lupaBitir(){ lupa.style.display='none'; lupaKaynak=null; }
+
+// ======================================================================= dokunma
+// tek dokunuş: imleç · çift dokunuş / basılı tutma: kelime seç · basılı tutup sürükleme: seçimi genişlet
+// tutamaçlar: seçimin uçlarını sürükle (büyüteçle) · seçim üstünde: Kes / Kopyala / Yapıştır / Tümünü seç
+var bas=null, uzunZ=null, sonDok={t:0,x:0,y:0};
+function tutBasla(ev,uc){ ev.preventDefault(); ev.stopPropagation(); var t=ev.touches[0]; surukle={uc:uc, sabit: uc==='a'?sec[1]:sec[0]}; eylem.style.display='none'; lupaBas(t.clientX,t.clientY-30); }
+tutA.addEventListener('touchstart',function(ev){ tutBasla(ev,'a'); },{passive:false});
+tutB.addEventListener('touchstart',function(ev){ tutBasla(ev,'b'); },{passive:false});
+function surukleHareket(x,y){
+  var o=noktaOfset(x,y-30); if(o<0) return; lupaBas(x,y-30);
+  var a=surukle.sabit, b=o; if(a===b) b=a+(surukle.uc==='a'?-1:1);
+  secimYap(a,b,false); kenarKaydir(y);
+}
+function kenarKaydir(y){ if(y<120) window.scrollBy(0,-14); else if(y>window.innerHeight-120) window.scrollBy(0,14); }
+document.addEventListener('touchstart',function(ev){
+  if(ev.target.closest&&(ev.target.closest('.tut')||ev.target.closest('#eylem'))) return;
+  if(ev.touches.length!==1){ bas=null; clearTimeout(uzunZ); return; }
+  var t=ev.touches[0]; bas={x:t.clientX,y:t.clientY,t:Date.now()};
+  clearTimeout(uzunZ); uzunZ=setTimeout(function(){ if(!bas) return; bas.uzun=true; if(navigator.vibrate) navigator.vibrate(12);
+    var o=noktaOfset(bas.x,bas.y); if(o<0) return; var k=kelime(o); eylemGoster=true; secimYap(k[0],k[1],true);
+    surukle={uc:'b', sabit:k[0], uzun:true, k:k}; lupaBas(bas.x,bas.y-30); },430);
+},{passive:true});
+document.addEventListener('touchmove',function(ev){
+  if(surukle){ ev.preventDefault(); var t=ev.touches[0];
+    if(surukle.uzun){ var o=noktaOfset(t.clientX,t.clientY-30); if(o>=0){ lupaBas(t.clientX,t.clientY-30); var k=surukle.k; secimYap(o<k[0]?o:k[0], o<k[0]?k[1]:Math.max(o,k[1]), false); kenarKaydir(t.clientY);} }
+    else surukleHareket(t.clientX,t.clientY);
+    return; }
+  if(!bas) return; var t=ev.touches[0];
+  if(Math.abs(t.clientX-bas.x)>10||Math.abs(t.clientY-bas.y)>10){ clearTimeout(uzunZ); bas=null; }
+},{passive:false});
+document.addEventListener('touchend',function(ev){
+  clearTimeout(uzunZ);
+  if(surukle){ var a=sec[0], b=sec[1]; surukle=null; lupaBitir(); eylemGoster=a!==b; secimYap(a,b,true); ev.preventDefault(); return; }
+  if(!bas) return; var b=bas; bas=null; if(b.uzun||Date.now()-b.t>420) return;
+  ev.preventDefault();
+  var simdi=Date.now(), cift=simdi-sonDok.t<320 && Math.abs(b.x-sonDok.x)<30 && Math.abs(b.y-sonDok.y)<30;
+  sonDok={t:cift?0:simdi,x:b.x,y:b.y};
+  if(cift){ var o=noktaOfset(b.x,b.y); if(o>=0){ var k=kelime(o); eylemGoster=true; secimYap(k[0],k[1],true); } return; }
+  eylemGoster=false;
+  if(sec[0]!==sec[1]){ sec=[sec[0],sec[0]]; secimCiz(); }
+  if(kip===2&&KD){ var m=kMotor(b.x,b.y); if(window.K) K.nokta(m[0],m[1],-1,-1); }
+  else { var o=noktaOfset(b.x,b.y); if(o>=0) secimYap(o,o,true); }
+},{passive:false});
+window.addEventListener('scroll',function(){ if(sec[0]!==sec[1]) secimCiz(); },{passive:true});
+
+// ======================================================================= iki parmakla yakınlaştırma
+// Kağıt: sayfa ölçeği odak noktası sabit kalacak şekilde; Mobil: yazı boyutu. Bitince Android'e bildirilir (kapsül yüzdesi).
+var pinch=null;
+function uzaklik(t){ var dx=t[0].clientX-t[1].clientX, dy=t[0].clientY-t[1].clientY; return Math.sqrt(dx*dx+dy*dy); }
+document.addEventListener('touchstart',function(ev){ if(ev.touches.length===2){ clearTimeout(uzunZ); bas=null; surukle=null; lupaBitir();
+  var t=ev.touches, fx=(t[0].clientX+t[1].clientX)/2, fy=(t[0].clientY+t[1].clientY)/2;
+  pinch={d:uzaklik(t), o:olcekK, fx:fx, fy:fy, sy:window.scrollY, sx:window.scrollX, belgeY:(fy+window.scrollY), belgeX:(fx+window.scrollX)};
+  if(kip===2) ic.style.willChange='transform'; } },{passive:true});
+document.addEventListener('touchmove',function(ev){ if(!pinch||ev.touches.length!==2) return; ev.preventDefault();
+  var k=Math.max(0.5,Math.min(3,pinch.o*uzaklik(ev.touches)/pinch.d));
+  if(Math.abs(k-olcekK)<0.01) return;
+  var oran=k/olcekK; olcekK=k; document.documentElement.style.setProperty('--olcek',k);
+  if(KD&&kip===2){ var s=sc(); dis.style.width=(KD.pw*s)+'px'; dis.style.height=(KD.n*KD.pitch*s)+'px'; ic.style.transform='scale('+s+')'; }
+  // odak noktası parmakların altında kalsın
+  var t=ev.touches, fx=(t[0].clientX+t[1].clientX)/2, fy=(t[0].clientY+t[1].clientY)/2;
+  pinch.belgeY=pinch.belgeY*oran; pinch.belgeX=pinch.belgeX*oran;
+  window.scrollTo(pinch.belgeX-fx, pinch.belgeY-fy);
+},{passive:false});
+document.addEventListener('touchend',function(ev){ if(pinch&&ev.touches.length<2){ pinch=null; if(kip===2){ ic.style.willChange=''; ciz(); gecersiz(); } imlecAyarla(sec[0],sec[1],null,false,true); if(window.K&&K.olcek) K.olcek(olcekK); } },{passive:true});
+
+// ======================================================================= kip / ölçek
+function kipSec(k){ if(k===kip) return; kip=k; document.body.classList.toggle('kagit',k===2); imlecEl.style.display='none'; }
+function sifirla(){ MB={}; for(var k in KB) blokKaldir(KB[k]); KB={}; KD=null; mobilEl.innerHTML=''; ic.innerHTML=''; ilk=true; }
+function olcek(k){ olcekK=k; document.documentElement.style.setProperty('--olcek',k);
+  if(KD){ var s=sc(); dis.style.width=(KD.pw*s)+'px'; dis.style.height=(KD.n*KD.pitch*s)+'px'; ic.style.transform='scale('+s+')'; ciz(); gecersiz(); imlecAyarla(sec[0],sec[1],null,false,true); } }
+window.addEventListener('resize',function(){ olcek(olcekK); });
+</script></body></html>

@@ -64,6 +64,29 @@ public class UyapMobilServisi extends Service {
         void durum(String m);
         void hazir(int w, int h);
         void kapandi(String neden);
+        /** Ön plandaki belge penceresinin başlığı (belge adı ve yolu içerir). */
+        void baslik(String t);
+        /** Anlık mobil görünüm satırları: MOBIL / MKARET / MRESIM (köprü: uyapmobil.Mobil). */
+        void mobil(String satir);
+        /** Belge belirli sürede açılamadı (köprünün tanısı). */
+        void acilmadi(String neden);
+        /** Arayüzden: günlüğü paylaş. */
+        void gunlukGonder();
+        /** Editörün menü ağacı (Kopru.menuGonder, JSON). */
+        void menu(String json);
+        /** Editör bir Aç/Kaydet penceresi açtı: Android seçicisini göster, yanıtı {@link #seciciYanit} ile ver. */
+        void dosyaIste(int no, boolean kaydet, String ad, String uzantilar);
+    }
+
+    /** Android seçicisinin sonucu: yol null → vazgeçildi; swing → Android seçicisi yok, editörün kendi penceresi kalsın. */
+    public static void seciciYanit(int no, String yol, boolean swing) {
+        if (swing) gonder("SK " + no);
+        else if (yol == null) gonder("SF " + no);
+        else gonder("SF " + no + " " + android.util.Base64.encodeToString(yol.getBytes(StandardCharsets.UTF_8), android.util.Base64.NO_WRAP));
+    }
+
+    private static String b64coz(String s) {
+        return new String(android.util.Base64.decode(s, android.util.Base64.DEFAULT), StandardCharsets.UTF_8);
     }
 
     // ------------------------------------------------------------------------------------ dış arayüz
@@ -290,6 +313,39 @@ public class UyapMobilServisi extends Service {
 
     /** Köprüden gelen bildirimler: PANO <hex> (editörde kopyalanan metin Android panosuna). */
     private void bildirimIsle(String satir) {
+        if (satir.startsWith("MOBIL ") || satir.startsWith("MKAGIT ") || satir.startsWith("MKARET ") || satir.startsWith("MRESIM ") || satir.startsWith("DIYALOG ") || satir.startsWith("FORM ")) {
+            Dinleyici d = dinleyici;
+            if (d != null) ana.post(() -> d.mobil(satir));
+            return;
+        }
+        if (satir.startsWith("ACILMADI ")) {
+            final String n = b64coz(satir.substring(9).trim());
+            Dinleyici d = dinleyici;
+            if (d != null) ana.post(() -> d.acilmadi(n));
+            return;
+        }
+        if (satir.startsWith("BASLIK ")) {
+            final String t = b64coz(satir.substring(7).trim());
+            Dinleyici d = dinleyici;
+            if (d != null) ana.post(() -> d.baslik(t));
+            return;
+        }
+        if (satir.startsWith("MENU ")) {
+            final String j = b64coz(satir.substring(5).trim());
+            Dinleyici d = dinleyici;
+            if (d != null) ana.post(() -> d.menu(j));
+            return;
+        }
+        if (satir.startsWith("SEC ")) {
+            String[] p = satir.split(" ", -1);
+            final int no = Integer.parseInt(p[1]);
+            final boolean kaydet = "kaydet".equals(p[2]);
+            final String ad = p.length > 3 ? b64coz(p[3]) : "", uz = p.length > 4 ? b64coz(p[4]) : "";
+            Dinleyici d = dinleyici;
+            if (d == null) { seciciYanit(no, null, true); return; }
+            ana.post(() -> d.dosyaIste(no, kaydet, ad, uz));
+            return;
+        }
         if (satir.startsWith("PANO ")) {
             final String m = new String(unhex(satir.substring(5).trim()), StandardCharsets.UTF_8);
             ana.post(() -> {
@@ -328,6 +384,15 @@ public class UyapMobilServisi extends Service {
     private static SharedPreferences kaynaklar(Context c) { return c.getSharedPreferences("uyapmobil_kaynak", MODE_PRIVATE); }
 
     /** Gelen belgenin asıl yerini (content:// ya da dosya) hatırla: kaydedince oraya da yazılır. */
+    /**
+     * İçe alınan (telefondan açılan) belgenin uygulama klasörüne kopyalanması da dosya gözcüsünü tetikliyordu: belge
+     * daha açılmadan "Kaydedildi: İndirilenler/UYAP/…" deniyor ve İndirilenler'e gereksiz kopya yazılıyordu. Kopyalanan
+     * dosyanın boyu/zamanı not edilir; gözcü aynı hâli görürse yok sayar (yalnızca editör gerçekten kaydedince yazılır).
+     */
+    static final java.util.Map<String, Long> ICE_ALINAN = new java.util.concurrent.ConcurrentHashMap<>();
+
+    static void iceAlindi(File f) { ICE_ALINAN.put(f.getAbsolutePath(), f.lastModified() * 31 + f.length()); }
+
     static void kaynakKaydet(Context c, File yerel, Uri kaynak, boolean yazilabilir) {
         kaynaklar(c).edit().putString(yerel.getAbsolutePath(), (yazilabilir ? "w|" : "r|") + kaynak).apply();
     }
@@ -340,8 +405,11 @@ public class UyapMobilServisi extends Service {
             @Override public void onEvent(int olay, String ad) {
                 if (ad == null) return;
                 String a = ad.toLowerCase(Locale.ROOT);
-                if (!a.endsWith(".udf") && !a.endsWith(".usf") && !a.endsWith(".pdf")) return;
+                if (ad.startsWith(".")) return;
                 final File f = new File(dizin, ad);
+                // UDF/USF/PDF her zaman; diğerleri (ODT, Android seçicisiyle "Farklı kaydet") yalnızca asıl yeri biliniyorsa
+                boolean bilinen = a.endsWith(".udf") || a.endsWith(".usf") || a.endsWith(".pdf");
+                if (!bilinen && kaynaklar(UyapMobilServisi.this).getString(f.getAbsolutePath(), null) == null) return;
                 ana.postDelayed(() -> geriYaz(f), 600);   // editör yazmayı bitirsin
             }
         };
@@ -350,6 +418,9 @@ public class UyapMobilServisi extends Service {
 
     private void geriYaz(File f) {
         if (!f.isFile() || f.length() == 0) return;
+        Long ice = ICE_ALINAN.get(f.getAbsolutePath());
+        if (ice != null && ice == f.lastModified() * 31 + f.length()) return;   // yalnızca içe alındı, değişmedi
+        ICE_ALINAN.remove(f.getAbsolutePath());
         String k = kaynaklar(this).getString(f.getAbsolutePath(), null);
         String mesaj;
         try {
