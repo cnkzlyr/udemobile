@@ -15,11 +15,17 @@ with open(os.path.join(os.path.dirname(__file__), "..", "package.json")) as f:
     VERSION = json.load(f)["version"]
 
 TAG = f"v{VERSION}"
-NAME = f"CanEditor v{VERSION} — %100 Havelsan UYAP Kaynak Koruma Motoru, Komut Paleti, Belge Anahattı, Odak & Gece Modu"
+NAME = f"CanEditor v{VERSION} — Mobil Akış Görünümü (Tensip/Zapt) Düzen Düzeltmesi & %100 Havelsan UYAP Kaynak Koruma"
 
 BODY = f"""# CanEditor v{VERSION}
 
-## 🌟 v{VERSION} ile Gelenler (%100 Havelsan UYAP Kaynak Koruma Motoru & Modern Hukuk Çalışma Alanı)
+## 🌟 v{VERSION} ile Gelenler (Mobil Akış Görünümü Düzen Düzeltmeleri & %100 Havelsan UYAP Uyumluluk)
+
+### 0. 📱 Mobil Akış Görünümü (`Mobil Görünüm`) Düzeltmeleri (Tensip Zaptı / Duruşma Tutanağı / Kararlar)
+- **Mahkeme Başlığı Dikey Harf Kırılması Giderildi (`T.C. / ANKARA / 29. AĞIR CEZA MAHKEMESİ`):** A4 sol yarıya ortalamak için yüksek `RightIndent` (`RightIndent="285.7pt"` = `10.08cm`) içeren mahkeme başlıklarının mobil ekran genişliğinde (`~8.6cm`) negatif genişliğe düşüp harf harf (`T`, `.`, `C`, `.`) dikey kırılması giderildi.
+- **Sağa İtilmiş Alt Başlıkların (`(ADLİ KONTROL)`) Ekran Dışına Taşması Giderildi:** A4 üzerinde yüksek `LeftIndent` (`LeftIndent="370.3pt"` = `13.06cm`) ile sağa yerleştirilen başlıkların mobil görünümde ekran dışına taşması ve boşluk bırakması önlendi; mobil görünümde otomatik olarak sağa/alta hizalanır.
+- **Asılı Girintili ve Sekmeli Üstveri Satırları (`DOSYA NO`, `BAŞKAN`, `ÜYE`, `KATİP`, `DAVACI`, `SANIK`, `SUÇ`, `SUÇ TARİHİ`) Ergonomik Mobil Sütun:** A4 için `6.46cm–6.70cm` olan sekme durağı ve asılı girintinin mobil ekranda değer sütununa yalnızca `2cm` bırakması ve `justify` nedeniyle kelimeler arasında dev boşluklar oluşturması giderildi. Mobil görünümde tüm `:` iki nokta üst üste hizaları milimetrik korunarak etiket sütunu `2.60cm` olarak ölçeklenir ve değer sütununa ekranın **%68'i** ayrılır.
+- **%100 Havelsan UYAP Kayıt Garantisi (`data-orig-ml / mr / ti / align`):** Mobil görünümdeki tüm görsel uyarlamalar orijinal A4 girintilerinden (`data-orig-*`) bağımsız çalışır; belge Mobil Görünüm'de iken kaydedildiğinde bile `RightIndent="285.7143"`, `LeftIndent="370.2857"`, `Hanging="184.96242"` ve `TabSet` öznitelikleri **%100 bayt-bayt birebir** korunur.
 
 ### 1. 🏛️ %100 Havelsan UYAP Uyumluluk ve Kaynak Koruma Motoru (`Layer-1 + Layer-2 XML Span Splicer`)
 - **Dokunulmadan Kaydedilen Belgelerde %100 Bayt-Bayt Birebirlik:** Açılan herhangi bir `.udf` belgesi (imzalı kararlar, Yargıtay ilamları, `<data>` şablonlu evraklar dahil) düzenlenmeden kaydedildiğinde `content.xml`, `documentproperties.xml` ve `sign.sgn` **%100 bayt-bayt birebir** korunur.

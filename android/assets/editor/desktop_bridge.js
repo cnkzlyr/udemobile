@@ -798,7 +798,7 @@ async function parseUdfArrayBuffer(buffer) {
       styleStr += ` margin-right: ${renderedRightCm}cm;`;
     }
 
-    let dataAttrs = ` data-udf-src-id="${escapeHtmlStr(srcId)}" data-orig-mt="${spaceAbove}pt" data-orig-mb="${spaceBelow}pt"`;
+    let dataAttrs = ` data-udf-src-id="${escapeHtmlStr(srcId)}" data-orig-mt="${spaceAbove}pt" data-orig-mb="${spaceBelow}pt" data-orig-ml="${renderedLeftCm}cm" data-orig-mr="${renderedRightCm}cm" data-orig-ti="${renderedFirstCm}cm" data-orig-align="${align}"`;
     const stops = [];
     if (tabSet && tabSet.trim()) {
       tabSet.split(",").forEach(s => {

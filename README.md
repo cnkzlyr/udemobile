@@ -1,6 +1,6 @@
 # ⚖️ CanEditor (UdeMobile) — Çapraz Platform UYAP & Word Editörü
 
-[![Sürüm](https://img.shields.io/badge/Sürüm-v3.31.0-blue.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v3.31.0)
+[![Sürüm](https://img.shields.io/badge/Sürüm-v3.31.1-blue.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v3.31.1)
 [![Platformlar](https://img.shields.io/badge/Platformlar-Android%20%7C%20Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Web-success.svg)](https://github.com/cnkzlyr/udemobile/releases)
 [![UYAP](https://img.shields.io/badge/Format-UYAP_UDF_v1.8-0D47A1.svg)](https://uyap.gov.tr)
 [![Word](https://img.shields.io/badge/Format-MS_DOCX_OpenXML-2B579A.svg?logo=microsoft-word&logoColor=white)](https://microsoft.com)
@@ -11,14 +11,14 @@
 
 ---
 
-## 🚀 Hızlı İndirme (v3.31.0)
+## 🚀 Hızlı İndirme (v3.31.1)
 
 | Platform | Paket Dosyası | Açıklama |
 | :--- | :--- | :--- |
-| **Android (Telefon & Tablet)** | [**CanEditor-v3.31.0.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.31.0/CanEditor-v3.31.0.apk) | Güncel Android APK paketi (Termux gerektirmez) |
-| **Android (Her Zaman En Son)** | [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.31.0/CanEditor-latest.apk) | Kalıcı son sürüm bağlantısı |
-| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v3.31.0.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v3.31.0/CanEditor-Portable-Web-GUI-v3.31.0.zip) | **Kurulumsuz;** zipten çıkarıp `index.html` açarak tüm işletim sistemlerinde doğrudan çalışır |
-| **Windows / macOS / Linux** | [**GitHub Releases Sayfası**](https://github.com/cnkzlyr/udemobile/releases/tag/v3.31.0) | GitHub Actions CI ile derlenen yerel ikili (.msi, .exe, .dmg, .AppImage, .deb, .rpm) paketleri |
+| **Android (Telefon & Tablet)** | [**CanEditor-v3.31.1.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.31.1/CanEditor-v3.31.1.apk) | Güncel Android APK paketi (Termux gerektirmez) |
+| **Android (Her Zaman En Son)** | [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.31.1/CanEditor-latest.apk) | Kalıcı son sürüm bağlantısı |
+| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v3.31.1.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v3.31.1/CanEditor-Portable-Web-GUI-v3.31.1.zip) | **Kurulumsuz;** zipten çıkarıp `index.html` açarak tüm işletim sistemlerinde doğrudan çalışır |
+| **Windows / macOS / Linux** | [**GitHub Releases Sayfası**](https://github.com/cnkzlyr/udemobile/releases/tag/v3.31.1) | GitHub Actions CI ile derlenen yerel ikili (.msi, .exe, .dmg, .AppImage, .deb, .rpm) paketleri |
 
 ---
 
@@ -29,7 +29,13 @@ v3.17.0'dan itibaren APK yeni ve kalıcı bir proje anahtarıyla imzalanır (ser
 v3.16.0 ya da öncesi kuruluysa bir kez **kaldırıp** yeni APK'yı kurun (aksi halde Android "paket çakışıyor" hatası
 verir). Sonraki güncellemeler kaldırmadan, üzerine kurulur.
 
-## 🌟 v3.31.0: CanEditor — %100 Havelsan UYAP Kaynak Koruma Motoru (Layer-1 & Layer-2) ve Modern Hukuk Çalışma Alanı
+## 🌟 v3.31.1: CanEditor — Mobil Akış Görünümü (Tensip/Zapt) Düzen Düzeltmesi & %100 Havelsan UYAP Kaynak Koruma Motoru
+
+- **📱 Mobil Akış Görünümü (`Mobil Görünüm`) Düzeltmeleri (v3.31.1):**
+  - **Mahkeme Başlığı Dikey Kırılma Düzeltmesi (`T.C. / ANKARA / 29. AĞIR CEZA MAHKEMESİ`):** A4 sol yarıya ortalamak için yüksek `RightIndent` (`10.08cm`) kullanılan mahkeme başlıklarının mobil ekranda harf harf dikey kırılması giderildi.
+  - **Sağa İtilmiş Alt Başlıklar (`(ADLİ KONTROL)`):** Yüksek `LeftIndent` (`13.06cm`) ile sağa yerleştirilen alt başlıkların mobil ekranda taşması ve boşluk bırakması önlendi.
+  - **Asılı Girintili ve Sekmeli Üstveri Satırları (`DOSYA NO`, `BAŞKAN`, `ÜYE`, `KATİP`, `DAVACI`, `SANIK`, `SUÇ`, `SUÇ TARİHİ`):** Mobil görünümde tüm `:` hizaları korunarak etiket sütunu `2.60cm` olarak ölçeklenir, değer sütununa ekranın **%68'i** ayrılır ve dar sütundaki yapay `justify` kelime boşlukları giderilir.
+  - **%100 Havelsan UYAP Kayıt Garantisi (`data-orig-ml / mr / ti / align`):** Belge Mobil Görünüm'de düzenlenip kaydedildiğinde bile orijinal A4 girinti ve sekme öznitelikleri **%100 bayt-bayt birebir** korunur.
 
 - **%100 Havelsan UYAP Uyumluluk & Kaynak Koruma Motoru (`Layer-1 + Layer-2 XML Span Splicer`):**
   - **Dokunulmadan Kaydedilen Belgeler (%100 Bayt-Bayt Birebir):** Bir `.udf` belgesi açılıp düzenlenmeden kaydedildiğinde `content.xml`, `documentproperties.xml` ve `sign.sgn` (e-imza zarfı) **%100 bayt-bayt birebir** korunur.

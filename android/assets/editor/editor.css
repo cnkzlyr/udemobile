@@ -1087,7 +1087,9 @@ body.mobile-reflow-active .page-body-box,
   padding-top: 6px !important;
 }
 
-#page-wrapper.mobile-view .page-header-box {
+#page-wrapper.mobile-view .page-header-box,
+body.mobile-view .page-header-box,
+body.mobile-reflow-active .page-header-box {
   position: static !important;
   top: auto !important;
   left: auto !important;
@@ -1098,11 +1100,18 @@ body.mobile-reflow-active .page-body-box,
   padding: 4px 0 8px 0 !important;
   margin-bottom: 12px !important;
   border-bottom: 1px dashed #CBD5E1 !important;
-  display: flex !important;
   box-sizing: border-box !important;
 }
 
-#page-wrapper.mobile-view .page-footer-box {
+#page-wrapper.mobile-view .page-header-box:empty,
+body.mobile-view .page-header-box:empty,
+body.mobile-reflow-active .page-header-box:empty {
+  display: none !important;
+}
+
+#page-wrapper.mobile-view .page-footer-box,
+body.mobile-view .page-footer-box,
+body.mobile-reflow-active .page-footer-box {
   position: static !important;
   bottom: auto !important;
   left: auto !important;
@@ -1116,12 +1125,50 @@ body.mobile-reflow-active .page-body-box,
   box-sizing: border-box !important;
 }
 
+#page-wrapper.mobile-view .page-footer-box:empty,
+body.mobile-view .page-footer-box:empty,
+body.mobile-reflow-active .page-footer-box:empty {
+  display: none !important;
+}
+
+body.mobile-view .page-body-box table,
+#page-wrapper.mobile-view .page-body-box table,
+body.mobile-reflow-active .page-body-box table,
+#page-wrapper.mobile-reflow-active .page-body-box table {
+  width: 100% !important;
+  max-width: 100% !important;
+  table-layout: fixed !important;
+}
+
+body.mobile-view .page-body-box td,
+body.mobile-view .page-body-box th,
+#page-wrapper.mobile-view .page-body-box td,
+#page-wrapper.mobile-view .page-body-box th,
+body.mobile-reflow-active .page-body-box td,
+#page-wrapper.mobile-reflow-active .page-body-box td {
+  padding: 4px 3px !important;
+  word-break: break-word !important;
+  overflow-wrap: break-word !important;
+}
+
+body.mobile-view .page-body-box td img,
+#page-wrapper.mobile-view .page-body-box td img,
+body.mobile-reflow-active .page-body-box td img {
+  max-width: 100% !important;
+  height: auto !important;
+}
+
 #page-wrapper.mobile-view .page-break-desk-gap,
 #page-wrapper.mobile-view .page-desk-gap {
   height: 12px !important;
   background-color: #F1F5F9 !important;
   margin: 8px 0 !important;
   border-radius: 3px !important;
+}
+
+body.mobile-view #floating-zoom-bar,
+body.mobile-reflow-active #floating-zoom-bar {
+  display: none !important;
 }
 
 /* Üstbilgi ve Altbilgi Kutuları - Her Zaman Açık & Kalıcı */

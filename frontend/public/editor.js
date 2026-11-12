@@ -340,6 +340,106 @@ function isEditorFocused() {
 }
 window.isEditorFocused = isEditorFocused;
 
+function isMobileReflowActive() {
+  const wrapper = document.getElementById('page-wrapper');
+  return !!(
+    isMobileView ||
+    (wrapper && (wrapper.classList.contains('mobile-view') || wrapper.classList.contains('mobile-reflow-active'))) ||
+    (document.body && (document.body.classList.contains('mobile-view') || document.body.classList.contains('mobile-reflow-active')))
+  );
+}
+window.isMobileReflowActive = isMobileReflowActive;
+
+function syncParagraphOrigMetricsFromStyle(p) {
+  if (!p || !p.setAttribute) return;
+  p.setAttribute('data-orig-ml', p.style.marginLeft || '0cm');
+  p.setAttribute('data-orig-mr', p.style.marginRight || '0cm');
+  p.setAttribute('data-orig-ti', p.style.textIndent || '0cm');
+  p.setAttribute('data-orig-align', p.style.textAlign || 'justify');
+  if (p.dataset) delete p.dataset.mobileHangDelta;
+}
+window.syncParagraphOrigMetricsFromStyle = syncParagraphOrigMetricsFromStyle;
+
+function applyMobileViewLayoutPass() {
+  const root = document.getElementById('pages-container') || document.getElementById('sheet-container') || document.getElementById('editor-content');
+  if (!root) return;
+  const mobileActive = isMobileReflowActive();
+  const paras = root.querySelectorAll('p');
+  paras.forEach(p => {
+    if (p.closest && p.closest('.auto-page-break, .page-header-box, .page-footer-box')) return;
+    if (!p.hasAttribute('data-orig-ml')) {
+      p.setAttribute('data-orig-ml', p.style.marginLeft || '0cm');
+    }
+    if (!p.hasAttribute('data-orig-mr')) {
+      p.setAttribute('data-orig-mr', p.style.marginRight || '0cm');
+    }
+    if (!p.hasAttribute('data-orig-ti')) {
+      p.setAttribute('data-orig-ti', p.style.textIndent || '0cm');
+    }
+    if (!p.hasAttribute('data-orig-align')) {
+      p.setAttribute('data-orig-align', p.style.textAlign || 'justify');
+    }
+
+    const origMl = parseToCm(p.getAttribute('data-orig-ml') || '0cm');
+    const origMr = parseToCm(p.getAttribute('data-orig-mr') || '0cm');
+    const origTi = parseToCm(p.getAttribute('data-orig-ti') || '0cm');
+    const origAlign = p.getAttribute('data-orig-align') || 'justify';
+    const isSplitCont = p.getAttribute('data-split-continuation') === 'true';
+
+    if (mobileActive) {
+      // 1) Aşırı sağ girinti (Örn: T.C. / ANKARA / 29. AĞIR CEZA MAHKEMESİ RightIndent=285.7pt=10.08cm)
+      // Mobil ekranda (~8.6cm) negatif genişlik oluşturup harf harf dikey kırılmasını önle
+      if (origMr > 1.5) {
+        p.style.marginRight = '0cm';
+      } else {
+        p.style.marginRight = origMr ? (origMr + 'cm') : '';
+      }
+
+      // 2) Asılı girinti (Hanging Indent: origMl > 2.2cm ve origTi < -0.5cm, örn: DOSYA NO, BAŞKAN, SANIK, SUÇ)
+      if (origMl > 2.2 && origTi < -0.5) {
+        const rawStops = (p.dataset && (p.dataset.origTabStops || p.dataset.tabStops) ? (p.dataset.origTabStops || p.dataset.tabStops) : '').split(',');
+        const firstStopCm = rawStops.length > 0 ? parseFloat(rawStops[0]) : NaN;
+        const anchorCm = (!isNaN(firstStopCm) && firstStopCm > 2.0) ? firstStopCm : origMl;
+        const targetStopCm = 2.60;
+        const deltaCm = anchorCm > targetStopCm ? Math.round((anchorCm - targetStopCm) * 100) / 100 : 0;
+        const mobileHangCm = Math.max(1.9, Math.round((origMl - deltaCm) * 100) / 100);
+        p.style.marginLeft = mobileHangCm + 'cm';
+        p.style.textIndent = isSplitCont ? '0cm' : ((-mobileHangCm) + 'cm');
+        if (p.dataset) p.dataset.mobileHangDelta = String(deltaCm);
+        // Dar mobil sütunda 'justify' kelimeler arası devasa boşluklar bıraktığı için sola hizala
+        p.style.textAlign = (origAlign === 'justify') ? 'left' : origAlign;
+      }
+      // 3) Asılı olmayan aşırı sol girinti (Örn: "(ADLİ KONTROL)" LeftIndent=370.3pt=13.06cm veya sağ imza bloğu)
+      else if (origMl > 4.0 && origTi >= -0.1) {
+        if (p.dataset) delete p.dataset.mobileHangDelta;
+        if (origMl >= 7.5) {
+          p.style.marginLeft = '0cm';
+          p.style.textIndent = '0cm';
+          p.style.textAlign = 'right';
+        } else {
+          const scaledMl = Math.min(origMl * 0.35, 2.2);
+          p.style.marginLeft = (Math.round(scaledMl * 100) / 100) + 'cm';
+          p.style.textIndent = isSplitCont ? '0cm' : (origTi ? (origTi + 'cm') : '');
+          p.style.textAlign = origAlign;
+        }
+      } else {
+        if (p.dataset) delete p.dataset.mobileHangDelta;
+        p.style.marginLeft = origMl ? (origMl + 'cm') : '';
+        p.style.textIndent = isSplitCont ? '0cm' : (origTi ? (origTi + 'cm') : '');
+        p.style.textAlign = origAlign;
+      }
+    } else {
+      // Kağıt Görünümü (1:1 A4 Havelsan): Orijinal A4 girintilerini ve hizalamasını birebir geri yükle
+      if (p.dataset) delete p.dataset.mobileHangDelta;
+      p.style.marginLeft = origMl ? (origMl + 'cm') : '';
+      p.style.marginRight = origMr ? (origMr + 'cm') : '';
+      p.style.textIndent = isSplitCont ? '0cm' : (origTi ? (origTi + 'cm') : '');
+      p.style.textAlign = origAlign;
+    }
+  });
+}
+window.applyMobileViewLayoutPass = applyMobileViewLayoutPass;
+
 // Kağıt Görünümü (Yazdırma Düzeni) / Mobil Görünüm Geçişi
 function toggleViewMode() {
   const wrapper = document.getElementById('page-wrapper');
@@ -365,6 +465,11 @@ function toggleViewMode() {
     }
 
     if (sheetContainer) sheetContainer.style.zoom = '1';
+    applyMobileViewLayoutPass();
+    if (typeof realignAllTabs === 'function') {
+      try { realignAllTabs(); } catch (e) {}
+      requestAnimationFrame(() => { try { realignAllTabs(); } catch (e) {} });
+    }
     updateRulerBodyWidth();
     showEditorToast('📱 Mobil Akış Görünümü (Kesintisiz Metin)');
   } else {
@@ -382,22 +487,36 @@ function toggleViewMode() {
       try { window.AndroidBridge.onViewModeChanged(false); } catch (e) {}
     }
 
+    applyMobileViewLayoutPass();
     applyAutoFitZoom();
+    if (typeof updatePagination === 'function') {
+      try { updatePagination(); } catch (e) {}
+    }
+    if (typeof realignAllTabs === 'function') {
+      try { realignAllTabs(); } catch (e) {}
+      requestAnimationFrame(() => { try { realignAllTabs(); } catch (e) {} });
+    }
     updateRulerBodyWidth();
     showEditorToast('📄 Kağıt Baskı Düzeni (1:1 A4 Havelsan)');
   }
 }
 
 function switchToMobileViewFlow() {
-  const wrapper = document.getElementById('page-wrapper');
-  if (wrapper) wrapper.classList.add('mobile-reflow-active');
-  document.body.classList.add('mobile-reflow-active');
+  if (!isMobileView) {
+    toggleViewMode();
+  } else {
+    applyMobileViewLayoutPass();
+    if (typeof realignAllTabs === 'function') realignAllTabs();
+  }
 }
 
 function switchToPaperViewFlow() {
-  const wrapper = document.getElementById('page-wrapper');
-  if (wrapper) wrapper.classList.remove('mobile-reflow-active');
-  document.body.classList.remove('mobile-reflow-active');
+  if (isMobileView) {
+    toggleViewMode();
+  } else {
+    applyMobileViewLayoutPass();
+    if (typeof realignAllTabs === 'function') realignAllTabs();
+  }
 }
 
 // Minimal standard QR Code generator (Byte Mode, Mask 0, ECC Level L, Version 1 to 4)
@@ -1274,6 +1393,8 @@ function updatePagination() {
     }
 
     restoreSelectionState(savedSel);
+    try { applyMobileViewLayoutPass(); } catch (e) {}
+    try { realignAllTabs(); } catch (e) {}
 
     // Durum çubuğunda sayfa sayısını göster
     const statusEl = document.getElementById('stat-page-count');
@@ -1400,6 +1521,7 @@ function format(cmd, val = null) {
     if (ap) {
       ap.style.textAlign = alignVal;
       ap.setAttribute('align', alignVal);
+      ap.setAttribute('data-orig-align', alignVal);
     }
   }
 
@@ -2116,11 +2238,16 @@ function getTabMetrics() {
 
 function getParagraphTabStops(p) {
   if (!p || !p.dataset || !p.dataset.tabStops) return [];
+  const hangDelta = (isMobileReflowActive() && p.dataset.mobileHangDelta) ? (parseFloat(p.dataset.mobileHangDelta) || 0) : 0;
   return p.dataset.tabStops.split(',').map(s => {
     const parts = s.trim().split(':');
-    const pos = parseFloat(parts[0]);
+    let pos = parseFloat(parts[0]);
     const align = parts[1] || 'left';
-    return isNaN(pos) ? null : { pos, align };
+    if (isNaN(pos)) return null;
+    if (hangDelta > 0.05 && pos > hangDelta) {
+      pos = Math.max(1.8, Math.round((pos - hangDelta) * 100) / 100);
+    }
+    return { pos, align };
   }).filter(Boolean).sort((a, b) => a.pos - b.pos);
 }
 
@@ -2568,6 +2695,7 @@ function setFirstLineIndent(targetFirstRulerCm, bodyLeftCm) {
   targets.forEach(p => {
     const curLeft = (bodyLeftCm !== undefined) ? bodyLeftCm : parseToCm(p.style.marginLeft || window.getComputedStyle(p).marginLeft);
     p.style.textIndent = Math.round((targetFirstRulerCm - curLeft) * 100) / 100 + 'cm';
+    syncParagraphOrigMetricsFromStyle(p);
   });
   updateCounts();
 }
@@ -2584,6 +2712,7 @@ function setHangingIndent(targetHangingCm, fixedFirstLineRulerCm) {
     p.style.marginLeft = targetHangingCm + 'cm';
     p.style.textIndent = Math.round((firstLineRuler - targetHangingCm) * 100) / 100 + 'cm';
     if (p.style.paddingLeft) p.style.removeProperty('padding-left');
+    syncParagraphOrigMetricsFromStyle(p);
   });
   updateCounts();
 }
@@ -2596,6 +2725,7 @@ function setFullParagraphIndent(targetLeftCm, preservedTextIndentCm) {
       p.style.textIndent = preservedTextIndentCm + 'cm';
     }
     if (p.style.paddingLeft) p.style.removeProperty('padding-left');
+    syncParagraphOrigMetricsFromStyle(p);
   });
   updateCounts();
 }
@@ -2608,6 +2738,7 @@ function setRightIndent(cm) {
   const targets = getSelectedParagraphs();
   targets.forEach(p => {
     p.style.marginRight = cm + 'cm';
+    syncParagraphOrigMetricsFromStyle(p);
   });
   updateCounts();
 }
@@ -2725,6 +2856,7 @@ function applyParagraphSettings() {
       p.dataset.udfLinespacing = numLh > 1.15 ? String(Math.max(0, Math.round((numLh - 1.15) * 100) / 100)) : '0.0';
     }
     p.style.textAlign = currentPAlign;
+    syncParagraphOrigMetricsFromStyle(p);
   });
 
   closeModal('modal-paragraph-settings');
@@ -4549,6 +4681,12 @@ function setHtmlContent(content) {
 
   // Konteyneri tek ve tertemiz bir başlangıç sayfasına sıfırla (eski sayfa kalıntılarını temizle)
   if (container) {
+    try {
+      const sel = window.getSelection();
+      if (sel) sel.removeAllRanges();
+    } catch (e) {}
+    const pw = document.getElementById('page-wrapper');
+    if (pw) pw.scrollTop = 0;
     const showHdr = !!(headerHtmlToSet && headerStartPageToSet <= 1);
     container.innerHTML = `
       <div class="a4-sheet-page" data-page-number="1" id="page-1">
@@ -4571,9 +4709,12 @@ function setHtmlContent(content) {
       const fit = calculateFitScale();
       setZoom(fit >= 0.9 ? 1.0 : fit, true);
     }
+    applyMobileViewLayoutPass();
     if (typeof realignAllTabs === 'function') realignAllTabs();
     updateRulerFromActiveParagraph();
     updatePagination();
+    const pwAfter = document.getElementById('page-wrapper');
+    if (pwAfter) pwAfter.scrollTop = 0;
     if (typeof window.refreshDocumentOutline === 'function') window.refreshDocumentOutline();
     if (typeof window.refreshUdfCompatBadge === 'function') window.refreshUdfCompatBadge();
   }, 100);
@@ -4684,7 +4825,7 @@ function coalesceAdjacentRuns(runs) {
 
 function extractParagraphNode(node) {
   let align = 3;
-  const textAlign = node.style ? node.style.textAlign : '';
+  const textAlign = (node.getAttribute && node.getAttribute('data-orig-align')) || (node.style ? node.style.textAlign : '');
   if (textAlign === 'center') align = 1;
   else if (textAlign === 'right') align = 2;
   else if (textAlign === 'left') align = 0;
@@ -4725,9 +4866,12 @@ function extractParagraphNode(node) {
     const lh = parseFloat(node.style.lineHeight) || 0.0;
     if (lh > 1.2) lineSpacing = Math.max(0, Math.round((lh - 1.15) * 100) / 100);
   }
-  const firstLineIndent = parseToCm(node.style ? node.style.textIndent : '');
-  const leftIndent = parseToCm(node.style ? (node.style.marginLeft || node.style.paddingLeft) : '');
-  const rightIndent = parseToCm(node.style ? node.style.marginRight : '');
+  const rawTiAttr = node.getAttribute ? node.getAttribute('data-orig-ti') : null;
+  const rawMlAttr = node.getAttribute ? node.getAttribute('data-orig-ml') : null;
+  const rawMrAttr = node.getAttribute ? node.getAttribute('data-orig-mr') : null;
+  const firstLineIndent = parseToCm(rawTiAttr !== null ? rawTiAttr : (node.style ? node.style.textIndent : ''));
+  const leftIndent = parseToCm(rawMlAttr !== null ? rawMlAttr : (node.style ? (node.style.marginLeft || node.style.paddingLeft) : ''));
+  const rightIndent = parseToCm(rawMrAttr !== null ? rawMrAttr : (node.style ? node.style.marginRight : ''));
 
   const pObj = {
     type: 'paragraph',
