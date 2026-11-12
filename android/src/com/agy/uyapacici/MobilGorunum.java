@@ -64,6 +64,11 @@ final class MobilGorunum extends WebView {
         /** Kağıtta görünen sayfa değişti. */
         @JavascriptInterface public void sayfa(int k, int n) { Eylem d = eylemDinleyici; if (d != null) post(() -> d.eylem("sayfa:" + k + ":" + n)); }
 
+        /** Cetvelden girinti (pt): motor seçimdeki paragraflara LeftIndent / FirstLineIndent / Hanging / RightIndent yazar. */
+        @JavascriptInterface public void par(float sol, float ilk, float asili, float sag) {
+            UyapMobilServisi.gonder("PAR " + sol + " " + ilk + " " + asili + " " + sag);
+        }
+
         /** k. sayfanın süslerini (filigran, karekod, doğrulama satırı, sayfa no) iste: SR k ölçek → SRESIM. */
         @JavascriptInterface public void sus(int k, float olcek) { UyapMobilServisi.gonder("SR " + k + " " + olcek); }
 
@@ -101,7 +106,7 @@ final class MobilGorunum extends WebView {
         } else if (s.startsWith("SRESIM ")) {
             if (p.length >= 4) calistir("sus(" + p[1] + "," + p[2] + ",'" + ("-".equals(p[3]) ? "" : p[3]) + "')");
         } else if (s.startsWith("MPAR ")) {
-            if (p.length >= 5) calistir("cetvelPar(" + p[1] + "," + p[2] + "," + p[3] + "," + p[4] + ")");
+            if (p.length >= 5) calistir("cetvelPar(" + p[1] + "," + p[2] + "," + p[3] + "," + p[4] + ")");   // sol ilk asılı sağ
         } else if (s.startsWith("MRESIM ")) {
             String[] q = s.split(" ", 3);
             if (q.length == 3) calistir("resim('" + q[1] + "','" + q[2] + "')");

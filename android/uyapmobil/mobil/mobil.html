@@ -32,12 +32,15 @@ body.kagit #kagit{display:block} body.kagit #mobil{display:none}
 .sf img.sus{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;animation:sus .25s ease-out}
 @keyframes sus{from{opacity:0}to{opacity:1}}
 .bk{position:absolute;left:0;top:0}
-/* ---- cetvel (kağıt: sayfaya, mobil: metin genişliğine ölçekli) ---- */
-#cetvel{position:fixed;left:0;right:0;top:0;height:26px;z-index:6;background:#f1f3f4;box-shadow:0 1px 0 #dadce0,0 2px 6px rgba(60,64,67,.08);
-  transition:transform .22s cubic-bezier(.2,.8,.2,1)}
+/* ---- cetvel: CanEditor'ınkiyle aynı görünüm (kağıt: sayfaya, mobil: metin genişliğine ölçekli) ---- */
+#cetvel{position:fixed;left:0;right:0;top:0;height:40px;z-index:6;background:#F8FAFC;border-bottom:2px solid #CBD5E1;
+  box-shadow:0 1px 4px rgba(0,0,0,.06);touch-action:none;transition:transform .22s cubic-bezier(.2,.8,.2,1)}
 #cetvel canvas{display:block}
-body.cetvelsiz #cetvel{transform:translateY(-30px)}
-body{padding-top:26px}
+body.cetvelsiz #cetvel{transform:translateY(-46px)}
+body{padding-top:42px}
+#kilavuz{position:fixed;top:0;bottom:0;width:0;border-left:1.5px dashed #1A73E8;pointer-events:none;z-index:9;display:none}
+#cetvelIpucu{position:fixed;top:46px;transform:translateX(-50%);background:rgba(15,23,42,.92);color:#fff;padding:4px 9px;border-radius:5px;
+  font:600 12px system-ui,sans-serif;white-space:nowrap;pointer-events:none;z-index:10;display:none;box-shadow:0 2px 6px rgba(0,0,0,.3)}
 .w{position:absolute;white-space:pre;font-family:'Times New Roman','Liberation Serif',serif;color:#202124}
 .w.sec{background:rgba(26,115,232,.28)}
 .bk img{position:absolute}
@@ -64,7 +67,7 @@ body{padding-top:26px}
 @keyframes belir{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 </style></head>
 <body>
-<div id="cetvel"><canvas></canvas></div>
+<div id="cetvel"><canvas></canvas></div><div id="kilavuz"></div><div id="cetvelIpucu"></div>
 <div id="mobil" class="mb"></div>
 <div id="kagit"><div id="dis"><div id="ic"></div></div></div>
 <div id="imlec"></div><div id="secim"></div><div id="ara"></div><div class="tut" id="tutA"></div><div class="tut" id="tutB"></div>
@@ -464,36 +467,99 @@ function susKoy(z,k){ var s=SUS[k], im=z.querySelector('img.sus'); if(!s) return
   if(!im){ im=document.createElement('img'); im.className='sus'; z.appendChild(im); }
   if(im.getAttribute('src')!==s.src) im.setAttribute('src',s.src); }
 
-// ======================================================================= cetvel (3.29)
-/* Kağıtta sayfa genişliğine ve yakınlaştırmaya göre ölçeklenir (kenar boşlukları gri), mobilde metin genişliğine.
- * Santimetre bölmeleri sol kenar boşluğundan başlar; imlecin paragrafının girintileri (MPAR) üçgen işaretlerle
- * gösterilir: üstte ilk satır, altta sol ve sağ girinti. Dokununca Paragraf Özellikleri açılır. */
-var PAR=[0,0,0,0], cetvelEl=document.getElementById('cetvel'), cv=cetvelEl.querySelector('canvas'), cetZ=null;
-function cetvelPar(sol,ilk,sag,h){ PAR=[sol,ilk,sag,h]; cetvelCiz(); }
+// ======================================================================= cetvel (3.30, CanEditor ile aynı)
+/* Görünüm CanEditor'ın cetveliyle aynıdır: gri kenar boşlukları, beyaz metin alanı, alttan yükselen mm / yarım cm / cm
+ * çizgileri, sol kenar boşluğundan başlayıp iki yana sayan santimetre numaraları. Kağıtta sayfa genişliğine ve
+ * yakınlaştırmaya, mobilde metin genişliğine ölçeklenir.
+ * Üç ayarlı (Word / UYAP standardı) + sağ girinti, hepsi parmakla sürüklenir (0,25 cm adım, kılavuz çizgi ve ölçü rozeti):
+ *   ▼ üstte  İlk satır girintisi        (ilk satırın başladığı yer)
+ *   ▲ ortada Asılı girinti               (sonraki satırların başladığı yer)
+ *   ■ altta  Sol girinti                 (ikisini birlikte taşır: tüm paragraf)
+ *   ▲ sağda  Sağ girinti
+ * Bırakınca motor UDF özniteliklerini yazar (PAR sol ilk asılı sağ → LeftIndent / FirstLineIndent / Hanging /
+ * RightIndent): ilk satır sol+ilk'te, sonraki satırlar sol+asılı'da başlar; sol = ikisinin küçüğü. Seçimdeki tüm
+ * paragraflara uygulanır, editörde geri alınabilir. İşaret dışına dokunmak Paragraf Özellikleri'ni açar. */
+var CM=28.3465, PAR={sol:0,ilk:0,asili:0,sag:0}, cetvelEl=document.getElementById('cetvel'), cv=cetvelEl.querySelector('canvas'),
+    kilavuz=document.getElementById('kilavuz'), cIpucu=document.getElementById('cetvelIpucu'), cetZ=null, cSur=null, CH=40;
+function cetvelPar(sol,ilk,asili,sag){ PAR={sol:+sol||0,ilk:+ilk||0,asili:+asili||0,sag:+sag||0}; if(!cSur) cetvelCiz(); }
 function cetvelCiz(){ if(cetZ) return; cetZ=requestAnimationFrame(function(){ cetZ=null; cetvelBoya(); }); }
-function cetvelBoya(){
-  var d=window.devicePixelRatio||1, W=window.innerWidth, H=26;
-  if(cv.width!==Math.round(W*d)){ cv.width=Math.round(W*d); cv.height=Math.round(H*d); cv.style.width=W+'px'; cv.style.height=H+'px'; }
-  var c=cv.getContext('2d'); c.setTransform(d,0,0,d,0,0); c.clearRect(0,0,W,H);
-  var pw,ml,mr,x0,s,r;
-  if(kip===2&&KD){ r=dis.getBoundingClientRect(); s=sc(); pw=KD.pw; ml=KD.ml; mr=KD.mr; x0=r.left; }
-  else { r=mobilEl.getBoundingClientRect(); var cs=getComputedStyle(mobilEl), pl=parseFloat(cs.paddingLeft)||0, pr=parseFloat(cs.paddingRight)||0;
-    var tw=KD?KD.pw-KD.ml-KD.mr:453.54; ml=0; mr=0; pw=tw; x0=r.left+pl; s=(r.width-pl-pr)/tw; }
-  var o=x0+ml*s, son=x0+(pw-mr)*s;
-  c.fillStyle='#dfe1e5'; c.fillRect(x0,5,pw*s,H-10);
-  c.fillStyle='#ffffff'; c.fillRect(o,5,son-o,H-10);
-  var cm=28.3465*s, adim=cm<22?2:1, f=Math.max(8,Math.min(11,cm*0.42));
-  c.font='500 '+f+'px system-ui,sans-serif'; c.textAlign='center'; c.textBaseline='middle';
-  var i0=-Math.floor(ml/28.3465*4), i1=Math.ceil((pw-ml)/28.3465*4);
-  for(var i=i0;i<=i1;i++){ var x=o+i*cm/4; if(x<x0-1||x>x0+pw*s+1||x<0||x>W) continue;
-    if(i%4===0){ if(i!==0&&(Math.abs(i/4)%adim===0)){ c.fillStyle='#5f6368'; c.fillText(String(Math.abs(i/4)),x,H/2+0.5); } }
-    else { var u=i%2===0?6:3; c.fillStyle='#9aa0a6'; c.fillRect(Math.round(x),H/2-u/2,1,u); } }
-  c.fillStyle='#1a73e8';
-  function uc(x,ust){ c.beginPath(); if(ust){ c.moveTo(x-5,3); c.lineTo(x+5,3); c.lineTo(x,10); } else { c.moveTo(x-5,H-3); c.lineTo(x+5,H-3); c.lineTo(x,H-10); } c.closePath(); c.fill(); }
-  uc(o+PAR[1]*s,true); uc(o+PAR[0]*s,false); uc(son-PAR[2]*s,false);
-  c.fillRect(o+PAR[0]*s-5,H-3,10,2);
+/** Ölçü: x0 sayfa (ya da metin) sol kenarı, o metin alanı başı, s pt→px, tw metin genişliği (pt). */
+function cetvelOlcu(){
+  if(kip===2&&KD){ var r=dis.getBoundingClientRect(), s=sc(); return {x0:r.left, s:s, ml:KD.ml, mr:KD.mr, pw:KD.pw, o:r.left+KD.ml*s, tw:KD.pw-KD.ml-KD.mr}; }
+  var r=mobilEl.getBoundingClientRect(), cs=getComputedStyle(mobilEl), pl=parseFloat(cs.paddingLeft)||0, pr=parseFloat(cs.paddingRight)||0;
+  var tw=KD?KD.pw-KD.ml-KD.mr:453.54, s=(r.width-pl-pr)/tw;
+  return {x0:r.left+pl, s:s, ml:0, mr:0, pw:tw, o:r.left+pl, tw:tw};
 }
-cetvelEl.addEventListener('touchend',function(ev){ ev.preventDefault(); ev.stopPropagation(); if(navigator.vibrate) navigator.vibrate(8); if(window.K) K.eylem('paragraf'); },{passive:false});
+function cIsaretler(){ var P=cSur?cSur.p:PAR; return {F:P.sol+P.ilk, B:P.sol+P.asili, R:P.sag}; }
+function cetvelBoya(){
+  var d=window.devicePixelRatio||1, W=window.innerWidth, H=CH;
+  if(cv.width!==Math.round(W*d)||cv.height!==Math.round(H*d)){ cv.width=Math.round(W*d); cv.height=Math.round(H*d); cv.style.width=W+'px'; cv.style.height=H+'px'; }
+  var c=cv.getContext('2d'); c.setTransform(d,0,0,d,0,0); c.clearRect(0,0,W,H);
+  var m=cetvelOlcu(), s=m.s, x0=m.x0, o=m.o, son=o+m.tw*s, sag=x0+m.pw*s;
+  // kenar boşlukları (gri) ve metin alanı (beyaz)
+  c.fillStyle='#ECEFF1'; c.fillRect(x0,0,o-x0,H); c.fillRect(son,0,sag-son,H);
+  c.fillStyle='#FFFFFF'; c.fillRect(o,0,son-o,H);
+  c.fillStyle='#CFD8DC'; c.fillRect(o-1,0,1,H); c.fillRect(son,0,1,H);
+  // çizgiler: mm (5px), yarım cm (9px), cm (15px) — alttan; numaralar cm çizgisinin üstünde
+  var cmPx=CM*s, mmVar=cmPx>=34, adim=cmPx<20?2:1;
+  c.font='700 11px -apple-system,system-ui,sans-serif'; c.textAlign='center'; c.textBaseline='alphabetic';
+  var bol=mmVar?10:2, i0=-Math.floor(m.ml/CM*bol), i1=Math.ceil((m.pw-m.ml)/CM*bol);
+  for(var i=i0;i<=i1;i++){ var x=o+i*cmPx/bol; if(x<x0-0.5||x>sag+0.5||x<-2||x>W+2) continue;
+    var tam=i%bol===0, yarim=!tam&&(i*2)%bol===0, h=tam?15:yarim?9:5;
+    if(tam&&i===0) continue;
+    c.fillStyle=tam?'#212121':yarim?'#757575':'#BDBDBD'; c.fillRect(Math.round(x),H-h,1,h);
+    if(tam&&Math.abs(i/bol)%adim===0){ c.fillStyle='#334155'; c.fillText(String(Math.abs(i/bol)),x,H-18); } }
+  // işaretler
+  var k=cIsaretler(), xF=o+k.F*s, xB=o+k.B*s, xR=son-k.R*s, a=cSur?cSur.tur:null;
+  function golge(){ c.shadowColor='rgba(0,0,0,.35)'; c.shadowBlur=3; c.shadowOffsetY=1; }
+  function yok(){ c.shadowColor='transparent'; c.shadowBlur=0; c.shadowOffsetY=0; }
+  function asagi(x,renk,b){ golge(); c.fillStyle=renk; c.beginPath(); c.moveTo(x-9*b,1); c.lineTo(x+9*b,1); c.lineTo(x,1+14*b); c.closePath(); c.fill(); yok(); }
+  function yukari(x,y,renk,b,g){ golge(); c.fillStyle=renk; c.beginPath(); c.moveTo(x-g*b,y); c.lineTo(x+g*b,y); c.lineTo(x,y-14*b); c.closePath(); c.fill(); yok(); }
+  var bF=a==='F'?1.25:1, bB=a==='B'?1.25:1, bL=a==='L'?1.2:1, bR=a==='R'?1.25:1;
+  asagi(xF,'#0284C7',bF);                                   // ▼ ilk satır
+  yukari(xB,H-13,'#1D4ED8',bB,9);                           // ▲ asılı
+  golge(); c.fillStyle=a==='L'?'#0F172A':'#1E3A8A';          // ■ sol (tüm paragraf)
+  var bw=18*bL, bh=12*bL; c.fillRect(xB-bw/2,H-bh-1,bw,bh); yok();
+  c.strokeStyle='#FFFFFF'; c.lineWidth=1.5; c.strokeRect(xB-bw/2+0.75,H-bh-0.25,bw-1.5,bh-1.5);
+  yukari(xR,H-1,'#334155',bR,8);                            // ▲ sağ girinti
+}
+function cmYaz(pt){ return (Math.round(pt/CM*100)/100).toFixed(2).replace('.',',')+' cm'; }
+function cetvelIpucuGoster(x,t){ cIpucu.textContent=t; cIpucu.style.left=Math.max(60,Math.min(window.innerWidth-60,x))+'px'; cIpucu.style.display='block';
+  kilavuz.style.left=x+'px'; kilavuz.style.display='block'; }
+function cetvelIsaretBul(x,y){
+  var m=cetvelOlcu(), k=cIsaretler(), xF=m.o+k.F*m.s, xB=m.o+k.B*m.s, xR=m.o+(m.tw-k.R)*m.s, ad=[];
+  function ekle(t,xx,yy){ var dx=Math.abs(x-xx); if(dx<=24) ad.push({t:t,d:dx+Math.abs(y-yy)*0.8}); }
+  ekle('F',xF,6); ekle('B',xB,CH-20); ekle('L',xB,CH-6); ekle('R',xR,CH-8);
+  if(!ad.length) return null; ad.sort(function(p,q){return p.d-q.d;}); return ad[0].t;
+}
+cetvelEl.addEventListener('touchstart',function(ev){
+  ev.preventDefault(); ev.stopPropagation(); if(ev.touches.length!==1) return;
+  var t=ev.touches[0], tur=cetvelIsaretBul(t.clientX,t.clientY);
+  cSur={tur:tur, x:t.clientX, y:t.clientY, ilk:{sol:PAR.sol,ilk:PAR.ilk,asili:PAR.asili,sag:PAR.sag}, p:{sol:PAR.sol,ilk:PAR.ilk,asili:PAR.asili,sag:PAR.sag}, oynadi:false};
+  if(tur){ if(navigator.vibrate) navigator.vibrate(10); cetvelSurukle(t.clientX); }
+},{passive:false});
+cetvelEl.addEventListener('touchmove',function(ev){ ev.preventDefault(); ev.stopPropagation(); if(!cSur||!cSur.tur) return;
+  var t=ev.touches[0]; if(Math.abs(t.clientX-cSur.x)>3) cSur.oynadi=true; cetvelSurukle(t.clientX); },{passive:false});
+cetvelEl.addEventListener('touchend',function(ev){ ev.preventDefault(); ev.stopPropagation(); var d=cSur; cSur=null;
+  kilavuz.style.display='none'; cIpucu.style.display='none';
+  if(!d) return;
+  if(!d.tur){ if(navigator.vibrate) navigator.vibrate(8); if(window.K) K.eylem('paragraf'); cetvelCiz(); return; }
+  var p=d.p, q=d.ilk;
+  if(p.sol!==q.sol||p.ilk!==q.ilk||p.asili!==q.asili||p.sag!==q.sag){ PAR=p; if(window.K&&K.par) K.par(p.sol,p.ilk,p.asili,p.sag); }
+  cetvelCiz(); },{passive:false});
+cetvelEl.addEventListener('touchcancel',function(){ cSur=null; kilavuz.style.display='none'; cIpucu.style.display='none'; cetvelCiz(); });
+/** Sürükleme: 0,25 cm adım; F (ilk satır) ve B (asılı) metin alanı içinde, sağ girinti ile çakışmaz. */
+function cetvelSurukle(x){
+  var m=cetvelOlcu(), q=cSur.ilk, Fq=q.sol+q.ilk, Bq=q.sol+q.asili, adim=CM/4;
+  var pt=Math.round(((x-m.o)/m.s)/adim)*adim, enCok=m.tw-q.sag-CM, F=Fq, B=Bq, R=q.sag, yazi;
+  if(cSur.tur==='F'){ F=Math.max(0,Math.min(enCok,pt)); yazi='İlk satır: '+cmYaz(F); }
+  else if(cSur.tur==='B'){ B=Math.max(0,Math.min(enCok,pt)); yazi='Asılı girinti: '+cmYaz(B); }
+  else if(cSur.tur==='L'){ var dl=Math.round(((x-cSur.x)/m.s)/adim)*adim; dl=Math.max(-Math.min(Fq,Bq),Math.min(enCok-Math.max(Fq,Bq),dl)); F=Fq+dl; B=Bq+dl; yazi='Sol girinti: '+cmYaz(Math.min(F,B)); }
+  else { R=Math.max(0,Math.min(m.tw-Math.max(Fq,Bq)-CM,Math.round(((m.o+m.tw*m.s-x)/m.s)/adim)*adim)); yazi='Sağ girinti: '+cmYaz(R); }
+  var sol=Math.min(F,B); cSur.p={sol:sol, ilk:F-sol, asili:B-sol, sag:R};
+  var gx=cSur.tur==='R'? m.o+(m.tw-R)*m.s : m.o+(cSur.tur==='F'?F:B)*m.s;
+  cetvelIpucuGoster(gx,yazi); cetvelBoya();
+}
 window.addEventListener('scroll',cetvelCiz,{passive:true});
 window.addEventListener('resize',cetvelCiz);
 function cetvelGoster(g){ document.body.classList.toggle('cetvelsiz',!g); }
