@@ -1,6 +1,6 @@
 # ⚖️ CanEditor (UdeMobile) — Çapraz Platform UYAP & Word Editörü
 
-[![Sürüm](https://img.shields.io/badge/Sürüm-v3.28.0-blue.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v3.28.0)
+[![Sürüm](https://img.shields.io/badge/Sürüm-v3.29.0-blue.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v3.29.0)
 [![Platformlar](https://img.shields.io/badge/Platformlar-Android%20%7C%20Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Web-success.svg)](https://github.com/cnkzlyr/udemobile/releases)
 [![UYAP](https://img.shields.io/badge/Format-UYAP_UDF_v1.8-0D47A1.svg)](https://uyap.gov.tr)
 [![Word](https://img.shields.io/badge/Format-MS_DOCX_OpenXML-2B579A.svg?logo=microsoft-word&logoColor=white)](https://microsoft.com)
@@ -11,14 +11,14 @@
 
 ---
 
-## 🚀 Hızlı İndirme (v3.28.0)
+## 🚀 Hızlı İndirme (v3.29.0)
 
 | Platform | Paket Dosyası | Açıklama |
 | :--- | :--- | :--- |
-| **Android (Telefon & Tablet)** | [**CanEditor-v3.28.0.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.28.0/CanEditor-v3.28.0.apk) | Güncel Android APK paketi (Termux gerektirmez) |
-| **Android (Her Zaman En Son)** | [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.28.0/CanEditor-latest.apk) | Kalıcı son sürüm bağlantısı |
-| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v3.28.0.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v3.28.0/CanEditor-Portable-Web-GUI-v3.28.0.zip) | **Kurulumsuz;** zipten çıkarıp `index.html` açarak tüm işletim sistemlerinde doğrudan çalışır |
-| **Windows / macOS / Linux** | [**GitHub Releases Sayfası**](https://github.com/cnkzlyr/udemobile/releases/tag/v3.28.0) | GitHub Actions CI ile derlenen yerel ikili (.msi, .exe, .dmg, .AppImage, .deb, .rpm) paketleri |
+| **Android (Telefon & Tablet)** | [**CanEditor-v3.29.0.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.29.0/CanEditor-v3.29.0.apk) | Güncel Android APK paketi (Termux gerektirmez) |
+| **Android (Her Zaman En Son)** | [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.29.0/CanEditor-latest.apk) | Kalıcı son sürüm bağlantısı |
+| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v3.29.0.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v3.29.0/CanEditor-Portable-Web-GUI-v3.29.0.zip) | **Kurulumsuz;** zipten çıkarıp `index.html` açarak tüm işletim sistemlerinde doğrudan çalışır |
+| **Windows / macOS / Linux** | [**GitHub Releases Sayfası**](https://github.com/cnkzlyr/udemobile/releases/tag/v3.29.0) | GitHub Actions CI ile derlenen yerel ikili (.msi, .exe, .dmg, .AppImage, .deb, .rpm) paketleri |
 
 ---
 
@@ -28,6 +28,14 @@ v3.17.0'dan itibaren APK yeni ve kalıcı bir proje anahtarıyla imzalanır (ser
 `BA:80:78:89:12:28:35:C0:58:3B:C9:72:3B:C0:90:5C:C8:6F:49:A8:1A:92:BA:F9:D0:96:33:77:71:BB:D4:F0`). Telefonunuzda
 v3.16.0 ya da öncesi kuruluysa bir kez **kaldırıp** yeni APK'yı kurun (aksi halde Android "paket çakışıyor" hatası
 verir). Sonraki güncellemeler kaldırmadan, üzerine kurulur.
+
+## 🌟 v3.29.0: UYAP Editör — cetvel, sayfa süsleri (sayfa no / karekod / filigran), üst-alt bilgi, yeni simge, varsayılan açıcı
+
+- **Cetvel (kağıt ve mobil):** Kağıt görünümünde sayfa genişliğine ve yakınlaştırmaya göre ölçeklenen santimetre cetveli; kenar boşlukları gri, bölmeler sol kenar boşluğundan başlar. Mobilde metin genişliğine ölçeklenir. İmlecin bulunduğu paragrafın sol / ilk satır / sağ girintileri mavi üçgenlerle gösterilir (köprü: `MPAR sol ilk sağ hizalama`). Cetvele dokununca resmi editörün **Paragraf Özellikleri** penceresi açılır; çekmeceden gizlenebilir.
+- **Sayfa süsleri eksiksiz:** Resmi editörün sayfayı boyarken eklediği ama belge modelinde bulunmayan öğeler — **sayfa numarası, e-imza doğrulama satırı ve karekod, barkod, filigran** — artık kağıt görünümünde de görünür. Köprü, sayfayı motorun kendi çizimiyle saydam bir PNG'ye döker (`SR k ölçek → SRESIM k sürüm png`); belgenin metni, resimleri ve her sayfada yinelenen üst/alt yazı yaprakları süzgeçten (`Suzgec`, Graphics2D sarmalayıcı) geçirilip atılır, yalnızca süsler kalır ve metnin altına yerleşir. Editörün iç yakınlaştırması (0.98) ve sayfa ortalaması telafi edilir. Yazmayı aksatmamak için istekler tek tek ve görünen sayfalar için gider; belge değişince yazmaya ara verilince yenilenir, yenisi gelene kadar eskisi kalır.
+- **Üst bilgi / alt bilgi / sayfa no kolay düzenleme:** Çekmecede yeni **ÜST / ALT BİLGİ · SAYFA NO** bölümü (Üst bilgi, Alt bilgi — belgede varsa “Düzenle”, yoksa “Ekle” penceresi; Sayfa numarası ekle / düzenle; Paragraf özellikleri; Barkod ekle). Kağıtta üst ya da alt kenar boşluğuna **çift dokunmak** doğrudan ilgili düzenleyiciyi açar.
+- **CanEditor tarzı simge:** UYAP Editör uygulaması artık CanEditor'ın mavi terazili karosunu “UYAP Editör” yazısıyla kullanır (tüm yoğunluklar); üst çubukta da uygulama simgesi görünür.
+- **.udf / .usf için varsayılan uygulama:** Uygulama menüsünde “UDF / USF için varsayılan uygulama yap”: Android'in seçicisini örnek bir belgeyle açar, “Her zaman” seçilince tüm .udf / .usf dosyaları (WhatsApp, e-posta, dosya yöneticisi, tarayıcı) doğrudan burada açılır. Başka bir uygulama varsayılansa onun “Varsayılan olarak aç” ayarına yönlendirir. İlk açılışta bir kez önerilir.
 
 ## 🌟 v3.28.0: UYAP Editör — belge içi arama, sayfa göstergesi, açık belgeler, paylaşma, uyumluluk
 

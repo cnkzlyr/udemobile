@@ -20,7 +20,8 @@
 
     <application
         android:label="UYAP Editör"
-        android:icon="@drawable/ic_uyapeditor"
+        android:icon="@mipmap/ic_uyapeditor_launcher"
+        android:roundIcon="@mipmap/ic_uyapeditor_launcher"
         android:theme="@android:style/Theme.DeviceDefault.NoActionBar"
         android:requestLegacyExternalStorage="true"
         android:largeHeap="true">
