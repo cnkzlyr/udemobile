@@ -43,7 +43,10 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '21'
+          # 17: Android sınıfları (D8 uyumu, CANEDITOR_ANDROID_JDK) · 21: jlink (JAVA_HOME, sonda)
+          java-version: |
+            17
+            21
 
       - name: UYAP Mobil araçları (aarch64 C derleyicisi + readelf)
         run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu qemu-user  # qemu: Android asistan calisma ortami dogrulamasi
@@ -68,6 +71,7 @@ jobs:
       - name: Build Portable zip + APK
         env:
           CANEDITOR_IMZA_ZORUNLU: '1'
+          CANEDITOR_ANDROID_JDK: ${{ env.JAVA_HOME_17_X64 }}
           ANDROID_KEYSTORE_PASS: ${{ secrets.ANDROID_KEYSTORE_PASS }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASS: ${{ secrets.ANDROID_KEY_PASS }}

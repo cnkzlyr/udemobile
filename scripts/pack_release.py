@@ -64,6 +64,20 @@ else:
     APKSIGNER_CMD = [shutil.which("apksigner") or "apksigner"]
 
 
+# Android sınıfları için ayrı JDK (CANEDITOR_ANDROID_JDK): JDK 21 javac'ı -source 8'de bile anonim sınıf
+# kurucularına İSİMSİZ "MethodParameters" (mandated) kaydı yazar; build-tools 34/35'teki D8 (8.2.x) bu boş adı
+# okurken çöker ("Cannot invoke String.length() because <parameter1> is null"). JDK 17 bu kaydı üretmez.
+_ANDROID_JDK = os.environ.get("CANEDITOR_ANDROID_JDK")
+if _ANDROID_JDK and os.path.isdir(_ANDROID_JDK):
+    _uz = ".exe" if IS_WINDOWS else ""
+    JAVAC = os.path.join(_ANDROID_JDK, "bin", "javac" + _uz)
+    JAVA = os.path.join(_ANDROID_JDK, "bin", "java" + _uz)
+    KEYTOOL = os.path.join(_ANDROID_JDK, "bin", "keytool" + _uz)
+    if IS_WINDOWS:
+        D8_CMD = [JAVA, "-cp", os.path.join(BUILD_TOOLS, "lib", "d8.jar"), "com.android.tools.r8.D8"]
+        APKSIGNER_CMD = [JAVA, "-jar", os.path.join(BUILD_TOOLS, "lib", "apksigner.jar")]
+
+
 def step(msg):
     print("=" * 60)
     print(msg)

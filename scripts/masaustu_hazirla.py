@@ -61,11 +61,11 @@ def jre_hazirla(java_home: Path, hedef: Path) -> None:
     subprocess.run([str(jlink), "--add-modules", ",".join(moduller), "--include-locales=tr,en", "--strip-debug",
                     "--no-header-files", "--no-man-pages", "--compress=zip-6", "--output", str(hedef)], check=True)
     java = hedef / "bin" / ("java.exe" if os.name == "nt" else "java")
-    r = subprocess.run([str(java), "-version"], capture_output=True, text=True)
+    r = subprocess.run([str(java), "-version"], capture_output=True, text=True, encoding="utf-8", errors="replace")
     if r.returncode != 0:
         raise SystemExit(f"Gömülü Java çalışmadı: {r.stderr}")
     # Kart katmanı yüklenebiliyor mu (CI'da okuyucu yok; yalnız sınıfın varlığı denetlenir)
-    r = subprocess.run([str(java), "--list-modules"], capture_output=True, text=True)
+    r = subprocess.run([str(java), "--list-modules"], capture_output=True, text=True, encoding="utf-8", errors="replace")
     if "java.smartcardio" not in r.stdout:
         raise SystemExit("Gömülü Java'da java.smartcardio yok")
     boyut = sum(f.stat().st_size for f in hedef.rglob("*") if f.is_file()) / 1_048_576
@@ -132,7 +132,7 @@ def tarayici_hazirla(mimari: str) -> None:
     if not kabuk.is_file():
         raise SystemExit(f"chrome-headless-shell bulunamadı: {kabuk}")
     surucu = kok / f"chromedriver{uz}"
-    r = subprocess.run([str(surucu), "--version"], capture_output=True, text=True, timeout=60)
+    r = subprocess.run([str(surucu), "--version"], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60)
     if r.returncode != 0 or kanal["version"].split(".")[0] not in r.stdout:
         raise SystemExit(f"chromedriver çalışmadı / sürüm uyuşmuyor: {r.stdout} {r.stderr}")
     boyut = sum(f.stat().st_size for f in kok.rglob("*") if f.is_file()) / 1_048_576

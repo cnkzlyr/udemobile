@@ -78,6 +78,10 @@ if (-not (Get-ChildItem "$env:ProgramFiles\Eclipse Adoptium" -Directory -ErrorAc
     Write-Host "   kuruluyor: EclipseAdoptium.Temurin.21.JDK"
     winget install --id EclipseAdoptium.Temurin.21.JDK -e --accept-source-agreements --accept-package-agreements --silent | Out-Null
 }
+if (-not (Get-ChildItem "$env:ProgramFiles\Eclipse Adoptium" -Directory -ErrorAction SilentlyContinue | Where-Object Name -like "jdk-17*")) {
+    Write-Host "   kuruluyor: EclipseAdoptium.Temurin.17.JDK (Android sınıfları için)"
+    winget install --id EclipseAdoptium.Temurin.17.JDK -e --accept-source-agreements --accept-package-agreements --silent | Out-Null
+}
 if (-not (Test-Path "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2022\BuildTools\VC")) {
     Write-Host "   kuruluyor: Visual Studio C++ derleme araçları (Rust için gerekli, ~10 dk)"
     winget install --id Microsoft.VisualStudio.2022.BuildTools -e --accept-source-agreements --accept-package-agreements --silent `
@@ -125,16 +129,17 @@ Calistir python -m pip install --upgrade pip
 Calistir python -m pip install -r asistan/requirements.txt pyinstaller
 Calistir python scripts/masaustu_hazirla.py --java-home $env:JAVA_HOME
 Calistir python scripts/win_ajan_derle.py
-Calistir npm install
+# npm.ps1 kabuğu Windows PowerShell 5.1'de "Dizin, dizi sınırlarının dışındaydı" hatası verir: .cmd kullanılır
+Calistir npm.cmd install
 Push-Location frontend
-Calistir npm install
-Calistir npm run build
+Calistir npm.cmd install
+Calistir npm.cmd run build
 Pop-Location
-npx tauri build
+npx.cmd tauri build
 if ($LASTEXITCODE -ne 0) {
     # Windows 11 24H2'de VBScript kapalıysa MSI (WiX) derlenemez: yalnız .exe kurulumuyla devam
     Uyar "MSI derlenemedi (VBScript kapalı olabilir); yalnız .exe kurulum dosyası yayınlanacak."
-    Calistir npx tauri build --bundles nsis
+    Calistir npx.cmd tauri build --bundles nsis
 }
 
 # ---------------------------------------------------------------------------------------------
@@ -155,8 +160,18 @@ if (-not $AndroidYok) {
         & $sm --sdk_root="$sdk" "build-tools;35.0.0" "platforms;android-34" | Out-Null
     }
     $env:ANDROID_HOME = $sdk
-    if (-not (Test-Path "$env:USERPROFILE\.android-sdk\debug.keystore") -and -not (Test-Path "debug.keystore")) {
-        Uyar "Önceki APK'ları imzalayan anahtar (%USERPROFILE%\.android-sdk\debug.keystore) bulunamadı: APK YENİ anahtarla imzalanacak; telefonda eski sürümü kaldırıp kurmak gerekir. Anahtarınız varsa oraya kopyalayıp betiği yeniden çalıştırın."
+    # JDK 21 javac'ı eski D8'i çökertir (isimsiz MethodParameters): Android sınıfları JDK 17 ile derlenir
+    $jdk17 = Get-ChildItem "$env:ProgramFiles\Eclipse Adoptium" -Directory -ErrorAction SilentlyContinue | Where-Object Name -like "jdk-17*" | Select-Object -First 1
+    if ($jdk17) { $env:CANEDITOR_ANDROID_JDK = $jdk17.FullName } else { Uyar "JDK 17 bulunamadı; APK derlemesi D8 hatası verebilir." }
+    # Önceki APK'ları imzalayan anahtar: bu kullanıcı, depo kökü ya da bilgisayardaki diğer kullanıcı klasörleri
+    $ks = @("$env:USERPROFILE\.android-sdk\debug.keystore", "$Kok\debug.keystore") +
+          @(Get-ChildItem "$env:SystemDrive\Users\*\.android-sdk\debug.keystore" -ErrorAction SilentlyContinue | ForEach-Object FullName) |
+          Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
+    if ($ks) {
+        $env:ANDROID_KEYSTORE = $ks
+        Write-Host "   imza anahtarı: $ks"
+    } else {
+        Uyar "Önceki APK'ları imzalayan anahtar (debug.keystore) bulunamadı: APK YENİ anahtarla imzalanacak; telefonda eski sürümü kaldırıp kurmak gerekir. Anahtarınızı %USERPROFILE%\.android-sdk\debug.keystore konumuna kopyalayıp betiği yeniden çalıştırabilirsiniz."
     }
     if (-not (Test-Path "build\asistan-android\asistan-rt-arm64.zip")) {
         $env:CANEDITOR_ASISTAN_ANDROID = "0"

@@ -90,11 +90,11 @@ def duman_testi(exe: Path, gizli: list[str], veri: Path, tkinter_var: bool) -> N
     # PATH'ten Python'u çıkar: ikili kendi gömülü yorumlayıcısıyla çalışmalı
     yol = os.pathsep.join(p for p in os.environ.get("PATH", "").split(os.pathsep)
                           if not (Path(p) / ("python.exe" if os.name == "nt" else "python3")).exists())
-    env = dict(os.environ, CANASISTAN_VERI=str(veri), PATH=yol)
+    env = dict(os.environ, CANASISTAN_VERI=str(veri), PATH=yol, PYTHONIOENCODING="utf-8", PYTHONUTF8="1")
     env.pop("PYTHONPATH", None)
 
     def calis(argv, cwd=None):
-        r = subprocess.run([str(exe), *argv], capture_output=True, text=True, timeout=180, env=env, cwd=cwd)
+        r = subprocess.run([str(exe), *argv], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=180, env=env, cwd=cwd)
         if r.returncode != 0:
             print(r.stdout[-3000:], r.stderr[-3000:])
             raise SystemExit(f"[asistan_paketle] duman testi başarısız: {' '.join(argv)}")

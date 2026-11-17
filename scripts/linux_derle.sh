@@ -23,7 +23,9 @@ if [ "$ANDROID" = 1 ]; then   # UYAP Mobil başlatıcısı (aarch64 C) ve Androi
   $SUDO apt-get install -y -qq gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu >/dev/null
 fi
 if ! command -v node >/dev/null || [ "$(node -p 'process.versions.node.split(".")[0]')" -lt 20 ]; then
-  curl -fsSL https://deb.nodesource.com/setup_22.x | $SUDO -E bash - >/dev/null
+  # root iken (WSL) SUDO boştur: "-E" tek başına komut sanılmasın
+  if [ -n "$SUDO" ]; then curl -fsSL https://deb.nodesource.com/setup_22.x | $SUDO -E bash - >/dev/null
+  else curl -fsSL https://deb.nodesource.com/setup_22.x | bash - >/dev/null; fi
   $SUDO apt-get install -y -qq nodejs >/dev/null
 fi
 if ! command -v cargo >/dev/null; then
