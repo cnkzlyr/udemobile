@@ -1,0 +1,6 @@
+UYAP-Termux Pro  v2.0
+© 2026 Av. Can KIZILYAR — Tüm hakları saklıdır.
+
+Resmî değildir. UYAP Editör ve Adalet E-İmza, T.C. Adalet Bakanlığı'na aittir ve pakete dahil değildir.
+Bu paket orijinal mi? Terminalde:  uyap-hakkinda      (mühür ve parmak izi doğrulaması)
+Lisans: LICENSE.txt   Üçüncü taraf bildirimi: NOTICE.txt

@@ -1,0 +1,39 @@
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+*.log
+*.sqlite
+*.crx
+*.zip
+imerek*
+desktop_main.js
+
+# Telegram Tevkil Hassas Veriler & Oturumlar
+*.session
+*.session-journal
+telegram_config.json
+tevkil_log.txt
+gecmis_mesajlar.json
+ankara_tevkilleri.json
+derin_taranan_*.json
+
+# Kişisel / Gizli Veriler & Yedekler
+backup_before_cleanup.json
+karantina.jsonl
+*.jsonl
+uyap_app/*.json
+uyap_api_blueprint.json
+
+# Gizli ayarlar ve yerel durum
+.env
+karantina.jsonl
+
+# Dosya defteri (müvekkil verisi içerir; git'e girmez)
+veri/

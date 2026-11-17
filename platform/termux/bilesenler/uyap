@@ -1,0 +1,304 @@
+#!/data/data/com.termux/files/usr/bin/bash
+# uyap — UYAP-Termux Pro tek komut arayüzü.
+#   uyap                 menü (dialog ile; yoksa numaralı menü)
+#   uyap masaustu        Termux:X11 + XFCE (ya da fluxbox) masaüstünü açar
+#   uyap editor [dosya]  UYAP Editör'ü açar (.udf -> Doküman, .usf -> Şablon)
+#   uyap panel           Kontrol Merkezi (grafik durum + ayarlar penceresi)
+#   uyap durum           editör / e-imza köprüsü / Adalet E-İmza / Java durumu
+#   uyap ayarlar         ~/.config/uyap-termux/ayarlar.ini (menüyle ya da düzenleyiciyle)
+#   uyap eimza baslat|durdur|tani     USB okuyucu köprüsü
+#   uyap adalet baslat|durdur|durum   Adalet E-İmza yerel servisi (127.0.0.1:5975)
+#   uyap yedek [etiket]  gizli verileri dışlayan tam yedek (bkz. yedek_al.sh --help)
+#   uyap yazitipi        PDF'te birebir Times New Roman için Microsoft çekirdek yazı tiplerini kurar
+#   uyap kur-editor [ZIP] UYAP Editör'ü kurar/günceller (ZIP verilmezse uyap.gov.tr'den güncelini indirir)
+#   uyap guncelle        GitHub'daki son sürümü alır ve yeniden kurar
+#   uyap jdk14 [kur|dene|birak]  editörü JDK 14.0.2 ile çalıştır (glibc; resmî AdoptOpenJDK, SHA-256 doğrulamalı)
+#   uyap klavye [durum|q|f]  fiziksel klavye: Türkçe Q (ya da F) + Ctrl/Alt kısayolları (Termux:X11 açıkken)
+#   uyap gunluk          son günlük satırları     uyap tani   sorun giderme raporu (panoya kopyalar)
+#   uyap hakkinda        telif ve mühür doğrulaması
+set -u
+case "${LC_ALL:-${LANG:-}}" in *UTF-8*|*utf8*) ;; *) export LC_ALL=C.UTF-8 ;; esac
+PREFIX="${PREFIX:-/data/data/com.termux/files/usr}"
+EIMZA="$HOME/eimza"
+KOK="$HOME/.ckz-kurulum"
+# Kurulumun yapıldığı git kopyası (git pull ile güncellenen); yoksa kurulum anındaki kopya
+KAYNAK="$(cat "${XDG_CONFIG_HOME:-$HOME/.config}/uyap-termux/kaynak_dizini" 2>/dev/null)"
+if [ -z "$KAYNAK" ] || [ ! -f "$KAYNAK/kur.sh" ]; then
+  if [ -f "$HOME/uyap-termux-pro/kur.sh" ]; then KAYNAK="$HOME/uyap-termux-pro"; else KAYNAK="$KOK"; fi
+fi
+STATE="${EIMZA_DIR:-$HOME/.eimza}"
+AYAR="${XDG_CONFIG_HOME:-$HOME/.config}/uyap-termux/ayarlar.ini"
+UE="$HOME/ue.py"
+[ -f "$EIMZA/marka.sh" ] && . "$EIMZA/marka.sh"
+
+if [ -t 1 ]; then
+  K=$'\e[1;31m'; Y=$'\e[1;32m'; S=$'\e[1;33m'; M=$'\e[1;36m'; B=$'\e[1m'; N=$'\e[0m'
+else
+  K=""; Y=""; S=""; M=""; B=""; N=""
+fi
+# printf %-Ns bayt sayar; Türkçe harfler kayar. Karakter sayısına göre doldur (UTF-8 yerel ayarıyla).
+satir() { local r="$1" a="$2" d="$3" bosluk; bosluk=$((22 - ${#a})); [ $bosluk -lt 1 ] && bosluk=1
+          printf '  %s●%s %s%*s%s\n' "$r" "$N" "$a" "$bosluk" "" "$d"; }
+ok()   { satir "$Y" "$1" "$2"; }
+yok()  { satir "$K" "$1" "$2"; }
+ara()  { satir "$S" "$1" "$2"; }
+
+pid_canli() { [ -n "${1:-}" ] && kill -0 "$1" 2>/dev/null; }
+port_acik() { python3 -c "import socket,sys;s=socket.socket();s.settimeout(1);sys.exit(0 if s.connect_ex(('127.0.0.1',int(sys.argv[1])))==0 else 1)" "$1" 2>/dev/null; }
+json_alan() { python3 -c "import json,sys
+try: print(json.load(open(sys.argv[1])).get(sys.argv[2],''))
+except Exception: print('')" "$1" "$2" 2>/dev/null; }
+x_acik() { [ -S "${TMPDIR:-$PREFIX/tmp}/.X11-unix/X0" ] || [ -S /tmp/.X11-unix/X0 ]; }
+
+durum() {
+  printf '%sUYAP-Termux Pro durum%s\n' "$B" "$N"
+  if [ -f "$HOME/.uyap-editor/instance.properties" ] && pid_canli "$(sed -n 's/^pid=//p' "$HOME/.uyap-editor/instance.properties")"; then
+    ok "UYAP Editör" "açık"
+  else ara "UYAP Editör" "kapalı  (uyap editor)"; fi
+  if x_acik; then ok "Masaüstü (X11 :0)" "açık"; else ara "Masaüstü (X11 :0)" "kapalı  (uyap masaustu)"; fi
+  if [ -f "$STATE/izle.pid" ] && pid_canli "$(cat "$STATE/izle.pid" 2>/dev/null)"; then
+    if [ -f "$STATE/bridge.json" ]; then ok "E-imza okuyucu" "bağlı: $(json_alan "$STATE/bridge.json" name)"
+    else ara "E-imza okuyucu" "izleyici çalışıyor, okuyucu takılı değil"; fi
+  else yok "E-imza okuyucu" "izleyici kapalı  (uyap eimza baslat)"; fi
+  if [ -f "$EIMZA/adalet/eimza-tray.jar" ]; then
+    if port_acik "${EIMZA_TRAY_PORT:-5975}"; then ok "Adalet E-İmza" "çalışıyor (127.0.0.1:5975, sürüm $(cat "$EIMZA/adalet/surum.txt" 2>/dev/null))"
+    else yok "Adalet E-İmza" "kapalı  (uyap adalet baslat)"; fi
+  else ara "Adalet E-İmza" "kurulu değil  (bash ~/eimza/adalet_kur.sh)"; fi
+  if ls "$HOME"/jars/editor_lib*.jar >/dev/null 2>&1; then ok "Editör jar'ları" "$(ls "$HOME"/jars/*.jar 2>/dev/null | wc -l) jar"
+  else yok "Editör jar'ları" "yok  (uyap kur-editor)"; fi
+  j="$(python3 "$UE" --tani 2>/dev/null | sed -n 's/^Seçilen Java: //p')"
+  if [ -n "$j" ] && [ "${j#None}" = "$j" ]; then ok "Java" "$j"; else yok "Java" "bulunamadı  (pkg install openjdk-21)"; fi
+  if ls "$HOME"/.fonts/*/[Tt]imes*.[Tt][Tt][Ff] >/dev/null 2>&1 || ls "$HOME"/.fonts/[Tt]imes*.[Tt][Tt][Ff] >/dev/null 2>&1; then ok "Times New Roman" "kurulu"
+  else ara "Times New Roman" "yok (PDF'te benzeri kullanılır; uyap yazitipi)"; fi
+}
+
+masaustu() {
+  local m="xfce"
+  command -v xfce4-session >/dev/null 2>&1 || m="fluxbox"
+  [ -n "${MASAUSTU:-}" ] && m="$MASAUSTU"
+  MASAUSTU="$m" exec bash "$EIMZA/xfce_baslat.sh"
+}
+
+editor() {
+  if ! x_acik && [ -z "${DISPLAY:-}" ]; then
+    echo "X11 ekranı açık değil; masaüstü başlatılıyor, editör onun içinden açılacak ..."
+    ( sleep 5; DISPLAY=:0 "$HOME/.local/bin/uyap-editor" "$@" ) &
+    masaustu
+  fi
+  exec env DISPLAY="${DISPLAY:-:0}" "$HOME/.local/bin/uyap-editor" "$@"
+}
+
+ayar_al() { python3 - "$AYAR" "$1" "$2" <<'PY'
+import configparser, sys
+c = configparser.ConfigParser(); c.read(sys.argv[1], encoding="utf-8")
+print(c.get(sys.argv[2], sys.argv[3], fallback=""))
+PY
+}
+ayar_yaz() { python3 - "$AYAR" "$1" "$2" "$3" <<'PY'
+import configparser, os, sys
+yol, bol, ad, deger = sys.argv[1:5]
+c = configparser.ConfigParser(); c.read(yol, encoding="utf-8")
+if not c.has_section(bol): c.add_section(bol)
+c.set(bol, ad, deger)
+os.makedirs(os.path.dirname(yol), exist_ok=True)
+with open(yol, "w", encoding="utf-8") as f:
+    f.write("# UYAP-Termux ayarları. Değişiklikler editörün bir sonraki açılışında geçerli olur.\n\n")
+    c.write(f)
+PY
+}
+
+ayarlar() {
+  [ -f "$AYAR" ] || python3 "$UE" --tani >/dev/null 2>&1   # varsayılanlarla oluşturur
+  if ! command -v dialog >/dev/null 2>&1; then exec "${EDITOR:-nano}" "$AYAR"; fi
+  while :; do
+    secim=$(dialog --stdout --title "UYAP Editör ayarları" --menu "Değiştirmek istediğinizi seçin:" 18 64 9 \
+      tema "Tema: $(ayar_al arayuz tema)" \
+      olcek "Ölçek: $(ayar_al arayuz olcek)" \
+      dokunmatik "Dokunmatik mod: $(ayar_al arayuz dokunmatik)" \
+      vurgu "Vurgu rengi: $(ayar_al arayuz vurgu)" \
+      akici "Akıcı kaydırma: $(ayar_al kaydirma akici)" \
+      bellek "Java belleği (MB): $(ayar_al java bellek)" \
+      eimza "E-imza: $(ayar_al eimza aktif)" \
+      altmenu "Tek Alt ile kısayol harfleri: $(ayar_al klavye alt_menu)" \
+      klavye "Klavye düzeni: $(ayar_al klavye duzen) $(ayar_al klavye varyant)" \
+      dosya "Ayar dosyasını düzenleyiciyle aç") || break
+    case "$secim" in
+      tema) v=$(dialog --stdout --radiolist "Tema" 14 50 5 acik "Açık (IntelliJ)" on koyu "Koyu (Darcula)" off \
+               macos-acik "macOS açık" off macos-koyu "macOS koyu" off sistem "Sistem (FlatLaf yok)" off) && ayar_yaz arayuz tema "$v" ;;
+      olcek) v=$(dialog --stdout --radiolist "Arayüz ölçeği (tablette 1.25-1.5 önerilir)" 15 50 7 otomatik "Ekran DPI'sına göre" off \
+               1.0 "" off 1.2 "" on 1.25 "" off 1.5 "" off 1.75 "" off 2.0 "" off) && ayar_yaz arayuz olcek "$v" ;;
+      dokunmatik) v=$(dialog --stdout --radiolist "Parmakla kullanım: kalın kaydırma çubuğu, geniş menüler" 10 60 2 evet "" off hayir "" on) && ayar_yaz arayuz dokunmatik "$v" ;;
+      vurgu) v=$(dialog --stdout --inputbox "Vurgu rengi (#RRGGBB, boş = tema rengi). Örn. #C0392B (bordo), #2E7D32 (yeşil)" 10 60 "$(ayar_al arayuz vurgu)") && ayar_yaz arayuz vurgu "$v" ;;
+      akici) v=$(dialog --stdout --radiolist "Akıcı kaydırma (editörde F9 ile de değişir)" 10 50 2 evet "" on hayir "" off) && ayar_yaz kaydirma akici "$v" ;;
+      bellek) v=$(dialog --stdout --inputbox "Java en çok bellek (MB) ya da 'otomatik'" 9 50 "$(ayar_al java bellek)") && ayar_yaz java bellek "$v" ;;
+      eimza) v=$(dialog --stdout --radiolist "Editörde e-imza (USB köprüsü)" 10 50 2 evet "" on hayir "" off) && ayar_yaz eimza aktif "$v" ;;
+      altmenu) v=$(dialog --stdout --radiolist "Tek başına Alt'a basınca şeritte kısayol harfleri açılsın mı? (hayir önerilir: yanlışlıkla Alt'a basınca yazı bölünmez)" 11 64 2 hayir "" on evet "" off) && ayar_yaz klavye alt_menu "$v" ;;
+      klavye) v=$(dialog --stdout --radiolist "Fiziksel klavye düzeni" 11 50 3 q "Türkçe Q" on f "Türkçe F" off us "İngilizce (ABD)" off) && {
+                case "$v" in q) ayar_yaz klavye duzen tr; ayar_yaz klavye varyant "" ;; f) ayar_yaz klavye duzen tr; ayar_yaz klavye varyant f ;; us) ayar_yaz klavye duzen us; ayar_yaz klavye varyant "" ;; esac
+                DISPLAY="${DISPLAY:-:0}" bash "$EIMZA/klavye.sh" >/dev/null 2>&1; } ;;
+      dosya) "${EDITOR:-nano}" "$AYAR" ;;
+    esac
+  done
+  clear
+  echo "Ayarlar kaydedildi: $AYAR (editörü yeniden açınca geçerli olur)"
+}
+
+yazitipi() {
+  # Microsoft "Core fonts for the Web" (1998-2002 serbest dağıtım lisansı; yalnızca özgün .exe paketleri dağıtılabilir).
+  # Dosyalar SourceForge corefonts projesinden indirilir, SHA-256 ile doğrulanır, ~/.fonts/microsoft'a açılır.
+  command -v cabextract >/dev/null 2>&1 || pkg install -y cabextract || { echo "cabextract kurulamadı"; return 1; }
+  local d="$HOME/.fonts/microsoft" t; t="$(mktemp -d)"; mkdir -p "$d"
+  local -A OZET=(
+    [times32.exe]=db56595ec6ef5d3de5c24994f001f03b2a13e37cee27bc25c58f6f43e8f807ab
+    [arial32.exe]=85297a4d146e9c87ac6f74822734bdee5f4b2a722d7eaa584b7f2cbf76f478f6
+    [arialb32.exe]=a425f0ffb6a1a5ede5b979ed6177f4f4f4fdef6ae7c302a7b7720ef332fec0a8
+  )
+  for f in "${!OZET[@]}"; do
+    echo "İndiriliyor: $f"
+    curl -fsSL --max-time 300 -o "$t/$f" "https://downloads.sourceforge.net/corefonts/$f" || { echo "  indirilemedi"; continue; }
+    if [ "$(sha256sum "$t/$f" | cut -d' ' -f1)" != "${OZET[$f]}" ]; then echo "  özet uyuşmadı, atlandı"; continue; fi
+    cabextract -q -L -F '*.ttf' -d "$d" "$t/$f" && echo "  kuruldu"
+  done
+  rm -rf "$t"
+  command -v fc-cache >/dev/null 2>&1 && fc-cache -f "$HOME/.fonts" >/dev/null 2>&1
+  ls "$d"
+  echo "Editörü yeniden açın: PDF çıktısında Times New Roman birebir kullanılır."
+}
+
+kur_editor() {
+  # Argümansız: uyap.gov.tr'deki güncel Pardus/Debian paketini indirir. Zip verilirse onu kullanır.
+  # Mevcut jar'lar varsa da yeniden kurar (güncelleme amaçlı çağrılır).
+  local zip="${1:-}"
+  if [ -n "$zip" ] && [ ! -f "$zip" ]; then echo "Dosya bulunamadı: $zip"; return 2; fi
+  if [ -z "$zip" ]; then
+    local t; t="$(mktemp -d)"
+    echo "Güncel UYAP Editör uyap.gov.tr'den indiriliyor ..."
+    local url
+    url="$(curl -fsSL --max-time 40 https://uyap.gov.tr/UYAP-Editor 2>/dev/null \
+           | grep -oE '(https?:)?//rayp\.adalet\.gov\.tr/[A-Za-z0-9_./-]*uyapeditor_[0-9.]+_amd64\.zip' \
+           | sed -E 's#^(https?:)?//#https://#' | sort -t_ -k2 -V | tail -1)"
+    [ -n "$url" ] || { echo "Resmî sayfada indirme bağlantısı bulunamadı. Zip'i Download'a indirip: uyap kur-editor /sdcard/Download/uyapeditor_*_amd64.zip"; rm -rf "$t"; return 1; }
+    echo "  $url"
+    curl -fL --progress-bar --max-time 1200 -o "$t/$(basename "$url")" "$url" || { echo "İndirilemedi."; rm -rf "$t"; return 1; }
+    zip="$t/$(basename "$url")"
+  fi
+  bash "$KAYNAK/kur.sh" --editor-zip "$zip" --paket-atla --kabul --yalniz-editor
+}
+
+gunluk() {
+  for f in "$HOME/.uyap-editor/editor.log" "$STATE/izle.log" "$STATE/bridge.log" "$STATE/adalet.log" "$STATE/otobaslat.log"; do
+    [ -f "$f" ] || continue
+    printf '\n%s== %s%s\n' "$M" "$f" "$N"; tail -n 15 "$f"
+  done
+}
+
+tani() {
+  local o="$HOME/uyap-tani.txt"
+  {
+    echo "uyap tani $(date '+%F %T')"; uname -a
+    for k in ro.product.manufacturer ro.product.model ro.build.version.release; do echo "$k: $(getprop "$k" 2>/dev/null)"; done
+    echo; durum
+    echo; python3 "$UE" --tani
+    echo; echo "paketler:"; dpkg -l 2>/dev/null | awk '/openjdk|termux-x11|xfce4-session|fluxbox|libusb|termux-api|python /{print "  "$2" "$3}'
+    gunluk
+  } 2>&1 | sed 's/token[=":]*[0-9a-f]\{16,\}/token=<gizli>/g' > "$o"
+  cat "$o"
+  command -v termux-clipboard-set >/dev/null 2>&1 && termux-clipboard-set < "$o" && echo && echo ">> Rapor panoya kopyalandı ($o). Jetonlar gizlendi."
+}
+
+menu() {
+  if ! command -v dialog >/dev/null 2>&1 || [ ! -t 0 ]; then
+    durum; echo
+    echo "Komutlar: masaustu, editor [dosya], panel, ayarlar, eimza, adalet, yedek, yazitipi, gunluk, tani, hakkinda"
+    return 0
+  fi
+  while :; do
+    secim=$(dialog --stdout --title "UYAP-Termux Pro" --cancel-label "Çıkış" --menu "$(durum 2>/dev/null | sed 's/\x1b\[[0-9;]*m//g')" 30 76 10 \
+      1 "Masaüstünü aç (Termux:X11)" \
+      2 "UYAP Editör'ü aç" \
+      3 "Kontrol Merkezi (grafik)" \
+      4 "Ayarlar (tema, ölçek, dokunmatik ...)" \
+      5 "E-imza okuyucu köprüsünü yeniden başlat" \
+      6 "Adalet E-İmza'yı yeniden başlat" \
+      7 "Yedek al (gizli veriler hariç)" \
+      8 "Times New Roman yazı tiplerini kur" \
+      9 "Günlükler" \
+      10 "Tanı raporu (panoya)") || { clear; return 0; }
+    clear
+    case "$secim" in
+      1) masaustu ;;
+      2) editor ;;
+      3) panel ;;
+      4) ayarlar ;;
+      5) bash "$EIMZA/eimza_baslat.sh" ;;
+      6) bash "$EIMZA/adalet_baslat.sh" restart ;;
+      7) bash "$HOME/yedek_al.sh" ;;
+      8) yazitipi ;;
+      9) gunluk ;;
+      10) tani ;;
+    esac
+    printf '\nDevam için Enter ...'; read -r _
+  done
+}
+
+guncelle() {
+  # GitHub'daki son sürümü alır ve bileşenleri yeniden kurar (paket kurmaz, indirilmiş dosyalara dokunmaz)
+  if [ -d "$KAYNAK/.git" ]; then
+    git -C "$KAYNAK" pull --ff-only || { echo "git pull başarısız (yerel değişiklik var mı?): git -C $KAYNAK status"; return 1; }
+  else
+    echo "Kaynak bir git kopyası değil ($KAYNAK); yalnızca yeniden kuruluyor."
+  fi
+  # exec: kur.sh bu betigin ($HOME/.local/bin/uyap) uzerine yazar; bash calisan dosyayi okumaya devam ederse
+  # "syntax error near unexpected token" verir. exec ile bu kabuk artik bu dosyayi okumaz.
+  exec bash "$KAYNAK/kur.sh" --paket-atla --kabul --yine-de
+}
+
+panel() { exec env DISPLAY="${DISPLAY:-:0}" python3 "$UE" --panel; }
+
+komut="${1:-menu}"; [ $# -gt 0 ] && shift
+case "$komut" in
+  menu) menu ;;
+  masaustu|masaüstü) masaustu ;;
+  editor|editör) editor "$@" ;;
+  panel|kontrol) panel ;;
+  durum) durum ;;
+  ayarlar|ayar) ayarlar ;;
+  eimza)
+    case "${1:-baslat}" in
+      baslat) bash "$EIMZA/eimza_baslat.sh" ;;
+      durdur) bash "$EIMZA/eimza_baslat.sh" stop ;;
+      tani) bash "$EIMZA/eimza_tani.sh" ;;
+      *) echo "uyap eimza baslat|durdur|tani"; exit 2 ;;
+    esac ;;
+  adalet)
+    case "${1:-durum}" in
+      baslat) bash "$EIMZA/adalet_baslat.sh" start ;;
+      durdur) bash "$EIMZA/adalet_baslat.sh" stop ;;
+      yeniden) bash "$EIMZA/adalet_baslat.sh" restart ;;
+      durum) bash "$EIMZA/adalet_baslat.sh" durum ;;
+      *) echo "uyap adalet baslat|durdur|yeniden|durum"; exit 2 ;;
+    esac ;;
+  yedek) exec bash "$HOME/yedek_al.sh" "$@" ;;
+  yazitipi|yazitipleri) yazitipi ;;
+  kur-editor) kur_editor "$@" ;;
+  guncelle|güncelle) guncelle ;;
+  jdk14)
+    case "${1:-kur}" in
+      kur) shift; bash "$EIMZA/jdk14_kur.sh" kur "$@" ;;
+      dene|birak) bash "$EIMZA/jdk14_kur.sh" "$1" ;;
+      *) echo "uyap jdk14 [kur [--arsiv DOSYA]|dene|birak]"; exit 2 ;;
+    esac ;;
+  klavye)
+    case "${1:-ayarla}" in
+      ayarla) DISPLAY="${DISPLAY:-:0}" bash "$EIMZA/klavye.sh" ;;
+      durum) DISPLAY="${DISPLAY:-:0}" bash "$EIMZA/klavye.sh" durum ;;
+      f|F) ayar_yaz klavye varyant f; DISPLAY="${DISPLAY:-:0}" bash "$EIMZA/klavye.sh" ;;
+      q|Q) ayar_yaz klavye varyant ""; DISPLAY="${DISPLAY:-:0}" bash "$EIMZA/klavye.sh" ;;
+      *) echo "uyap klavye [ayarla|durum|q|f]"; exit 2 ;;
+    esac ;;
+  gunluk|günlük) gunluk ;;
+  tani|tanı) tani ;;
+  hakkinda|hakkında) exec "$HOME/.local/bin/uyap-hakkinda" ;;
+  -h|--help|yardim|yardım) sed -n '2,/^set -u/p' "$0" | sed '$d' | sed 's/^# \{0,1\}//' ;;
+  *) echo "Bilinmeyen komut: $komut  (uyap yardim)"; exit 2 ;;
+esac

@@ -1,0 +1,53 @@
+UYAP-TERMUX KULLANIM LİSANSI  (sürüm 1.0)
+© 2026 Av. Can KIZILYAR — Tüm hakları saklıdır.
+[TASLAK: yayımlamadan önce hukuki gözden geçirme yapılmalıdır; köşeli parantezli alanları doldurun.]
+
+1. KAPSAM
+   "Yazılım", bu pakette yer alan ve Av. Can KIZILYAR'a ("Yazar") ait özgün bileşenlerdir: kurulum ve başlatma
+   betikleri, e-imza okuyucu köprüsü, Java sağlayıcısı ve ajanı, UYAP Editör başlatıcısı, mühür/doğrulama araçları ve
+   belgeler. NOTICE.txt'de sayılan üçüncü taraf bileşenler bu lisansın kapsamı dışındadır ve kendi lisanslarına tabidir.
+
+2. TELİF HAKKI
+   Yazılım 5846 sayılı Fikir ve Sanat Eserleri Kanunu kapsamında Yazar'ın eseridir. Mali ve manevi haklar (eser
+   sahibinin adının belirtilmesi ve eserde değişiklik yapılmasını engelleme dahil) Yazar'a aittir. Bu lisans hiçbir
+   hakkın devri anlamına gelmez.
+
+3. VERİLEN İZİN
+   Yazar, kullanıcıya; Yazılım'ı kendi cihazlarında kurma ve çalıştırma, kişisel ve mesleki (avukatlık/hukuk bürosu)
+   iç kullanım amacıyla, ücretsiz, devredilemez, münhasır olmayan ve geri alınabilir bir kullanım izni verir. Kendi
+   cihazlarınız için yedek alabilirsiniz.
+
+4. YASAKLAR (Yazar'ın yazılı izni olmadan)
+   a) Yazılım'ı çoğaltmak, herhangi bir ortamda yeniden yayımlamak, dağıtmak, paylaşmak veya satmak
+      (yalnızca Yazar'ın belirttiği resmî kaynaktan indirme serbesttir);
+   b) değiştirmek, uyarlamak, türev eser üretmek, başka bir yazılıma gömmek;
+   c) telif başlıklarını, mühürleri, imzaları, kurulum sırasında görüntülenen bildirimleri veya gizli izleri
+      kaldırmak, değiştirmek ya da doğrulama mekanizmalarını devre dışı bırakmak;
+   d) Yazılım'ı veya değiştirilmiş bir kopyasını Yazar'ın adı altında ya da "orijinal" olarak sunmak;
+   e) kiralamak, hizmet olarak sunmak veya ticari amaçla kullanmak;
+   f) yasal olarak izin verilen haller dışında tersine mühendislik yapmak.
+
+5. MÜHÜR VE DOĞRULAMA
+   Yazılım'ın dosyaları ve sürüm listesi Yazar'ın dijital imzasıyla mühürlenmiştir. Doğrulaması başarısız kopyalar
+   Yazar'ın sürümü sayılmaz; destek ve sorumluluk kapsamı dışındadır.
+
+6. RESMÎ OLMAMA — KULLANICI SORUMLULUĞU
+   Yazılım; T.C. Adalet Bakanlığı, UYAP, HAVELSAN, TÜBİTAK, Termux veya Google tarafından geliştirilmemiş, onaylanmamış
+   ya da desteklenmemiştir. UYAP Editör ve Adalet E-İmza uygulamaları ilgili kurumların malıdır; Yazılım bunları
+   dağıtmaz, kurulum sırasında kullanıcının cihazına resmî kaynaklardan indirir. Bu uygulamaların ve UYAP sistemlerinin
+   kullanım koşullarına uyum kullanıcının sorumluluğundadır. Yazılım e-imza PIN'lerini kaydetmez, saklamaz ve Yazar'a
+   veya üçüncü kişilere iletmez; Yazar'a hiçbir kullanım verisi göndermez.
+
+7. GARANTİ REDDİ VE SORUMLULUK
+   Yazılım "olduğu gibi" sunulur. Emredici hukuk kuralları (kast ve ağır kusur dahil) saklı kalmak üzere Yazar,
+   Yazılım'ın kullanımından doğan doğrudan/dolaylı zararlardan, veri veya iş kaybından sorumlu değildir. Hukuki
+   işlemlerde (ör. süreli işlemler) sonucun teyidi kullanıcıya aittir.
+
+8. FESİH
+   Bu lisansın ihlali halinde kullanım izni kendiliğinden sona erer; kullanıcı Yazılım'ı cihazlarından kaldırır.
+
+9. UYGULANACAK HUKUK VE YETKİ
+   Türk hukuku uygulanır. Yetkili mahkeme ve icra daireleri: [ŞEHİR] mahkemeleri ve icra daireleri.
+
+10. İLETİŞİM
+   Lisans talepleri ve hata bildirimi: [E-POSTA / RESMÎ SAYFA ADRESİ]

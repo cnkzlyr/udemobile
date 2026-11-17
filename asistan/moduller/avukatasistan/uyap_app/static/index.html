@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="tr"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>UYAP Avukat Mobil</title>
+<style>
+:root{--bg:#0b1020;--card:#131a2e;--bd:#222c48;--tx:#e8ecf7;--mu:#8b97b8;--ac:#6d8cff;--ok:#34d399;--wr:#fbbf24;--er:#f87171}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:var(--bg);color:var(--tx);font:14px/1.45 system-ui,sans-serif;padding-bottom:70px}
+header{position:sticky;top:0;background:#0b1020ee;border-bottom:1px solid var(--bd);padding:10px 14px;display:flex;justify-content:space-between;align-items:center;z-index:5}
+h1{font-size:16px;margin:0}.sub{color:var(--mu);font-size:12px}
+main{padding:12px;max-width:760px;margin:auto}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:12px;margin-bottom:10px}
+.row{display:flex;justify-content:space-between;gap:8px;align-items:center}
+.tag{font-size:11px;padding:2px 8px;border-radius:99px;border:1px solid var(--bd);color:var(--mu)}
+.ok{color:var(--ok);border-color:#1f6b52}.wr{color:var(--wr);border-color:#7a5c12}.er{color:var(--er);border-color:#7a2a2a}
+button,.btn{background:var(--ac);color:#fff;border:0;border-radius:10px;padding:9px 14px;font-weight:600;font-size:13px;text-decoration:none;display:inline-block}
+button.sec{background:#1c2540;color:var(--tx)}
+input{width:100%;background:#0e1427;color:var(--tx);border:1px solid var(--bd);border-radius:10px;padding:10px;margin-bottom:10px}
+nav{position:fixed;bottom:0;left:0;right:0;display:flex;background:#0b1020f5;border-top:1px solid var(--bd);z-index:6}
+nav button{flex:1;background:none;color:var(--mu);border-radius:0;padding:12px 2px;font-size:12px}nav button.on{color:var(--ac)}
+.hid{display:none}.mono{font-family:monospace;font-size:12px;word-break:break-all}.mu{color:var(--mu)}
+.todo{padding:6px 0;border-top:1px dashed var(--bd)}.todo.done{opacity:.45;text-decoration:line-through}
+h3{margin:14px 0 6px;font-size:14px}
+</style></head><body>
+<header><div><h1>⚖️ UYAP Avukat Mobil</h1><div class="sub" id="who">Bağlı değil</div></div><span class="tag" id="conn">…</span></header>
+<main>
+ <section id="v-conn"></section>
+ <section id="v-cases" class="hid"><input id="q" placeholder="Esas no / mahkeme ara…" oninput="renderCases()"><div id="cases"></div></section>
+ <section id="v-hear" class="hid"><div class="row"><h3 style="margin:0">Duruşmalar</h3><span><button class="sec" onclick="loadHear(30,0)">Son 30 gün</button> <button class="sec" onclick="loadHear(0,30)">Önümüzdeki 30 gün</button></span></div><div id="hear" style="margin-top:10px"></div></section>
+ <section id="v-intel" class="hid"></section>
+ <section id="v-map" class="hid"></section>
+</main>
+<nav>
+ <button data-v="conn" class="on">🔌 Bağlantı</button><button data-v="cases">📁 Dosyalar</button>
+ <button data-v="hear">📅 Duruşma</button><button data-v="intel">🧠 Analiz</button><button data-v="map">🗺️ Harita</button>
+</nav>
+<script src="app.js"></script></body></html>

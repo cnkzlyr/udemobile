@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=NAPS2 Belge Tarayıcı
+GenericName=Belge ve Resim Tarayıcı
+Comment=Not Another PDF Scanner 2
+Exec=/data/data/com.termux/files/usr/bin/naps2 %F
+Icon=com.naps2.Naps2
+Terminal=false
+Categories=Graphics;Office;Scanning;OCR;
+MimeType=application/pdf;image/jpeg;image/png;image/tiff;image/bmp;

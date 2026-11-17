@@ -1,0 +1,12 @@
+[Desktop Entry]
+Name=UYAP Doküman Editörü Modern
+GenericName=Kelime İşlemci
+Comment=UYAP Doküman Editörü Modern (120Hz & E-İmza Entegre)
+Exec=uyap-dokuman %F
+Icon=application-udf
+Terminal=false
+Type=Application
+Categories=Office;WordProcessor;UYAP;
+MimeType=application/udf;application/x-udf;
+StartupWMClass=uyap-dokuman
+StartupNotify=true

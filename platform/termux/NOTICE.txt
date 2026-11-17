@@ -1,0 +1,24 @@
+ÜÇÜNCÜ TARAF BİLEŞENLER VE MÜLKİYET BİLDİRİMİ — UYAP-Termux
+(Yazılım'ın özgün kısmı için bkz. LICENSE.txt: © 2026 Av. Can KIZILYAR)
+
+A) Bu pakete DAHİL EDİLMEYEN, kurulum sırasında kullanıcının cihazına RESMÎ KAYNAKLARDAN indirilen yazılımlar
+   - UYAP Doküman Editörü: © T.C. Adalet Bakanlığı Bilgi İşlem Genel Müdürlüğü ve ilgili hak sahipleri.
+     Kaynak: https://uyap.gov.tr/UYAP-Editor (Pardus/Debian paketi). Değiştirilmez; başlatıcı olduğu gibi çalıştırır.
+   - Adalet E-İmza Uygulaması (eimza-tray): © T.C. Adalet Bakanlığı ve ilgili hak sahipleri.
+     Kaynak: https://eimza.adalet.gov.tr . Uygulamanın dosyaları değiştirilmez. Yazılım, kurulumda ajan olarak yüklenen
+     bir bileşenle yalnızca (i) kart okuyucu erişimini Termux köprüsüne yönlendirir ve (ii) PIN istenirse Android'in
+     kendi pencerelerini kullanır (uygulamanın PIN penceresi sınıfının yerini alır). İlgili kurumun kullanım koşullarını
+     kontrol etmek kullanıcıya aittir.
+   - Bu uygulamalar TÜBİTAK BİLGEM'e ait MA3/ESYA ve AKİS kütüphanelerini içerir (kendi lisanslarına tabidir).
+   - FlatLaf (Apache-2.0): başlatıcı tarafından Maven Central'dan indirilir.
+
+B) Kullanıcının ayrıca kurduğu / paket yöneticisiyle indirilen özgür yazılımlar (dağıtılmaz)
+   - Termux, Termux:X11, Termux:API (GPL-3.0) — kullanıcı tarafından ayrı uygulamalar olarak kurulur;
+     kaynak kodları https://github.com/termux üzerindedir. Bu paket Termux kodu içermez.
+   - Termux paketleri: OpenJDK (GPL-2.0 + Classpath Exception), libusb (LGPL-2.1; ctypes ile dinamik kullanılır),
+     Python (PSF), XFCE, fluxbox ve diğerleri — her biri kendi lisansıyla.
+
+C) Ticari markalar
+   UYAP, Adalet, HAVELSAN, TÜBİTAK, Termux, Android, Chrome ve diğer adlar ilgili sahiplerinin markalarıdır. Bu paketin
+   söz konusu kurumlarla/şirketlerle bir bağlantısı yoktur; adlar yalnızca uyumluluğu belirtmek için anılmıştır.
+   Kurum logoları ve simgeleri pakete dahil edilmemiştir.

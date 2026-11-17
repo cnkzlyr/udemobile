@@ -1,0 +1,4 @@
+#!/data/data/com.termux/files/usr/bin/bash
+export PROOT_NO_SECCOMP=1
+export DISPLAY="${DISPLAY:-:0}"
+exec proot-distro login fedora --shared-tmp -- env DISPLAY="$DISPLAY" /usr/bin/naps2 "$@"

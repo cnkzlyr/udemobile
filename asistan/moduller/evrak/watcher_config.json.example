@@ -1,0 +1,12 @@
+{
+  "telegram_token": "YOUR_TELEGRAM_BOT_TOKEN",
+  "telegram_chat_id": "YOUR_TELEGRAM_CHAT_ID",
+  "interval_minutes": 15,
+  "keepalive_minutes": 3,
+  "google_drive_dir": "G:\\Drive'ım\\UYAP_Arsiv",
+  "google_drive_webhook": "https://script.google.com/macros/s/YOUR_SCRIPT_ID/exec",
+  "check_open_cases": true,
+  "check_durusma": true,
+  "check_tebligat": true,
+  "telegram_summary_report": true
+}

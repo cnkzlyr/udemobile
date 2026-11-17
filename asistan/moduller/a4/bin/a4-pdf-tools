@@ -1,0 +1,23 @@
+#!/data/data/com.termux/files/usr/bin/bash
+# ==============================================================================
+# A4 PDF Dönüştürücü ve Birleştirici CLI (NAPS2 Mantığı)
+# ==============================================================================
+
+set -e
+
+# Sembolik bağlantıları çözerek gerçek script dizinini bul
+REAL_SCRIPT="$(readlink -f "${BASH_SOURCE[0]}")"
+SCRIPT_DIR="$(cd "$(dirname "$REAL_SCRIPT")" && pwd)"
+BASE_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+ENGINE="$BASE_DIR/python/a4_pdf_engine.py"
+PYTHON_EXEC="$(which python3 || echo "/data/data/com.termux/files/usr/bin/python3")"
+
+export PATH="/data/data/com.termux/files/home/.local/bin:/data/data/com.termux/files/usr/bin:$PATH"
+export DISPLAY="${DISPLAY:-:0.0}"
+
+if [ $# -lt 2 ]; then
+    echo "Kullanım: a4-pdf-tools <--convert|--merge> <dosya1> [dosya2 ...]"
+    exit 1
+fi
+
+exec "$PYTHON_EXEC" "$ENGINE" "$@"

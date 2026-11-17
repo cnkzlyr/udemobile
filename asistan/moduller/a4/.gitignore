@@ -1,0 +1,7 @@
+*.class
+*.pyc
+__pycache__/
+*.tmp
+*~
+*.log
+Birlestirilmis_Belge_*.pdf

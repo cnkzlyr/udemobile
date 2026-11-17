@@ -1,0 +1,14 @@
+# Resmi/ucuncu taraf ikili dosyalar ve kisisel veriler ASLA depoya girmez
+jars/
+*.jar
+bilesenler/eimza/adalet/
+*.class
+__pycache__/
+*.pyc
+.akici.hash
+*.udf
+*.UDF
+*.usf
+*.log
+MUHUR/MANIFEST.*
+dist/

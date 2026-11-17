@@ -1,0 +1,35 @@
+UYAP Evrak Yöneticisi
+Copyright (c) 2026 Av. Can KIZILYAR. Tüm hakları saklıdır. / All rights reserved.
+
+TÜRKÇE
+------
+Bu yazılımın (kaynak kodu, derlenmiş paketleri, simgeleri ve belgeleri dahil) tüm fikrî ve sınaî
+hakları Av. Can KIZILYAR'a aittir. 5846 sayılı Fikir ve Sanat Eserleri Kanunu kapsamında korunmaktadır.
+
+Hak sahibinin yazılı izni olmaksızın yazılımın tamamı veya bir kısmı; çoğaltılamaz, değiştirilemez,
+uyarlanamaz, satılamaz, kiralanamaz, dağıtılamaz, alt lisanslanamaz, başka bir ürüne dahil edilemez
+ve ticari amaçla kullanılamaz. Kaynak kodunun herkese açık bir depoda bulunması bu hakların
+devredildiği veya kullanım izni verildiği anlamına gelmez.
+
+Kişisel ve mesleki kullanım için izin almak isteyenler hak sahibiyle iletişime geçmelidir.
+
+Yazılım "olduğu gibi" sunulur; açık veya örtülü hiçbir garanti verilmez. Hak sahibi, yazılımın
+kullanımından doğabilecek doğrudan veya dolaylı zararlardan sorumlu değildir. Kullanıcı, UYAP ve
+ilgili sistemlerin kullanım koşullarına, KVKK'ya ve avukatlık meslek kurallarına uymaktan bizzat
+sorumludur. Bu yazılım Adalet Bakanlığı'nın veya UYAP'ın resmi bir ürünü değildir.
+
+Üçüncü taraf bileşenler kendi lisanslarına tabidir: Python (PSF), Pillow (HPND), pypdf (BSD),
+requests (Apache-2.0), websocket-client (Apache-2.0), Eclipse Temurin JRE (GPLv2 + Classpath
+Exception), Liberation yazı tipleri (SIL OFL 1.1). Havelsan UYAP Editör kütüphaneleri bu pakete
+dahil değildir; kullanıcının kendi kurulumundan kullanılır.
+
+Not: Bu depodaki daha önceki sürümler MIT lisansıyla yayımlanmıştı; o sürümler için verilmiş
+haklar saklıdır. Bu dosyanın eklendiği sürümden itibaren yukarıdaki koşullar geçerlidir.
+
+ENGLISH
+-------
+All intellectual property rights in this software (source code, compiled packages, icons and
+documentation) belong to Av. Can KIZILYAR. No part of it may be copied, modified, distributed,
+sold, sublicensed or used commercially without the prior written permission of the copyright
+holder. Public availability of the source code does not grant any license. The software is
+provided "as is", without warranty of any kind.

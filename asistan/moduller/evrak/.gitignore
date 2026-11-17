@@ -1,0 +1,42 @@
+# UYAP İndirilen Dosyalar ve Hassas Veriler (KVKK & Gizlilik)
+UYAP_Indirilenler/
+.uyap_chrome_profile/
+.uyap_config.json
+watcher_config.json
+indirme_gecmisi.json
+indirme_indeksi.csv
+*cache.json
+*.csv
+uyap_indirici_log.txt*
+loglar/
+*.log
+pin.txt
+
+# Analiz ve Tarama TXT Dökümleri
+uyap*.txt
+
+# Python Önbellek ve Geçici Dosyalar
+__pycache__/
+*.py[cod]
+*$py.class
+*.part
+*.tmp
+.venv/
+env/
+venv/
+.idea/
+.vscode/
+
+# Evrak katalogu (yerel veritabani, kisisel veri)
+uyap_katalog.db*
+jars/
+.katalog_filtre.json
+
+# Derleme ciktilari ve yerel veriler
+dist/
+build/
+.onbellek/
+loglar/
+scratch/
+*.ics
+*.spec.bak

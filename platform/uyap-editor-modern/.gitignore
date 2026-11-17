@@ -1,0 +1,26 @@
+# Build outputs
+build/
+dist/
+release-assets/
+pkg/
+*.class
+
+# Upstream binaries
+upstream/
+*.zip
+*.msi
+*.exe
+*.deb
+*.rpm
+*.tar.gz
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+platforms/windows/staging/

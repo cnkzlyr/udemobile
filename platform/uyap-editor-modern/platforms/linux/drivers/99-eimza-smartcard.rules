@@ -1,0 +1,9 @@
+# TÜBİTAK AKİS / ArkSigner / ACS ACR39U / Token SmartCard Rules
+# ArkSigner Connect2Sign
+ATTRS{idVendor}=="2ce3", ATTRS{idProduct}=="0001", MODE="0666", GROUP="pcscd"
+# ACS ACR39U
+ATTRS{idVendor}=="072f", ATTRS{idProduct}=="90db", MODE="0666", GROUP="pcscd"
+ATTRS{idVendor}=="072f", ATTRS{idProduct}=="2200", MODE="0666", GROUP="pcscd"
+# Identiv / Omnikey / Feitian
+ATTRS{idVendor}=="04e6", MODE="0666", GROUP="pcscd"
+ATTRS{idVendor}=="096e", MODE="0666", GROUP="pcscd"

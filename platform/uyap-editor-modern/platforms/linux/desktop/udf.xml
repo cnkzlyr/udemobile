@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+  <mime-type type="application/x-udf">
+    <comment>UYAP Dokümanı</comment>
+    <comment xml:lang="tr">UYAP Dokümanı</comment>
+    <sub-class-of type="application/zip"/>
+    <generic-icon name="application-x-udf"/>
+    <glob pattern="*.udf" weight="80"/>
+  </mime-type>
+  <mime-type type="application/udf">
+    <comment>UYAP Dokümanı</comment>
+    <comment xml:lang="tr">UYAP Dokümanı</comment>
+    <sub-class-of type="application/zip"/>
+    <generic-icon name="application-udf"/>
+    <glob pattern="*.udf" weight="80"/>
+  </mime-type>
+  <mime-type type="application/x-usf">
+    <comment>UYAP Şablonu</comment>
+    <comment xml:lang="tr">UYAP Şablonu</comment>
+    <sub-class-of type="application/zip"/>
+    <generic-icon name="application-x-usf"/>
+    <glob pattern="*.usf" weight="80"/>
+  </mime-type>
+  <mime-type type="application/usf">
+    <comment>UYAP Şablonu</comment>
+    <comment xml:lang="tr">UYAP Şablonu</comment>
+    <sub-class-of type="application/zip"/>
+    <generic-icon name="application-usf"/>
+    <glob pattern="*.usf" weight="80"/>
+  </mime-type>
+</mime-info>
