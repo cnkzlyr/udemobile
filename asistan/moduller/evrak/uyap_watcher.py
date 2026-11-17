@@ -64,6 +64,18 @@ import donusturucu as dn
 # ---------------------------------------------------------------------------
 # Telegram Bot İstemcisi (Sıfır ek kütüphane bağımlılığı)
 # ---------------------------------------------------------------------------
+
+def _kayitli_pin(ui) -> str:
+    """e-İmza PIN'i: uyap_indirici'nin yüklediği (pin dosyası / UYAP_E_IMZA_PIN), yoksa pin.txt."""
+    pin = getattr(ui, "DEFAULT_E_IMZA_PIN", "") or ""
+    if not pin and os.path.exists("pin.txt"):
+        try:
+            with open("pin.txt", "r", encoding="utf-8") as f:
+                pin = f.read().strip()
+        except OSError:
+            pass
+    return pin
+
 class TelegramClient:
     def __init__(self, bot_token: str = "", chat_id: str = ""):
         self.bot_token = bot_token.strip()
@@ -233,52 +245,12 @@ class UyapWatcher:
             if not self.bridge.is_logged_in():
                 logger.warning("⚠️ UYAP oturumu açık değil! Giriş doğrulanıyor...")
 
-                # 1. Android / Termux Ortamı
-                if getattr(ui, "IS_TERMUX", False):
-                    cfg_path = Path(".uyap_config.json")
-                    tc, gsm, op = "", "", "3"
-                    if cfg_path.exists():
-                        try:
-                            with open(cfg_path, "r", encoding="utf-8") as f:
-                                cdata = json.load(f)
-                                tc = cdata.get("tc", "")
-                                gsm = cdata.get("gsm", "")
-                                op = cdata.get("operator", "3")
-                        except Exception:
-                            pass
-
-                    if tc and gsm:
-                        logger.info("📲 Android/Termux: Mobil İmza ile giriş başlatılıyor (TC: %s, GSM: %s)...", tc, gsm)
-                        logger.info("🔔 Lütfen telefon ekranınıza gelecek olan SIM İmza Onayını (PIN) onaylayınız.")
-                        ok_m, msg_m = self.bridge.login_with_mobil_imza(tc=tc, gsm=gsm, operator=op, status_cb=logger.info)
-                        if not ok_m:
-                            logger.error("❌ Mobil İmza ile giriş başarısız: %s", msg_m)
-                            return False
-                    else:
-                        logger.error("❌ Termux'ta UYAP oturumu açık değil ve Mobil İmza ayarları (.uyap_config.json) bulunamadı.")
-                        logger.error("👉 Android'de USB e-İmza yerine Mobil İmza kullanılır. Lütfen .uyap_config.json içine tc ve gsm bilgilerinizi kaydedin.")
-                        return False
-
-                # 2. Windows / Masaüstü Ortamı (e-İmza)
-                else:
-                    pin = getattr(ui, "DEFAULT_E_IMZA_PIN", None)
-                    if not pin and os.path.exists("pin.txt"):
-                        try:
-                            with open("pin.txt", "r", encoding="utf-8") as f:
-                                pin = f.read().strip()
-                        except Exception:
-                            pass
-
-                    if pin:
-                        logger.info("🔑 e-İmza PIN ile otomatik UYAP oturumu açılıyor...")
-                        ok_re, msg_re = self.bridge.auto_relogin(pin=pin)
-                        if not ok_re:
-                            logger.warning("⚠️ e-İmza otomatik giriş başarısız: %s", msg_re)
-                            logger.warning("👉 Lütfen e-İmzanızın (USB token) takılı olduğunu ve ArkSigner'ın çalıştığını kontrol ediniz.")
-                            return False
-                    else:
-                        logger.warning("⚠️ e-İmza PIN'i (pin.txt) bulunamadı. Lütfen tarayıcıdan giriş yapınız.")
-                        return False
+                # Kart takılıysa e-İmza; takılı değilse ya da bağlantı koptuysa oturum açılana kadar
+                # Mobil İmza (.uyap_config.json: tc, gsm, operator). Bir tur en çok 30 dk dener; sonraki tur sürdürür.
+                ok_g, msg_g = self.bridge.akilli_oturum_ac(pin=_kayitli_pin(ui), status_cb=logger.info, sure_siniri_s=1800)
+                if not ok_g:
+                    logger.error("❌ UYAP oturumu açılamadı: %s", msg_g)
+                    return False
 
             # Son kontrol (sayfa yükleniyorsa 4 denemeyle doğrula)
             logged_in = False
@@ -297,7 +269,7 @@ class UyapWatcher:
             full_name = f"{usr.get('ad', '') or usr.get('adi', '')} {usr.get('soyad', '') or usr.get('soyadi', '')}".strip() or "Avukat"
             logger.info("✅ UYAP oturumu doğrulandı: Sayın %s", full_name)
 
-            relogin_fn = (lambda: self.bridge.auto_relogin(pin=ui.DEFAULT_E_IMZA_PIN)[0]) if getattr(ui, "DEFAULT_E_IMZA_PIN", None) else None
+            relogin_fn = lambda: self.bridge.akilli_oturum_ac(pin=_kayitli_pin(ui), status_cb=logger.info, sure_siniri_s=1800)[0]  # noqa: E731
             self.motor = ek.Motor(self.bridge, self.katalog, self.download_dir, log=logger.info, relogin=relogin_fn)
             self.finans_mgr.bridge = self.bridge
             logger.info("UYAP tarayıcı köprüsüne başarıyla bağlandı (Port: %d).", self.bridge.port)
@@ -700,7 +672,7 @@ class UyapWatcher:
             return 0
         if not self.motor:
             import uyap_indirici as ui
-            relogin_fn = (lambda: self.bridge.auto_relogin(pin=ui.DEFAULT_E_IMZA_PIN)[0]) if getattr(ui, "DEFAULT_E_IMZA_PIN", None) else None
+            relogin_fn = lambda: self.bridge.akilli_oturum_ac(pin=_kayitli_pin(ui), status_cb=logger.info, sure_siniri_s=1800)[0]  # noqa: E731
             self.motor = ek.Motor(self.bridge, self.katalog, self.download_dir, log=logger.info, relogin=relogin_fn)
 
         target_ids = self.get_missing_doc_ids(limit=max_batch)

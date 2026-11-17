@@ -204,8 +204,18 @@
       (window.__TAURI_INTERNALS__ && window.__TAURI_INTERNALS__.invoke) || null;
   }
 
-  /** Masaüstünde Tauri sunucuyu başlatır ve anahtarı verir; diğer platformlarda kayıtlı eşleştirme kullanılır. */
+  /** Masaüstünde Tauri, Android'de APK içi Python (Termux'suz) sunucuyu başlatır ve anahtarı verir;
+   *  taşınabilir web'de kayıtlı eşleştirme kullanılır. */
   async function baglantiHazirla() {
+    const ab = window.AndroidBridge;
+    if (ab && !ab.__stub && typeof ab.asistanBaglanti === 'function') {
+      try {
+        // Köprü çağrısı eşzamanlıdır ve ilk açılışta çalışma ortamını açarken birkaç saniye sürebilir
+        const b = JSON.parse(ab.asistanBaglanti() || '{}');
+        if (b.anahtar) { baglantiYaz({ port: b.port, anahtar: b.anahtar }); return b; }
+        if (b.hata) throw Object.assign(new Error(b.hata), { durum: 503 });
+      } catch (e) { if (e.durum) throw e; }
+    }
     const inv = tauriInvoke();
     if (inv) {
       try {
@@ -370,7 +380,7 @@
     ic.innerHTML = `<div class="ca-kart"><b>${anahtarYok ? '🔑 Eşleştirme gerekli' : '🔌 Asistan sunucusuna ulaşılamadı'}</b>
       <p>${anahtarYok ? 'Sunucu çalışıyor ama bu cihaz eşleştirilmemiş.' : 'UETS, UYAP evrak ve ajanda özellikleri yerel asistan sunucusunu kullanır. Masaüstü uygulamasında bu sunucu otomatik başlar; başlamadıysa CanEditor\'u yeniden açın.'}</p>
       <pre>python3 asistan/sunucu.py</pre>
-      <p class="ca-soluk">Masaüstü kurulum paketlerinde (Windows, macOS, Linux) sunucu pakete gömülüdür ve kendiliğinden başlar; Python kurmanız gerekmez. Taşınabilir web / Termux'ta sunucunun yazdırdığı anahtarı <b>Bağlantı</b> sekmesine girin.</p>
+      <p class="ca-soluk">Masaüstü (Windows, macOS, Linux) ve Android uygulamasında sunucu pakete gömülüdür ve kendiliğinden başlar; Python veya Termux gerekmez. Yalnızca taşınabilir web sürümünde sunucunun yazdırdığı anahtarı <b>Bağlantı</b> sekmesine girin.</p>
       <button class="ca-btn" type="button" id="ca-bagla">🔌 Bağlantı ayarları</button></div>`;
     ic.querySelector('#ca-bagla').onclick = () => sekmeAc('baglanti');
   }
@@ -434,7 +444,7 @@
       const acik = Array.from(ic.querySelectorAll('details[open]')).map(d => d.dataset.k);
       ic.innerHTML = v.gorevler.map(g => `<div class="ca-kart">
         <b>${esc(g.ad)}</b> ${g.calisiyor ? '<span class="ca-soluk">— çalışıyor…</span>' : (g.kod === null ? '' : (g.kod === 0 ? '<span class="ca-soluk">— ✓ tamamlandı</span>' : `<span class="ca-hata">— hata (kod ${g.kod})</span>`))}
-        <div>${g.calisiyor ? `<button class="ca-btn" type="button" data-durdur="${g.kimlik}">⏹ Durdur</button>` : `<button class="ca-btn ana" type="button" data-baslat="${g.kimlik}">▶ ${g.pencere ? 'Aç' : 'Çalıştır'}</button>`}</div>
+        <div>${g.kullanilamaz ? `<span class="ca-soluk">🖥️ ${esc(g.kullanilamaz)}</span>` : (g.calisiyor ? `<button class="ca-btn" type="button" data-durdur="${g.kimlik}">⏹ Durdur</button>` : `<button class="ca-btn ana" type="button" data-baslat="${g.kimlik}">▶ ${g.pencere ? 'Aç' : 'Çalıştır'}</button>`)}</div>
         ${g.gunluk.length ? `<details data-k="${g.kimlik}" ${acik.includes(g.kimlik) || g.calisiyor ? 'open' : ''}><summary class="ca-soluk">Günlük</summary><pre>${esc(g.gunluk.join('\n'))}</pre></details>` : ''}</div>`).join('');
       ic.querySelectorAll('[data-baslat]').forEach(b => { b.onclick = async () => { b.disabled = true; try { await api('/api/gorev/' + b.dataset.baslat, { method: 'POST', govde: {} }); } catch (e) { alert(e.message); } ciz(); }; });
       ic.querySelectorAll('[data-durdur]').forEach(b => { b.onclick = async () => { await api('/api/gorev/' + b.dataset.durdur + '/durdur', { method: 'POST', govde: {} }); ciz(); }; });

@@ -499,8 +499,9 @@ def run_selenium_crawler(args, blueprint: BlueprintBuilder):
     log_info("Selenium 4.x + CDP Keşif Motoru başlatılıyor...")
 
     chrome_options = Options()
-    termux_chromium = "/data/data/com.termux/files/usr/bin/chromium-browser"
-    termux_driver = "/data/data/com.termux/files/usr/bin/chromedriver"
+    # CanEditor gömülü tarayıcısı varsa o, yoksa Termux Chromium
+    termux_chromium = os.environ.get("CANASISTAN_CHROME") or "/data/data/com.termux/files/usr/bin/chromium-browser"
+    termux_driver = os.environ.get("CANASISTAN_CHROMEDRIVER") or "/data/data/com.termux/files/usr/bin/chromedriver"
 
     if os.path.exists(termux_chromium):
         chrome_options.binary_location = termux_chromium
@@ -517,7 +518,7 @@ def run_selenium_crawler(args, blueprint: BlueprintBuilder):
     chrome_options.add_argument("--window-size=1400,900")
     chrome_options.add_argument("--disable-blink-features=AutomationControlled")
 
-    if args.headless:
+    if args.headless or os.environ.get("CANASISTAN_GORUNMEZ"):
         chrome_options.add_argument("--headless=new")
 
     # CDP Performans ve Network loglarını etkinleştir

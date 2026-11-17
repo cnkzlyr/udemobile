@@ -66,6 +66,7 @@ except ImportError:
 # ---------------------------------------------------------------------------
 # Paketlenmiş uygulamada yazılabilir veri klasörü UYAP_VERI_DIZINI ile verilir
 BASE_DIR = Path(os.environ.get("UYAP_VERI_DIZINI") or Path(__file__).resolve().parent)
+BASE_DIR.mkdir(parents=True, exist_ok=True)  # günlük dosyası açılmadan önce veri klasörü bulunmalı
 if os.environ.get("UYAP_INDIRME_DIZINI"):
     DEFAULT_DOWNLOAD_DIR = Path(os.environ["UYAP_INDIRME_DIZINI"])
 elif Path("/sdcard/Download").exists():
@@ -103,6 +104,19 @@ def load_user_config() -> dict:
         except Exception:
             return {}
     return {}
+
+
+def mobil_imza_ayarlari() -> tuple[str, str, str]:
+    """Mobil İmza bilgileri: ortam değişkenleri (UYAP_TC, UYAP_GSM, UYAP_OPERATOR) > .uyap_config.json."""
+    cfg = load_user_config()
+    tc = os.environ.get("UYAP_TC") or str(cfg.get("tc") or "")
+    gsm = os.environ.get("UYAP_GSM") or str(cfg.get("gsm") or "")
+    op = os.environ.get("UYAP_OPERATOR") or str(cfg.get("operator") or "")
+    return tc.strip(), gsm.strip(), op.strip()
+
+
+# Mobil İmza tekrar aralıkları (sn): telefon art arda bildirimle boğulmasın; son değer sonsuza dek tekrarlanır
+MOBIL_IMZA_BEKLEMELERI = (60, 120, 300, 600)
 
 
 def save_user_config(data: dict):
@@ -820,6 +834,9 @@ class UyapBrowserBridge:
         açılana kadar artan aralıklarla bekler. Hiçbir zaman istisna fırlatmaz."""
         if headless is not None:
             self.is_headless = headless
+        # CanEditor gömülü tarayıcıyla çalışırken (CANASISTAN_GORUNMEZ=1) tarayıcı hiçbir zaman ön planda açılmaz
+        if os.environ.get("CANASISTAN_GORUNMEZ"):
+            self.is_headless = True
         if self._is_port_open():
             return True, f"Mevcut tarayıcı oturumuna bağlanıldı (Port {self.port})."
 
@@ -1130,6 +1147,78 @@ class UyapBrowserBridge:
         if r.status_code != 200:
             return False, f"ArkSigner yanıt vermedi (HTTP {r.status_code})."
         return True, "ArkSigner hazır."
+
+    def kart_takili_mi(self) -> bool:
+        """e-İmza istemcisinde (5975) sertifikası okunabilen hazır bir kart var mı?"""
+        try:
+            r = self._http.get(f"{ARKSIGNER_URL}/api/v1/signature/getCertificates", timeout=6)
+            kartlar = (r.json() or {}).get("data") or [] if r.status_code == 200 else []
+        except (requests.exceptions.RequestException, ValueError):
+            return False
+        return any(k.get("ready") is not False and k.get("certificates") for k in kartlar)
+
+    def akilli_oturum_ac(self, pin: str = "", tc: str = "", gsm: str = "", operator: str = "",
+                         status_cb=None, sure_siniri_s: float | None = None, dur=None,
+                         beklemeler=MOBIL_IMZA_BEKLEMELERI, uyku=time.sleep) -> tuple[bool, str]:
+        """UYAP oturumunu açar/yeniler. Kural:
+          * e-İmza kartı takılıysa (ve PIN varsa) e-İmza ile girilir — sorun yok.
+          * Kart takılı değilse ya da e-İmza girişi bağlantı/kart nedeniyle olmazsa Mobil İmza gönderilir.
+          * Oturum açılana kadar tekrarlanır (kopan bağlantı da böyle yeniden kurulur). Mobil İmza denemeleri
+            arasında MOBIL_IMZA_BEKLEMELERI kadar beklenir; beklerken kart takılırsa hemen e-İmzaya dönülür.
+          * Kartın reddettiği PIN asla yeniden denenmez (kart bloke olmasın).
+        sure_siniri_s: toplam süre sınırı (None = sınırsız); dur: threading.Event — set edilince durur."""
+        def bildir(m):
+            (status_cb or file_logger.info)(m)
+
+        pin, tc, gsm = str(pin or "").strip(), str(tc or "").strip(), str(gsm or "").strip()
+        if not tc or not gsm:
+            c_tc, c_gsm, c_op = mobil_imza_ayarlari()
+            tc, gsm, operator = tc or c_tc, gsm or c_gsm, operator or c_op
+        mobil_var = bool(tc and gsm)
+        if not pin and not mobil_var:
+            return False, ("Oturum açılamadı: e-İmza PIN'i de Mobil İmza bilgileri (TC + GSM) de tanımlı değil. "
+                           ".uyap_config.json içine tc/gsm/operator yazın ya da PIN'i girin.")
+        bas = time.monotonic()
+        deneme, son_hata = 0, ""
+
+        def sure_doldu() -> bool:
+            return (dur is not None and dur.is_set()) or (sure_siniri_s is not None and time.monotonic() - bas > sure_siniri_s)
+
+        while not sure_doldu():
+            try:
+                if self.is_logged_in():
+                    return True, "UYAP oturumu açık."
+            except Exception:  # tarayıcı/bağlantı geçici olarak yoksa giriş denemesi zaten yeniden kurar
+                pass
+            pin_hash = hashlib.sha256(pin.encode("utf-8")).hexdigest() if pin else ""
+            if pin and pin_hash not in self._rejected_pins and self.kart_takili_mi():
+                bildir("🔑 e-İmza kartı takılı: e-İmza ile oturum açılıyor…")
+                ok, msg = self.auto_relogin(pin=pin)
+                if ok:
+                    return True, msg
+                son_hata = msg
+                bildir(f"⚠️ e-İmza ile girilemedi: {msg}")
+            if not mobil_var:
+                # Yalnız e-İmza tanımlı: kart takılana / bağlantı gelene kadar bekle
+                deneme += 1
+                bekle = beklemeler[min(deneme - 1, len(beklemeler) - 1)]
+                bildir(f"⏳ e-İmza kartı bekleniyor (Mobil İmza tanımlı değil); {bekle} sn sonra yeniden denenecek.")
+            else:
+                deneme += 1
+                bildir(f"📲 Mobil İmza gönderiliyor (deneme {deneme}) — telefonunuzdaki bildirimi onaylayın.")
+                ok, msg = self.login_with_mobil_imza(tc, gsm, operator or "turktelekom", status_cb=status_cb)
+                if ok:
+                    return True, msg
+                son_hata = msg
+                bekle = beklemeler[min(deneme - 1, len(beklemeler) - 1)]
+                bildir(f"⚠️ Mobil İmza ile girilemedi: {msg} — {bekle} sn sonra yeniden denenecek.")
+            # Beklerken kart takılırsa ya da durdurulursa hemen dön
+            hedef = time.monotonic() + bekle
+            while time.monotonic() < hedef and not sure_doldu():
+                uyku(min(5.0, max(0.0, hedef - time.monotonic())))
+                if pin and pin_hash not in self._rejected_pins and self.kart_takili_mi():
+                    break
+        return False, f"Oturum açılamadı (süre doldu/durduruldu). Son hata: {son_hata or '-'}"
 
     # Kart okuyucu oturumu takılınca (ilk girişten sonra "Kart okuyucudan sertifika alınamadı")
     # e-İmza istemcisini yeniden başlatmak gerekir; bunu otomatik yapar.
@@ -2139,7 +2228,7 @@ FOLDER_PRESETS = [
 
 
 class UyapDownloaderApp:
-    def __init__(self, root: tk.Tk):
+    def __init__(self, root: "tk.Tk"):
         self.root = root
         self.root.title("UYAP Avukat Portal - Güvenli Evrak İndirici (e-İmza Otomatik Yenilemeli)")
         self.root.geometry("1280x880")
@@ -3969,19 +4058,14 @@ def run_cli_dosyalar_mode(args, bridge, app_helper, download_dir, tckn):
 
                 if is_session_dead:
                     print(f"[!] UYARI: Evrak alınamadı ({item['evrak_adi']}) - {reason} [Deneme {attempt}/{max_retries}]")
-                    cfg = load_user_config()
-                    c_tc = cfg.get("tc", tckn)
-                    c_gsm = cfg.get("gsm", "")
-                    c_op = cfg.get("operator", "2")
-                    if c_tc and c_gsm and attempt < max_retries:
-                        print(f"[*] Mobil İmza ile oturum yenileniyor ({c_gsm})...")
-                        m_ok, m_msg = bridge.login_with_mobil_imza(c_tc, c_gsm, c_op)
+                    if attempt < max_retries:
+                        # Kart takılıysa e-İmza, değilse oturum açılana kadar Mobil İmza
+                        m_ok, m_msg = bridge.akilli_oturum_ac(pin=DEFAULT_E_IMZA_PIN, status_cb=print)
                         if m_ok:
                             print(f"[✓] {m_msg}.")
                             refresh_dosya_ids_in_queue(bridge, download_queue, idx - 1)
                             continue
-                        else:
-                            print(f"[x] Mobil İmza ile oturum yenilenemedi: {m_msg}")
+                        print(f"[x] Oturum yenilenemedi: {m_msg}")
                     time.sleep(3.0)
                     continue
 
@@ -4633,32 +4717,16 @@ def run_cli_mode(args):
 
             if is_session_expired:
                 print(f"\n[!] UYARI: UYAP oturum süresi doldu (HTTP {resp.get('status', '401')}).")
-                if auto_relogin and pin:
-                    print("[*] e-İmza ile otomatik oturum yenileniyor...")
-                    re_ok, re_msg = bridge.auto_relogin(pin=pin)
-                    if re_ok:
-                        print(f"[✓] {re_msg}")
-                        time.sleep(1.5)
-                        continue
-                    else:
-                        print(f"[x] e-İmza yenileme başarısız: {re_msg}")
-
-                cfg = load_user_config()
-                c_tc = cfg.get("tc", tckn)
-                c_gsm = cfg.get("gsm", "")
-                c_op = cfg.get("operator", "2")
-                if c_tc and c_gsm:
-                    print(f"[*] Mobil İmza ile oturum yenileniyor ({c_gsm})...")
-                    m_ok, m_msg = bridge.login_with_mobil_imza(c_tc, c_gsm, c_op)
-                    if m_ok:
-                        print(f"[✓] {m_msg}")
-                        time.sleep(2.0)
-                        u_info = bridge.check_login_and_user()
-                        user = u_info.get("user") or {}
-                        tckn = str(user.get("tcKimlikNo") or user.get("tckn") or tckn)
-                        continue
-                    else:
-                        print(f"[x] Mobil İmza yenileme başarısız: {m_msg}")
+                # Kart takılıysa e-İmza, değilse oturum açılana kadar Mobil İmza
+                m_ok, m_msg = bridge.akilli_oturum_ac(pin=pin if auto_relogin else "", status_cb=print)
+                if m_ok:
+                    print(f"[✓] {m_msg}")
+                    time.sleep(2.0)
+                    u_info = bridge.check_login_and_user()
+                    user = u_info.get("user") or {}
+                    tckn = str(user.get("tcKimlikNo") or user.get("tckn") or tckn)
+                    continue
+                print(f"[x] Oturum yenilenemedi: {m_msg}")
 
                 print("[!] Lütfen UYAP'a giriş yapınız, oturum bekleniyor...")
                 while True:
@@ -4830,30 +4898,15 @@ def run_cli_mode(args):
 
                 # Oturum gerçekten düşmüşse yeniden giriş yap:
                 print(f"[!] UYARI: UYAP oturumu sonlanmış ({reason}). Yeniden bağlanılıyor... [Deneme {attempt}/{max_retries}]")
-                if auto_relogin and pin and attempt < max_retries:
-                    print("[*] e-İmza ile otomatik oturum yenileniyor...")
-                    re_ok, re_msg = bridge.auto_relogin(pin=pin)
+                if attempt < max_retries:
+                    # Kart takılıysa e-İmza, değilse oturum açılana kadar Mobil İmza
+                    re_ok, re_msg = bridge.akilli_oturum_ac(pin=pin if auto_relogin else "", status_cb=print)
                     if re_ok:
                         print(f"[✓] {re_msg}. Evrak tekrar deneniyor...")
                         time.sleep(2.0)
                         continue
-                    else:
-                        print(f"[x] Otomatik giriş başarısız: {re_msg}")
-                        time.sleep(3.0)
-                elif attempt < max_retries:
-                    cfg = load_user_config()
-                    c_tc = cfg.get("tc", "")
-                    c_gsm = cfg.get("gsm", "")
-                    c_op = cfg.get("operator", "2")
-                    if c_tc and c_gsm:
-                        print(f"[*] Mobil İmza ile oturum yenileniyor ({c_gsm})...")
-                        m_ok, m_msg = bridge.login_with_mobil_imza(c_tc, c_gsm, c_op)
-                        if m_ok:
-                            print(f"[✓] {m_msg}. Evrak tekrar deneniyor...")
-                            time.sleep(2.0)
-                            continue
-                    print("[!] Lütfen UYAP oturumunuzu kontrol edin/yenileyin (Mobil İmza / e-İmza)...")
-                    time.sleep(5.0)
+                    print(f"[x] Oturum yenilenemedi: {re_msg}")
+                    time.sleep(3.0)
                     continue
 
             if is_valid:

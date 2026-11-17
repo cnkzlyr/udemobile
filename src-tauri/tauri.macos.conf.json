@@ -4,7 +4,9 @@
       "eimza/jre-aarch64/": "eimza/jre-aarch64/",
       "eimza/jre-x86_64/": "eimza/jre-x86_64/",
       "sidecar/asistan-sunucu-aarch64/": "sidecar/asistan-sunucu-aarch64/",
-      "sidecar/asistan-sunucu-x86_64/": "sidecar/asistan-sunucu-x86_64/"
+      "sidecar/asistan-sunucu-x86_64/": "sidecar/asistan-sunucu-x86_64/",
+      "tarayici-aarch64/": "tarayici-aarch64/",
+      "tarayici-x86_64/": "tarayici-x86_64/"
     }
   }
 }

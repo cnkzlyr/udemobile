@@ -32,13 +32,13 @@ CanEditor artık yalnızca bir editör değil; UETS, UYAP evrak ve A4 tarama ara
 
 **Hiçbir şey kurmanız gerekmez:** masaüstü kurulum paketleri (Windows, macOS, Linux) asistan sunucusunu, Java'yı ve e-imza altyapısını içinde taşır. Python veya Java kurmazsınız; akıllı kart / USB token için AKİS ya da ArkSigner sürücüsü de gerekmez (kart, gömülü Adalet E-İmza ile doğrudan okunur; Linux .deb/.rpm kart hizmetini otomatik kurar).
 
-Android'de son üç özellik için Termux'ta:
+**Android'de Termux gerekmez:** asistan sunucusu APK'nın içinde gelir ve kendiliğinden başlar (ajanda, evrak kataloğu, A4). UETS / UYAP evrak indirme gibi tarayıcı otomasyonu gerektiren görevler masaüstü uygulamasında çalışır.
 
-```bash
-bash asistan/kur.sh && canasistan
-```
+**Tarayıcı hiç açılmaz:** masaüstü paketleri görünmez bir Chrome'u içinde taşır; UETS ve UYAP otomasyonu tamamen arka planda yürür, Chrome kurmanız gerekmez.
 
-Ardından **Asistan → Bağlantı** penceresine `canasistan --anahtar` çıktısını girin.
+**UYAP oturumu kendiliğinden:** e-imza kartı takılıysa e-imza kullanılır. Takılı değilse ya da bağlantı koparsa, oturum açılana kadar telefonunuza Mobil İmza gönderilir (denemeler arasında 1–10 dk beklenir; bu sırada kart takılırsa hemen e-imzaya dönülür). Mobil İmza için `.uyap_config.json` içine `tc`, `gsm`, `operator` yazmanız yeterli.
+
+Taşınabilir web sürümünde asistan için sunucuyu bilgisayarda başlatıp (`bash asistan/kur.sh && canasistan`) **Asistan → Bağlantı** penceresine `canasistan --anahtar` çıktısını girin.
 
 ## 🚀 Hızlı İndirme (v3.31.1)
 

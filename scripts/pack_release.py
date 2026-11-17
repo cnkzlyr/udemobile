@@ -237,6 +237,22 @@ def main():
 
     # 5c. UYAP Editör (resmi editör, Java 14) artık AYRI uygulamadır: scripts/uyapeditor_apk.py (en sonda çağrılır)
 
+    # 5d. Hukuk Asistanı sunucusu (Termux'suz): CPython aarch64 + tekerlekler + Termux glibc + asistan/
+    #     (scripts/asistan_android_hazirla.py üretir; AsistanServisi.java açar ve glibc yükleyicisiyle başlatır)
+    step("5d. Adding Hukuk Asistani runtime (Python, Termux'suz)")
+    asistan_dir = os.path.join(PROJECT_ROOT, "build", "asistan-android")
+    gerekli = ["asistan-rt-arm64.zip", "surum.txt"]
+    if not all(os.path.exists(os.path.join(asistan_dir, g)) for g in gerekli) or os.environ.get("CANEDITOR_ASISTAN_YENIDEN") == "1":
+        r = subprocess.run([sys.executable, os.path.join(PROJECT_ROOT, "scripts", "asistan_android_hazirla.py")])
+        if r.returncode != 0:
+            print("asistan_android_hazirla.py başarısız (Android asistan çalışma ortamı hazırlanamadı).")
+            sys.exit(1)
+    with zipfile.ZipFile(unaligned_apk, "a") as zf:
+        for g in gerekli:
+            zf.write(os.path.join(asistan_dir, g), arcname="assets/asistan/" + g,
+                     compress_type=zipfile.ZIP_STORED if g.endswith(".zip") else zipfile.ZIP_DEFLATED)
+    print("assets/asistan/* added to APK.")
+
     # 6. Zipalign
     step("6. Aligning APK with zipalign")
     aligned_apk = os.path.join(temp_dir, "aligned.apk")

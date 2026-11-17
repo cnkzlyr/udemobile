@@ -223,6 +223,9 @@ def setup_driver(headless=False, user_data_dir=None):
     has_display = bool(os.environ.get("DISPLAY"))
     if is_termux and not has_display:
         headless = True
+    # CanEditor gömülü tarayıcıyla çalışırken (CANASISTAN_GORUNMEZ=1) tarayıcı hiçbir zaman ön planda açılmaz
+    if os.environ.get("CANASISTAN_GORUNMEZ"):
+        headless = True
 
     chrome_options = Options()
     tani.chrome_secenekleri(chrome_options)
@@ -242,10 +245,15 @@ def setup_driver(headless=False, user_data_dir=None):
     }
     chrome_options.add_experimental_option("prefs", prefs)
 
-    if not user_data_dir:
-        user_data_dir = os.path.normpath(os.path.abspath(os.path.expanduser("~/.uets_browser_profile")))
-    os.makedirs(user_data_dir, exist_ok=True)
-    chrome_options.add_argument(f"--user-data-dir={user_data_dir}")
+    # CanEditor'un gömülü chrome-headless-shell'i chromedriver'la kalıcı profilde açılış sekmesi oluşturmuyor
+    # ("unable to discover open pages"); onda chromedriver'ın geçici profili kullanılır. UETS her turda
+    # şifreyle giriş yaptığından kalıcı profile ihtiyaç yoktur; indirme ayarları prefs + CDP ile verilir.
+    gomulu_kabuk = "headless-shell" in os.path.basename(os.environ.get("UETS_CHROME_BIN", ""))
+    if not gomulu_kabuk:
+        if not user_data_dir:
+            user_data_dir = os.path.normpath(os.path.abspath(os.path.expanduser("~/.uets_browser_profile")))
+        os.makedirs(user_data_dir, exist_ok=True)
+        chrome_options.add_argument(f"--user-data-dir={user_data_dir}")
 
     if headless:
         chrome_options.add_argument("--headless=new")

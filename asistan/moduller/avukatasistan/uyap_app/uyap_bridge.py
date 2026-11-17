@@ -10,8 +10,9 @@ portuyla (CDP) bağlanır. İstekler sayfanın kendi oturumuyla (same-origin fet
 import os, re, json, time, threading, subprocess, urllib.request, base64
 
 BASE = "https://avukat.uyap.gov.tr"
-CHROMIUM = "/data/data/com.termux/files/usr/bin/chromium-browser"
-CHROMEDRIVER = "/data/data/com.termux/files/usr/bin/chromedriver"
+# CanEditor gömülü tarayıcısı (CANASISTAN_CHROME / CANASISTAN_CHROMEDRIVER) varsa o, yoksa Termux Chromium
+CHROMIUM = os.environ.get("CANASISTAN_CHROME") or "/data/data/com.termux/files/usr/bin/chromium-browser"
+CHROMEDRIVER = os.environ.get("CANASISTAN_CHROMEDRIVER") or "/data/data/com.termux/files/usr/bin/chromedriver"
 DEFAULT_PROFILE = os.path.expanduser("~/.uyap_crawler_profile")
 MIN_INTERVAL = 0.6
 

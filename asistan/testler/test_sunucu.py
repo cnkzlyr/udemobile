@@ -162,6 +162,20 @@ class SunucuTest(unittest.TestCase):
         finally:
             del sunucu.GOREV_DURUM["deneme"]
 
+    def test_android_tarayicili_gorevler_kullanilamaz(self):
+        eski = sunucu.ANDROID
+        sunucu.ANDROID = True
+        try:
+            k, v, _ = self.istek("/api/gorev/uets-senkron", "POST", govde={})
+            self.assertEqual(k, 400)
+            self.assertIn("masaüstü", v["hata"])
+            g = {g["kimlik"]: g for g in self.istek("/api/gorevler")[1]["gorevler"]}
+            self.assertTrue(g["evrak-islemlerim"]["kullanilamaz"])
+            self.assertTrue(g["evrak-katalog"]["kullanilamaz"])          # masaüstü penceresi
+            self.assertFalse(g["uets-cevrimdisi"]["kullanilamaz"])       # tarayıcısız görev çalışır
+        finally:
+            sunucu.ANDROID = eski
+
     def test_gorev_listesi_izinli_komutlar(self):
         for g in sunucu.GOREVLER.values():
             betik = next(c for c in g["cmd"] if str(c).endswith(".py"))
@@ -221,6 +235,23 @@ class PaketTest(unittest.TestCase):
             self.assertEqual(env["JAVA_HOME"], str(jh))
             self.assertTrue(env["PATH"].startswith(str(jh / "bin")))
             self.assertEqual(env["UYAP_JARS"], str(jars))
+            self.assertEqual(env["CANASISTAN_GORUNMEZ"], "1")  # tarayıcı asla ön planda değil
+        finally:
+            os.environ.clear(); os.environ.update(eski)
+
+    def test_gorev_ortami_gomulu_tarayici(self):
+        d = Path(tempfile.mkdtemp())
+        chrome, surucu = d / "chrome-headless-shell", d / "chromedriver"
+        chrome.write_bytes(b"x"); surucu.write_bytes(b"x")
+        eski = dict(os.environ)
+        try:
+            for k in ("UYAP_CHROME_BIN", "UETS_CHROME_BIN", "UETS_CHROMEDRIVER", "SE_CHROMEDRIVER"):
+                os.environ.pop(k, None)
+            os.environ.update(CANASISTAN_CHROME=str(chrome), CANASISTAN_CHROMEDRIVER=str(surucu))
+            env = sunucu.gorev_ortami()
+            self.assertEqual(env["UYAP_CHROME_BIN"], str(chrome))
+            self.assertEqual(env["UETS_CHROME_BIN"], str(chrome))
+            self.assertEqual(env["UETS_CHROMEDRIVER"], str(surucu))
         finally:
             os.environ.clear(); os.environ.update(eski)
 

@@ -112,6 +112,21 @@ fn ortam_ekle(app: &tauri::AppHandle, c: &mut Command, veri: &PathBuf) {
     if let Ok(d) = app.path().app_data_dir() {
         c.env("CANASISTAN_UYAP_JARS", d.join("uyap-editor").join("editor"));
     }
+    // Gömülü görünmez tarayıcı (Chrome for Testing: chrome-headless-shell + chromedriver):
+    // kullanıcı Chrome kurmaz, tarayıcı hiçbir zaman ön planda açılmaz.
+    if let Ok(r) = app.path().resource_dir() {
+        let kok = r.join(format!("tarayici-{}", std::env::consts::ARCH));
+        let uz = if cfg!(windows) { ".exe" } else { "" };
+        let kabuk = kok.join("chrome").join(format!("chrome-headless-shell{uz}"));
+        let surucu = kok.join(format!("chromedriver{uz}"));
+        if kabuk.is_file() {
+            c.env("CANASISTAN_CHROME", kabuk);
+        }
+        if surucu.is_file() {
+            c.env("CANASISTAN_CHROMEDRIVER", surucu);
+        }
+    }
+    c.env("CANASISTAN_GORUNMEZ", "1");
 }
 
 fn python_adaylari() -> Vec<(&'static str, Vec<&'static str>)> {

@@ -302,17 +302,24 @@ def _tr_tarih_iso(s) -> str | None:
 
 # Gömülü pakette görevler aynı ikiliyle çalışır: "<ikili> --calistir betik.py ..." (Python kurulumu gerekmez)
 PY = [sys.executable, "--calistir"] if DONDURULMUS else [sys.executable or "python3"]
+# Android (Termux'suz): Python, APK'daki glibc yükleyicisiyle başlatılır; alt görevler de aynı önekle çalışmalı
+if os.environ.get("CANASISTAN_PYTHON_KOMUT"):
+    try:
+        PY = [str(x) for x in json.loads(os.environ["CANASISTAN_PYTHON_KOMUT"])]
+    except (ValueError, TypeError):
+        pass
+ANDROID = os.environ.get("CANASISTAN_ANDROID") == "1"
 GOREVLER: dict[str, dict] = {
-    "uets-senkron":     {"ad": "UETS tebligatlarını indir ve işle", "cwd": AVUKAT_DIR, "cmd": [*PY, "main.py", "--headless"]},
+    "uets-senkron":     {"ad": "UETS tebligatlarını indir ve işle", "cwd": AVUKAT_DIR, "cmd": [*PY, "main.py", "--headless"], "tarayici": True},
     "uets-cevrimdisi":  {"ad": "UETS: yerel CSV/arşivle işle (portala bağlanmadan)", "cwd": AVUKAT_DIR, "cmd": [*PY, "main.py", "--offline"]},
     "uets-otokontrol":  {"ad": "Tebligat otokontrol raporu", "cwd": AVUKAT_DIR, "cmd": [*PY, "main.py", "--autocontrol", "--offline"]},
     "asistan-gui":      {"ad": "Avukat Asistanı penceresi", "cwd": AVUKAT_DIR, "cmd": [*PY, "avukat_gui.py"], "pencere": True},
     "evrak-katalog":    {"ad": "UYAP Evrak Kataloğu penceresi", "cwd": EVRAK_DIR, "cmd": [*PY, "katalog_gui.py"], "pencere": True},
-    "evrak-giris":      {"ad": "UYAP oturum aç (e-imza)", "cwd": EVRAK_DIR, "cmd": [*PY, "uyap_indirici.py", "--cli", "--mode", "login"]},
-    "evrak-islemlerim": {"ad": "UYAP: İşlemlerim evraklarını indir", "cwd": EVRAK_DIR, "cmd": [*PY, "uyap_indirici.py", "--cli", "--mode", "islemlerim"]},
-    "evrak-tebligat":   {"ad": "UYAP: tebligat evraklarını indir", "cwd": EVRAK_DIR, "cmd": [*PY, "uyap_indirici.py", "--cli", "--mode", "dosyalar", "--evrak-turu", "tebligat", "--scope", "all"]},
-    "evrak-durusmalar": {"ad": "UYAP: duruşma listesini çek", "cwd": EVRAK_DIR, "cmd": [*PY, "uyap_indirici.py", "--cli", "--mode", "durusmalar"]},
-    "evrak-nobetci":    {"ad": "UYAP nöbetçi: tek tarama turu", "cwd": EVRAK_DIR, "cmd": [*PY, "uyap_watcher.py", "--once"]},
+    "evrak-giris":      {"ad": "UYAP oturum aç (e-imza)", "cwd": EVRAK_DIR, "cmd": [*PY, "uyap_indirici.py", "--cli", "--mode", "login"], "tarayici": True},
+    "evrak-islemlerim": {"ad": "UYAP: İşlemlerim evraklarını indir", "cwd": EVRAK_DIR, "cmd": [*PY, "uyap_indirici.py", "--cli", "--mode", "islemlerim"], "tarayici": True},
+    "evrak-tebligat":   {"ad": "UYAP: tebligat evraklarını indir", "cwd": EVRAK_DIR, "cmd": [*PY, "uyap_indirici.py", "--cli", "--mode", "dosyalar", "--evrak-turu", "tebligat", "--scope", "all"], "tarayici": True},
+    "evrak-durusmalar": {"ad": "UYAP: duruşma listesini çek", "cwd": EVRAK_DIR, "cmd": [*PY, "uyap_indirici.py", "--cli", "--mode", "durusmalar"], "tarayici": True},
+    "evrak-nobetci":    {"ad": "UYAP nöbetçi: tek tarama turu", "cwd": EVRAK_DIR, "cmd": [*PY, "uyap_watcher.py", "--once"], "tarayici": True},
 }
 
 
@@ -324,6 +331,19 @@ def gorev_ortami() -> dict:
     if jh and (Path(jh) / "bin").is_dir():
         env["JAVA_HOME"] = jh
         env["PATH"] = str(Path(jh) / "bin") + os.pathsep + env.get("PATH", "")
+    # Gömülü tarayıcı (Chrome for Testing — chrome-headless-shell + chromedriver): kullanıcı Chrome kurmaz.
+    # Modüllerin kendi değişken adlarıyla verilir; tarayıcı HİÇBİR ZAMAN ön planda açılmaz.
+    chrome, surucu = os.environ.get("CANASISTAN_CHROME"), os.environ.get("CANASISTAN_CHROMEDRIVER")
+    if chrome and Path(chrome).is_file():
+        env.setdefault("UYAP_CHROME_BIN", chrome)
+        env.setdefault("UETS_CHROME_BIN", chrome)
+    if surucu and Path(surucu).is_file():
+        env.setdefault("UETS_CHROMEDRIVER", surucu)
+        env.setdefault("SE_CHROMEDRIVER", surucu)
+    if env.get("CANASISTAN_GORUNMEZ", "1") != "0":
+        env["CANASISTAN_GORUNMEZ"] = "1"
+    else:
+        env.pop("CANASISTAN_GORUNMEZ", None)
     jars = os.environ.get("CANASISTAN_UYAP_JARS")
     if jars and (Path(jars) / "editor_lib.jar").is_file() and not env.get("UYAP_JARS"):
         env["UYAP_JARS"] = jars
@@ -347,12 +367,23 @@ class Gorev:
         self.kod: int | None = None
         self.gunluk: deque[str] = deque(maxlen=400)
 
+    def kullanilamama_nedeni(self) -> str:
+        """Android'de tarayıcı otomasyonu ve masaüstü pencereleri yoktur; bu görevler masaüstünde çalışır."""
+        if ANDROID and self.tanim.get("tarayici"):
+            return "Bu görev tarayıcı otomasyonu gerektirir; CanEditor masaüstü uygulamasında çalışır."
+        if ANDROID and self.tanim.get("pencere"):
+            return "Bu pencere masaüstü uygulamasında açılır."
+        return ""
+
     def calisiyor(self) -> bool:
         return self.proc is not None and self.proc.poll() is None
 
     def baslat(self):
         if self.calisiyor():
             raise RuntimeError("Görev zaten çalışıyor")
+        neden = self.kullanilamama_nedeni()
+        if neden:
+            raise RuntimeError(neden)
         env = gorev_ortami()
         self.gunluk.clear()
         self.kod, self.bitis, self.baslangic = None, None, time.time()
@@ -375,6 +406,7 @@ class Gorev:
 
     def ozet(self, satir: int = 40) -> dict:
         return {"kimlik": self.kimlik, "ad": self.tanim["ad"], "pencere": bool(self.tanim.get("pencere")),
+                "kullanilamaz": self.kullanilamama_nedeni(),
                 "calisiyor": self.calisiyor(), "baslangic": self.baslangic, "bitis": self.bitis, "kod": self.kod,
                 "gunluk": list(self.gunluk)[-satir:]}
 
@@ -387,7 +419,9 @@ def modul_durumu() -> dict:
         import importlib.util
         return all(importlib.util.find_spec(m) is not None for m in mod)
     return {
-        "avukatasistan": {"var": AVUKAT_DIR.is_dir(), "bagimliliklar": var("requests", "selenium", "sqlalchemy", "openpyxl"),
+        # Android'de tarayıcı otomasyonu (selenium) yoktur; tarayıcısız görevlerin bağımlılıkları denetlenir
+        "avukatasistan": {"var": AVUKAT_DIR.is_dir(),
+                          "bagimliliklar": var("requests", "sqlalchemy", "openpyxl", *(() if ANDROID else ("selenium",))),
                           "yapilandirildi": (AVUKAT_DIR / ".env").is_file() or bool(os.environ.get("TICKTICK_TOKEN"))},
         "evrak": {"var": EVRAK_DIR.is_dir(), "bagimliliklar": var("requests"), "katalog": katalog_yolu().is_file()},
         "a4": {"var": A4_DIR.is_dir(), "bagimliliklar": var("PIL", "reportlab", "pypdf")},

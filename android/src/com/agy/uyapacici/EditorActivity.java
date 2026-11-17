@@ -1560,6 +1560,12 @@ public class EditorActivity extends Activity {
     }
 
     private class EditorBridge {
+        /** Hukuk Asistanı sunucusunu (Termux'suz, APK içi Python) hazırlar/başlatır; {"port","anahtar"} ya da {"hata"} döner. */
+        @JavascriptInterface
+        public String asistanBaglanti() {
+            return AsistanServisi.baglanti(EditorActivity.this);
+        }
+
         /** JS generateUdfBlob çıktısını (base64) kayıt iş parçacığına iletir. */
         @JavascriptInterface
         public void deliverUdfBytes(String b64) {

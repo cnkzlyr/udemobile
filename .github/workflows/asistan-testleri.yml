@@ -62,3 +62,20 @@ jobs:
         run: |
           pip install -r asistan/requirements.txt pyinstaller
           python scripts/masaustu_hazirla.py
+
+  android-calisma-ortami:
+    # Android (Termux'suz): APK'ya giren CPython + tekerlekler + Termux glibc; Android'deki başlatma
+    # komutunun aynısıyla (glibc yükleyicisi + --library-path) qemu-aarch64 altında import ve sunucu testi
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: sudo apt-get update && sudo apt-get install -y qemu-user binutils
+      - name: Android asistan çalışma ortamı (hazırla + qemu doğrulaması)
+        run: python scripts/asistan_android_hazirla.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: asistan-rt-arm64
+          path: build/asistan-android/asistan-rt-arm64.zip

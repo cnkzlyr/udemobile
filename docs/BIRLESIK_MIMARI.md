@@ -36,13 +36,37 @@ alt dizin olarak taşındı.
 
 ## Platformlara göre ne çalışır
 
-| Özellik | Windows / macOS / Linux kurulum paketi | Android (APK) | Taşınabilir web | Termux |
-|---|---|---|---|---|
-| Editör, PDF/DOCX | ✓ | ✓ | ✓ | (APK ile) |
-| Süre hesabı, A4 PDF | ✓ | ✓ | ✓ | ✓ |
-| Ajanda, UYAP evrak arama, görevler | ✓ gömülü sunucu, **Python gerekmez** | Termux'ta sunucu + eşleştirme | Sunucu + eşleştirme | ✓ `bash asistan/kur.sh` |
-| E-imza (akıllı kart / USB token) | ✓ gömülü Java + Adalet E-İmza, **sürücü gerekmez** | ✓ gömülü (APK) | — | (APK ile) |
-| UDF→PDF (Havelsan motoru) | ✓ gömülü Java + ilk kullanımda indirilen resmî jar'lar | ✓ | — | ✓ |
+| Özellik | Windows / macOS / Linux kurulum paketi | Android (APK) | Taşınabilir web |
+|---|---|---|---|
+| Editör, PDF/DOCX | ✓ | ✓ | ✓ |
+| Süre hesabı, A4 PDF | ✓ | ✓ | ✓ |
+| Ajanda, UYAP evrak kataloğu arama, defter | ✓ gömülü sunucu | ✓ APK içi Python, **Termux gerekmez** | Sunucu + eşleştirme |
+| UETS / UYAP evrak indirme (tarayıcı otomasyonu) | ✓ gömülü görünmez Chrome | — (masaüstünde çalışır) | — |
+| E-imza (akıllı kart / USB token) | ✓ sürücüsüz | ✓ sürücüsüz (APK) | — |
+| UYAP oturumu | Kart takılıysa e-imza; değilse / kopunca bağlanana kadar Mobil İmza | Mobil İmza | — |
+
+## Oturum kuralı (UYAP)
+
+`UyapBrowserBridge.akilli_oturum_ac` tüm oturum açma/yenileme noktalarında (nöbetçi, evrak motoru, CLI
+indirme döngüleri) tek kuraldır: e-İmza kartı takılıysa e-İmza; takılı değilse ya da e-İmza girişi
+bağlantı/kart nedeniyle olmazsa Mobil İmza gönderilir ve oturum açılana kadar tekrarlanır. Telefon
+bildirimle boğulmasın diye denemeler arasında 1 → 2 → 5 → 10 dk beklenir; beklerken kart takılırsa hemen
+e-İmzaya dönülür. Kartın reddettiği PIN asla yeniden denenmez (kart bloke olmasın). Mobil İmza bilgileri:
+`.uyap_config.json` (`tc`, `gsm`, `operator`) ya da `UYAP_TC` / `UYAP_GSM` / `UYAP_OPERATOR`.
+
+## Gömülü görünmez tarayıcı (masaüstü)
+
+Chrome for Testing `chrome-headless-shell` + uyumlu `chromedriver` pakete girer (`tarayici-<mimari>/`).
+Penceresi yoktur; sunucu görevlere `CANASISTAN_GORUNMEZ=1` verir ve modüller (UETS Selenium yolu, UYAP
+evrak CDP yolu) tarayıcıyı her durumda arka planda açar. Kullanıcının Chrome kurmasına gerek yoktur.
+
+## Android: Termux'suz asistan
+
+`scripts/asistan_android_hazirla.py` → `assets/asistan/asistan-rt-arm64.zip`: CPython 3.12 aarch64
+(python-build-standalone), manylinux aarch64 tekerlekleri, Termux glibc'si ve `asistan/`. `AsistanServisi.java`
+ilk açılışta bunu açar ve Python'u glibc yükleyicisiyle başlatır (UYAP Mobil'in Java için kullandığı
+yöntemin aynısı; targetSdk 28). Editörün JS köprüsü (`asistanBaglanti`) anahtarı kendiliğinden verir.
+CI, çalışma ortamını Android'deki başlatma komutunun aynısıyla qemu-aarch64 altında sınar.
 
 ## Kurulum gerektirmeyen bileşenler (masaüstü)
 
