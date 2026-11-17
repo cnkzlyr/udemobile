@@ -242,7 +242,12 @@ def main():
     step("5d. Adding Hukuk Asistani runtime (Python, Termux'suz)")
     asistan_dir = os.path.join(PROJECT_ROOT, "build", "asistan-android")
     gerekli = ["asistan-rt-arm64.zip", "surum.txt"]
-    if not all(os.path.exists(os.path.join(asistan_dir, g)) for g in gerekli) or os.environ.get("CANEDITOR_ASISTAN_YENIDEN") == "1":
+    # Windows'ta readelf/qemu yok: CANEDITOR_ASISTAN_ANDROID=0 ile atlanır (APK çalışır; asistan sekmesi
+    # "bu derlemede çalışma ortamı yok" der). Linux/CI'da varsayılan olarak eklenir.
+    if os.environ.get("CANEDITOR_ASISTAN_ANDROID") == "0" and not all(os.path.exists(os.path.join(asistan_dir, g)) for g in gerekli):
+        print("Android asistan çalışma ortamı atlandı (CANEDITOR_ASISTAN_ANDROID=0).")
+        gerekli = []
+    elif not all(os.path.exists(os.path.join(asistan_dir, g)) for g in gerekli) or os.environ.get("CANEDITOR_ASISTAN_YENIDEN") == "1":
         r = subprocess.run([sys.executable, os.path.join(PROJECT_ROOT, "scripts", "asistan_android_hazirla.py")])
         if r.returncode != 0:
             print("asistan_android_hazirla.py başarısız (Android asistan çalışma ortamı hazırlanamadı).")
