@@ -199,6 +199,18 @@
         <button onclick="openDocStatsModal()">Kelime Sayısı…</button>
       </div>
     </div>
+    <div class="ce-menu"><button type="button" class="ce-menu-title">Asistan</button>
+      <div class="ce-menu-pop">
+        <button onclick="openHukukAsistani('sure')">⏱️ Yasal Süre Hesapla…</button>
+        <button onclick="openHukukAsistani('a4')">📄 Görsel/PDF → A4 PDF Birleştir…</button>
+        <hr>
+        <button onclick="openHukukAsistani('ajanda')">📅 Ajanda (Duruşma ve Süre Sonları)…</button>
+        <button onclick="openHukukAsistani('evrak')">🗂️ UYAP Evrak Kataloğunda Ara…</button>
+        <button onclick="openHukukAsistani('gorev')">⚙️ UETS / UYAP Görevleri…</button>
+        <hr>
+        <button onclick="openHukukAsistani('baglanti')">🔌 Asistan Sunucusu Bağlantısı…</button>
+      </div>
+    </div>
     <div class="ce-menu"><button type="button" class="ce-menu-title">İmza</button>
       <div class="ce-menu-pop">
         <button onclick="openSmartCardSignModal()">E-İmza (Akıllı Kart)…</button>
@@ -1148,6 +1160,7 @@
   <script src="pdfexport.js"></script>
   <script src="esign.js"></script>
   <script src="flow.js"></script>
+  <script src="asistan.js"></script>
   <script src="ui-shell.js"></script>
   <script src="history.js"></script>
   <script src="updater.js"></script>
@@ -1164,7 +1177,7 @@
     <div style="display: flex; gap: 16px; align-items: center;">
       <span style="opacity: 0.7;">Kısayollar: <b>Ctrl+K</b> Komut Paleti • <b>Ctrl+O</b> Aç • <b>Ctrl+S</b> UDF • <b>Ctrl+P</b> PDF/Yazdır</span>
       <span>•</span>
-      <span style="color: #38BDF8; font-weight: 600;">CanEditor v3.31.1 (Cross-Platform)</span>
+      <span style="color: #38BDF8; font-weight: 600;">CanEditor v4.0.0 (Cross-Platform)</span>
     </div>
   </footer>
 

@@ -1,0 +1,46 @@
+# UYAP Editör Modern (platform/uyap-editor-modern): resmî UYAP Doküman Editörü için modernleştirici ajan,
+# gömülü Java 14 ve e-imza ajanıyla Linux/Windows/macOS paketleri. CanEditor sürümlerinden ayrı etiketlenir.
+name: UYAP Editör Modern Paketleri
+
+on:
+  push:
+    tags: ['editor-modern-v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Sürüm etiketi (ör. editor-modern-v2.3.0); boşsa yalnızca derlenir'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+defaults:
+  run:
+    working-directory: platform/uyap-editor-modern
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Modernleştirici ajan JAR
+        run: bash tools/build-agent.sh
+      - name: Paketle (Java 14.0.2 + e-imza ajanı + Windows yazı tipleri)
+        run: bash tools/paketle.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: uyap-editor-modern
+          path: platform/uyap-editor-modern/release-assets/*
+      - uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/') || github.event.inputs.tag != ''
+        with:
+          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
+          target_commitish: ${{ github.sha }}
+          files: platform/uyap-editor-modern/release-assets/*
+          generate_release_notes: true
+          name: "UYAP Editör Modern ${{ github.event.inputs.tag || github.ref_name }}"

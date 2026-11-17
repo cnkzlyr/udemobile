@@ -7,7 +7,7 @@ import shutil
 import zipfile
 import subprocess
 
-VERSION = "3.31.1"
+VERSION = "4.0.0"
 XZ_SHA256 = "211b306cfc44f8f96df3a0a3ddaf75ba8c5289eed77d60d72f889bb855f535e5"
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 IS_WINDOWS = os.name == "nt"
@@ -67,7 +67,7 @@ def sync_frontend_to_android_assets():
     step("0. Syncing frontend/public/* to android/assets/editor/*")
     assets_dir = os.path.join(PROJECT_ROOT, "android", "assets", "editor")
     os.makedirs(assets_dir, exist_ok=True)
-    for fname in ["desktop_bridge.js", "editor.css", "editor.js", "favicon.svg", "history.js", "icons.svg", "jszip.min.js", "updater.js", "ui-shell.js", "flow.js", "esign.js", "pdfexport.js", "jspdf.umd.min.js", "pdf.min.js", "pdf.worker.min.js", "utif.js"]:
+    for fname in ["desktop_bridge.js", "editor.css", "editor.js", "favicon.svg", "history.js", "icons.svg", "jszip.min.js", "updater.js", "ui-shell.js", "flow.js", "esign.js", "pdfexport.js", "jspdf.umd.min.js", "pdf.min.js", "pdf.worker.min.js", "utif.js", "asistan.js"]:
         src = os.path.join(PROJECT_ROOT, "frontend", "public", fname)
         if os.path.exists(src):
             shutil.copy2(src, os.path.join(assets_dir, fname))
@@ -100,7 +100,7 @@ def main():
     if os.path.exists(zip_path):
         os.remove(zip_path)
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
-        for fname in ["desktop_bridge.js", "editor.css", "editor.js", "favicon.svg", "history.js", "icons.svg", "jszip.min.js", "updater.js", "ui-shell.js", "flow.js", "esign.js", "pdfexport.js", "jspdf.umd.min.js", "pdf.min.js", "pdf.worker.min.js", "utif.js"]:
+        for fname in ["desktop_bridge.js", "editor.css", "editor.js", "favicon.svg", "history.js", "icons.svg", "jszip.min.js", "updater.js", "ui-shell.js", "flow.js", "esign.js", "pdfexport.js", "jspdf.umd.min.js", "pdf.min.js", "pdf.worker.min.js", "utif.js", "asistan.js"]:
             p = os.path.join("frontend", "public", fname)
             if os.path.exists(p):
                 z.write(p, arcname=fname)

@@ -11,6 +11,33 @@
 
 ---
 
+## 🧩 v4.0.0: Tek Uygulama — Editör + Hukuk Asistanı (8 depo birleşti)
+
+CanEditor artık yalnızca bir editör değil; UETS, UYAP evrak ve A4 tarama araçlarını da içeren tek bir hukuk asistanı. Ayrıntılı mimari: [`docs/BIRLESIK_MIMARI.md`](docs/BIRLESIK_MIMARI.md).
+
+| Birleşen depo | Yeni yeri | Ne yapar |
+|---|---|---|
+| Avukat Asistanı | `asistan/moduller/avukatasistan` | UETS tebligatlarını indirir, süreyi hesaplar, TickTick/Notion/Telegram'a işler |
+| UYAP Evrak İndirici | `asistan/moduller/evrak` | UYAP Avukat Portal evraklarını kataloglar, indirir, PDF'e çevirir |
+| NAPS2 & UYAP Thunar Araçları | `asistan/moduller/a4` | Görsel/TIFF/PDF/UDF → tek A4 PDF |
+| UYAP Editör Modern | `platform/uyap-editor-modern` | Resmî UYAP Editörü için modern arayüz paketleri |
+| UYAP-Termux Pro | `platform/termux` | Android'de resmî UYAP Editörü + USB e-imza |
+
+**Yeni "Asistan" menüsü (ve Ctrl+K komut paleti):**
+- ⏱️ **Yasal süre hesabı** — UETS 5. gün tebliğ, merciye göre 7/14/30 gün, hafta sonu uzatması; resmî/adli tatil uyarıları. *Her platformda, internetsiz.*
+- 📄 **A4 PDF birleştirici** — taranmış görsel, çok sayfalı TIFF ve PDF'leri UYAP'a uygun tek A4 PDF yapar. *Her platformda, internetsiz.*
+- 📅 **Ajanda** — UETS süre sonları ve UYAP/takvim duruşmaları tek listede.
+- 🗂️ **UYAP evrak arama** — indirilen tüm evraklarda Türkçe-duyarsız arama; tek tıkla editörde açma.
+- ⚙️ **Görevler** — UETS senkronu, UYAP evrak/tebligat/duruşma indirme, nöbetçi taraması.
+
+Son üç özellik yerel asistan sunucusunu kullanır. Masaüstünde Python 3 kuruluysa CanEditor sunucuyu kendisi başlatır. Android'de Termux'ta:
+
+```bash
+bash asistan/kur.sh && canasistan
+```
+
+Ardından **Asistan → Bağlantı** penceresine `canasistan --anahtar` çıktısını girin.
+
 ## 🚀 Hızlı İndirme (v3.31.1)
 
 | Platform | Paket Dosyası | Açıklama |

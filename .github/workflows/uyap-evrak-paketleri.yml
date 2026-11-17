@@ -1,0 +1,124 @@
+# UYAP Evrak Yöneticisi — tüm platformlar için kurulabilir paketler
+# Copyright (c) 2026 Av. Can KIZILYAR. Tüm hakları saklıdır.
+#
+# Tetikleme: "evrak-v*" etiketi (ör. evrak-v3.0.0) gönderilince veya Actions sekmesinden elle (workflow_dispatch).
+# Çıktılar: Windows kurulum (.exe), Linux (.AppImage, .deb, .rpm), macOS (.dmg: Intel + Apple Silicon).
+# Her pakette Python, bağımlılıklar, gömülü Java (Eclipse Temurin 17 JRE) ve (Linux/macOS) Liberation
+# yazı tipleri vardır. Havelsan UYAP Editör jar'ları lisanslı olduğu için pakete KONMAZ.
+name: UYAP Evrak Yöneticisi Paketleri (bağımsız)
+
+on:
+  push:
+    tags: ["evrak-v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# Birleşik depoda modül alt dizinde: tüm run adımları orada çalışır
+defaults:
+  run:
+    working-directory: asistan/moduller/evrak
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            ad: windows
+          - os: ubuntu-22.04
+            ad: linux
+          - os: macos-13        # Intel x86_64
+            ad: macos-intel
+          - os: macos-14        # Apple Silicon arm64
+            ad: macos-arm
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Python bağımlılıkları
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests websocket-client pypdf pillow pyinstaller
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          java-package: jre
+
+      - name: Yazı tipleri (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y fonts-liberation rpm ruby ruby-dev build-essential
+          sudo gem install --no-document fpm
+          mkdir -p fonts && cp /usr/share/fonts/truetype/liberation/*.ttf fonts/
+
+      - name: Yazı tipleri (macOS)
+        if: runner.os == 'macOS'
+        continue-on-error: true
+        run: |
+          mkdir -p fonts
+          curl -fsSL -o lib.tgz https://github.com/liberationfonts/liberation-fonts/files/7261482/liberation-fonts-ttf-2.1.5.tar.gz
+          tar xzf lib.tgz && cp liberation-fonts-ttf-*/*.ttf fonts/
+
+      - name: PyInstaller
+        run: pyinstaller --noconfirm --clean packaging/uyap_evrak.spec
+
+      - name: Gömülü Java (JRE) ekle
+        shell: bash
+        run: |
+          mkdir -p dist/UYAPEvrak/runtime
+          cp -a "$JAVA_HOME" dist/UYAPEvrak/runtime/jre
+          if [ -d fonts ]; then cp -a fonts dist/UYAPEvrak/ 2>/dev/null || true; fi
+
+      - name: Windows kurulum dosyası (Inno Setup)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" packaging\windows\uyap_evrak.iss
+          Compress-Archive -Path dist\UYAPEvrak\* -DestinationPath dist\UYAPEvrak-3.0.0-Windows-Tasinabilir.zip
+
+      - name: Linux paketleri
+        if: runner.os == 'Linux'
+        run: bash packaging/linux/build_linux.sh
+
+      - name: macOS dmg
+        if: runner.os == 'macOS'
+        run: bash packaging/macos/build_macos.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: UYAPEvrak-${{ matrix.ad }}
+          path: |
+            asistan/moduller/evrak/dist/*.exe
+            asistan/moduller/evrak/dist/*.zip
+            asistan/moduller/evrak/dist/*.AppImage
+            asistan/moduller/evrak/dist/*.deb
+            asistan/moduller/evrak/dist/*.rpm
+            asistan/moduller/evrak/dist/*.dmg
+          if-no-files-found: warn
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/evrak-v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: out
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: out/*
+          body: |
+            UYAP Evrak Yöneticisi — © 2026 Av. Can KIZILYAR. Tüm hakları saklıdır.
+            Windows: `UYAPEvrak-*-Windows-Kurulum.exe` · Linux: AppImage / deb / rpm · macOS: dmg (Intel ve Apple Silicon)
+            Android: Termux'ta `packaging/android/termux_uygulama_kur.sh` betiğini çalıştırın.

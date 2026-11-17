@@ -400,7 +400,13 @@
     { id: 'find-replace', icon: '🔍', category: 'Düzen', title: 'Bul ve Değiştir…', shortcut: 'Ctrl+F', run: () => window.openFindReplaceModal && window.openFindReplaceModal() },
     { id: 'para-modal', icon: '¶', category: 'Biçim', title: 'Paragraf Girinti ve Boşluk Ayarları…', shortcut: '', run: () => window.openParagraphModal && window.openParagraphModal() },
     { id: 'page-setup', icon: '📐', category: 'Biçim', title: 'Sayfa Yapısı ve Kenar Boşlukları…', shortcut: '', run: () => window.openPageSetupModal && window.openPageSetupModal() },
-    { id: 'doc-stats', icon: '📊', category: 'Araçlar', title: 'Kelime, Karakter ve Sayfa İstatistikleri', shortcut: '', run: () => window.openDocStatsModal && window.openDocStatsModal() }
+    { id: 'doc-stats', icon: '📊', category: 'Araçlar', title: 'Kelime, Karakter ve Sayfa İstatistikleri', shortcut: '', run: () => window.openDocStatsModal && window.openDocStatsModal() },
+    // Hukuk Asistanı (asistan.js): UETS + UYAP Evrak + A4 motoru birleşik paneli
+    { id: 'as-sure', icon: '⏱️', category: 'Asistan', title: 'Yasal Süre Hesapla (UETS tebliğ + HMK/CMK/İYUK)', shortcut: '', run: () => window.openHukukAsistani && window.openHukukAsistani('sure') },
+    { id: 'as-a4', icon: '📄', category: 'Asistan', title: 'Görsel / TIFF / PDF → Tek A4 PDF (NAPS2 yöntemi)', shortcut: '', run: () => window.openHukukAsistani && window.openHukukAsistani('a4') },
+    { id: 'as-ajanda', icon: '📅', category: 'Asistan', title: 'Ajanda: Yaklaşan Duruşmalar ve Süre Sonları', shortcut: '', run: () => window.openHukukAsistani && window.openHukukAsistani('ajanda') },
+    { id: 'as-evrak', icon: '🗂️', category: 'Asistan', title: 'UYAP Evrak Kataloğunda Ara ve Aç', shortcut: '', run: () => window.openHukukAsistani && window.openHukukAsistani('evrak') },
+    { id: 'as-gorev', icon: '⚙️', category: 'Asistan', title: 'UETS Senkronu / UYAP Evrak İndirme Görevleri', shortcut: '', run: () => window.openHukukAsistani && window.openHukukAsistani('gorev') }
   ];
 
   let cmdFiltered = COMMAND_PALETTE_ITEMS.slice();

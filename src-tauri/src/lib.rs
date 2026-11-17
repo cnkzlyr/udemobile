@@ -1,4 +1,5 @@
 mod adalet;
+mod asistan;
 mod uyapeditor;
 mod esign;
 
@@ -291,8 +292,15 @@ pub fn run() {
             adalet::adalet_baslat,
             adalet::adalet_istek,
             uyapeditor::uyap_editor_ac,
-            uyapeditor::uyap_editor_durum
+            uyapeditor::uyap_editor_durum,
+            asistan::asistan_baglanti
         ])
-        .run(tauri::generate_context!())
-        .expect("Tauri motoru başlatılamadı");
+        .build(tauri::generate_context!())
+        .expect("Tauri motoru başlatılamadı")
+        .run(|_app, olay| {
+            // Uygulama kapanırken yalnızca CanEditor'un başlattığı asistan sunucusu durdurulur
+            if let tauri::RunEvent::Exit = olay {
+                asistan::kapat();
+            }
+        });
 }
