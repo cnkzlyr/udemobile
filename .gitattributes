@@ -1,0 +1,7 @@
+# Windows'ta (Git for Windows: core.autocrlf=true) da metin dosyaları LF ile çıkarılsın:
+# kabuk/Python betikleri WSL ve Linux derlemesinde CRLF yüzünden bozulmasın.
+* text=auto eol=lf
+# Windows'a özgü betikler CRLF kalır
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf

@@ -30,3 +30,4 @@ src-tauri/tarayici-*/
 src-tauri/eimza/jre/
 src-tauri/eimza/jre-*/
 src-tauri/eimza/eimza-win-agent.jar
+dist-linux/

@@ -13,14 +13,21 @@ PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 IS_WINDOWS = os.name == "nt"
 
 if IS_WINDOWS:
-    BUILD_TOOLS = r"C:\Users\C\AppData\Local\Android\Sdk\build-tools\30.0.3"
-    PLATFORM_JAR = r"C:\Users\C\AppData\Local\Android\Sdk\platforms\android-34\android.jar"
-    JAVA_HOME = r"C:\Program Files\Microsoft\jdk-14.0.2"
+    # Android SDK: ANDROID_HOME > ANDROID_SDK_ROOT > %LOCALAPPDATA%\Android\Sdk (Android Studio / sdkmanager varsayılanı)
+    SDK = (os.environ.get("ANDROID_HOME") or os.environ.get("ANDROID_SDK_ROOT")
+           or os.path.join(os.environ.get("LOCALAPPDATA", ""), "Android", "Sdk"))
+    _bt = sorted(glob.glob(os.path.join(SDK, "build-tools", "*")))
+    BUILD_TOOLS = _bt[-1] if _bt else os.path.join(SDK, "build-tools", "35.0.0")
+    _pl = sorted(glob.glob(os.path.join(SDK, "platforms", "android-34", "android.jar"))) or \
+          sorted(glob.glob(os.path.join(SDK, "platforms", "android-*", "android.jar")))
+    PLATFORM_JAR = _pl[-1] if _pl else os.path.join(SDK, "platforms", "android-34", "android.jar")
+    # JDK: JAVA_HOME (windows_yayin.ps1 Temurin 21'i verir) > eski sabit yol
+    JAVA_HOME = os.environ.get("JAVA_HOME") or r"C:\Program Files\Microsoft\jdk-14.0.2"
     JAVAC = os.path.join(JAVA_HOME, "bin", "javac.exe")
     JAVA = os.path.join(JAVA_HOME, "bin", "java.exe")
     KEYTOOL = os.path.join(JAVA_HOME, "bin", "keytool.exe")
     AAPT = os.path.join(BUILD_TOOLS, "aapt.exe")
-    AAPT2 = shutil.which("aapt2")
+    AAPT2 = os.path.join(BUILD_TOOLS, "aapt2.exe") if os.path.exists(os.path.join(BUILD_TOOLS, "aapt2.exe")) else shutil.which("aapt2")
     ZIPALIGN = os.path.join(BUILD_TOOLS, "zipalign.exe")
     D8_CMD = [JAVA, "-cp", os.path.join(BUILD_TOOLS, "lib", "d8.jar"), "com.android.tools.r8.D8"]
     APKSIGNER_CMD = [JAVA, "-jar", os.path.join(BUILD_TOOLS, "lib", "apksigner.jar")]
