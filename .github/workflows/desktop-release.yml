@@ -157,30 +157,66 @@ jobs:
           npm install
           npm run build
 
-      # Windows: Adalet E-Imza'yi calistiracak Java kurulum paketine GOMULUR (kullanici Java/surucu indirmez).
-      # Kart PC/SC (winscard) + Windows'un kendi CCID surucusuyle okunur; PKCS#11 surucusu gerekmez.
-      - name: Setup Java 21 (Windows gomulu Java icin jlink)
-        if: matrix.platform == 'windows-latest'
+      # Kullanici Java, Python veya kart surucusu KURMAZ: hepsi kurulum paketine gomulur.
+      #  - Gomulu Java (jlink): resmi Adalet E-Imza'yi calistirir; kart PC/SC + isletim sisteminin kendi CCID
+      #    surucusuyle, karta dogrudan APDU ile okunur (AKIS/ArkSigner PKCS#11 surucusu gerekmez).
+      #    Linux .deb/.rpm: pcscd + CCID paket bagimliligi olarak otomatik kurulur (tauri.linux.conf.json).
+      #  - Hukuk Asistani sunucusu (PyInstaller): UETS, UYAP evrak, A4 motoru Python'suz calisir.
+      - name: Setup Java 21 (gomulu Java icin jlink)
+        id: java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '21'
 
-      - name: Gomulu Java hazirla (jlink, Windows)
+      - name: Setup Python 3.12 (asistan sunucusu paketleme)
+        id: python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Gomulu Java + Hukuk Asistani sunucusu (bu mimari)
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r asistan/requirements.txt pyinstaller
+          PYTHONUTF8=1 python scripts/masaustu_hazirla.py --java-home "${{ steps.java.outputs.path }}"
+
+      # macOS universal paket Intel Mac'lerde de calismali: Java ve sunucu x86_64 icin de uretilir (Rosetta).
+      - name: Setup Java 21 x64 (macOS Intel)
+        if: matrix.platform == 'macos-latest'
+        id: java_x64
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          architecture: x64
+
+      - name: Setup Python 3.12 x64 (macOS Intel)
+        if: matrix.platform == 'macos-latest'
+        id: python_x64
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          architecture: x64
+
+      - name: Gomulu Java + Hukuk Asistani sunucusu (macOS x86_64)
+        if: matrix.platform == 'macos-latest'
+        shell: bash
+        run: |
+          PY="${{ steps.python_x64.outputs.python-path }}"
+          arch -x86_64 "$PY" -m pip install -r asistan/requirements.txt pyinstaller
+          arch -x86_64 "$PY" scripts/masaustu_hazirla.py --java-home "${{ steps.java_x64.outputs.path }}" --mimari x86_64
+          file src-tauri/sidecar/asistan-sunucu-x86_64/asistan-sunucu | grep -q x86_64
+          file src-tauri/sidecar/asistan-sunucu-aarch64/asistan-sunucu | grep -q arm64
+
+      - name: Windows Unicode PC/SC ajani (Turkce okuyucu adlari, ArkSigner)
         if: matrix.platform == 'windows-latest'
         shell: bash
         run: |
-          rm -rf src-tauri/eimza/jre
-          "$JAVA_HOME/bin/jlink" --add-modules java.base,java.desktop,java.smartcardio,java.instrument,java.logging,java.management,java.naming,java.prefs,java.sql,java.xml,java.net.http,java.security.jgss,java.security.sasl,java.scripting,java.xml.crypto,java.transaction.xa,jdk.crypto.cryptoki,jdk.crypto.ec,jdk.crypto.mscapi,jdk.unsupported,jdk.charsets,jdk.localedata,jdk.zipfs,jdk.naming.dns,jdk.management,jdk.httpserver,jdk.accessibility \
-            --include-locales=tr,en --strip-debug --no-header-files --no-man-pages --compress=zip-6 \
-            --output src-tauri/eimza/jre
-          test -f src-tauri/eimza/jre/bin/javaw.exe
-          src-tauri/eimza/jre/bin/java.exe -version
-          du -sh src-tauri/eimza/jre
-          # Unicode PC/SC ajanı: Türkçe karakterli okuyucu adları (ArkSigner) için. JNA sabit SHA-256 ile.
           PYTHONUTF8=1 python scripts/win_ajan_derle.py
           test -f src-tauri/eimza/eimza-win-agent.jar
-          # Duman testi: ajan winscard.dll'i yükleyebiliyor mu (CI'da akıllı kart hizmeti olmayabilir; hata derlemeyi durdurmaz)
+          # Duman testi: ajan winscard.dll'i yukleyebiliyor mu (CI'da akilli kart hizmeti olmayabilir; hata derlemeyi durdurmaz)
           src-tauri/eimza/jre/bin/java.exe -javaagent:src-tauri/eimza/eimza-win-agent.jar -version 2>&1 | grep -E "CANEDITOR-PCSC|version" || true
 
       - name: Build Desktop Application (Tauri Action)

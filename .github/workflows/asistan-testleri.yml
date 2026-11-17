@@ -45,3 +45,20 @@ jobs:
           python3 -m unittest discover -s testler -v
           python3 -I bilesenler/eimza/selftest.py
           bash testler/java_testleri.sh
+
+  gomulu-paket:
+    # Masaüstü paketine giren Python'suz sunucu ikilisi: her import ve görev betiği Python'suz ortamda yüklenmeli
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Gömülü Java + sunucu ikilisi (paketleme ve duman testi)
+        run: |
+          pip install -r asistan/requirements.txt pyinstaller
+          python scripts/masaustu_hazirla.py

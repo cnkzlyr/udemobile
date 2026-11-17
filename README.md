@@ -30,7 +30,9 @@ CanEditor artık yalnızca bir editör değil; UETS, UYAP evrak ve A4 tarama ara
 - 🗂️ **UYAP evrak arama** — indirilen tüm evraklarda Türkçe-duyarsız arama; tek tıkla editörde açma.
 - ⚙️ **Görevler** — UETS senkronu, UYAP evrak/tebligat/duruşma indirme, nöbetçi taraması.
 
-Son üç özellik yerel asistan sunucusunu kullanır. Masaüstünde Python 3 kuruluysa CanEditor sunucuyu kendisi başlatır. Android'de Termux'ta:
+**Hiçbir şey kurmanız gerekmez:** masaüstü kurulum paketleri (Windows, macOS, Linux) asistan sunucusunu, Java'yı ve e-imza altyapısını içinde taşır. Python veya Java kurmazsınız; akıllı kart / USB token için AKİS ya da ArkSigner sürücüsü de gerekmez (kart, gömülü Adalet E-İmza ile doğrudan okunur; Linux .deb/.rpm kart hizmetini otomatik kurar).
+
+Android'de son üç özellik için Termux'ta:
 
 ```bash
 bash asistan/kur.sh && canasistan

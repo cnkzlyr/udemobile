@@ -1,0 +1,16 @@
+{
+  "bundle": {
+    "resources": {
+      "eimza/jre/": "eimza/jre/",
+      "sidecar/asistan-sunucu-x86_64/": "sidecar/asistan-sunucu-x86_64/"
+    },
+    "linux": {
+      "deb": {
+        "depends": ["pcscd", "libccid", "libpcsclite1"]
+      },
+      "rpm": {
+        "depends": ["pcsc-lite", "pcsc-lite-ccid"]
+      }
+    }
+  }
+}

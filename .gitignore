@@ -23,3 +23,9 @@ build/
 
 # Windows gömülü Java (CI jlink ile üretir)
 src-tauri/eimza/
+
+# Masaüstü paketine gömülenler (CI üretir: scripts/masaustu_hazirla.py)
+src-tauri/sidecar/
+src-tauri/eimza/jre/
+src-tauri/eimza/jre-*/
+src-tauri/eimza/eimza-win-agent.jar

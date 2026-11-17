@@ -435,8 +435,9 @@
     return { kartlar, okuyucular, hata };
   }
   /**
-   * Masaüstü (Windows): kart, CanEditor'a gömülü Java ile çalışan resmi Adalet E-İmza üzerinden okunur. Kart
-   * sürücüsü (PKCS#11) gerekmez: okuyucuya Windows'un PC/SC katmanıyla, karta doğrudan APDU ile ulaşılır.
+   * Masaüstü (Windows, macOS, Linux): kart, CanEditor'a gömülü Java ile çalışan resmi Adalet E-İmza üzerinden
+   * okunur. Kart sürücüsü (PKCS#11) gerekmez: okuyucuya işletim sisteminin PC/SC katmanıyla (Windows winscard,
+   * macOS CryptoTokenKit, Linux pcscd — deb/rpm paketi otomatik kurar) karta doğrudan APDU ile ulaşılır.
    * İlk kullanımda resmi uygulama cdn.uyap.gov.tr'den kendiliğinden kurulur. Bilgisayarda resmi uygulama zaten
    * çalışıyorsa (5975 açık) o kullanılır. null dönerse bu yol yok (PKCS#11'e geçilir).
    */
@@ -467,7 +468,10 @@
     if (s.kartlar.length) return { cards: s.kartlar };
     return { cards: [], message: s.okuyucular.length
       ? ('Okuyucu görüldü (' + s.okuyucular.join(', ') + ') ama karttan sertifika okunamadı' + s.hata + '. Kartı çıkarıp doğru yönde yeniden takın; birkaç saniye sonra "Kartı Tara".')
-      : ('E-imza okuyucusu görünmüyor' + s.hata + '. Okuyucuyu/tokenı USB\'ye takın, Windows tanıdıktan sonra "Kartı Tara".') };
+      : ('E-imza okuyucusu görünmüyor' + s.hata + '. Okuyucuyu/tokenı USB\'ye takın, sistem tanıdıktan sonra "Kartı Tara".'
+        + (/Linux/.test(navigator.userAgent) && !/Android/.test(navigator.userAgent)
+          ? ' Linux\'ta kart hizmeti (pcscd) gerekir: .deb/.rpm kurulumu bunu otomatik kurar; AppImage kullanıyorsanız bir kez "sudo apt install pcscd libccid" (Fedora: "sudo dnf install pcsc-lite pcsc-lite-ccid") çalıştırın.'
+          : '')) };
   }
 
   async function scList(libPath) {

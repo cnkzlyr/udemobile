@@ -31,10 +31,13 @@ Kullanım
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
+import runpy
 import secrets
+import shutil
 import sqlite3
 import subprocess
 import sys
@@ -47,10 +50,10 @@ from pathlib import Path
 
 SURUM = "1.0.0"
 KOK = Path(__file__).resolve().parent
-MODULLER = KOK / "moduller"
-AVUKAT_DIR = MODULLER / "avukatasistan"
-EVRAK_DIR = MODULLER / "evrak"
-A4_DIR = MODULLER / "a4"
+# Pakete gömülü (PyInstaller) ikili: Python kurulu olmadan çalışır. Modül kodu paketin içinde salt okunurdur;
+# modüller verilerini kendi klasörlerine yazdığı için ilk açılışta kullanıcı veri dizinine eşitlenir.
+DONDURULMUS = bool(getattr(sys, "frozen", False))
+PAKET_MODULLER = (Path(getattr(sys, "_MEIPASS", KOK)) / "moduller") if DONDURULMUS else KOK / "moduller"
 
 VARSAYILAN_PORT = 8765
 IZINLI_KOKENLER = {
@@ -72,6 +75,45 @@ def veri_dizini() -> Path:
     return p
 
 
+# Eşitlemede kullanıcının değiştirmiş olabileceği yapılandırma/veri dosyalarının üzerine yazılmaz
+KORUNAN_UZANTILAR = {".env", ".db", ".sqlite", ".sqlite3", ".ini", ".json"}
+
+
+def _paket_damgasi(kok: Path) -> str:
+    h = hashlib.sha256(SURUM.encode())
+    for f in sorted(kok.rglob("*")):
+        if f.is_file():
+            h.update(f"{f.relative_to(kok).as_posix()}:{f.stat().st_size}".encode())
+    return h.hexdigest()[:16]
+
+
+def moduller_hazirla(kaynak: Path | None = None, hedef: Path | None = None) -> Path:
+    """Gömülü pakette modül kodunu yazılabilir veri dizinine eşitler (sürüm değişince günceller)."""
+    if not DONDURULMUS and kaynak is None:
+        return PAKET_MODULLER
+    kaynak = kaynak or PAKET_MODULLER
+    hedef = hedef or (veri_dizini() / "moduller")
+    damga_dosyasi = hedef / ".paket_damgasi"
+    damga = _paket_damgasi(kaynak)
+    try:
+        if damga_dosyasi.read_text(encoding="utf-8").strip() == damga:
+            return hedef
+    except OSError:
+        pass
+    for f in kaynak.rglob("*"):
+        if not f.is_file() or "__pycache__" in f.parts:
+            continue
+        d = hedef / f.relative_to(kaynak)
+        if d.exists() and d.suffix.lower() in KORUNAN_UZANTILAR:
+            continue
+        d.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(f, d)
+        if os.name != "nt" and os.access(f, os.X_OK):
+            d.chmod(d.stat().st_mode | 0o111)
+    damga_dosyasi.write_text(damga + "\n", encoding="utf-8")
+    return hedef
+
+
 def anahtar_al() -> str:
     env = os.environ.get("CANASISTAN_ANAHTAR", "").strip()
     if env:
@@ -90,6 +132,12 @@ def anahtar_al() -> str:
     except OSError:
         pass
     return k
+
+
+MODULLER = moduller_hazirla()
+AVUKAT_DIR = MODULLER / "avukatasistan"
+EVRAK_DIR = MODULLER / "evrak"
+A4_DIR = MODULLER / "a4"
 
 
 # ---------------------------------------------------------------------------
@@ -252,19 +300,43 @@ def _tr_tarih_iso(s) -> str | None:
 # Görevler (izin listesi)
 # ---------------------------------------------------------------------------
 
-PY = sys.executable or "python3"
+# Gömülü pakette görevler aynı ikiliyle çalışır: "<ikili> --calistir betik.py ..." (Python kurulumu gerekmez)
+PY = [sys.executable, "--calistir"] if DONDURULMUS else [sys.executable or "python3"]
 GOREVLER: dict[str, dict] = {
-    "uets-senkron":     {"ad": "UETS tebligatlarını indir ve işle", "cwd": AVUKAT_DIR, "cmd": [PY, "main.py", "--headless"]},
-    "uets-cevrimdisi":  {"ad": "UETS: yerel CSV/arşivle işle (portala bağlanmadan)", "cwd": AVUKAT_DIR, "cmd": [PY, "main.py", "--offline"]},
-    "uets-otokontrol":  {"ad": "Tebligat otokontrol raporu", "cwd": AVUKAT_DIR, "cmd": [PY, "main.py", "--autocontrol", "--offline"]},
-    "asistan-gui":      {"ad": "Avukat Asistanı penceresi", "cwd": AVUKAT_DIR, "cmd": [PY, "avukat_gui.py"], "pencere": True},
-    "evrak-katalog":    {"ad": "UYAP Evrak Kataloğu penceresi", "cwd": EVRAK_DIR, "cmd": [PY, "katalog_gui.py"], "pencere": True},
-    "evrak-giris":      {"ad": "UYAP oturum aç (e-imza)", "cwd": EVRAK_DIR, "cmd": [PY, "uyap_indirici.py", "--cli", "--mode", "login"]},
-    "evrak-islemlerim": {"ad": "UYAP: İşlemlerim evraklarını indir", "cwd": EVRAK_DIR, "cmd": [PY, "uyap_indirici.py", "--cli", "--mode", "islemlerim"]},
-    "evrak-tebligat":   {"ad": "UYAP: tebligat evraklarını indir", "cwd": EVRAK_DIR, "cmd": [PY, "uyap_indirici.py", "--cli", "--mode", "dosyalar", "--evrak-turu", "tebligat", "--scope", "all"]},
-    "evrak-durusmalar": {"ad": "UYAP: duruşma listesini çek", "cwd": EVRAK_DIR, "cmd": [PY, "uyap_indirici.py", "--cli", "--mode", "durusmalar"]},
-    "evrak-nobetci":    {"ad": "UYAP nöbetçi: tek tarama turu", "cwd": EVRAK_DIR, "cmd": [PY, "uyap_watcher.py", "--once"]},
+    "uets-senkron":     {"ad": "UETS tebligatlarını indir ve işle", "cwd": AVUKAT_DIR, "cmd": [*PY, "main.py", "--headless"]},
+    "uets-cevrimdisi":  {"ad": "UETS: yerel CSV/arşivle işle (portala bağlanmadan)", "cwd": AVUKAT_DIR, "cmd": [*PY, "main.py", "--offline"]},
+    "uets-otokontrol":  {"ad": "Tebligat otokontrol raporu", "cwd": AVUKAT_DIR, "cmd": [*PY, "main.py", "--autocontrol", "--offline"]},
+    "asistan-gui":      {"ad": "Avukat Asistanı penceresi", "cwd": AVUKAT_DIR, "cmd": [*PY, "avukat_gui.py"], "pencere": True},
+    "evrak-katalog":    {"ad": "UYAP Evrak Kataloğu penceresi", "cwd": EVRAK_DIR, "cmd": [*PY, "katalog_gui.py"], "pencere": True},
+    "evrak-giris":      {"ad": "UYAP oturum aç (e-imza)", "cwd": EVRAK_DIR, "cmd": [*PY, "uyap_indirici.py", "--cli", "--mode", "login"]},
+    "evrak-islemlerim": {"ad": "UYAP: İşlemlerim evraklarını indir", "cwd": EVRAK_DIR, "cmd": [*PY, "uyap_indirici.py", "--cli", "--mode", "islemlerim"]},
+    "evrak-tebligat":   {"ad": "UYAP: tebligat evraklarını indir", "cwd": EVRAK_DIR, "cmd": [*PY, "uyap_indirici.py", "--cli", "--mode", "dosyalar", "--evrak-turu", "tebligat", "--scope", "all"]},
+    "evrak-durusmalar": {"ad": "UYAP: duruşma listesini çek", "cwd": EVRAK_DIR, "cmd": [*PY, "uyap_indirici.py", "--cli", "--mode", "durusmalar"]},
+    "evrak-nobetci":    {"ad": "UYAP nöbetçi: tek tarama turu", "cwd": EVRAK_DIR, "cmd": [*PY, "uyap_watcher.py", "--once"]},
 }
+
+
+def gorev_ortami() -> dict:
+    """Görev alt süreçlerinin ortamı: gömülü Java ve indirilmiş resmî UYAP Editör jar'ları modüllere tanıtılır."""
+    env = dict(os.environ, PYTHONIOENCODING="utf-8", PYTHONUNBUFFERED="1")
+    _ld_geri_yukle(env)
+    jh = os.environ.get("CANASISTAN_JAVA_HOME")
+    if jh and (Path(jh) / "bin").is_dir():
+        env["JAVA_HOME"] = jh
+        env["PATH"] = str(Path(jh) / "bin") + os.pathsep + env.get("PATH", "")
+    jars = os.environ.get("CANASISTAN_UYAP_JARS")
+    if jars and (Path(jars) / "editor_lib.jar").is_file() and not env.get("UYAP_JARS"):
+        env["UYAP_JARS"] = jars
+    return env
+
+
+def _ld_geri_yukle(env) -> None:
+    """PyInstaller (Linux) kendi kütüphane yolunu LD_LIBRARY_PATH'e ekler; Java/Chrome gibi dış programlar
+    paketin kütüphaneleriyle çakışmasın diye özgün değer geri yüklenir."""
+    if "LD_LIBRARY_PATH_ORIG" in env:
+        env["LD_LIBRARY_PATH"] = env["LD_LIBRARY_PATH_ORIG"]
+    elif DONDURULMUS:
+        env.pop("LD_LIBRARY_PATH", None)
 
 
 class Gorev:
@@ -281,7 +353,7 @@ class Gorev:
     def baslat(self):
         if self.calisiyor():
             raise RuntimeError("Görev zaten çalışıyor")
-        env = dict(os.environ, PYTHONIOENCODING="utf-8", PYTHONUNBUFFERED="1")
+        env = gorev_ortami()
         self.gunluk.clear()
         self.kod, self.bitis, self.baslangic = None, None, time.time()
         self.proc = subprocess.Popen(self.tanim["cmd"], cwd=str(self.tanim["cwd"]), env=env,
@@ -466,7 +538,28 @@ def sunucu_olustur(port: int, anahtar: str) -> ThreadingHTTPServer:
     return ThreadingHTTPServer(("127.0.0.1", port), Isleyici)
 
 
+def calistir(argv: list[str]) -> int:
+    """Gömülü pakette bir modül betiğini "python betik.py ..." gibi çalıştırır."""
+    if not argv:
+        print("Kullanım: --calistir betik.py [argümanlar]", file=sys.stderr)
+        return 2
+    betik = Path(argv[0])
+    if not betik.is_absolute():
+        betik = Path.cwd() / betik
+    sys.argv = [str(betik), *argv[1:]]
+    sys.path.insert(0, str(betik.parent))
+    _ld_geri_yukle(os.environ)
+    # Modüller sys.frozen'a bakıp veri yolunu ikilinin klasörü sanmasın: kendi (eşitlenmiş) klasörlerini kullansınlar
+    if hasattr(sys, "frozen"):
+        del sys.frozen
+    runpy.run_path(str(betik), run_name="__main__")
+    return 0
+
+
 def main(argv=None):
+    argv = sys.argv[1:] if argv is None else argv
+    if argv and argv[0] == "--calistir":
+        return calistir(argv[1:])
     ap = argparse.ArgumentParser(description="CanEditor Hukuk Asistanı yerel sunucusu")
     ap.add_argument("--port", type=int, default=int(os.environ.get("CANASISTAN_PORT") or VARSAYILAN_PORT))
     ap.add_argument("--anahtar", action="store_true", help="Eşleştirme anahtarını yazdır ve çık")

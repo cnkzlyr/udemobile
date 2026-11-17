@@ -36,12 +36,36 @@ alt dizin olarak taşındı.
 
 ## Platformlara göre ne çalışır
 
-| Özellik | Windows / macOS / Linux | Android (APK) | Taşınabilir web | Termux |
+| Özellik | Windows / macOS / Linux kurulum paketi | Android (APK) | Taşınabilir web | Termux |
 |---|---|---|---|---|
-| Editör, e-imza, PDF/DOCX | ✓ | ✓ | ✓ | (APK ile) |
+| Editör, PDF/DOCX | ✓ | ✓ | ✓ | (APK ile) |
 | Süre hesabı, A4 PDF | ✓ | ✓ | ✓ | ✓ |
-| Ajanda, UYAP evrak arama, görevler | ✓ Python 3 kuruluysa otomatik | Termux'ta sunucu + eşleştirme | Sunucu + eşleştirme | ✓ `bash asistan/kur.sh` |
-| Resmî UYAP Editörü | `platform/uyap-editor-modern` paketleri | `platform/termux` | — | ✓ |
+| Ajanda, UYAP evrak arama, görevler | ✓ gömülü sunucu, **Python gerekmez** | Termux'ta sunucu + eşleştirme | Sunucu + eşleştirme | ✓ `bash asistan/kur.sh` |
+| E-imza (akıllı kart / USB token) | ✓ gömülü Java + Adalet E-İmza, **sürücü gerekmez** | ✓ gömülü (APK) | — | (APK ile) |
+| UDF→PDF (Havelsan motoru) | ✓ gömülü Java + ilk kullanımda indirilen resmî jar'lar | ✓ | — | ✓ |
+
+## Kurulum gerektirmeyen bileşenler (masaüstü)
+
+`scripts/masaustu_hazirla.py` CI'da her platform için şunları üretir; Tauri bunları pakete kaynak olarak koyar:
+
+| Bileşen | Konum (paket içi) | Neden |
+|---|---|---|
+| Gömülü Java 21 (jlink, ~60 MB) | `eimza/jre` · macOS: `eimza/jre-aarch64`, `eimza/jre-x86_64` | Adalet E-İmza ve UDF→PDF görevleri |
+| Hukuk Asistanı sunucusu (PyInstaller) | `sidecar/asistan-sunucu-<mimari>/` | UETS, UYAP evrak, A4 — Python'suz |
+
+- **Sunucu:** `asistan.rs` önce gömülü ikiliyi başlatır; görevler aynı ikiliyle `--calistir betik.py`
+  biçiminde çalışır. Modül kodu ilk açılışta kullanıcı veri dizinine eşitlenir (modüller verilerini kendi
+  klasörüne yazar; paket klasörü salt okunurdur). Sürüm değişince kod güncellenir, `.env/.json/.db` korunur.
+  `scripts/asistan_paketle.py` modüllerin tüm import'larını kaynak koddan çıkarıp gömer ve paketlemeden
+  sonra Python'suz ortamda her import'u ve görev betiklerini çalıştırarak duman testi yapar.
+- **E-imza sürücüsüz:** Resmî Adalet E-İmza (ilk kullanımda cdn.uyap.gov.tr'den) gömülü Java ile çalışır
+  ve karta doğrudan APDU ile konuşur; okuyucuya işletim sisteminin PC/SC katmanıyla ulaşır:
+  Windows `winscard` + yerleşik CCID, macOS yerleşik, Linux `pcscd` + `libccid` — **.deb/.rpm paketi bunları
+  bağımlılık olarak otomatik kurar** (`tauri.linux.conf.json`). AppImage sistem hizmeti kuramadığı için
+  orada bir kez `sudo apt install pcscd libccid` gerekir; CanEditor bunu hata mesajında söyler.
+  Kart bulunamazsa kurulu bir PKCS#11 sürücüsü (AKİS/SafeNet) ikinci yol olarak denenir.
+- **Lisans sınırı:** AKİS/ArkSigner PKCS#11 kütüphaneleri ve Havelsan UYAP Editör jar'ları dağıtılamaz;
+  bu yüzden pakete konmaz, gerekirse yalnızca resmî adreslerinden çalışma anında indirilir.
 
 ## Güvenlik kuralları (sunucu)
 

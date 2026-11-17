@@ -164,7 +164,8 @@ class SunucuTest(unittest.TestCase):
 
     def test_gorev_listesi_izinli_komutlar(self):
         for g in sunucu.GOREVLER.values():
-            self.assertTrue((Path(g["cwd"]) / g["cmd"][1]).is_file(), g["cmd"])
+            betik = next(c for c in g["cmd"] if str(c).endswith(".py"))
+            self.assertTrue((Path(g["cwd"]) / betik).is_file(), g["cmd"])
 
     def test_a4_birlestir(self):
         try:
@@ -176,6 +177,52 @@ class SunucuTest(unittest.TestCase):
         k, v, _ = self.istek("/api/a4", "POST", govde={"dosyalar": [str(img)], "cikti": str(Path(GECICI) / "cikti.pdf")})
         self.assertEqual(k, 200, v)
         self.assertTrue(Path(v["cikti"]).read_bytes().startswith(b"%PDF"))
+
+
+class PaketTest(unittest.TestCase):
+    """Gömülü (PyInstaller) paket yardımcıları: modül eşitleme ve --calistir."""
+
+    def test_moduller_eslenir_ve_kullanici_verisi_korunur(self):
+        kaynak = Path(tempfile.mkdtemp()) / "moduller"
+        (kaynak / "m").mkdir(parents=True)
+        (kaynak / "m" / "kod.py").write_text("SURUM = 1\n")
+        (kaynak / "m" / "ayar.json").write_text('{"varsayilan": true}')
+        hedef = Path(tempfile.mkdtemp()) / "moduller"
+        sunucu.moduller_hazirla(kaynak, hedef)
+        self.assertEqual((hedef / "m" / "kod.py").read_text(), "SURUM = 1\n")
+        # kullanıcı ayarı değiştirir, veri üretir
+        (hedef / "m" / "ayar.json").write_text('{"kullanici": true}')
+        (hedef / "m" / "veri.db").write_bytes(b"sqlite")
+        # yeni sürüm: kod güncellenir, ayar ve veri korunur
+        (kaynak / "m" / "kod.py").write_text("SURUM = 2  # yeni\n")
+        sunucu.moduller_hazirla(kaynak, hedef)
+        self.assertIn("SURUM = 2", (hedef / "m" / "kod.py").read_text())
+        self.assertEqual((hedef / "m" / "ayar.json").read_text(), '{"kullanici": true}')
+        self.assertEqual((hedef / "m" / "veri.db").read_bytes(), b"sqlite")
+
+    def test_calistir_betigi_ana_modul_olarak_calistirir(self):
+        d = Path(tempfile.mkdtemp())
+        (d / "yardimci.py").write_text("DEGER = 42\n")
+        (d / "ana.py").write_text("import sys, yardimci\nprint('SONUC', yardimci.DEGER, sys.argv[1:], __name__)\n")
+        import subprocess
+        r = subprocess.run([sys.executable, str(KOK / "sunucu.py"), "--calistir", "ana.py", "--bayrak"],
+                           cwd=d, capture_output=True, text=True, timeout=60)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("SONUC 42 ['--bayrak'] __main__", r.stdout)
+
+    def test_gorev_ortami_gomulu_java_ve_jarlar(self):
+        jh = Path(tempfile.mkdtemp()); (jh / "bin").mkdir()
+        jars = Path(tempfile.mkdtemp()); (jars / "editor_lib.jar").write_bytes(b"PK")
+        eski = dict(os.environ)
+        try:
+            os.environ.update(CANASISTAN_JAVA_HOME=str(jh), CANASISTAN_UYAP_JARS=str(jars))
+            os.environ.pop("UYAP_JARS", None)
+            env = sunucu.gorev_ortami()
+            self.assertEqual(env["JAVA_HOME"], str(jh))
+            self.assertTrue(env["PATH"].startswith(str(jh / "bin")))
+            self.assertEqual(env["UYAP_JARS"], str(jars))
+        finally:
+            os.environ.clear(); os.environ.update(eski)
 
 
 if __name__ == "__main__":

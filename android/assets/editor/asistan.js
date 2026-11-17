@@ -368,9 +368,9 @@
   function sunucuHatasi(ic, e) {
     const anahtarYok = e && e.durum === 401;
     ic.innerHTML = `<div class="ca-kart"><b>${anahtarYok ? '🔑 Eşleştirme gerekli' : '🔌 Asistan sunucusuna ulaşılamadı'}</b>
-      <p>${anahtarYok ? 'Sunucu çalışıyor ama bu cihaz eşleştirilmemiş.' : 'UETS, UYAP evrak ve ajanda özellikleri bilgisayarınızda (Windows/macOS/Linux) veya Android\'de Termux içinde çalışan yerel asistan sunucusunu kullanır.'}</p>
+      <p>${anahtarYok ? 'Sunucu çalışıyor ama bu cihaz eşleştirilmemiş.' : 'UETS, UYAP evrak ve ajanda özellikleri yerel asistan sunucusunu kullanır. Masaüstü uygulamasında bu sunucu otomatik başlar; başlamadıysa CanEditor\'u yeniden açın.'}</p>
       <pre>python3 asistan/sunucu.py</pre>
-      <p class="ca-soluk">Masaüstü uygulamada Python kuruluysa sunucu otomatik başlar. Termux/taşınabilir sürümde sunucunun yazdırdığı anahtarı <b>Bağlantı</b> sekmesine girin.</p>
+      <p class="ca-soluk">Masaüstü kurulum paketlerinde (Windows, macOS, Linux) sunucu pakete gömülüdür ve kendiliğinden başlar; Python kurmanız gerekmez. Taşınabilir web / Termux'ta sunucunun yazdırdığı anahtarı <b>Bağlantı</b> sekmesine girin.</p>
       <button class="ca-btn" type="button" id="ca-bagla">🔌 Bağlantı ayarları</button></div>`;
     ic.querySelector('#ca-bagla').onclick = () => sekmeAc('baglanti');
   }

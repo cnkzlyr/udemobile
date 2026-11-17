@@ -44,9 +44,20 @@ fn jar_yolu(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     Ok(veri_dizini(app)?.join("eimza-tray.jar"))
 }
 
-/// Gömülü Java (kurulum paketindeki resources/eimza/jre). Yoksa None.
+/// Gömülü Java'nın kök dizini (JAVA_HOME). Tüm masaüstü paketlerinde bulunur (CI: jlink):
+/// resources/eimza/jre-<mimari> (macOS universal: aarch64 + x86_64 ayrı) ya da resources/eimza/jre.
+/// Kullanıcı Java kurmaz; Hukuk Asistanı görevleri de (UDF→PDF) bu Java'yı kullanır.
+pub fn gomulu_jre(app: &tauri::AppHandle) -> Option<PathBuf> {
+    let eimza = app.path().resource_dir().ok()?.join("eimza");
+    let java = if cfg!(windows) { "java.exe" } else { "java" };
+    [eimza.join(format!("jre-{}", std::env::consts::ARCH)), eimza.join("jre")]
+        .into_iter()
+        .find(|d| d.join("bin").join(java).is_file())
+}
+
+/// Gömülü Java çalıştırılabilir dosyası. Yoksa None.
 fn java_yolu(app: &tauri::AppHandle) -> Option<PathBuf> {
-    let kok = app.path().resource_dir().ok()?.join("eimza").join("jre").join("bin");
+    let kok = gomulu_jre(app)?.join("bin");
     let adaylar: &[&str] = if cfg!(windows) { &["javaw.exe", "java.exe"] } else { &["java"] };
     adaylar.iter().map(|a| kok.join(a)).find(|p| p.is_file())
 }
@@ -265,7 +276,7 @@ pub fn adalet_baslat(app: tauri::AppHandle) -> Result<String, String> {
     if surec_canli() {
         return Ok("başlatılıyor".into());
     }
-    let java = java_yolu(&app).ok_or("Gömülü Java bu pakette yok (Windows kurulumunu güncelleyin)")?;
+    let java = java_yolu(&app).ok_or("Gömülü Java bu pakette yok (CanEditor kurulumunu güncelleyin)")?;
     let jar = jar_yolu(&app)?;
     if !jar.is_file() {
         return Err("Adalet E-İmza kurulu değil".into());

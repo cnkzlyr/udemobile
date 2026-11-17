@@ -2,7 +2,8 @@
   "bundle": {
     "resources": {
       "eimza/jre/": "eimza/jre/",
-      "eimza/eimza-win-agent.jar": "eimza/eimza-win-agent.jar"
+      "eimza/eimza-win-agent.jar": "eimza/eimza-win-agent.jar",
+      "sidecar/asistan-sunucu-x86_64/": "sidecar/asistan-sunucu-x86_64/"
     }
   }
 }
