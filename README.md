@@ -1,6 +1,6 @@
 # ⚖️ CanEditor (UdeMobile) — Çapraz Platform UYAP & Word Editörü
 
-[![Sürüm](https://img.shields.io/badge/Sürüm-v3.31.1-blue.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v3.31.1)
+[![Sürüm](https://img.shields.io/badge/Sürüm-v4.0.0-blue.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v4.0.0)
 [![Platformlar](https://img.shields.io/badge/Platformlar-Android%20%7C%20Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Web-success.svg)](https://github.com/cnkzlyr/udemobile/releases)
 [![UYAP](https://img.shields.io/badge/Format-UYAP_UDF_v1.8-0D47A1.svg)](https://uyap.gov.tr)
 [![Word](https://img.shields.io/badge/Format-MS_DOCX_OpenXML-2B579A.svg?logo=microsoft-word&logoColor=white)](https://microsoft.com)
@@ -40,10 +40,23 @@ CanEditor artık yalnızca bir editör değil; UETS, UYAP evrak ve A4 tarama ara
 
 Taşınabilir web sürümünde asistan için sunucuyu bilgisayarda başlatıp (`bash asistan/kur.sh && canasistan`) **Asistan → Bağlantı** penceresine `canasistan --anahtar` çıktısını girin.
 
-## 🚀 Hızlı İndirme (v3.31.1)
+## 🚀 Hızlı İndirme (v4.0.0)
+
+Kurulum paketleri **her şeyi içinde taşır**: Python, Java, görünmez Chrome ve sürücüsüz e-imza altyapısı. Ayrıca bir şey kurmanız gerekmez.
 
 | Platform | Paket Dosyası | Açıklama |
 | :--- | :--- | :--- |
+| **Windows 10 / 11 (64-bit)** | [**CanEditor_4.0.0_x64-setup.exe**](https://github.com/cnkzlyr/udemobile/releases/download/v4.0.0/CanEditor_4.0.0_x64-setup.exe) · [MSI](https://github.com/cnkzlyr/udemobile/releases/download/v4.0.0/CanEditor_4.0.0_x64_en-US.msi) | Standart kurulum (NSIS) · kurumsal MSI |
+| **macOS (Apple Silicon & Intel)** | [**CanEditor_4.0.0_universal.dmg**](https://github.com/cnkzlyr/udemobile/releases/download/v4.0.0/CanEditor_4.0.0_universal.dmg) | Tek tıkla Applications'a sürükleyin |
+| **Linux Debian / Ubuntu / Pardus** | [**CanEditor_4.0.0_amd64.deb**](https://github.com/cnkzlyr/udemobile/releases/download/v4.0.0/CanEditor_4.0.0_amd64.deb) | `sudo apt install ./CanEditor_4.0.0_amd64.deb` (e-imza kart hizmeti otomatik kurulur) |
+| **Linux Fedora / RHEL / openSUSE** | [**CanEditor-4.0.0-1.x86_64.rpm**](https://github.com/cnkzlyr/udemobile/releases/download/v4.0.0/CanEditor-4.0.0-1.x86_64.rpm) | `sudo dnf install ./CanEditor-4.0.0-1.x86_64.rpm` |
+| **Linux (tüm dağıtımlar)** | [**CanEditor_4.0.0_amd64.AppImage**](https://github.com/cnkzlyr/udemobile/releases/download/v4.0.0/CanEditor_4.0.0_amd64.AppImage) | `chmod +x` ile çalıştırın (e-imza için bir kez `sudo apt install pcscd libccid`) |
+| **Android (Telefon & Tablet)** | [**CanEditor-v4.0.0.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v4.0.0/CanEditor-v4.0.0.apk) · [en son](https://github.com/cnkzlyr/udemobile/releases/download/v4.0.0/CanEditor-latest.apk) | Termux gerektirmez; asistan APK içinde |
+| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v4.0.0.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v4.0.0/CanEditor-Portable-Web-GUI-v4.0.0.zip) | **Kurulumsuz;** `index.html` ile her sistemde çalışır |
+
+Tüm dosyalar: [GitHub Releases — v4.0.0](https://github.com/cnkzlyr/udemobile/releases/tag/v4.0.0)
+
+--- | :--- | :--- |
 | **Android (Telefon & Tablet)** | [**CanEditor-v3.31.1.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.31.1/CanEditor-v3.31.1.apk) | Güncel Android APK paketi (Termux gerektirmez) |
 | **Android (Her Zaman En Son)** | [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.31.1/CanEditor-latest.apk) | Kalıcı son sürüm bağlantısı |
 | **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v3.31.1.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v3.31.1/CanEditor-Portable-Web-GUI-v3.31.1.zip) | **Kurulumsuz;** zipten çıkarıp `index.html` açarak tüm işletim sistemlerinde doğrudan çalışır |
