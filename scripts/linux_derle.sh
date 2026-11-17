@@ -54,9 +54,10 @@ python scripts/masaustu_hazirla.py --java-home /usr/lib/jvm/java-21-openjdk-amd6
 
 if [ "$ANDROID" = 1 ]; then
   bilgi "4/5 Android: e-imza Java'sı + Termux'suz asistan çalışma ortamı (qemu ile doğrulanır)"
-  python scripts/jre_hazirla.py
-  python scripts/uyapmobil_hazirla.py
-  python scripts/asistan_android_hazirla.py
+  # Android adımları Linux paketlerini engellemesin: biri başarısız olursa uyarı verilir, derleme sürer
+  for b in jre_hazirla uyapmobil_hazirla asistan_android_hazirla; do
+    python "scripts/$b.py" || { echo "UYARI: $b başarısız; Linux paketleriyle devam ediliyor"; ANDROID_HATA=1; }
+  done
 else
   bilgi "4/5 Android asistan çalışma ortamı atlandı"
 fi
@@ -75,3 +76,4 @@ B="${CARGO_TARGET_DIR:-src-tauri/target}/release/bundle"
 cp -f "$B"/deb/*.deb "$B"/rpm/*.rpm "$B"/appimage/*.AppImage dist-linux/
 ls -la dist-linux/
 bilgi "TAMAM: dist-linux/"
+[ "${ANDROID_HATA:-0}" = 0 ] || { echo "UYARI: Android çalışma ortamlarından biri hazırlanamadı (yukarıya bakın)"; exit 3; }

@@ -76,8 +76,10 @@ def python_indir(hedef: Path) -> None:
         f.unlink()
     for f in py.glob("lib/libtk*"):
         f.unlink()
-    for f in (py / f"lib/python{PY_SURUM}/lib-dynload").glob("_tkinter*"):
-        f.unlink()
+    # _tkinter: Android'de pencere yok · _crypt: kullanılmıyor (3.13'te kaldırıldı), libcrypt.so.1 ister
+    for kalip in ("_tkinter*", "_crypt*"):
+        for f in (py / f"lib/python{PY_SURUM}/lib-dynload").glob(kalip):
+            f.unlink()
 
 
 def bagimliliklar(site: Path) -> None:
@@ -119,6 +121,9 @@ def glibc_topla(rt: Path) -> None:
     while kuyruk:
         yol = kuyruk.pop()
         for ad in um.elf_gerekenler(yol):
+            # "$ORIGIN/../lib/libpython3.12.so.1.0" gibi yol içeren kayıtlar paketin kendi dosyasıdır
+            if "/" in ad:
+                ad = ad.rsplit("/", 1)[1]
             if ad in secilen or ad in yerel:
                 continue
             g = um.gerceklestir(str(ham), ad)

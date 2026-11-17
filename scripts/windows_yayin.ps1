@@ -11,7 +11,8 @@
 # başlatmanızı ister, sonra aynı komutu tekrar çalıştırırsınız.
 # Not: Windows PowerShell yerel komutların stderr çıktısını hata sanabildiği için ErrorActionPreference
 #      'Continue' tutulur; her yerel komutun çıkış kodu Calistir ile ayrıca denetlenir.
-param([string]$Surum = "4.0.0", [switch]$LinuxYok, [switch]$AndroidYok)
+param([string]$Surum = "4.0.0", [switch]$LinuxYok, [switch]$AndroidYok, [switch]$Yeniden)
+# -Yeniden: daha önce derlenmiş paketler olsa da her şeyi baştan derler
 $ErrorActionPreference = "Continue"
 $ProgressPreference = "SilentlyContinue"
 [Console]::OutputEncoding = [Text.Encoding]::UTF8
@@ -99,7 +100,10 @@ if ($LASTEXITCODE -ne 0) { Calistir gh auth login --hostname github.com --git-pr
 
 # ---------------------------------------------------------------------------------------------
 Adim "4/7 Linux paketleri + Android çalışma ortamları (WSL içinde, ~30-40 dk)"
-if (-not $LinuxYok) {
+$linuxHazir = (Get-ChildItem "dist-linux\*${Surum}*" -ErrorAction SilentlyContinue).Count -ge 3 -and
+    (Test-Path "build\eimza\jre-arm64.zip") -and (Test-Path "build\asistan-android\asistan-rt-arm64.zip") -and (Test-Path "build\uyapmobil\rt-arm64.zip")
+if ($linuxHazir -and -not $Yeniden) { Write-Host "   Linux paketleri ve Android çalışma ortamları zaten hazır (yeniden derlemek için -Yeniden)." }
+elseif (-not $LinuxYok) {
     $wk = ((wsl -d $Distro -u root -- wslpath -a ($Kok.Replace('\', '/'))) -join "").Trim()
     $androidBayrak = if ($AndroidYok) { "--android-yok" } else { "" }
     $bash = @"
@@ -110,21 +114,28 @@ mkdir -p /root/caneditor
 rsync -a --delete --exclude node_modules --exclude src-tauri/target --exclude build --exclude release --exclude dist-linux --exclude .git --exclude src-tauri/sidecar --exclude 'src-tauri/tarayici-*' --exclude 'src-tauri/eimza/jre*' '$wk/' /root/caneditor/
 cd /root/caneditor
 find . -name '*.sh' -exec sed -i 's/\r$//' {} +
-bash scripts/linux_derle.sh $androidBayrak
+hata=0
+bash scripts/linux_derle.sh $androidBayrak || hata=`$?
+# Yarıda kalsa bile hazırlanabilenler Windows tarafına taşınır
 mkdir -p '$wk/dist-linux' '$wk/build'
-cp -f dist-linux/* '$wk/dist-linux/'
+cp -f dist-linux/* '$wk/dist-linux/' 2>/dev/null || true
 for d in eimza asistan-android uyapmobil; do [ -d build/`$d ] && rm -rf '$wk/build/'`$d && cp -r build/`$d '$wk/build/'; done
-true
+exit `$hata
 "@
     # Komutlar LF satır sonlu dosyaya yazılıp WSL'de çalıştırılır (wsl.exe çok satırlı argümanı bozabilir)
     New-Item -ItemType Directory -Force build | Out-Null
     [IO.File]::WriteAllText("$Kok\build\wsl_derle.sh", $bash.Replace("`r", ""), (New-Object Text.UTF8Encoding $false))
     wsl -d $Distro -u root -- bash "$wk/build/wsl_derle.sh"
-    if ($LASTEXITCODE -ne 0) { Uyar "Linux derlemesi başarısız oldu (yukarıdaki hatalara bakın); Windows paketleriyle devam ediliyor." }
+    if ($LASTEXITCODE -eq 3) { Uyar "Linux paketleri hazır; Android çalışma ortamlarından biri hazırlanamadı (yukarıdaki UYARI satırlarına bakın)." }
+    elseif ($LASTEXITCODE -ne 0) { Uyar "Linux derlemesi başarısız oldu (yukarıdaki hatalara bakın); Windows paketleriyle devam ediliyor." }
 }
 
 # ---------------------------------------------------------------------------------------------
 Adim "5/7 Windows: gömülü Java + Hukuk Asistanı sunucusu + görünmez Chrome + kurulum dosyaları"
+$winExe = "src-tauri\target\release\bundle\nsis\CanEditor_${Surum}_x64-setup.exe"
+if ((Test-Path $winExe) -and -not $Yeniden) {
+    Write-Host "   Windows kurulum dosyaları zaten derlenmiş (yeniden derlemek için -Yeniden)."
+} else {
 Calistir python -m pip install --upgrade pip
 Calistir python -m pip install -r asistan/requirements.txt pyinstaller
 Calistir python scripts/masaustu_hazirla.py --java-home $env:JAVA_HOME
@@ -140,6 +151,7 @@ if ($LASTEXITCODE -ne 0) {
     # Windows 11 24H2'de VBScript kapalıysa MSI (WiX) derlenemez: yalnız .exe kurulumuyla devam
     Uyar "MSI derlenemedi (VBScript kapalı olabilir); yalnız .exe kurulum dosyası yayınlanacak."
     Calistir npx.cmd tauri build --bundles nsis
+}
 }
 
 # ---------------------------------------------------------------------------------------------
@@ -207,17 +219,20 @@ Kurulum paketleri her şeyi içinde taşır: Python, Java, görünmez Chrome ve 
 - UYAP oturumu: e-imza kartı takılıysa e-imza; değilse ya da bağlantı koparsa bağlanana kadar Mobil İmza
 - Android: asistan Termux gerektirmez
 
-Windows: CanEditor_${Surum}_x64-setup.exe (SmartScreen: "Ek bilgi" -> "Yine de çalıştır") veya .msi
+Windows: CanEditor_${Surum}_x64-setup.exe veya .msi (SmartScreen uyarısında: Ek bilgi, ardından Yine de çalıştır)
 Linux: sudo apt install ./CanEditor_${Surum}_amd64.deb  ·  sudo dnf install ./CanEditor-${Surum}-1.x86_64.rpm  ·  AppImage: chmod +x
-Android: CanEditor-v$Surum.apk ("Bilinmeyen kaynaklar" iznini verin)
+Android: CanEditor-v$Surum.apk (Bilinmeyen kaynaklar iznini verin)
 macOS: bu sürümde paket yok (Apple donanımında derlenmesi gerekir).
 "@
+# Notlar dosyayla verilir: Windows PowerShell 5.1 tırnaklı argümanları yerel programlara bozuk geçirir
+$notDosyasi = "$env:TEMP\caneditor-surum-notlari.md"
+[IO.File]::WriteAllText($notDosyasi, $notlar, (New-Object Text.UTF8Encoding $false))
 $yollar = [string[]]($dosyalar | ForEach-Object { $_.FullName })
 gh release view "v$Surum" 2>$null | Out-Null
 if ($LASTEXITCODE -eq 0) {
     gh release upload "v$Surum" $yollar --clobber
 } else {
-    gh release create "v$Surum" $yollar --target main --title "CanEditor v$Surum" --notes $notlar
+    gh release create "v$Surum" $yollar --target main --title "CanEditor v$Surum" --notes-file $notDosyasi
 }
 if ($LASTEXITCODE -ne 0) { throw "GitHub Release oluşturulamadı / dosyalar yüklenemedi" }
 Write-Host ""
