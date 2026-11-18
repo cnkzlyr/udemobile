@@ -98,7 +98,6 @@ jobs:
           if [ -f "release/CanEditor-v$V.apk" ]; then
             cp "release/CanEditor-v$V.apk" out/
             cp "release/CanEditor-v$V.apk" out/CanEditor-latest.apk
-            [ -f "release/UYAP-Editor-v$V.apk" ] && cp "release/UYAP-Editor-v$V.apk" out/ && cp "release/UYAP-Editor-v$V.apk" out/UYAP-Editor-latest.apk
             "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs "out/CanEditor-v$V.apk" | grep -i 'SHA-256'
           else
             echo "::warning::release/CanEditor-v$V.apk yok: APK yayimlanmadi."
@@ -231,7 +230,11 @@ jobs:
           tagName: ${{ env.TAG }}
           releaseName: 'CanEditor ${{ env.TAG }}'
           releaseCommitish: ${{ github.sha }}
-          releaseBody: 'CanEditor Cross-Platform Desktop GUI Release (Windows .exe/.msi, macOS .dmg, Linux .AppImage/.deb)'
+          releaseBody: |
+            CanEditor ${{ env.TAG }} — Birleşik Hukuk Platformu & Çapraz Platform UYAP Editörü.
+
+            Tüm platform paketleri (Windows `.exe`/`.msi`, macOS Universal `.dmg`, Linux `.deb`/`.rpm`/`.AppImage`, Android `.apk`, Taşınabilir Web `.zip`) kurulum gerektirmeden gömülü Python, Java, görünmez Chrome ve sürücüsüz e-İmza altyapısını içerir.
+            - Tek uygulama: CanEditor (UYAP Dosyalarım, Google Drive Veritabanı İndeksi, Notion & TickTick, Resmî Havelsan JAR Dönüştürme, HAYFA İçtihat/Haber/Resmî Gazete/Çevrimdışı Adliye & IBAN, 7 Hukuk Hesaplayıcısı)
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}

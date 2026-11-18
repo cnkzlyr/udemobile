@@ -1,71 +1,64 @@
-# ⚖️ CanEditor (UdeMobile) — Çapraz Platform UYAP & Word Editörü
+# ⚖️ CanEditor (UdeMobile) — Birleşik Hukuk Platformu & Çapraz Platform UYAP Editörü
 
-[![Sürüm](https://img.shields.io/badge/Sürüm-v4.0.0-blue.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v4.0.0)
-[![Platformlar](https://img.shields.io/badge/Platformlar-Android%20%7C%20Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Web-success.svg)](https://github.com/cnkzlyr/udemobile/releases)
+[![Sürüm](https://img.shields.io/badge/Sürüm-v4.1.0-c8a45a.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v4.1.0)
+[![Platformlar](https://img.shields.io/badge/Platformlar-Android%20%7C%20Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Web-0f2341.svg)](https://github.com/cnkzlyr/udemobile/releases)
 [![UYAP](https://img.shields.io/badge/Format-UYAP_UDF_v1.8-0D47A1.svg)](https://uyap.gov.tr)
 [![Word](https://img.shields.io/badge/Format-MS_DOCX_OpenXML-2B579A.svg?logo=microsoft-word&logoColor=white)](https://microsoft.com)
 [![5070 E-İmza](https://img.shields.io/badge/5070_S.K.-E--İmza_%26_Mobil_İmza-darkgreen.svg)](https://www.mevzuat.gov.tr/mevzuat?MevzuatNo=5070&MevzuatTur=1&MevzuatTertip=5)
 [![Lisans](https://img.shields.io/badge/Lisans-MIT-green.svg)](LICENSE)
 
-**CanEditor (UdeMobile)**; avukatlar, hakimler, savcılar, katipler ve tüm hukuk profesyonelleri için geliştirilmiş; mobil cihazlarda, masaüstünde (Windows, macOS, Linux) ve modern web tarayıcılarında **Google Dokümanlar & Word konforunda** UYAP dilekçesi hazırlamayı, düzenlemeyi, okumayı, **elektronik imza doğrulamayı** ve **5070 Sayılı Kanuna uygun gerçek Mobil İmza / USB Akıllı Kart ile mühürlemeyi** sağlayan yeni nesil, tam kapsamlı ve bağımsız bir hukuk editörüdür.
+**CanEditor (UdeMobile)**; avukatlar, hakimler, savcılar ve hukuk profesyonelleri için geliştirilmiş **tek çatı birleşik hukuk platformudur**. Masaüstünde (Windows, macOS, Linux), Android'de (Termux'suz) ve web tarayıcısında:
+- **%100 Havelsan UYAP uyumlu UDF & Word editörü** (tek başına CanEditor — ikinci editör uygulaması gerekmez)
+- **Resmî Havelsan JAR dönüşüm motoru** (UDF → PDF / ODT / DOCX + paylaşım)
+- **UYAP Dosya Yönetim Merkezi** (tüm davalar, evraklar, notlar, duruşmalar, yeni evrak & tebligat bildirimleri)
+- **Görünmez arka plan UYAP oturumu** (e-İmza takılıyken e-İmza, değilken hiç tarayıcı penceresi göstermeden Mobil İmza ile sürekli bağlı)
+- **Google Drive sürekli eşitleme & Drive → SQLite veritabanı indeksi** (Drive dosyalarında anlık arama ve doğrudan açma)
+- **Notion & TickTick canlı yönetimi + otomatik aktarım**
+- **`hayfahukuk.com` entegrasyonu** (HAYFA kurumsal tasarımı, Yargıtay İçtihat Arama + 1 tıkla dilekçeye ekleme, Hukuk Haberleri, günlük Resmî Gazete, Mevzuat, **%100 çevrimdışı Adliye & IBAN Rehberi**, 7 hukuki hesaplayıcı: Vekâlet, Faiz, Harç, SMM, CMK, İnfaz, Ceza)
 
 ---
 
-## 🧩 v4.0.0: Tek Uygulama — Editör + Hukuk Asistanı (8 depo birleşti)
+## 🧩 v4.1.0: Tek Uygulama — Birleşik Hukuk Platformu
 
-CanEditor artık yalnızca bir editör değil; UETS, UYAP evrak ve A4 tarama araçlarını da içeren tek bir hukuk asistanı. Ayrıntılı mimari: [`docs/BIRLESIK_MIMARI.md`](docs/BIRLESIK_MIMARI.md).
+Ayrıntılı mimari: [`docs/BIRLESIK_MIMARI.md`](docs/BIRLESIK_MIMARI.md) · Geliştirme özeti: [`docs/ANTIGRAVITY_HANDOFF.md`](docs/ANTIGRAVITY_HANDOFF.md)
 
-| Birleşen depo | Yeni yeri | Ne yapar |
+| Birleşen modül / kaynak | Konum | Ne yapar |
 |---|---|---|
-| Avukat Asistanı | `asistan/moduller/avukatasistan` | UETS tebligatlarını indirir, süreyi hesaplar, TickTick/Notion/Telegram'a işler |
-| UYAP Evrak İndirici | `asistan/moduller/evrak` | UYAP Avukat Portal evraklarını kataloglar, indirir, PDF'e çevirir |
-| NAPS2 & UYAP Thunar Araçları | `asistan/moduller/a4` | Görsel/TIFF/PDF/UDF → tek A4 PDF |
-| UYAP Editör Modern | `platform/uyap-editor-modern` | Resmî UYAP Editörü için modern arayüz paketleri |
-| UYAP-Termux Pro | `platform/termux` | Android'de resmî UYAP Editörü + USB e-imza |
+| **CanEditor (Çekirdek)** | `frontend/`, `src-tauri/`, `android/` | %100 Havelsan UDF v1.8 kaynak koruma motorlu editör, e-İmza / Mobil İmza |
+| **UYAP Dosya & Evrak** | `asistan/moduller/evrak`, `asistan/sunucu.py` | Dava yönetimi, evrak kataloğu, nöbetçi, yeni evrak/tebligat bildirimleri |
+| **Avukat Asistanı + Notion/TT** | `asistan/moduller/avukatasistan`, `asistan/entegrasyon.py` | UETS e-tebligat → süre → canlı Notion/TickTick/Telegram senkronu |
+| **Google Drive & Veritabanı** | `asistan/drive_indeks.py` | Sürekli Drive eşitleme + tüm Drive dosyalarını SQLite veritabanına indeksleme |
+| **Resmî JAR & A4 PDF Motoru** | `asistan/jar_donustur.py`, `asistan/moduller/a4` | Havelsan JAR'larıyla 1:1 PDF/ODT/DOCX dönüşümü + NAPS2 A4 PDF birleştirme |
+| **HAYFA Hukuk Köprüsü** | `asistan/hayfa_kopru.py`, `frontend/public/hayfa.js` | İçtihat, haberler, Resmî Gazete, mevzuat, çevrimdışı Adliye & IBAN, 7 hesaplayıcı |
 
-**Yeni "Asistan" menüsü (ve Ctrl+K komut paleti):**
-- ⏱️ **Yasal süre hesabı** — UETS 5. gün tebliğ, merciye göre 7/14/30 gün, hafta sonu uzatması; resmî/adli tatil uyarıları. *Her platformda, internetsiz.*
-- 📄 **A4 PDF birleştirici** — taranmış görsel, çok sayfalı TIFF ve PDF'leri UYAP'a uygun tek A4 PDF yapar. *Her platformda, internetsiz.*
-- 📅 **Ajanda** — UETS süre sonları ve UYAP/takvim duruşmaları tek listede.
-- 🗂️ **UYAP evrak arama** — indirilen tüm evraklarda Türkçe-duyarsız arama; tek tıkla editörde açma.
-- ⚙️ **Görevler** — UETS senkronu, UYAP evrak/tebligat/duruşma indirme, nöbetçi taraması.
+**Asistan menüsü (`Ctrl+K` veya yüzen ⚖️ Asistan düğmesi):**
+- 🔐 **UYAP Giriş** — e-İmza takılıyken e-İmza, değilken hiç tarayıcı açmadan arka planda Mobil İmza ile sürekli bağlı oturum.
+- 📁 **UYAP Dosyalarım** — tüm açık/kapalı davalar, taraflar, evraklar, yerel & Notion senkronlu notlar, eşleşen Drive dosyaları.
+- 🔔 **Yeni Evrak & Tebligatlar** — UYAP ve UETS'ye düşen yeni evraklarda rozet, masaüstü/mobil bildirim ve Telegram uyarısı.
+- ☁️ **Google Drive & Veritabanı** — klasör/webhook ayarı, Drive→SQLite indeksleme, Drive dosyalarında anlık arama ve doğrudan açma.
+- 📋 **Notion & TickTick** — canlı dava notu ekleme, mahkeme bazlı TickTick görevi açma/tamamlama, otomatik senkron.
+- 🔄 **Resmî JAR Dönüştür & Paylaş** — açık belge veya cihazdaki `.udf` dosyasını resmî Havelsan JAR motoruyla PDF/ODT/DOCX üretip paylaşma.
+- 📰 **HAYFA Hukuk** — Yargıtay İçtihat Arama (dilekçeye 1 tıkla ekle), Hukuk Haberleri, günlük Resmî Gazete, Mevzuat ve **çevrimdışı Adliye & IBAN Rehberi**.
+- ⏱️ **Yasal Süre & 🧮 7 Hesaplayıcı** — UETS 5. gün kuralı, Vekâlet, Faiz, Harç, SMM, CMK, **İnfaz**, **Ceza** *(her platformda çevrimdışı)*.
+- 📄 **A4 PDF Birleştirici** — görsel/TIFF/PDF → UYAP uyumlu tek A4 PDF *(her platformda çevrimdışı)*.
 
-**Hiçbir şey kurmanız gerekmez:** masaüstü kurulum paketleri (Windows, macOS, Linux) asistan sunucusunu, Java'yı ve e-imza altyapısını içinde taşır. Python veya Java kurmazsınız; akıllı kart / USB token için AKİS ya da ArkSigner sürücüsü de gerekmez (kart, gömülü Adalet E-İmza ile doğrudan okunur; Linux .deb/.rpm kart hizmetini otomatik kurar).
+**Hiçbir şey kurmanız gerekmez:** masaüstü kurulum paketleri (Windows, macOS, Linux) asistan sunucusunu, Java'yı, görünmez Chrome'u ve sürücüsüz e-imza altyapısını içinde taşır. Android APK'sı ise Termux gerektirmeden gömülü Python asistan sunucusuyla gelir.
 
-**Android'de Termux gerekmez:** asistan sunucusu APK'nın içinde gelir ve kendiliğinden başlar (ajanda, evrak kataloğu, A4). UETS / UYAP evrak indirme gibi tarayıcı otomasyonu gerektiren görevler masaüstü uygulamasında çalışır.
-
-**Tarayıcı hiç açılmaz:** masaüstü paketleri görünmez bir Chrome'u içinde taşır; UETS ve UYAP otomasyonu tamamen arka planda yürür, Chrome kurmanız gerekmez.
-
-**UYAP oturumu kendiliğinden:** e-imza kartı takılıysa e-imza kullanılır. Takılı değilse ya da bağlantı koparsa, oturum açılana kadar telefonunuza Mobil İmza gönderilir (denemeler arasında 1–10 dk beklenir; bu sırada kart takılırsa hemen e-imzaya dönülür). Mobil İmza için `.uyap_config.json` içine `tc`, `gsm`, `operator` yazmanız yeterli.
-
-Taşınabilir web sürümünde asistan için sunucuyu bilgisayarda başlatıp (`bash asistan/kur.sh && canasistan`) **Asistan → Bağlantı** penceresine `canasistan --anahtar` çıktısını girin.
-
-## 🚀 Hızlı İndirme (v4.0.0)
-
-> ⚠️ **v4.0.0 henüz yayınlanmadı** — aşağıdaki v4.0.0 bağlantıları yayın yapılana kadar 404 verir. Şimdilik çalışan indirmeler: [**Android APK v3.31.1**](https://github.com/cnkzlyr/udemobile/releases/download/v3.31.1/CanEditor-latest.apk) · [**Taşınabilir Web ZIP v3.31.1**](https://github.com/cnkzlyr/udemobile/releases/download/v3.31.1/CanEditor-Portable-Web-GUI-v3.31.1.zip) · [tüm sürümler](https://github.com/cnkzlyr/udemobile/releases)
+## 🚀 Hızlı İndirme (v4.1.0)
 
 Kurulum paketleri **her şeyi içinde taşır**: Python, Java, görünmez Chrome ve sürücüsüz e-imza altyapısı. Ayrıca bir şey kurmanız gerekmez.
 
 | Platform | Paket Dosyası | Açıklama |
 | :--- | :--- | :--- |
-| **Windows 10 / 11 (64-bit)** | [**CanEditor_4.0.0_x64-setup.exe**](https://github.com/cnkzlyr/udemobile/releases/download/v4.0.0/CanEditor_4.0.0_x64-setup.exe) · [MSI](https://github.com/cnkzlyr/udemobile/releases/download/v4.0.0/CanEditor_4.0.0_x64_en-US.msi) | Standart kurulum (NSIS) · kurumsal MSI |
-| **macOS (Apple Silicon & Intel)** | [**CanEditor_4.0.0_universal.dmg**](https://github.com/cnkzlyr/udemobile/releases/download/v4.0.0/CanEditor_4.0.0_universal.dmg) | Tek tıkla Applications'a sürükleyin |
-| **Linux Debian / Ubuntu / Pardus** | [**CanEditor_4.0.0_amd64.deb**](https://github.com/cnkzlyr/udemobile/releases/download/v4.0.0/CanEditor_4.0.0_amd64.deb) | `sudo apt install ./CanEditor_4.0.0_amd64.deb` (e-imza kart hizmeti otomatik kurulur) |
-| **Linux Fedora / RHEL / openSUSE** | [**CanEditor-4.0.0-1.x86_64.rpm**](https://github.com/cnkzlyr/udemobile/releases/download/v4.0.0/CanEditor-4.0.0-1.x86_64.rpm) | `sudo dnf install ./CanEditor-4.0.0-1.x86_64.rpm` |
-| **Linux (tüm dağıtımlar)** | [**CanEditor_4.0.0_amd64.AppImage**](https://github.com/cnkzlyr/udemobile/releases/download/v4.0.0/CanEditor_4.0.0_amd64.AppImage) | `chmod +x` ile çalıştırın (e-imza için bir kez `sudo apt install pcscd libccid`) |
-| **Android (Telefon & Tablet)** | [**CanEditor-v4.0.0.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v4.0.0/CanEditor-v4.0.0.apk) · [en son](https://github.com/cnkzlyr/udemobile/releases/download/v4.0.0/CanEditor-latest.apk) | Termux gerektirmez; asistan APK içinde |
-| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v4.0.0.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v4.0.0/CanEditor-Portable-Web-GUI-v4.0.0.zip) | **Kurulumsuz;** `index.html` ile her sistemde çalışır |
+| **Windows 10 / 11 (64-bit)** | [**CanEditor_4.1.0_x64-setup.exe**](https://github.com/cnkzlyr/udemobile/releases/download/v4.1.0/CanEditor_4.1.0_x64-setup.exe) · [MSI](https://github.com/cnkzlyr/udemobile/releases/download/v4.1.0/CanEditor_4.1.0_x64_en-US.msi) | Standart kurulum (NSIS) · kurumsal MSI |
+| **macOS (Apple Silicon & Intel)** | [**CanEditor_4.1.0_universal.dmg**](https://github.com/cnkzlyr/udemobile/releases/download/v4.1.0/CanEditor_4.1.0_universal.dmg) | Universal (M1/M2/M3/M4 + Intel) — Applications'a sürükleyin |
+| **Linux Debian / Ubuntu / Pardus** | [**CanEditor_4.1.0_amd64.deb**](https://github.com/cnkzlyr/udemobile/releases/download/v4.1.0/CanEditor_4.1.0_amd64.deb) | `sudo apt install ./CanEditor_4.1.0_amd64.deb` (e-imza kart hizmeti otomatik kurulur) |
+| **Linux Fedora / RHEL / openSUSE** | [**CanEditor-4.1.0-1.x86_64.rpm**](https://github.com/cnkzlyr/udemobile/releases/download/v4.1.0/CanEditor-4.1.0-1.x86_64.rpm) | `sudo dnf install ./CanEditor-4.1.0-1.x86_64.rpm` |
+| **Linux (tüm dağıtımlar)** | [**CanEditor_4.1.0_amd64.AppImage**](https://github.com/cnkzlyr/udemobile/releases/download/v4.1.0/CanEditor_4.1.0_amd64.AppImage) | `chmod +x` ile çalıştırın (e-imza için bir kez `sudo apt install pcscd libccid`) |
+| **Android (Telefon & Tablet)** | [**CanEditor-v4.1.0.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v4.1.0/CanEditor-v4.1.0.apk) · [en son](https://github.com/cnkzlyr/udemobile/releases/download/v4.1.0/CanEditor-latest.apk) | Tek uygulama · Termux gerektirmez; gömülü Python asistan APK içinde |
+| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v4.1.0.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v4.1.0/CanEditor-Portable-Web-GUI-v4.1.0.zip) | **Kurulumsuz;** `index.html` ile her sistemde çalışır |
 
-Tüm dosyalar: [GitHub Releases — v4.0.0](https://github.com/cnkzlyr/udemobile/releases/tag/v4.0.0)
-
-### Önceki sürüm (v3.31.1 — şu an indirilebilir)
-
-| Platform | Paket Dosyası | Açıklama |
-| :--- | :--- | :--- |
-| **Android (Telefon & Tablet)** | [**CanEditor-v3.31.1.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.31.1/CanEditor-v3.31.1.apk) | Güncel Android APK paketi (Termux gerektirmez) |
-| **Android (Her Zaman En Son)** | [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.31.1/CanEditor-latest.apk) | Kalıcı son sürüm bağlantısı |
-| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v3.31.1.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v3.31.1/CanEditor-Portable-Web-GUI-v3.31.1.zip) | **Kurulumsuz;** zipten çıkarıp `index.html` açarak tüm işletim sistemlerinde doğrudan çalışır |
-| **Windows / macOS / Linux** | [**GitHub Releases Sayfası**](https://github.com/cnkzlyr/udemobile/releases/tag/v3.31.1) | GitHub Actions CI ile derlenen yerel ikili (.msi, .exe, .dmg, .AppImage, .deb, .rpm) paketleri |
+Tüm dosyalar ve sürümler: [GitHub Releases — v4.1.0](https://github.com/cnkzlyr/udemobile/releases/tag/v4.1.0) · [Tüm Sürümler](https://github.com/cnkzlyr/udemobile/releases)
 
 ---
 
