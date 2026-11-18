@@ -189,6 +189,16 @@ jobs:
           python -m pip install -r asistan/requirements.txt pyinstaller
           PYTHONUTF8=1 PYTHONIOENCODING=utf-8 python scripts/masaustu_hazirla.py --java-home "${{ steps.java.outputs.path }}"
 
+      - name: Linux ldconfig for embedded Java (libjvm.so linuxdeploy fix)
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          echo "${{ steps.java.outputs.path }}/lib/server" | sudo tee /etc/ld.so.conf.d/java-jvm.conf
+          echo "${{ steps.java.outputs.path }}/lib" | sudo tee -a /etc/ld.so.conf.d/java-jvm.conf
+          echo "$PWD/src-tauri/eimza/jre/lib/server" | sudo tee -a /etc/ld.so.conf.d/java-jvm.conf
+          echo "$PWD/src-tauri/eimza/jre/lib" | sudo tee -a /etc/ld.so.conf.d/java-jvm.conf
+          sudo ldconfig
+          ldconfig -p | grep libjvm || true
+
       # macOS universal paket Intel Mac'lerde de calismali: Java ve sunucu x86_64 icin de uretilir (Rosetta).
       - name: Setup Java 21 x64 (macOS Intel)
         if: matrix.platform == 'macos-latest'
@@ -238,6 +248,7 @@ jobs:
           APPIMAGE_EXTRACT_AND_RUN: 1
           NO_STRIP: "true"
           ARCH: "x86_64"
+          LD_LIBRARY_PATH: "${{ steps.java.outputs.path }}/lib/server:${{ steps.java.outputs.path }}/lib:/home/runner/work/udemobile/udemobile/src-tauri/eimza/jre/lib/server:/home/runner/work/udemobile/udemobile/src-tauri/eimza/jre/lib"
         with:
           tagName: ${{ env.TAG }}
           releaseName: 'CanEditor ${{ env.TAG }}'
