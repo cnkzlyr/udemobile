@@ -42,6 +42,8 @@ Taşınabilir web sürümünde asistan için sunucuyu bilgisayarda başlatıp (`
 
 ## 🚀 Hızlı İndirme (v4.0.0)
 
+> ⚠️ **v4.0.0 henüz yayınlanmadı** — aşağıdaki v4.0.0 bağlantıları yayın yapılana kadar 404 verir. Şimdilik çalışan indirmeler: [**Android APK v3.31.1**](https://github.com/cnkzlyr/udemobile/releases/download/v3.31.1/CanEditor-latest.apk) · [**Taşınabilir Web ZIP v3.31.1**](https://github.com/cnkzlyr/udemobile/releases/download/v3.31.1/CanEditor-Portable-Web-GUI-v3.31.1.zip) · [tüm sürümler](https://github.com/cnkzlyr/udemobile/releases)
+
 Kurulum paketleri **her şeyi içinde taşır**: Python, Java, görünmez Chrome ve sürücüsüz e-imza altyapısı. Ayrıca bir şey kurmanız gerekmez.
 
 | Platform | Paket Dosyası | Açıklama |
@@ -56,7 +58,10 @@ Kurulum paketleri **her şeyi içinde taşır**: Python, Java, görünmez Chrome
 
 Tüm dosyalar: [GitHub Releases — v4.0.0](https://github.com/cnkzlyr/udemobile/releases/tag/v4.0.0)
 
---- | :--- | :--- |
+### Önceki sürüm (v3.31.1 — şu an indirilebilir)
+
+| Platform | Paket Dosyası | Açıklama |
+| :--- | :--- | :--- |
 | **Android (Telefon & Tablet)** | [**CanEditor-v3.31.1.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.31.1/CanEditor-v3.31.1.apk) | Güncel Android APK paketi (Termux gerektirmez) |
 | **Android (Her Zaman En Son)** | [**CanEditor-latest.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v3.31.1/CanEditor-latest.apk) | Kalıcı son sürüm bağlantısı |
 | **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v3.31.1.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v3.31.1/CanEditor-Portable-Web-GUI-v3.31.1.zip) | **Kurulumsuz;** zipten çıkarıp `index.html` açarak tüm işletim sistemlerinde doğrudan çalışır |
