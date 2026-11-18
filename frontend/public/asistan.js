@@ -425,6 +425,17 @@
   function sunucuHatasi(ic, e) {
     const anahtarYok = e && e.durum === 401;
     const sekme = aktifSekme;
+    const kalici = e && (e.kalici || /çalışma ortamı yok|kapandı|pakette bulunamadı|başlatılamadı/i.test(e.message || ''));
+    if (paketli() && !anahtarYok && (kalici || yenidenSayac >= 25)) {
+      // Kendiliğinden düzelmeyecek durum: sonsuz "başlatılıyor" yerine gerçek neden gösterilir
+      clearTimeout(yenidenZam);
+      ic.innerHTML = `<div class="ca-kart"><b>⚠️ Hukuk Asistanı başlatılamadı</b>
+        <p>${esc(e && e.message || 'Sunucu yanıt vermiyor.')}</p>
+        <p class="ca-soluk">Editör normal çalışmaya devam eder. Sorun sürerse bu yazıyı geliştiriciye iletin.</p>
+        <button class="ca-btn ana" type="button" id="ca-tekrar">🔄 Yeniden dene</button></div>`;
+      ic.querySelector('#ca-tekrar').onclick = () => { yenidenSayac = 0; baglantiUnut(); sekmeAc(sekme); };
+      return;
+    }
     if (paketli() && !anahtarYok) {
       // Paketli uygulamada kullanıcıya komut gösterilmez: sunucu arka planda açılıyor, kendiliğinden yeniden denenir
       yenidenSayac++;
