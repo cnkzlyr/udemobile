@@ -547,7 +547,25 @@ class UyapWatcher:
             ).replace(",", ".")
             self.tg.send_message(tg_report)
 
+        self._durum_yaz(stats, drive_dir)
         return stats
+
+    def _durum_yaz(self, stats: dict, drive_dir) -> None:
+        """Son tur özeti: CanEditor Asistan paneli (Drive / Nöbetçi durumu) bu dosyayı okur."""
+        try:
+            durum = {
+                "bitis": dt.datetime.now().isoformat(timespec="seconds"),
+                "sonraki_dk": self.config.get("interval_minutes", 15),
+                "istatistik": stats,
+                "drive_dizini": str(drive_dir) if drive_dir else "",
+                "drive_webhook": bool(self.config.get("google_drive_webhook")),
+                "indirme_dizini": str(self.download_dir),
+            }
+            gecici = DATA_DIR / "watcher_durum.json.tmp"
+            gecici.write_text(json.dumps(durum, ensure_ascii=False, indent=2), encoding="utf-8")
+            os.replace(gecici, DATA_DIR / "watcher_durum.json")
+        except Exception as e:  # durum yazılamaması taramayı bozmaz
+            logger.debug("watcher_durum.json yazılamadı: %s", e)
 
     def check_upcoming_hearings(self) -> None:
         """Önümüzdeki 7 günün duruşmalarını çeker, yaklaşanları Telegram'dan bildirir."""

@@ -283,6 +283,130 @@ def ajanda(gun: int = 60) -> dict:
     return {"olaylar": tekil, "kaynaklar": {"defter": defter_yolu().is_file(), "katalog": katalog_yolu().is_file()}}
 
 
+def evrak_veri_dizini() -> Path:
+    return Path(os.environ.get("UYAP_VERI_DIZINI") or EVRAK_DIR)
+
+
+def yenilikler(sonra: str = "", limit: int = 30) -> dict:
+    """'sonra' anından (ISO) beri düşen yeni evrak / tebligatlar — Asistan rozeti ve bildirimleri için."""
+    if not sonra:
+        sonra = time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(time.time() - 86400))
+    sonra = sonra[:19]
+    sonuc = {"sonra": sonra, "evrak_sayisi": 0, "evraklar": [], "tebligat_sayisi": 0, "tebligatlar": [], "en_yeni": sonra}
+    k = _ro(katalog_yolu())
+    if k is not None:
+        with k:
+            sonuc["evrak_sayisi"] = k.execute("SELECT COUNT(*) FROM evrak WHERE ilk_gorulme > ? AND COALESCE(is_ek,0)=0",
+                                              (sonra,)).fetchone()[0]
+            sonuc["evraklar"] = _satirlar(k.execute(
+                """SELECT e.skey, e.tur, e.aciklama, e.tarih, e.ilk_gorulme, e.durum,
+                          (e.pdf_path IS NOT NULL OR e.path IS NOT NULL) AS yerel, d.birim, d.dosya_no, d.muvekkil
+                   FROM evrak e LEFT JOIN dosya d ON d.dkey = e.dkey
+                   WHERE e.ilk_gorulme > ? AND COALESCE(e.is_ek,0)=0 ORDER BY e.ilk_gorulme DESC LIMIT ?""",
+                (sonra, max(1, min(limit, 200)))))
+            if sonuc["evraklar"]:
+                sonuc["en_yeni"] = max(sonuc["en_yeni"], sonuc["evraklar"][0]["ilk_gorulme"] or "")
+            if _tablo_var(k, "tebligat"):
+                for r in k.execute("SELECT birim, dosya_no, tebligat_turu, evrak_adi, eklenme FROM tebligat WHERE eklenme > ? "
+                                   "ORDER BY eklenme DESC LIMIT ?", (sonra, limit)):
+                    sonuc["tebligatlar"].append({"kaynak": "UYAP", "birim": r["birim"], "esas": r["dosya_no"],
+                                                 "baslik": r["evrak_adi"] or r["tebligat_turu"], "zaman": r["eklenme"]})
+    d = _ro(defter_yolu())
+    if d is not None:
+        with d:
+            if _tablo_var(d, "tebligatlar"):
+                # SQLAlchemy DateTime "YYYY-MM-DD HH:MM:SS" yazar
+                for r in d.execute("SELECT birim, esas, konu, son_gun, kayit FROM tebligatlar WHERE kayit > ? "
+                                   "ORDER BY kayit DESC LIMIT ?", (sonra.replace("T", " "), limit)):
+                    sonuc["tebligatlar"].append({"kaynak": "UETS", "birim": r["birim"], "esas": r["esas"],
+                                                 "baslik": r["konu"], "son_gun": r["son_gun"],
+                                                 "zaman": str(r["kayit"] or "").replace(" ", "T")})
+    sonuc["tebligat_sayisi"] = len(sonuc["tebligatlar"])
+    for t in sonuc["tebligatlar"]:
+        if (t.get("zaman") or "") > sonuc["en_yeni"]:
+            sonuc["en_yeni"] = t["zaman"][:19]
+    return sonuc
+
+
+def _klasor_ozeti(kok: Path, sure_s: float = 2.0, en_cok: int = 50000) -> dict:
+    """Drive klasörünü zaman sınırıyla tarar (büyük arşivde arayüz beklemesin)."""
+    sayi, boyut, son = 0, 0, 0.0
+    bas, yigin, tam = time.monotonic(), [kok], True
+    while yigin:
+        if time.monotonic() - bas > sure_s or sayi >= en_cok:
+            tam = False
+            break
+        try:
+            with os.scandir(yigin.pop()) as it:
+                for g in it:
+                    if g.is_dir(follow_symlinks=False):
+                        yigin.append(g.path)
+                    elif g.is_file(follow_symlinks=False):
+                        st = g.stat()
+                        sayi, boyut, son = sayi + 1, boyut + st.st_size, max(son, st.st_mtime)
+        except OSError:
+            continue
+    return {"dosya": sayi, "boyut_mb": round(boyut / 1_048_576, 1), "tam_sayim": tam,
+            "son_degisiklik": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(son)) if son else None}
+
+
+def drive_durumu() -> dict:
+    """Google Drive eşitlemesinin durumu: yapılandırma, klasör, katalog yedeği, nöbetçinin son turu."""
+    vd = evrak_veri_dizini()
+    try:
+        cfg = json.loads((vd / "watcher_config.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        cfg = {}
+    try:
+        nobet = json.loads((vd / "watcher_durum.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        nobet = None
+    dizin = str(cfg.get("google_drive_dir") or "")
+    sonuc = {"yapilandirildi": bool(dizin or cfg.get("google_drive_webhook")),
+             "mod": "yerel" if dizin else ("webhook" if cfg.get("google_drive_webhook") else "yok"),
+             "dizin": dizin, "dizin_var": False, "yazilabilir": False, "klasor": None, "yedek": None,
+             "katalog": None, "nobetci": None, "uyarilar": []}
+    if dizin:
+        p = Path(dizin)
+        sonuc["dizin_var"] = p.is_dir()
+        if p.is_dir():
+            sonuc["yazilabilir"] = os.access(p, os.W_OK)
+            sonuc["klasor"] = _klasor_ozeti(p)
+            y = p / "uyap_katalog_yedek.db"
+            if y.is_file():
+                sonuc["yedek"] = {"zaman": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(y.stat().st_mtime)),
+                                  "boyut_mb": round(y.stat().st_size / 1_048_576, 1)}
+        else:
+            sonuc["uyarilar"].append("Drive klasörü bulunamadı: Google Drive masaüstü uygulaması açık ve oturumu açık mı?")
+    k = _ro(katalog_yolu())
+    if k is not None:
+        with k:
+            ind = k.execute("SELECT COUNT(*) FROM evrak WHERE durum='indirildi'").fetchone()[0]
+            bekleyen = k.execute("SELECT COUNT(*) FROM evrak WHERE durum='yeni' AND COALESCE(is_ek,0)=0").fetchone()[0]
+            drivede = None
+            if dizin:
+                onek = dizin.rstrip("/\\")
+                drivede = k.execute("SELECT COUNT(*) FROM evrak WHERE durum='indirildi' AND (path LIKE ? OR pdf_path LIKE ?)",
+                                    (onek + "%", onek + "%")).fetchone()[0]
+            sonuc["katalog"] = {"indirilen": ind, "indirilmeyi_bekleyen": bekleyen, "drivede": drivede,
+                                "driveda_olmayan": (ind - drivede) if drivede is not None else None}
+    if nobet:
+        yas_dk = None
+        try:
+            yas_dk = round((time.time() - time.mktime(time.strptime(nobet["bitis"][:19], "%Y-%m-%dT%H:%M:%S"))) / 60)
+        except (KeyError, ValueError, OverflowError):
+            pass
+        aralik = int(nobet.get("sonraki_dk") or 15)
+        sonuc["nobetci"] = {"son_tur": nobet.get("bitis"), "dakika_once": yas_dk, "aralik_dk": aralik,
+                            "istatistik": nobet.get("istatistik") or {},
+                            "gecikti": yas_dk is not None and yas_dk > 3 * aralik}
+        if sonuc["nobetci"]["gecikti"]:
+            sonuc["uyarilar"].append(f"Nöbetçi {yas_dk} dakikadır tarama yapmadı (aralık {aralik} dk): çalışıyor mu?")
+    elif sonuc["yapilandirildi"]:
+        sonuc["uyarilar"].append("Nöbetçi henüz hiç tur tamamlamadı.")
+    return sonuc
+
+
 def _tr_tarih_iso(s) -> str | None:
     """'GG.AA.YYYY', 'GG/AA/YYYY' veya 'YYYY-AA-GG…' → 'YYYY-AA-GG'."""
     s = str(s or "").strip()
@@ -533,6 +657,10 @@ class Isleyici(BaseHTTPRequestHandler):
                 self.end_headers()
                 self.wfile.write(veri)
                 return
+            if yol == "/api/yenilikler":
+                return self._json(yenilikler(q.get("sonra", ""), int(q.get("limit") or 30)))
+            if yol == "/api/drive":
+                return self._json(drive_durumu())
             if yol == "/api/ajanda":
                 return self._json(ajanda(int(q.get("gun") or 60)))
             if yol == "/api/gorevler":

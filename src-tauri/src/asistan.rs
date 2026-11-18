@@ -175,8 +175,17 @@ fn baslat(app: &tauri::AppHandle, veri: &PathBuf) -> Result<(), String> {
 }
 
 /// Arayüzün çağırdığı komut: sunucu yoksa başlatır, port + anahtarı döner.
+/// async + spawn_blocking: Tauri eşzamanlı komutları ana (arayüz) iş parçacığında çalıştırır; bağlantı
+/// denetimi ve sunucu başlatma beklemesi arayüzü dondurmasın (evrak aramasında donma buradan geliyordu).
 #[tauri::command]
-pub fn asistan_baglanti(app: tauri::AppHandle) -> Result<Baglanti, String> {
+pub async fn asistan_baglanti(app: tauri::AppHandle) -> Result<Baglanti, String> {
+    tauri::async_runtime::spawn_blocking(move || baglanti_hazirla(&app))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+fn baglanti_hazirla(app: &tauri::AppHandle) -> Result<Baglanti, String> {
+    let app = app.clone();
     let veri = uygulama_veri_dizini(&app)?;
     let mut dizinler = vec![veri.clone()];
     if let Some(v) = varsayilan_veri_dizini() {

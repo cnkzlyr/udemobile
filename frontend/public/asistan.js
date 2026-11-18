@@ -204,37 +204,64 @@
       (window.__TAURI_INTERNALS__ && window.__TAURI_INTERNALS__.invoke) || null;
   }
 
+  const bekle = ms => new Promise(r => setTimeout(r, ms));
+
   /** Masaüstünde Tauri, Android'de APK içi Python (Termux'suz) sunucuyu başlatır ve anahtarı verir;
-   *  taşınabilir web'de kayıtlı eşleştirme kullanılır. */
-  async function baglantiHazirla() {
+   *  taşınabilir web'de kayıtlı eşleştirme kullanılır. Hiçbir yol arayüzü bloklamaz. */
+  async function baglantiBul() {
     const ab = window.AndroidBridge;
-    if (ab && !ab.__stub && typeof ab.asistanBaglanti === 'function') {
-      try {
-        // Köprü çağrısı eşzamanlıdır ve ilk açılışta çalışma ortamını açarken birkaç saniye sürebilir
-        const b = JSON.parse(ab.asistanBaglanti() || '{}');
-        if (b.anahtar) { baglantiYaz({ port: b.port, anahtar: b.anahtar }); return b; }
-        if (b.hata) throw Object.assign(new Error(b.hata), { durum: 503 });
-      } catch (e) { if (e.durum) throw e; }
+    if (ab && !ab.__stub && typeof ab.asistanHazirla === 'function') {
+      // Android: hazırlık Java tarafında arka planda yürür (ilk açılışta Python ortamı açılır, ~10-40 sn);
+      // eşzamanlı köprü çağrısı WebView'i kilitlemesin diye durum sorularak beklenir.
+      ab.asistanHazirla();
+      for (let i = 0; i < 240; i++) {
+        let d = {};
+        try { d = JSON.parse(ab.asistanBaglantiDurum() || '{}'); } catch (e) { /* yarım yanıt */ }
+        if (d.anahtar) { baglantiYaz({ port: d.port, anahtar: d.anahtar }); return d; }
+        if (d.hata) throw Object.assign(new Error(d.hata), { durum: 503 });
+        await bekle(250);
+      }
+      throw Object.assign(new Error('Asistan sunucusu hazırlanamadı (zaman aşımı)'), { durum: 503 });
     }
     const inv = tauriInvoke();
     if (inv) {
       try {
-        const b = await inv('asistan_baglanti');
+        const b = await inv('asistan_baglanti');   // Rust tarafında arka plan iş parçacığında çalışır
         if (b && b.anahtar) { baglantiYaz({ port: b.port, anahtar: b.anahtar }); return b; }
-      } catch (e) { /* Python yoksa elle eşleştirmeye düş */ }
+      } catch (e) { /* gömülü sunucu yoksa elle eşleştirmeye düş */ }
     }
     const b = baglantiOku();
     return { port: b.port || 8765, anahtar: b.anahtar || '' };
   }
 
-  async function api(yol, secenek) {
-    const b = await baglantiHazirla();
+  // Bağlantı bir kez kurulur ve hatırlanır; her istekte yeniden kurulması (eski davranış) masaüstünde
+  // arayüz iş parçacığını, Android'de WebView'i her tuş vuruşunda kilitliyordu.
+  let baglantiSozu = null;
+  function baglantiUnut() { baglantiSozu = null; }
+  function baglantiHazirla() {
+    if (!baglantiSozu) baglantiSozu = baglantiBul().catch(e => { baglantiSozu = null; throw e; });
+    return baglantiSozu;
+  }
+
+  async function api(yol, secenek, _tekrar) {
     secenek = secenek || {};
-    const r = await fetch(`http://127.0.0.1:${b.port}${yol}`, {
-      method: secenek.method || 'GET',
-      headers: Object.assign({ 'X-Asistan-Anahtar': b.anahtar || '' }, secenek.govde ? { 'Content-Type': 'application/json' } : {}),
-      body: secenek.govde ? JSON.stringify(secenek.govde) : undefined
-    });
+    const b = await baglantiHazirla();
+    let r;
+    try {
+      r = await fetch(`http://127.0.0.1:${b.port}${yol}`, {
+        method: secenek.method || 'GET',
+        signal: secenek.signal,
+        headers: Object.assign({ 'X-Asistan-Anahtar': b.anahtar || '' }, secenek.govde ? { 'Content-Type': 'application/json' } : {}),
+        body: secenek.govde ? JSON.stringify(secenek.govde) : undefined
+      });
+    } catch (e) {
+      if (e.name === 'AbortError') throw e;
+      // Sunucu kapanmış / yeniden başlamış olabilir: bağlantıyı bir kez yeniden kur
+      baglantiUnut();
+      if (!_tekrar) return api(yol, secenek, true);
+      throw e;
+    }
+    if (r.status === 401 && !_tekrar) { baglantiUnut(); return api(yol, secenek, true); }
     if (secenek.ham) { if (!r.ok) throw new Error('HTTP ' + r.status); return r; }
     const v = await r.json().catch(() => ({}));
     if (!r.ok) throw Object.assign(new Error(v.hata || ('HTTP ' + r.status)), { durum: r.status });
@@ -255,7 +282,7 @@
   #ca-panel nav button{border:0;background:none;padding:8px 12px;border-bottom:2px solid transparent;cursor:pointer;color:var(--ce-muted,#6b7280);font:inherit;white-space:nowrap}
   #ca-panel nav button.secili{color:var(--ce-accent,#2563eb);border-bottom-color:var(--ce-accent,#2563eb);font-weight:600}
   #ca-panel .ca-icerik{padding:16px;overflow:auto}
-  #ca-panel input:not([type=checkbox]):not([type=range]),#ca-panel select{width:100%!important;height:auto!important;min-height:38px;line-height:1.4!important;padding:8px 10px!important;font-size:14px!important;margin:0!important}
+  #ca-panel input:not([type=checkbox]):not([type=range]),#ca-panel select{width:100%!important;max-width:none!important;min-width:0!important;height:auto!important;min-height:38px;line-height:1.4!important;padding:8px 10px!important;font-size:14px!important;margin:0!important}
   #ca-panel th{background:transparent!important;font-weight:600;width:auto}
   #ca-panel label{display:block;font-size:12px;color:var(--ce-muted,#6b7280);margin:10px 0 4px}
   #ca-panel input,#ca-panel select{width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--ce-border,#d0d5dd);border-radius:8px;background:var(--ce-bg,#fff);color:inherit;font:inherit}
@@ -268,6 +295,7 @@
   #ca-panel .ca-uyari{background:#fff7e6;color:#7a4b00;border-radius:8px;padding:8px 10px;margin-top:8px;font-size:13px}
   body.ce-dark-mode #ca-panel .ca-uyari{background:#3a2a07;color:#f5d48a}
   #ca-panel .ca-hata{color:#b42318}
+  .ca-rozet{display:inline-block;min-width:18px;height:18px;line-height:18px;padding:0 5px;margin-left:5px;border-radius:9px;background:#dc2626;color:#fff;font-size:11px;font-weight:700;text-align:center;vertical-align:1px}
   #ca-panel table{width:100%;border-collapse:collapse;font-size:13px}
   #ca-panel td,#ca-panel th{text-align:left;padding:6px 8px;border-bottom:1px solid var(--ce-border,#eef0f3);vertical-align:top}
   #ca-panel .ca-soluk{color:var(--ce-muted,#6b7280);font-size:12px}
@@ -275,16 +303,21 @@
   @media (max-width:600px){#ca-panel .ca-kutu{width:100vw;max-height:100vh;height:100vh;border-radius:0}}
   `;
 
-  let kok = null, aktifSekme = 'sure';
+  let kok = null, aktifSekme = 'sure', stilVar = false;
+  function stilEkle() {
+    if (stilVar || !document.head) return;
+    const st = document.createElement('style'); st.textContent = CSS; document.head.appendChild(st); stilVar = true;
+  }
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
   const SEKMELER = [
-    ['sure', '⏱️ Süre Hesapla'], ['a4', '📄 A4 PDF'], ['ajanda', '📅 Ajanda'], ['evrak', '🗂️ UYAP Evrak'], ['gorev', '⚙️ Görevler'], ['baglanti', '🔌 Bağlantı']
+    ['yeni', '🔔 Yeni'], ['sure', '⏱️ Süre Hesapla'], ['hesap', '🧮 Hesaplamalar'], ['a4', '📄 A4 PDF'], ['ajanda', '📅 Ajanda'],
+    ['evrak', '🗂️ UYAP Evrak'], ['drive', '☁️ Drive'], ['gorev', '⚙️ Görevler'], ['baglanti', '🔌 Bağlantı']
   ];
 
   function panelKur() {
     if (kok) return;
-    const st = document.createElement('style'); st.textContent = CSS; document.head.appendChild(st);
+    stilEkle();
     kok = document.createElement('div'); kok.id = 'ca-panel';
     kok.innerHTML = `<div class="ca-kutu" role="dialog" aria-modal="true" aria-label="Hukuk Asistanı">
       <header><h2>⚖️ Hukuk Asistanı</h2><button class="ca-kapat" type="button" aria-label="Kapat">×</button></header>
@@ -305,7 +338,8 @@
     gorevIzleDurdur();
     kok.querySelectorAll('nav button').forEach(b => b.classList.toggle('secili', b.dataset.sekme === k));
     const ic = kok.querySelector('.ca-icerik');
-    ({ sure: sureSekmesi, a4: a4Sekmesi, ajanda: ajandaSekmesi, evrak: evrakSekmesi, gorev: gorevSekmesi, baglanti: baglantiSekmesi })[k](ic);
+    ({ yeni: yeniSekmesi, sure: sureSekmesi, hesap: hesapSekmesi, a4: a4Sekmesi, ajanda: ajandaSekmesi, evrak: evrakSekmesi,
+       drive: driveSekmesi, gorev: gorevSekmesi, baglanti: baglantiSekmesi })[k](ic);
   }
 
   // --- Süre ---
@@ -402,35 +436,47 @@
     } catch (e) { sunucuHatasi(ic, e); }
   }
 
+  /** Katalogdaki indirilmiş evrakı editörde açar. */
+  async function evrakAc(skey) {
+    try {
+      const r = await api('/api/evrak/dosya?skey=' + encodeURIComponent(skey), { ham: true });
+      const buf = await r.arrayBuffer();
+      const cd = r.headers.get('Content-Disposition') || '';
+      const ad = decodeURIComponent((cd.match(/filename\*=UTF-8''([^;]+)/) || [])[1] || 'Evrak.pdf');
+      kapat();
+      if (window.openDocumentFromBytes) await window.openDocumentFromBytes(buf, ad);
+      else if (window.openPdfViewer) await window.openPdfViewer(buf, ad);
+    } catch (e) { alert('Evrak açılamadı: ' + e.message); }
+  }
+  function evrakDugmeleri(kap) {
+    kap.querySelectorAll('button[data-skey]').forEach(b => { b.onclick = () => evrakAc(b.dataset.skey); });
+  }
+
   function evrakSekmesi(ic) {
     ic.innerHTML = `<label for="ca-evrak-q">Ara (taraf, evrak türü, açıklama, dosya no — Türkçe harf duyarsız; hariç tutmak için -kelime)</label>
       <input id="ca-evrak-q" placeholder='ör. bilirkişi -ek "ağır ceza"'><div id="ca-evrak-sonuc" class="ca-soluk" style="margin-top:12px">Aramak için yazın.</div>`;
     const q = ic.querySelector('#ca-evrak-q'), sonuc = ic.querySelector('#ca-evrak-sonuc');
-    let zam = null;
+    let zam = null, kontrol = null, sira = 0;
     const ara = async () => {
+      // Önceki arama sürüyorsa iptal edilir; geç gelen eski sonuç yenisinin üstüne yazılmaz
+      if (kontrol) kontrol.abort();
+      kontrol = new AbortController();
+      const benim = ++sira;
+      const metin = q.value.trim();
+      if (metin && metin.replace(/[-"\s]/g, '').length < 2) { sonuc.textContent = 'En az 2 harf yazın.'; return; }
+      sonuc.innerHTML = '<span class="ca-soluk">Aranıyor…</span>';
       try {
-        const v = await api('/api/evrak/ara?limit=150&q=' + encodeURIComponent(q.value));
+        const v = await api('/api/evrak/ara?limit=150&q=' + encodeURIComponent(metin), { signal: kontrol.signal });
+        if (benim !== sira) return;
         if (!v.hazir) { sonuc.innerHTML = esc(v.mesaj); return; }
         sonuc.innerHTML = `<div class="ca-soluk">${v.sonuclar.length} sonuç (katalogda ${v.toplam_evrak} evrak)</div><table>${v.sonuclar.map(r => `
           <tr><td>${esc((r.tarih || '').slice(0, 10))}</td><td><b>${esc(r.tur || '')}</b><div class="ca-soluk">${esc(r.aciklama || '')}</div></td>
           <td>${esc(r.birim || '')}<div class="ca-soluk">${esc(r.dosya_no || '')} ${r.muvekkil ? '· ' + esc(r.muvekkil) : ''}</div></td>
           <td>${r.yerel ? `<button class="ca-btn" type="button" data-skey="${esc(r.skey)}">Aç</button>` : '<span class="ca-soluk">indirilmedi</span>'}</td></tr>`).join('')}</table>`;
-        sonuc.querySelectorAll('button[data-skey]').forEach(b => {
-          b.onclick = async () => {
-            try {
-              const r = await api('/api/evrak/dosya?skey=' + encodeURIComponent(b.dataset.skey), { ham: true });
-              const buf = await r.arrayBuffer();
-              const cd = r.headers.get('Content-Disposition') || '';
-              const ad = decodeURIComponent((cd.match(/filename\*=UTF-8''([^;]+)/) || [])[1] || 'Evrak.pdf');
-              kapat();
-              if (window.openDocumentFromBytes) await window.openDocumentFromBytes(buf, ad);
-              else if (window.openPdfViewer) await window.openPdfViewer(buf, ad);
-            } catch (e) { alert('Evrak açılamadı: ' + e.message); }
-          };
-        });
-      } catch (e) { sunucuHatasi(ic, e); }
+        evrakDugmeleri(sonuc);
+      } catch (e) { if (e.name !== 'AbortError' && benim === sira) sunucuHatasi(ic, e); }
     };
-    q.addEventListener('input', () => { clearTimeout(zam); zam = setTimeout(ara, 300); });
+    q.addEventListener('input', () => { clearTimeout(zam); zam = setTimeout(ara, 350); });
     q.focus();
   }
 
@@ -478,6 +524,184 @@
     sina();
   }
 
-  window.CanAsistan = { ac, kapat, sureHesapla, uygulanacakGun, tatilUyarilari, a4Yerlesim, a4PdfOlustur, api };
+
+  // =========================================================================
+  // 5. YENİ EVRAK İZLEYİCİSİ (rozet + uygulama içi ve sistem bildirimi) ve DRIVE DURUMU
+  // =========================================================================
+  const GORULEN = 'canasistan.gorulen';
+  let sonYenilik = { evrak_sayisi: 0, tebligat_sayisi: 0, evraklar: [], tebligatlar: [] }, sonToplam = 0;
+  const gorulenOku = () => { try { return localStorage.getItem(GORULEN) || ''; } catch (e) { return ''; } };
+  const gorulenYaz = v => { try { localStorage.setItem(GORULEN, v); } catch (e) { /* özel pencere */ } };
+  function yerelIso(d) { return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 19); }
+
+  function rozetCiz(n) {
+    stilEkle();
+    const baslik = Array.from(document.querySelectorAll('.ce-menu-title')).find(b => b.textContent.trim().startsWith('Asistan'));
+    if (!baslik) return;
+    let r = baslik.querySelector('.ca-rozet');
+    if (!n) { if (r) r.remove(); return; }
+    if (!r) { r = document.createElement('span'); r.className = 'ca-rozet'; baslik.appendChild(r); }
+    r.textContent = n > 99 ? '99+' : String(n);
+    r.title = n + ' yeni evrak / tebligat';
+    const sek = kok && kok.querySelector('nav button[data-sekme="yeni"]');
+    if (sek) sek.textContent = '🔔 Yeni (' + n + ')';
+  }
+
+  function bildir(baslik, govde) {
+    if (window.showToast) window.showToast('🔔 ' + baslik);
+    try {
+      if ('Notification' in window && Notification.permission === 'granted') new Notification(baslik, { body: govde });
+    } catch (e) { /* WebView bildirim desteklemiyor olabilir */ }
+  }
+
+  async function yenilikDenetle() {
+    let sonra = gorulenOku();
+    if (!sonra) { sonra = yerelIso(new Date(Date.now() - 86400000)); gorulenYaz(sonra); }
+    const v = await api('/api/yenilikler?limit=50&sonra=' + encodeURIComponent(sonra));
+    sonYenilik = v;
+    const toplam = (v.evrak_sayisi || 0) + (v.tebligat_sayisi || 0);
+    if (toplam > sonToplam) {
+      const ilk = (v.evraklar[0] || v.tebligatlar[0] || {});
+      bildir(`UYAP'a ${toplam - sonToplam} yeni evrak/tebligat düştü`,
+             [ilk.birim, ilk.dosya_no || ilk.esas, ilk.tur || ilk.baslik].filter(Boolean).join(' · '));
+    }
+    sonToplam = toplam;
+    rozetCiz(toplam);
+    return v;
+  }
+
+  // Sunucu varsa 2 dakikada bir; ulaşılamazsa 10 dakikaya kadar seyrekleşir (pil/ağ dostu)
+  let izleAralik = 120000;
+  function yenilikIzle() {
+    yenilikDenetle().then(() => { izleAralik = 120000; })
+      .catch(() => { izleAralik = Math.min(izleAralik * 2, 600000); })
+      .finally(() => setTimeout(yenilikIzle, izleAralik));
+  }
+
+  function yeniSekmesi(ic) {
+    ic.innerHTML = '<p class="ca-soluk">Yükleniyor…</p>';
+    const ciz = v => {
+      const ev = v.evraklar || [], tb = v.tebligatlar || [];
+      if (!ev.length && !tb.length) {
+        ic.innerHTML = `<p>✅ Son bakıştan (${esc((v.sonra || '').replace('T', ' '))}) beri UYAP'a yeni evrak ya da tebligat düşmedi.</p>
+          <p class="ca-soluk">Nöbetçi taramasını <b>Görevler</b> sekmesinden başlatabilirsiniz; yeni evraklar burada ve Asistan menüsündeki rozette görünür.</p>`;
+        return;
+      }
+      ic.innerHTML = `<div class="ca-soluk">${esc((v.sonra || '').replace('T', ' '))} sonrası: <b>${v.evrak_sayisi}</b> evrak, <b>${v.tebligat_sayisi}</b> tebligat</div>
+        ${tb.length ? `<div class="ca-kart"><b>📨 Tebligatlar</b><table>${tb.map(t => `<tr><td>${esc((t.zaman || '').replace('T', ' ').slice(0, 16))}</td><td>${esc(t.kaynak)}</td>
+          <td>${esc(t.birim || '')}<div class="ca-soluk">${esc(t.esas || '')}</div></td><td>${esc(t.baslik || '')}${t.son_gun ? `<div class="ca-soluk">Son gün: ${esc(t.son_gun)}</div>` : ''}</td></tr>`).join('')}</table></div>` : ''}
+        ${ev.length ? `<div class="ca-kart"><b>📄 Evraklar</b><table>${ev.map(r => `<tr><td>${esc((r.ilk_gorulme || '').replace('T', ' ').slice(0, 16))}</td>
+          <td><b>${esc(r.tur || '')}</b><div class="ca-soluk">${esc(r.aciklama || '')}</div></td>
+          <td>${esc(r.birim || '')}<div class="ca-soluk">${esc(r.dosya_no || '')}${r.muvekkil ? ' · ' + esc(r.muvekkil) : ''}</div></td>
+          <td>${r.yerel ? `<button class="ca-btn" type="button" data-skey="${esc(r.skey)}">Aç</button>` : '<span class="ca-soluk">indirilmedi</span>'}</td></tr>`).join('')}</table></div>` : ''}
+        <button class="ca-btn ana" type="button" id="ca-gorudum">✓ Tümünü görüldü say</button>
+        ${('Notification' in window && Notification.permission === 'default') ? '<button class="ca-btn" type="button" id="ca-bildirim-izin">🔔 Masaüstü bildirimlerine izin ver</button>' : ''}`;
+      evrakDugmeleri(ic);
+      ic.querySelector('#ca-gorudum').onclick = () => { gorulenYaz(v.en_yeni || yerelIso(new Date())); sonToplam = 0; rozetCiz(0); yeniSekmesi(ic); };
+      const iz = ic.querySelector('#ca-bildirim-izin');
+      if (iz) iz.onclick = () => Notification.requestPermission().then(() => yeniSekmesi(ic));
+    };
+    yenilikDenetle().then(ciz).catch(e => sunucuHatasi(ic, e));
+  }
+
+  async function driveSekmesi(ic) {
+    ic.innerHTML = '<p class="ca-soluk">Yükleniyor…</p>';
+    try {
+      const v = await api('/api/drive');
+      const tarih = t => t ? esc(t.replace('T', ' ').slice(0, 16)) : '—';
+      const durum = !v.yapilandirildi ? '⚪ Yapılandırılmadı' : (v.mod === 'webhook' ? '🟢 Bulut (webhook)' : (v.dizin_var ? (v.yazilabilir ? '🟢 Bağlı' : '🟠 Salt okunur') : '🔴 Klasör yok'));
+      const k = v.katalog || {}, n = v.nobetci, kl = v.klasor;
+      ic.innerHTML = `<div class="ca-kart"><div class="ca-hedef" style="font-size:18px">${durum}</div>
+        <table>
+          <tr><th>Eşitleme yöntemi</th><td>${v.mod === 'yerel' ? 'Google Drive masaüstü klasörü' : v.mod === 'webhook' ? 'Google Drive webhook' : '—'}</td></tr>
+          ${v.dizin ? `<tr><th>Drive klasörü</th><td><code>${esc(v.dizin)}</code></td></tr>` : ''}
+          ${kl ? `<tr><th>Klasördeki dosyalar</th><td>${kl.dosya.toLocaleString('tr-TR')}${kl.tam_sayim ? '' : '+'} dosya · ${kl.boyut_mb.toLocaleString('tr-TR')} MB · son değişiklik ${tarih(kl.son_degisiklik)}</td></tr>` : ''}
+          <tr><th>Katalog yedeği (Drive)</th><td>${v.yedek ? tarih(v.yedek.zaman) + ' · ' + v.yedek.boyut_mb + ' MB' : '—'}</td></tr>
+          ${k.indirilen !== undefined ? `<tr><th>İndirilen evrak</th><td>${k.indirilen.toLocaleString('tr-TR')}${k.drivede !== null && k.drivede !== undefined ? ` · Drive'da ${k.drivede.toLocaleString('tr-TR')} · <b>${k.driveda_olmayan.toLocaleString('tr-TR')}</b> Drive dışında` : ''}</td></tr>
+          <tr><th>İndirilmeyi bekleyen</th><td>${k.indirilmeyi_bekleyen.toLocaleString('tr-TR')}</td></tr>` : ''}
+          <tr><th>Nöbetçi son tur</th><td>${n ? `${tarih(n.son_tur)} (${n.dakika_once} dk önce, her ${n.aralik_dk} dk) ${n.gecikti ? '🔴' : '🟢'} · yeni indirilen: ${(n.istatistik || {}).new_downloaded || 0}` : '—'}</td></tr>
+        </table>
+        ${(v.uyarilar || []).map(u => `<div class="ca-uyari">⚠️ ${esc(u)}</div>`).join('')}
+        <button class="ca-btn" type="button" id="ca-drive-yenile">↻ Yenile</button>
+        <button class="ca-btn" type="button" id="ca-drive-nobet">▶ Nöbetçi turunu şimdi çalıştır</button></div>
+        <p class="ca-soluk">Drive klasörü UYAP evrak indiricinin ayarlarından (watcher_config.json → google_drive_dir) gelir.</p>`;
+      ic.querySelector('#ca-drive-yenile').onclick = () => driveSekmesi(ic);
+      ic.querySelector('#ca-drive-nobet').onclick = async () => {
+        try { await api('/api/gorev/evrak-nobetci', { method: 'POST', govde: {} }); sekmeAc('gorev'); } catch (e) { alert(e.message); }
+      };
+    } catch (e) { sunucuHatasi(ic, e); }
+  }
+
+  // Masaüstü / Android uygulamasında (ya da web'de eşleştirme yapılmışsa) izleyici kendiliğinden başlar
+  function izleyiciBaslasinMi() {
+    const ab = window.AndroidBridge;
+    return !!(tauriInvoke() || (ab && !ab.__stub && ab.asistanHazirla) || baglantiOku().anahtar);
+  }
+  if (typeof document !== 'undefined' && document.addEventListener) {
+    const basla = () => { if (izleyiciBaslasinMi()) setTimeout(yenilikIzle, 4000); };
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', basla); else basla();
+  }
+
+
+  // =========================================================================
+  // 6. HUKUKİ HESAPLAMALAR (hukuk_hesap.js — hayfahukuk hesaplayıcılarıyla aynı kurallar, 2026 tarifeleri)
+  // =========================================================================
+  let hesapTur = 'vekalet';
+  function hesapSekmesi(ic) {
+    const H = window.HukukHesap;
+    if (!H) { ic.innerHTML = '<p class="ca-hata">Hesaplama motoru (hukuk_hesap.js) yüklenemedi.</p>'; return; }
+    const bugun = isoGun(new Date());
+    const secenek = (nesne, sec) => Object.entries(nesne).map(([k, v]) => `<option value="${k}"${k === sec ? ' selected' : ''}>${esc(v[0])} — ${H.TL(v[1])}</option>`).join('');
+    const FORM = {
+      vekalet: `<div class="ca-satir"><div><label>Ücret türü</label><select name="tur"><option value="nispi">Nispi (dava değeri)</option><option value="maktu">Maktu</option><option value="icra">İcra takibi</option></select></div>
+        <div><label>Yargı yeri (maktu alt sınır)</label><select name="mahkeme">${secenek(H.TARIFE.aautMaktu, 'asliye')}</select></div>
+        <div><label>Dava değeri / takip miktarı (TL)</label><input name="deger" inputmode="decimal" placeholder="ör. 250.000"></div></div>
+        <label><input type="checkbox" name="yarisi" style="width:auto"> Ön inceleme tutanağı imzalanmadan sona erdi (yarısı, m.7/1)</label>`,
+      faiz: `<div class="ca-satir"><div><label>Faiz türü</label><select name="tur"><option value="kanuni">Kanuni faiz (3095 m.1)</option><option value="avans">Ticari temerrüt — avans faizi (m.2/2)</option><option value="ttk">TTK 1530 geç ödeme</option><option value="ozel">Sözleşme / özel oran</option></select></div>
+        <div><label>Anapara (TL)</label><input name="anapara" inputmode="decimal" placeholder="ör. 100.000"></div>
+        <div><label>Başlangıç</label><input type="date" name="bas"></div><div><label>Bitiş</label><input type="date" name="bit" value="${bugun}"></div>
+        <div><label>Özel yıllık oran (%)</label><input name="oran" inputmode="decimal" placeholder="yalnız özel oranda"></div></div>
+        <label><input type="checkbox" name="giderim" style="width:auto"> TTK 1530 asgari giderim tutarını ekle</label>`,
+      harc: `<div class="ca-satir"><div><label>Harç türü</label><select name="tur"><option value="dava">Dava açılışı</option><option value="icra">İcra takibi</option><option value="kanunyolu">Kanun yolu / diğer</option></select></div>
+        <div><label>Mahkeme</label><select name="mahkeme"><option value="asliye">Asliye / idare</option><option value="sulh">Sulh / icra mahkemesi</option></select></div>
+        <div><label>Dava değeri / takip miktarı (TL, maktu için boş)</label><input name="deger" inputmode="decimal"></div></div>
+        <label><input type="checkbox" name="vekaletname" style="width:auto" checked> Vekâletname suret harcı</label>`,
+      smm: `<div class="ca-satir"><div><label>Girilen tutar</label><select name="giris"><option value="brut">Brüt ücret</option><option value="net">Net (elime geçecek)</option><option value="tahsil">Müvekkilden tahsil edilecek</option></select></div>
+        <div><label>Tutar (TL)</label><input name="tutar" inputmode="decimal" placeholder="ör. 20.000"></div>
+        <div><label>Müvekkil</label><select name="sorumlu"><option value="1">Şirket / vergi sorumlusu (stopaj keser)</option><option value="">Gerçek kişi (stopaj yok)</option></select></div></div>`,
+      cmk: `<div class="ca-satir"><div><label>Görevlendirme</label><select name="kalem">${secenek(H.TARIFE.cmk, 'agir')}</select></div>
+        <div><label>Adet (tek makbuz)</label><input name="adet" type="number" min="1" value="1"></div></div>`
+    };
+    const ADLAR = { vekalet: '⚖️ Vekâlet ücreti', faiz: '📈 Faiz', harc: '🏛️ Harç', smm: '🧾 Serbest meslek makbuzu', cmk: '🛡️ CMK makbuzu' };
+    ic.innerHTML = `<div class="ca-satir" style="grid-template-columns:1fr"><div>${Object.entries(ADLAR).map(([k, a]) =>
+        `<button class="ca-btn${k === hesapTur ? ' ana' : ''}" type="button" data-hesap="${k}">${a}</button>`).join('')}</div></div>
+      <form id="ca-hesap-form" onsubmit="return false">${FORM[hesapTur]}</form><div id="ca-hesap-sonuc"></div>
+      <p class="ca-soluk">Tarifeler: ${esc(Object.values(H.TARIFE.kaynak).join(' · '))}. Asgari tutarlardır; somut olayda mevzuatla doğrulayın.</p>`;
+    ic.querySelectorAll('[data-hesap]').forEach(b => { b.onclick = () => { hesapTur = b.dataset.hesap; hesapSekmesi(ic); }; });
+    const form = ic.querySelector('#ca-hesap-form'), kutu = ic.querySelector('#ca-hesap-sonuc');
+    const sayi = v => parseFloat(String(v || '').replace(/\./g, '').replace(',', '.').replace(/[^\d.\-]/g, '')) || 0;
+    const hesapla = () => {
+      const f = Object.fromEntries(new FormData(form).entries());
+      ['deger', 'anapara', 'tutar', 'oran'].forEach(k => { if (k in f) f[k] = sayi(f[k]); });
+      f.yarisi = !!form.querySelector('[name=yarisi]:checked'); f.giderim = !!form.querySelector('[name=giderim]:checked');
+      f.vekaletname = !!form.querySelector('[name=vekaletname]:checked'); f.sorumlu = !!f.sorumlu; f.adet = +f.adet || 1;
+      const r = H[{ vekalet: 'vekalet', faiz: 'faiz', harc: 'harc', smm: 'smm', cmk: 'cmkMakbuz' }[hesapTur]](f);
+      if (r.hata) { kutu.innerHTML = `<p class="ca-soluk">${esc(r.hata)}</p>`; return; }
+      const tablo = r.tablo ? `<table><tr><th>Dönem</th><th>Gün</th><th>Oran</th><th>Faiz</th></tr>${r.tablo.map(t =>
+        `<tr><td>${t.bas.toLocaleDateString('tr-TR')} – ${t.bit.toLocaleDateString('tr-TR')}</td><td>${t.gun}</td><td>%${t.oran.toLocaleString('tr-TR')}</td><td>${H.TL(t.faiz)}</td></tr>`).join('')}</table>` : '';
+      kutu.innerHTML = `<div class="ca-kart">${tablo}<table>${r.satirlar.map(x =>
+        `<tr${x.vurgu ? ' style="font-weight:700"' : ''}><td>${esc(x.ad)}${x.ref ? `<div class="ca-soluk">${esc(x.ref)}</div>` : ''}</td><td style="text-align:right;white-space:nowrap">${x.vurgu ? '<span class="ca-hedef" style="font-size:18px">' : ''}${H.TL(x.tutar)}${x.vurgu ? '</span>' : ''}</td></tr>`).join('')}</table>
+        ${r.not ? `<p class="ca-soluk">${esc(r.not)}</p>` : ''}<button class="ca-btn" type="button" id="ca-hesap-ekle">📝 Belgeye ekle</button></div>`;
+      kutu.querySelector('#ca-hesap-ekle').onclick = () => {
+        const metin = r.satirlar.map(x => `${x.ad}: ${H.TL(x.tutar)}${x.ref ? ' (' + x.ref + ')' : ''}`).join('\n');
+        try { document.execCommand('insertText', false, metin); } catch (e) { navigator.clipboard && navigator.clipboard.writeText(metin); }
+        kapat();
+      };
+    };
+    form.addEventListener('input', hesapla); form.addEventListener('change', hesapla);
+    hesapla();
+  }
+
+  window.CanAsistan = { yenilikDenetle, ac, kapat, sureHesapla, uygulanacakGun, tatilUyarilari, a4Yerlesim, a4PdfOlustur, api };
   window.openHukukAsistani = ac;
 })();

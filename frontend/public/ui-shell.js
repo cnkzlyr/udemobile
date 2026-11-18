@@ -403,6 +403,9 @@
     { id: 'doc-stats', icon: '📊', category: 'Araçlar', title: 'Kelime, Karakter ve Sayfa İstatistikleri', shortcut: '', run: () => window.openDocStatsModal && window.openDocStatsModal() },
     // Hukuk Asistanı (asistan.js): UETS + UYAP Evrak + A4 motoru birleşik paneli
     { id: 'as-sure', icon: '⏱️', category: 'Asistan', title: 'Yasal Süre Hesapla (UETS tebliğ + HMK/CMK/İYUK)', shortcut: '', run: () => window.openHukukAsistani && window.openHukukAsistani('sure') },
+    { id: 'as-hesap', icon: '🧮', category: 'Asistan', title: 'Vekâlet Ücreti / Faiz / Harç / SMM / CMK Makbuzu Hesapla', shortcut: '', run: () => window.openHukukAsistani && window.openHukukAsistani('hesap') },
+    { id: 'as-yeni', icon: '🔔', category: 'Asistan', title: "UYAP'a Düşen Yeni Evraklar ve Tebligatlar", shortcut: '', run: () => window.openHukukAsistani && window.openHukukAsistani('yeni') },
+    { id: 'as-drive', icon: '☁️', category: 'Asistan', title: 'Google Drive Eşitleme Durumu', shortcut: '', run: () => window.openHukukAsistani && window.openHukukAsistani('drive') },
     { id: 'as-a4', icon: '📄', category: 'Asistan', title: 'Görsel / TIFF / PDF → Tek A4 PDF (NAPS2 yöntemi)', shortcut: '', run: () => window.openHukukAsistani && window.openHukukAsistani('a4') },
     { id: 'as-ajanda', icon: '📅', category: 'Asistan', title: 'Ajanda: Yaklaşan Duruşmalar ve Süre Sonları', shortcut: '', run: () => window.openHukukAsistani && window.openHukukAsistani('ajanda') },
     { id: 'as-evrak', icon: '🗂️', category: 'Asistan', title: 'UYAP Evrak Kataloğunda Ara ve Aç', shortcut: '', run: () => window.openHukukAsistani && window.openHukukAsistani('evrak') },

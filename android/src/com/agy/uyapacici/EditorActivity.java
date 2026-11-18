@@ -1566,6 +1566,17 @@ public class EditorActivity extends Activity {
             return AsistanServisi.baglanti(EditorActivity.this);
         }
 
+        /** Bloklamayan sürüm: hazırlığı arka planda başlatır; sonuç asistanBaglantiDurum() ile sorulur. */
+        @JavascriptInterface
+        public void asistanHazirla() {
+            AsistanServisi.baglantiBaslat(EditorActivity.this);
+        }
+
+        @JavascriptInterface
+        public String asistanBaglantiDurum() {
+            return AsistanServisi.baglantiDurumu();
+        }
+
         /** JS generateUdfBlob çıktısını (base64) kayıt iş parçacığına iletir. */
         @JavascriptInterface
         public void deliverUdfBytes(String b64) {

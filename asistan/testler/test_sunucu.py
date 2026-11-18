@@ -176,6 +176,50 @@ class SunucuTest(unittest.TestCase):
         finally:
             sunucu.ANDROID = eski
 
+    def test_yenilikler_yeni_evrak_ve_tebligat(self):
+        c = sqlite3.connect(os.path.join(GECICI, "uyap_katalog.db"))
+        simdi = datetime.now()
+        c.execute("UPDATE evrak SET ilk_gorulme=? WHERE skey='s1'", ((simdi - timedelta(minutes=5)).isoformat(timespec="seconds"),))
+        c.execute("UPDATE evrak SET ilk_gorulme=? WHERE skey='s2'", ((simdi - timedelta(days=3)).isoformat(timespec="seconds"),))
+        c.commit(); c.close()
+        sonra = (simdi - timedelta(hours=1)).isoformat(timespec="seconds")
+        k, v, _ = self.istek("/api/yenilikler?sonra=" + sonra)
+        self.assertEqual(k, 200)
+        self.assertEqual(v["evrak_sayisi"], 1)
+        self.assertEqual(v["evraklar"][0]["skey"], "s1")
+        self.assertTrue(v["evraklar"][0]["yerel"])
+        self.assertGreater(v["en_yeni"], sonra)
+        # defterdeki UETS tebligatı (kayit = şimdi) de görünür
+        self.assertTrue(any(t["kaynak"] == "UETS" for t in v["tebligatlar"]), v["tebligatlar"])
+        # en_yeni'den sonrası: yeni bir şey yok
+        k, v2, _ = self.istek("/api/yenilikler?sonra=" + v["en_yeni"])
+        self.assertEqual(v2["evrak_sayisi"], 0)
+
+    def test_drive_durumu(self):
+        k, v, _ = self.istek("/api/drive")
+        self.assertEqual(k, 200)
+        self.assertFalse(v["yapilandirildi"])
+        self.assertEqual(v["mod"], "yok")
+        cfg = os.path.join(GECICI, "watcher_config.json")
+        durum = os.path.join(GECICI, "watcher_durum.json")
+        try:
+            with open(cfg, "w", encoding="utf-8") as f:
+                json.dump({"google_drive_dir": GECICI}, f)
+            eski = (datetime.now() - timedelta(hours=3)).isoformat(timespec="seconds")
+            with open(durum, "w", encoding="utf-8") as f:
+                json.dump({"bitis": eski, "sonraki_dk": 15, "istatistik": {"new_downloaded": 2}}, f)
+            k, v, _ = self.istek("/api/drive")
+            self.assertEqual(v["mod"], "yerel")
+            self.assertTrue(v["dizin_var"])
+            self.assertGreater(v["klasor"]["dosya"], 0)
+            self.assertEqual(v["katalog"]["drivede"], 1)          # s1 Drive klasöründe
+            self.assertTrue(v["nobetci"]["gecikti"])             # 3 saat > 3 x 15 dk
+            self.assertTrue(any("Nöbetçi" in u for u in v["uyarilar"]))
+        finally:
+            for f in (cfg, durum):
+                if os.path.exists(f):
+                    os.remove(f)
+
     def test_gorev_listesi_izinli_komutlar(self):
         for g in sunucu.GOREVLER.values():
             betik = next(c for c in g["cmd"] if str(c).endswith(".py"))

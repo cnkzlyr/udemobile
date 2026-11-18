@@ -168,6 +168,29 @@ final class AsistanServisi {
         Tani.yaz("asistan", "sunucu başlatıldı");
     }
 
+    // ---- Bloklamayan köprü (asistan.js): hazırlık arka planda, durum anında sorulur ----
+    private static volatile String sonDurum = null;
+    private static volatile boolean hazirlaniyor = false;
+
+    /** Hazırlığı arka plan iş parçacığında başlatır (zaten sürüyorsa ya da hazırsa bir şey yapmaz). */
+    static synchronized void baglantiBaslat(final Context c) {
+        if (hazirlaniyor) return;
+        if (sonDurum != null && sonDurum.contains("\"anahtar\"") && ayakta()) return;
+        hazirlaniyor = true;
+        sonDurum = null;
+        final Context uygulama = c.getApplicationContext();
+        new Thread(() -> {
+            try { sonDurum = baglanti(uygulama); }
+            finally { hazirlaniyor = false; }
+        }, "asistan-hazirla").start();
+    }
+
+    /** Anında döner: {"bekle":true} | {"port":…,"anahtar":…} | {"hata":…} */
+    static String baglantiDurumu() {
+        String d = sonDurum;
+        return d == null ? "{\"bekle\":true}" : d;
+    }
+
     /**
      * Editörün JS köprüsü bunu çağırır (iş parçacığı: JavaBridge, UI değil — beklemek serbesttir).
      * Dönüş: {"port":8765,"anahtar":"…"} ya da {"hata":"…"}.
