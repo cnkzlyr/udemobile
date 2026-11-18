@@ -970,12 +970,14 @@ function doGet(e) {
   // =========================================================================
   // 3. 📋 NOTION & TICKTICK CANLI ENTEGRASYON
   // =========================================================================
-  let entAlt = 'ticktick';
+  let entAlt = null;
   async function entegrasyonSekmesi(ic, ctx) {
     const { api, esc, sunucuHatasi } = ctx;
     ic.innerHTML = '<p class="ca-soluk">Entegrasyon durumu yükleniyor…</p>';
     let ayar;
     try { ayar = await api('/api/entegrasyon/ayar'); } catch (e) { sunucuHatasi(ic, e); return; }
+    // Hiçbir servis bağlı değilse doğrudan anahtar girme ekranı açılır (boş "anahtar girilmemiş" sayfası yerine)
+    if (!entAlt) entAlt = ayar.ticktick_bagli ? 'ticktick' : ayar.notion_bagli ? 'notion' : 'ayar';
 
     ic.innerHTML = `
       <div class="hf-alt-nav">
@@ -1001,7 +1003,9 @@ function doGet(e) {
         </div>
         <label style="display:flex;gap:8px;align-items:center;color:inherit;font-size:14px"><input type="checkbox" id="hf-e-oto" style="width:auto"${ayar.otomatik_senkron ? ' checked' : ''}> UYAP'a yeni evrak/tebligat düşünce Notion & TickTick'e otomatik aktar</label>
         <button class="ca-btn ana" type="button" id="hf-e-kaydet">💾 Kaydet</button>
-        <span id="hf-e-msg" class="ca-soluk"></span></div>`;
+        <button class="ca-btn" type="button" id="hf-e-test">🧪 Bağlantıları test et</button>
+        <span id="hf-e-msg" class="ca-soluk"></span>
+        <div id="hf-e-test-sonuc" style="margin-top:10px"></div></div>`;
       alan.querySelector('#hf-e-kaydet').onclick = async () => {
         const g = {
           notion_token: alan.querySelector('#hf-e-nt').value.trim(),
@@ -1013,8 +1017,26 @@ function doGet(e) {
           uets_password: alan.querySelector('#hf-e-uets-pw').value.trim(),
           otomatik_senkron: alan.querySelector('#hf-e-oto').checked
         };
-        try { await api('/api/entegrasyon/ayar', { method: 'POST', govde: g }); entegrasyonSekmesi(ic, ctx); }
-        catch (e) { alan.querySelector('#hf-e-msg').innerHTML = `<span class="ca-hata">${esc(e.message)}</span>`; }
+        const msg = alan.querySelector('#hf-e-msg');
+        msg.textContent = 'Kaydediliyor…';
+        try {
+          await api('/api/entegrasyon/ayar', { method: 'POST', govde: g });
+          if (window.showToast) window.showToast('✓ API anahtarları kaydedildi');
+          entegrasyonSekmesi(ic, ctx);
+        } catch (e) { msg.innerHTML = `<span class="ca-hata">${esc(e.message)}</span>`; }
+      };
+      alan.querySelector('#hf-e-test').onclick = async () => {
+        const kutu = alan.querySelector('#hf-e-test-sonuc');
+        kutu.innerHTML = '<span class="ca-soluk">⏳ Notion, TickTick ve Telegram deneniyor…</span>';
+        try {
+          const r = await api('/api/entegrasyon/test', { method: 'POST', govde: {} });
+          const ad = { notion: 'Notion', ticktick: 'TickTick', telegram: 'Telegram' };
+          const simge = { ok: '🟢', hata: '🔴', yok: '⚪' };
+          kutu.innerHTML = '<table>' + Object.keys(ad).map(k => {
+            const v = r[k] || { durum: 'yok', mesaj: '' };
+            return `<tr><th>${simge[v.durum] || '⚪'} ${ad[k]}</th><td>${esc(v.mesaj)}</td></tr>`;
+          }).join('') + '</table>';
+        } catch (e) { kutu.innerHTML = `<span class="ca-hata">${esc(e.message)}</span>`; }
       };
       return;
     }

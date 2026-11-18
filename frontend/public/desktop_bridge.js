@@ -4821,27 +4821,51 @@ window.executeInDocSearch = executeInDocSearch;
 window.navigateInDocSearch = navigateInDocSearch;
 window.clearInDocSearchHighlights = clearInDocSearchHighlights;
 
+// Genişliğe / Sayfaya Sığdır — eskiden tanımsız setCustomZoom() çağrıldığı için iki düğme de hiçbir şey yapmıyordu.
+// Fit-to-width / fit-to-page now go through editor.js setZoom(), which also updates the ruler and zoom label.
+function _ceApplyZoom(z, label) {
+  if (typeof setZoom !== "function") return;
+  if (typeof isFitMode !== "undefined") isFitMode = false;
+  setZoom(z, false);
+  const ind = document.getElementById("zoom-indicator");
+  if (ind && label) ind.textContent = "%" + Math.round(currentZoom * 100) + " " + label;
+}
+
 function fitToWidth() {
-  const container = document.getElementById("pages-container") || document.getElementById("sheet-container");
-  if (!container) return;
   const isLandscape = typeof currentMargins !== "undefined" && currentMargins.orientation === "landscape";
   const sheetW = isLandscape ? 1123 : 794;
-  const availableW = (window.innerWidth || document.documentElement.clientWidth) - 40;
-  const newZoom = Math.min(1.8, Math.max(0.3, availableW / sheetW));
-  if (typeof setCustomZoom === "function") {
-    setCustomZoom(newZoom);
-  }
+  const scroller = document.getElementById("page-wrapper") || document.documentElement;
+  const availableW = (scroller.clientWidth || window.innerWidth) - 48;
+  _ceApplyZoom(Math.min(1.5, Math.max(0.35, availableW / sheetW)), "Genişlik");
 }
 
 function fitToPage() {
   const isLandscape = typeof currentMargins !== "undefined" && currentMargins.orientation === "landscape";
   const sheetH = isLandscape ? 794 : 1123;
-  const availableH = (window.innerHeight || document.documentElement.clientHeight) - 160;
-  const newZoom = Math.min(1.5, Math.max(0.25, availableH / sheetH));
-  if (typeof setCustomZoom === "function") {
-    setCustomZoom(newZoom);
-  }
+  const sheetW = isLandscape ? 1123 : 794;
+  const sc = document.getElementById("sheet-container");
+  const top = sc ? Math.max(0, sc.getBoundingClientRect().top) : 170;
+  const footer = document.getElementById("desktop-app-footer");
+  const fh = footer && footer.offsetParent !== null ? footer.offsetHeight : 0;
+  const availableH = (window.innerHeight || document.documentElement.clientHeight) - top - fh - 24;
+  const availableW = (window.innerWidth || document.documentElement.clientWidth) - 32;
+  _ceApplyZoom(Math.min(1.5, Math.max(0.35, Math.min(availableH / sheetH, availableW / sheetW))), "Sayfa");
+  if (sc && sc.scrollIntoView) { try { (document.getElementById("page-wrapper") || window).scrollTo({ top: 0, behavior: "smooth" }); } catch (e) {} }
 }
+
+// Açık belgenin UDF baytlarını üretir (HAYFA "açık belgeyi JAR ile dönüştür" bunu çağırır; eskiden tanımsızdı → hep hata).
+// Builds the current document's UDF bytes; keeps the original bytes when the doc is signed or untouched.
+async function buildUdfZipBytes() {
+  if (typeof imzaliBelgeKorunurMu === "function" && imzaliBelgeKorunurMu() && typeof currentDocOriginalBuffer !== "undefined" && currentDocOriginalBuffer)
+    return new Uint8Array(currentDocOriginalBuffer);
+  if (typeof currentDocOriginalBuffer !== "undefined" && currentDocOriginalBuffer && /\.(udf|usf)$/i.test(typeof currentDocFileName !== "undefined" ? currentDocFileName || "" : "") &&
+      !(window.isDocumentModified && window.isDocumentModified()))
+    return new Uint8Array(currentDocOriginalBuffer);
+  const getDocFn = window.getStructuredDocument || (typeof getStructuredDocument === "function" ? getStructuredDocument : null);
+  const blob = await generateUdfBlob(getDocFn ? getDocFn() : null);
+  return new Uint8Array(await blob.arrayBuffer());
+}
+window.buildUdfZipBytes = buildUdfZipBytes;
 
 window.fitToWidth = fitToWidth;
 window.fitToPage = fitToPage;

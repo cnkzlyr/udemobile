@@ -20,6 +20,29 @@
 
 ---
 
+## 🛠️ v4.3.0: Hata Düzeltmeleri ve Yeni Asistan Arayüzü
+
+**Düzeltilen hatalar**
+- **UYAP nöbetçi döngüsü her turda çöküyordu** (`'sqlite3.Row' object has no attribute 'get'`): arşiv eşitlemesi bitince Drive'a yükleme adımı hata veriyordu. Düzeltildi; hata artık arayüzde "Son turda hata" olarak da görünür ve görev çıkış kodu hatayı bildirir.
+- **Arşiv eşitlemesi sonsuz döngüdeydi**: UYAP'ta artık bulunmayan (`yok`) evraklar her 3 saniyede yeniden deneniyor, bekleme moduna hiç geçilmiyordu. `yok` evraklar atlanır, hata verenler kuyruğun sonuna alınır.
+- **Yeni kurulumda tüm asistan sekmeleri 500 hatası veriyordu** (`no such table: evrak`): tarama yapılmamış katalogda artık "henüz tarama yapılmadı" mesajı gösterilir.
+- **Telegram iki ayrı yerde, iki ayrı dosyaya kaydediliyordu**; nöbetçi yalnızca birini okuyordu. Artık tek kaynak: hangi ekrandan girilirse girilsin nöbetçi, UETS ve otomatik aktarım aynı bilgiyi kullanır. Otomatik aktarım Telegram'a da gönderir.
+- **Genişliğe Sığdır / Sayfaya Sığdır düğmeleri hiçbir şey yapmıyordu** (tanımsız `setCustomZoom`). Baskı görünümü düğmesi geniş ekranda hiç baskı görünümüne geçmiyordu.
+- **Açılan pencereler Esc ile ya da dışına tıklanarak kapanmıyordu**; açık kalan pencere tüm araç çubuğunu kilitliyordu.
+- **Android arka plan imzası tamamlanınca JS hatası** (tanımsız `insertSignatureSeal`): Android'e "imzalandı" bilgisi gitmiyordu.
+- **HAYFA → "Açık belgeyi JAR ile dönüştür" her zaman hata veriyordu** (tanımsız `buildUdfZipBytes`).
+- Tablo/görsel ekleme gibi değişiklikler "kaydedilmemiş" sayılmıyordu (tanımsız `markDirty`).
+- Mobilde cetvel gizleme düğmesi çalışmıyordu; tercih artık hatırlanır.
+- Tanı ekranındaki istek sayısı hep 0, ping hep "1 ms" yazıyordu: artık gerçek değerler (UYAP'a gerçek bağlantı süresi, oturum kesinti sayısı).
+- Alt bilgi çubuğundaki ve asistan başlığındaki sürüm etiketi eski kalıyordu; artık tek kaynaktan yazılır.
+
+**Arayüz ve işlev geliştirmeleri**
+- **Hukuk Asistanı paneli yeniden tasarlandı**: masaüstünde 15 sekme tek satıra sıkışmak yerine solda gruplu kenar çubuğu (Takip · Süre & Hesap · Belge · Bağlantılar), sabit yükseklik (sekme değişince pencere zıplamıyor), yükleme göstergesi, son açılan sekmeyi hatırlama.
+- Telefonda tam ekran panel, kaydırılabilir yuvarlak sekme çipleri, tek sütun formlar, okunur tablolar.
+- **Notion / TickTick / Telegram için "Bağlantıları test et"** düğmesi: her servisi gerçekten dener, sonucu 🟢/🔴 gösterir. Hiçbir servis bağlı değilse doğrudan anahtar ekranı açılır.
+- Mobil araç çubuğunda "devamı var" solma ipucu, en az 40 px dokunma hedefleri, klavye odak halkaları.
+- İmzacı adları imza şeridinde HTML olarak yorumlanmaz (güvenlik).
+
 ## 🧩 v4.2.0: Büyük Güncelleme — Çoklu E-İmza, Dosya Hesapları, Ağaç Görünümü ve Toplu Evrak Yönetimi
 
 Ayrıntılı mimari: [`docs/BIRLESIK_MIMARI.md`](docs/BIRLESIK_MIMARI.md) · Handoff: [`docs/ANTIGRAVITY_HANDOFF.md`](docs/ANTIGRAVITY_HANDOFF.md)

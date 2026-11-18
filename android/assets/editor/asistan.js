@@ -317,20 +317,21 @@
   }
   `;
 
-  let kok = null, aktifSekme = 'sure', stilVar = false;
+  let kok = null, aktifSekme = (() => { try { return localStorage.getItem('canasistan.sonSekme') || 'sure'; } catch (e) { return 'sure'; } })(), stilVar = false;
   function stilEkle() {
     if (stilVar || !document.head) return;
     const st = document.createElement('style'); st.textContent = CSS; document.head.appendChild(st); stilVar = true;
   }
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-  const SEKMELER = [
-    ['uyap', '🔐 UYAP Giriş'], ['dosyalar', '📁 Dosyalar'], ['hesaplar', '💰 Dosya Hesapları'],
-    ['yeni', '🔔 Yeni'], ['drive', '☁️ Drive'],
-    ['entegrasyon', '📋 Notion/TT'], ['jar', '🔄 JAR Dönüştür'], ['hayfa', '📰 HAYFA'],
-    ['sure', '⏱️ Süre'], ['hesap', '🧮 Hesapla'], ['a4', '📄 A4 PDF'],
-    ['ajanda', '📅 Ajanda'], ['evrak', '🗂️ Evrak Ara'], ['gorev', '⚙️ Görevler'], ['baglanti', '🔌 Bağlantı']
+  // Sekmeler işlevine göre gruplanır (v4.3): masaüstünde solda gruplu kenar çubuğu, telefonda kaydırılabilir çipler.
+  const SEKME_GRUPLARI = [
+    ['Takip', [['uyap', '🔐 UYAP Giriş'], ['yeni', '🔔 Yeni Evrak'], ['dosyalar', '📁 Dosyalar'], ['ajanda', '📅 Ajanda'], ['evrak', '🗂️ Evrak Ara']]],
+    ['Süre & Hesap', [['sure', '⏱️ Süre'], ['hesap', '🧮 Hesapla'], ['hesaplar', '💰 Dosya Hesapları']]],
+    ['Belge', [['a4', '📄 A4 PDF'], ['jar', '🔄 JAR Dönüştür'], ['hayfa', '📰 HAYFA']]],
+    ['Bağlantılar', [['drive', '☁️ Drive'], ['entegrasyon', '📋 Notion / TickTick'], ['gorev', '⚙️ Görevler'], ['baglanti', '🔌 Bağlantı']]]
   ];
+  const SEKMELER = SEKME_GRUPLARI.flatMap(([, l]) => l);
 
   async function driveDurumunuGuncelle() {
     const el = kok ? kok.querySelector('#ca-hdr-drive-durum') : null;
@@ -380,22 +381,73 @@
     setTimeout(bekle, 50);
   }
 
+  // v4.3 yerleşim katmanı: HAYFA stilinden SONRA eklenir ve daha özgül seçicilerle onu ezer.
+  const CSS_YERLESIM = `
+  #ca-panel{backdrop-filter:blur(2px)}
+  #ca-panel .ca-kutu{width:min(1180px,calc(100vw - 32px))!important;height:min(860px,calc(100vh - 32px))!important;max-height:none!important}
+  #ca-panel .ca-govde{display:grid;grid-template-columns:212px minmax(0,1fr);flex:1 1 auto;min-height:0}
+  #ca-panel .ca-govde>nav{display:flex!important;flex-direction:column!important;align-items:stretch!important;gap:2px!important;height:auto!important;min-height:0!important;
+    overflow-y:auto!important;overflow-x:hidden!important;padding:10px 8px 16px!important;border-bottom:0!important;border-right:1px solid var(--ce-border,#e2e6ec)!important;position:static!important;white-space:normal!important}
+  #ca-panel .ca-govde>nav .ca-grup{font:700 10.5px/1 var(--ce-font-ui,system-ui,sans-serif);letter-spacing:.08em;text-transform:uppercase;color:var(--ce-muted,#94a3b8);padding:14px 10px 6px}
+  #ca-panel .ca-govde>nav .ca-grup:first-child{padding-top:4px}
+  #ca-panel .ca-govde>nav button{justify-content:flex-start!important;width:100%!important;height:36px!important;padding:0 12px!important;text-align:left!important;border-radius:8px!important}
+  #ca-panel .ca-govde>nav button:hover:not(.secili){background:rgba(100,116,139,.10)!important;color:var(--ce-text,#1f2937)!important}
+  #ca-panel .ca-govde>nav button:focus-visible{outline:2px solid var(--hf-gold,#c8a45a);outline-offset:1px}
+  #ca-panel .ca-govde>.ca-icerik{padding:18px 22px!important;scroll-behavior:smooth}
+  #ca-panel .ca-icerik>.ca-kart:first-child{margin-top:0}
+  #ca-panel .ca-kart{border-radius:12px;padding:14px 16px;background:var(--ce-surface,#fff)}
+  #ca-panel .ca-btn{transition:background .15s,border-color .15s,transform .05s}
+  #ca-panel .ca-btn:active:not(:disabled){transform:translateY(1px)}
+  #ca-panel .ca-btn:hover:not(:disabled):not(.ana):not(.altin){border-color:var(--hf-gold,#c8a45a)}
+  #ca-panel .ca-satir{grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}
+  #ca-panel .ca-yukleniyor{display:flex;align-items:center;gap:10px;color:var(--ce-muted,#64748b);padding:18px 4px}
+  #ca-panel .ca-yukleniyor::before{content:"";width:16px;height:16px;border-radius:50%;border:2px solid currentColor;border-right-color:transparent;animation:ca-don .8s linear infinite}
+  @keyframes ca-don{to{transform:rotate(360deg)}}
+  @media (max-width:900px){
+    #ca-panel .ca-kutu{width:100vw!important;height:100dvh!important;border-radius:0!important;border:0!important}
+    #ca-panel .ca-govde{grid-template-columns:1fr;grid-template-rows:auto minmax(0,1fr)}
+    #ca-panel .ca-govde>nav{flex-direction:row!important;align-items:center!important;overflow-x:auto!important;overflow-y:hidden!important;white-space:nowrap!important;
+      padding:6px 8px!important;border-right:0!important;border-bottom:2px solid var(--hf-gold,#c8a45a)!important;gap:6px!important;
+      -webkit-mask-image:linear-gradient(90deg,#000 92%,transparent);mask-image:linear-gradient(90deg,#000 92%,transparent)}
+    #ca-panel .ca-govde>nav .ca-grup{display:none}
+    #ca-panel .ca-govde>nav button{width:auto!important;flex-shrink:0!important;height:34px!important;border:1px solid var(--ce-border,#e2e6ec)!important;border-radius:999px!important}
+    #ca-panel .ca-govde>.ca-icerik{padding:12px!important}
+    #ca-panel header .hf-badge{display:none}
+    #ca-panel header h2{font-size:14px!important;gap:6px!important;min-width:0}
+    #ca-panel header h2>span:first-child{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    #ca-panel #ca-hdr-drive-durum{white-space:nowrap;font-size:11px!important;padding:3px 8px!important}
+    #ca-panel .ca-satir{grid-template-columns:repeat(auto-fit,minmax(140px,1fr))!important}
+  }
+  @media (max-width:720px){
+    #ca-panel th{display:block!important;border:0!important;padding:0 0 2px!important;font-size:12px!important;color:var(--ce-muted,#64748b)!important}
+    #ca-panel td{font-size:14px}
+  }
+  @media (max-width:420px){
+    #ca-panel .ca-satir{grid-template-columns:1fr!important}
+    #ca-panel .ca-btn{padding:9px 12px}
+  }`;
+
   function panelKur() {
     if (kok) return;
     stilEkle();
     if (window.CanHayfa && window.CanHayfa.stilYukle) window.CanHayfa.stilYukle();
+    if (!document.getElementById('ca-yerlesim-css')) {
+      const st = document.createElement('style'); st.id = 'ca-yerlesim-css'; st.textContent = CSS_YERLESIM; document.head.appendChild(st);
+    }
     kok = document.createElement('div'); kok.id = 'ca-panel';
     kok.innerHTML = `<div class="ca-kutu" role="dialog" aria-modal="true" aria-label="CanEditor Hukuk Asistanı">
       <header>
         <h2>
           <span>⚖️ CanEditor Hukuk Asistanı</span>
-          <span class="hf-badge">HAYFA · Birleşik v4.2</span>
+          <span class="hf-badge">HAYFA · v${esc(window.CANEDITOR_VERSION || '')}</span>
           <span id="ca-hdr-drive-durum" style="font-size:11.5px;font-weight:normal;padding:3px 9px;border-radius:12px;background:rgba(200,164,90,.18);color:#f5ecd9;border:1px solid rgba(200,164,90,.4);cursor:pointer;margin-left:6px" title="Google Drive Senkronizasyon Durumu (Açmak için tıklayın)">☁️ Drive: Denetleniyor…</span>
         </h2>
         <button class="ca-kapat" type="button" aria-label="Kapat">×</button>
       </header>
-      <nav>${SEKMELER.map(([k, ad]) => `<button type="button" data-sekme="${k}">${ad}</button>`).join('')}</nav>
-      <div class="ca-icerik"></div></div>`;
+      <div class="ca-govde">
+        <nav aria-label="Asistan bölümleri">${SEKME_GRUPLARI.map(([g, l]) => `<div class="ca-grup">${esc(g)}</div>` + l.map(([k, ad]) => `<button type="button" data-sekme="${k}">${ad}</button>`).join('')).join('')}</nav>
+        <div class="ca-icerik" tabindex="-1"></div>
+      </div></div>`;
     document.body.appendChild(kok);
     kok.querySelector('.ca-kapat').onclick = kapat;
     kok.querySelector('#ca-hdr-drive-durum').onclick = () => sekmeAc('drive');
@@ -449,7 +501,16 @@
       gorev: gorevSekmesi,
       baglanti: baglantiSekmesi
     };
-    (harita[k] || sureSekmesi)(ic);
+    // Sekme değişince içerik başa sarılır, yükleme göstergesi çıkar ve son sekme hatırlanır.
+    ic.scrollTop = 0;
+    ic.innerHTML = '<div class="ca-yukleniyor">Yükleniyor…</div>';
+    try { localStorage.setItem('canasistan.sonSekme', k); } catch (e) {}
+    try {
+      const r = (harita[k] || sureSekmesi)(ic);
+      if (r && typeof r.catch === 'function') r.catch(e => { ic.innerHTML = `<div class="ca-kart"><span class="ca-hata">Bu bölüm açılamadı: ${esc(e && e.message || e)}</span></div>`; });
+    } catch (e) {
+      ic.innerHTML = `<div class="ca-kart"><span class="ca-hata">Bu bölüm açılamadı: ${esc(e && e.message || e)}</span></div>`;
+    }
     driveDurumunuGuncelle();
   }
 
@@ -587,6 +648,7 @@
       const rozet = d.oturum === true ? '🟢 UYAP oturumu açık' : d.calisiyor ? '⏳ Bağlanılıyor…' : d.oturum === false ? '🔴 Oturum açılamadı — yeniden denenecek' : d.etkin ? '⚪ Sıradaki kontrol bekleniyor' : /kapalı/.test(d.neden || '') ? '⚪ Bağlı tut kapalı' : '⚪ Giriş bilgisi girilmedi';
       k.innerHTML = `<div class="ca-hedef" style="font-size:18px">${rozet}</div>
         ${d.neden ? `<div class="ca-uyari">${esc(d.neden)}</div>` : ''}
+        ${d.son_hata ? `<div class="ca-uyari" style="border-color:#dc2626">⚠️ Son turda hata: ${esc(d.son_hata)}</div>` : ''}
         <p class="ca-soluk">Son deneme: ${zamanYaz(d.son_baslangic)} · Sonraki: ${d.sonraki ? zamanYaz(d.sonraki) : '—'}</p>
         ${d.gunluk && d.gunluk.length ? `<pre style="white-space:pre-wrap;max-height:160px;overflow:auto">${esc(d.gunluk.join('\n'))}</pre>` : ''}`;
       oturumNoktasi(d);
@@ -874,7 +936,7 @@
           <table style="margin-top:8px;">
             <tr><th>Kesintisiz Çalışma Süresi</th><td><b>${esc(s.calisma_suresi)}</b></td></tr>
             <tr><th>İşlenen İstek Sayısı</th><td>${esc(s.toplam_istek)} istek</td></tr>
-            <tr><th>Ağ Gecikmesi (Ping)</th><td>${esc(s.ping_ms)} ms (yerel anlık)</td></tr>
+            <tr><th>Ağ Gecikmesi (Ping)</th><td>${s.ping_ms == null ? "UYAP'a ulaşılamadı" : esc(s.ping_ms) + " ms (UYAP Avukat Portal)"}</td></tr>
             <tr><th>Bağlantı Kesinti Kaydı</th><td>${esc(s.son_kesinti)} (${s.kesinti_sayisi} kesinti)</td></tr>
             <tr><th>Google Drive Webhook</th><td>${s.drive_webhook_tanimli ? '🟢 Tanımlı ve Hazır' : '⚪ Webhook linki girilmedi (Drive sekmesinden ayarlayabilirsiniz)'}</td></tr>
             <tr><th>Sunucu Saati</th><td>${esc(s.sunucu_zamani)}</td></tr>
