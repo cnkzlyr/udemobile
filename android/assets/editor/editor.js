@@ -56,11 +56,16 @@ if (typeof window !== 'undefined') {
 
 // Aktif yazım ve klavye odak koruma durumu
 let lastUserTypingTimestamp = 0;
-function noteUserActivity() {
+function noteUserActivity(e) {
   lastUserTypingTimestamp = Date.now();
+  // Sadece editörün kendi düzenlenebilir içeriğindeyse belge değiştirilmiş say
+  if (e && e.target) {
+    const isDocEdit = e.target.closest && (e.target.closest('#editor-content') || e.target.closest('.page-body-box') || e.target.closest('.a4-sheet-page') || e.target.closest('[contenteditable="true"]'));
+    if (!isDocEdit) return; // Modal pencereler (PIN girişi, arama vb.) belgeyi kirletmez
+  }
   window.__userHasEditedDocument = true;
   if (window.AndroidBridge && window.AndroidBridge.setDocModified) {
-    try { window.AndroidBridge.setDocModified(true); } catch (e) {}
+    try { window.AndroidBridge.setDocModified(true); } catch (err) {}
   }
 }
 if (typeof document !== 'undefined') {
@@ -1137,7 +1142,15 @@ function updatePagination() {
       const h = rawH + gap;
 
       const isTableNode = node.tagName && node.tagName.toLowerCase() === 'table';
-      if ((currentAccumHeight + h > targetCap) && (currentPageNodes.length > 0 || (isTableNode && h > targetCap))) {
+      const txtTrim = (node.textContent || '').trim();
+      const isHeaderLike = (node.tagName && /^H[1-6]$/i.test(node.tagName)) ||
+                           (node.classList && (node.classList.contains('heading') || node.classList.contains('udf-heading'))) ||
+                           ((node.querySelector && node.querySelector('b, strong')) && (txtTrim.endsWith(':') || /^(NETİCE-İ TALEP|SONUÇ VE TALEP|SONUÇ|TALEP|HUKUKİ SEBEPLER|HUKUKİ NEDENLER|DELİLLER|AÇIKLAMALAR|CEVAPLARIMIZ)/i.test(txtTrim)) && txtTrim.length < 95);
+
+      // Başlıkların sayfa dibinde tek satır yetim kalmasını engelle (keep with next)
+      const effectiveCap = (isHeaderLike && currentPageNodes.length > 0) ? (targetCap - 50) : targetCap;
+
+      if ((currentAccumHeight + h > effectiveCap) && (currentPageNodes.length > 0 || (isTableNode && h > targetCap))) {
         // Havelsan tabloları satır sınırından böler: sığan satırlar bu sayfada kalır.
         if (isTableNode) {
           const availT = targetCap - currentAccumHeight - gap;
@@ -1182,7 +1195,8 @@ function updatePagination() {
         }
         // Sığmıyor! Havelsan UYAP standardı: Paragrafı satır satır bölmeyi dene
         const availH = targetCap - currentAccumHeight - gap;
-        const isSplittable = (node.tagName && node.tagName.toLowerCase() === 'p') &&
+        const isSplittable = !isHeaderLike &&
+                             (node.tagName && node.tagName.toLowerCase() === 'p') &&
                              !node.classList.contains('page-break') &&
                              !node.classList.contains('udf-page-break') &&
                              availH >= 24;
@@ -4513,9 +4527,13 @@ function markDocumentPristine() {
 window.markDocumentPristine = markDocumentPristine;
 
 function isDocumentModified() {
-  if (window.__userHasEditedDocument) return true;
-  if (window.__origDocSnapshot === null) return false;
-  return snapshotDocument() !== window.__origDocSnapshot;
+  if (window.__origDocSnapshot !== null) {
+    const cur = snapshotDocument();
+    if (cur !== null) {
+      return cur !== window.__origDocSnapshot;
+    }
+  }
+  return !!window.__userHasEditedDocument;
 }
 window.isDocumentModified = isDocumentModified;
 

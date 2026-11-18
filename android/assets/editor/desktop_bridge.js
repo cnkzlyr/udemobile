@@ -3981,13 +3981,25 @@ async function renderAllPdfPages() {
     rail.appendChild(pageWrapper);
 
     const page = await currentPdfDoc.getPage(num);
-    const viewport = page.getViewport({ scale: currentPdfZoom * 1.5 });
-    canvas.width = viewport.width;
-    canvas.height = viewport.height;
-    canvas.style.width = `${Math.round(viewport.width / 1.5)}px`;
-    canvas.style.height = `${Math.round(viewport.height / 1.5)}px`;
+    // Güvenli mobil/yüksek DPI ölçekleme: Canvas'ın 2048px GPU sınırını aşıp beyaz/boş kalmasını önle
+    const unscaledVp = page.getViewport({ scale: 1.0 });
+    const maxDim = Math.max(unscaledVp.width, unscaledVp.height);
+    const maxAllowedCanvasDim = 2048; // Android WebView güvenli canvas sınırı
+    const safeScale = Math.min(currentPdfZoom * 1.5, maxAllowedCanvasDim / Math.max(1, maxDim));
+    const finalScale = Math.max(0.5, safeScale);
+    const viewport = page.getViewport({ scale: finalScale });
 
-    const ctx = canvas.getContext("2d");
+    canvas.width = Math.floor(viewport.width);
+    canvas.height = Math.floor(viewport.height);
+    canvas.style.width = `${Math.round(viewport.width / (finalScale / currentPdfZoom))}px`;
+    canvas.style.height = `${Math.round(viewport.height / (finalScale / currentPdfZoom))}px`;
+    canvas.style.maxWidth = "100%";
+
+    const ctx = canvas.getContext("2d", { alpha: false });
+    if (ctx) {
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
     await page.render({ canvasContext: ctx, viewport }).promise;
   }
 }
@@ -4107,8 +4119,8 @@ function renderAllTiffPages() {
     try {
       UTIF.decodeImage(currentTiffBuffer, ifd);
       const rgba = UTIF.toRGBA8(ifd);
-      const w = ifd.width;
-      const h = ifd.height;
+      let w = ifd.width;
+      let h = ifd.height;
 
       const pageWrapper = document.createElement("div");
       pageWrapper.className = "viewer-page-card";
@@ -4117,10 +4129,14 @@ function renderAllTiffPages() {
       const canvas = document.createElement("canvas");
       canvas.width = w;
       canvas.height = h;
-      const ctx = canvas.getContext("2d");
-      const imgData = ctx.createImageData(w, h);
-      imgData.data.set(rgba);
-      ctx.putImageData(imgData, 0, 0);
+      const ctx = canvas.getContext("2d", { alpha: false });
+      if (ctx) {
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, w, h);
+        const imgData = ctx.createImageData(w, h);
+        imgData.data.set(rgba);
+        ctx.putImageData(imgData, 0, 0);
+      }
 
       const displayW = Math.round(w * currentTiffZoom);
       const displayH = Math.round(h * currentTiffZoom);

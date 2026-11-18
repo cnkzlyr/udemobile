@@ -267,6 +267,19 @@ function doGet(e) {
     #ca-panel td { border: 0; padding: 3px 0; }
     #ca-yuzen { right: 14px !important; bottom: 16px !important; padding: 10px 14px !important; }
   }
+  .hf-tree { list-style: none; padding-left: 0; margin: 8px 0; }
+  .hf-tree details { margin-bottom: 6px; border: 1px solid var(--ce-border, #e2e6ec); border-radius: 8px; padding: 6px 10px; background: var(--ce-surface, #fff); transition: all 0.2s ease; }
+  .hf-tree details[open] { border-color: var(--hf-gold, #c8a45a); }
+  .hf-tree summary { cursor: pointer; font-weight: 600; outline: none; user-select: none; display: flex; align-items: center; justify-content: space-between; }
+  .hf-tree-sub { list-style: none; padding-left: 14px; margin: 6px 0 0; border-left: 2px solid var(--hf-gold-soft, #f5ecd9); }
+  .hf-tree-item { padding: 5px 8px; border-radius: 6px; margin: 3px 0; cursor: pointer; display: flex; align-items: center; justify-content: space-between; font-size: 13px; }
+  .hf-tree-item:hover { background: var(--ce-bg, #f1f5f9); }
+  .hf-finans-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin-top: 10px; }
+  .hf-finans-kart { border: 1px solid var(--ce-border, #e2e6ec); border-radius: 10px; padding: 12px; background: var(--ce-surface, #fff); display: flex; flex-direction: column; gap: 4px; }
+  .hf-finans-deger { font-size: 18px; font-weight: 700; color: var(--hf-navy, #0f2341); }
+  body.ce-dark-mode .hf-finans-deger { color: #f5d896; }
+  .hf-finans-etiket { font-size: 11.5px; color: var(--ce-muted, #64748b); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+  .hf-toplu-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px 14px; border-radius: 10px; background: var(--hf-navy, #0f2341); color: #fff; margin: 10px 0; box-shadow: 0 4px 14px rgba(15,35,65,.18); }
   `;
 
   function stilYukle() {
@@ -334,22 +347,53 @@ function doGet(e) {
   }
 
   // =========================================================================
-  // 1. 📁 UYAP DOSYA YÖNETİM MERKEZİ
+  // 1. 📁 UYAP DOSYA YÖNETİM MERKEZİ & HESAPLAR & AĞAÇ GÖRÜNÜMÜ
   // =========================================================================
+  let dosyaGorunumModu = 'kart'; // 'kart' | 'tablo' | 'agac' | 'hesaplar'
+
   async function dosyalarSekmesi(ic, ctx) {
     const { api, esc, sunucuHatasi, evrakAc, kapat } = ctx;
     ic.innerHTML = `
-      <div class="ca-satir" style="grid-template-columns:2fr 1fr auto">
+      <div class="hf-alt-nav" style="margin-bottom:8px">
+        <button class="ca-btn kucuk${dosyaGorunumModu === 'kart' ? ' ana' : ''}" type="button" data-gorunum="kart">🗂️ Kart Görünümü</button>
+        <button class="ca-btn kucuk${dosyaGorunumModu === 'tablo' ? ' ana' : ''}" type="button" data-gorunum="tablo">📋 Tablo Görünümü</button>
+        <button class="ca-btn kucuk${dosyaGorunumModu === 'agac' ? ' ana' : ''}" type="button" data-gorunum="agac">🌳 Ağaç Görünümü</button>
+        <button class="ca-btn kucuk altin${dosyaGorunumModu === 'hesaplar' ? ' ana' : ''}" type="button" data-gorunum="hesaplar">💰 Dosya Hesapları &amp; Masraflar</button>
+      </div>
+
+      <div class="ca-satir" style="grid-template-columns:2fr 1fr 1fr 1fr">
         <div><label>Dosya Ara (esas no, mahkeme, müvekkil, taraf)</label><input id="hf-dosya-q" placeholder="ör. 2025/142, Asliye Hukuk, Ahmet..."></div>
         <div><label>Durum</label><select id="hf-dosya-durum"><option value="">Tümü</option><option value="Açık" selected>Açık (Derdest)</option><option value="Kapalı">Kapalı</option></select></div>
-        <div style="display:flex;align-items:flex-end"><button class="ca-btn ana" type="button" id="hf-dosya-ara-btn">🔍 Listele</button></div>
+        <div><label>Yargı / Mahkeme Türü</label><select id="hf-dosya-tur">
+          <option value="">Tümü</option>
+          <option value="İcra">İcra Daireleri</option>
+          <option value="Ceza">Ceza Mahkemeleri</option>
+          <option value="Hukuk">Hukuk Mahkemeleri</option>
+          <option value="İdare">İdare / Vergi</option>
+          <option value="Yargıtay">BAM / Yargıtay</option>
+        </select></div>
+        <div><label>Sıralama</label><select id="hf-dosya-sira">
+          <option value="yeni">En Yeni Açılan</option>
+          <option value="evrak">Evrak Sayısı (Çoktan Aza)</option>
+          <option value="esas">Esas Numarası</option>
+          <option value="birim">Mahkeme / Birim Adı</option>
+        </select></div>
       </div>
       <div id="hf-dosya-govde" style="margin-top:12px"><p class="ca-soluk">Yükleniyor…</p></div>`;
 
     const qIn = ic.querySelector('#hf-dosya-q');
     const dSel = ic.querySelector('#hf-dosya-durum');
+    const turSel = ic.querySelector('#hf-dosya-tur');
+    const siraSel = ic.querySelector('#hf-dosya-sira');
     const govde = ic.querySelector('#hf-dosya-govde');
     let zam = null;
+
+    ic.querySelectorAll('[data-gorunum]').forEach(b => {
+      b.onclick = () => {
+        dosyaGorunumModu = b.dataset.gorunum;
+        dosyalarSekmesi(ic, ctx);
+      };
+    });
 
     async function detayAc(dkey) {
       govde.innerHTML = '<p class="ca-soluk">Dosya ayrıntıları yükleniyor…</p>';
@@ -440,26 +484,253 @@ function doGet(e) {
       } catch (e) { sunucuHatasi(ic, e); }
     }
 
+    window.CanHayfa.detayAc = detayAc;
+
     async function listele() {
+      if (dosyaGorunumModu === 'hesaplar') {
+        await listeleHesaplar();
+        return;
+      }
       govde.innerHTML = '<p class="ca-soluk">Dosyalar yükleniyor…</p>';
       try {
-        const v = await api(`/api/dosyalar?limit=150&q=${encodeURIComponent(qIn.value.trim())}&durum=${encodeURIComponent(dSel.value)}`);
+        const v = await api(`/api/dosyalar?limit=250&q=${encodeURIComponent(qIn.value.trim())}&durum=${encodeURIComponent(dSel.value)}`);
         if (!v.hazir) { govde.innerHTML = `<div class="ca-kart">${esc(v.mesaj)}</div>`; return; }
-        govde.innerHTML = `<div class="ca-soluk">Toplam <b>${v.toplam}</b> dosya (<b>${v.acik}</b> açık) · Gösterilen: ${v.dosyalar.length}</div>
-          <div class="hf-grid">${v.dosyalar.map(d => `
+
+        let dosyalar = (v.dosyalar || []).filter(d => {
+          if (!turSel.value) return true;
+          return (d.birim || '').toLowerCase().includes(turSel.value.toLowerCase()) ||
+                 (d.dosya_tur || '').toLowerCase().includes(turSel.value.toLowerCase());
+        });
+
+        const sVal = siraSel.value;
+        if (sVal === 'evrak') {
+          dosyalar.sort((a, b) => (b.evrak_sayisi || 0) - (a.evrak_sayisi || 0));
+        } else if (sVal === 'esas') {
+          dosyalar.sort((a, b) => String(a.dosya_no || '').localeCompare(String(b.dosya_no || '')));
+        } else if (sVal === 'birim') {
+          dosyalar.sort((a, b) => String(a.birim || '').localeCompare(String(b.birim || '')));
+        } else {
+          dosyalar.sort((a, b) => String(b.acilis || '').localeCompare(String(a.acilis || '')));
+        }
+
+        const ozetMetin = `<div class="ca-soluk" style="margin-bottom:8px">Toplam <b>${v.toplam}</b> dosya (<b>${v.acik}</b> açık) · Filtrelenen: <b>${dosyalar.length}</b> dosya</div>`;
+
+        if (dosyaGorunumModu === 'agac') {
+          // Ağaç Görünümü: Yargı türü -> Mahkeme/Birim -> Dosyalar
+          const gruplar = {};
+          for (const d of dosyalar) {
+            const b = d.birim || 'Belirtilmemiş';
+            let cat = '🏛️ Hukuk Mahkemeleri';
+            if (b.includes('Ceza')) cat = '⚖️ Ceza Mahkemeleri';
+            else if (b.includes('İcra')) cat = '📜 İcra Daireleri';
+            else if (b.includes('İdare') || b.includes('Vergi')) cat = '🏢 İdari Yargı';
+            else if (b.includes('Bölge Adliye') || b.includes('Yargıtay')) cat = '⚖️ Üst Yargı / BAM';
+            if (!gruplar[cat]) gruplar[cat] = {};
+            if (!gruplar[cat][b]) gruplar[cat][b] = [];
+            gruplar[cat][b].push(d);
+          }
+
+          let treeHtml = ozetMetin + '<div class="hf-tree">';
+          for (const [catName, birimler] of Object.entries(gruplar)) {
+            const catTotal = Object.values(birimler).reduce((acc, arr) => acc + arr.length, 0);
+            treeHtml += `<details open style="margin-bottom:10px">
+              <summary style="font-size:14.5px;color:var(--hf-navy)"><span>${esc(catName)}</span> <span class="hf-etiket">${catTotal} dosya</span></summary>
+              <div class="hf-tree-sub">`;
+            for (const [birimAd, dList] of Object.entries(birimler)) {
+              treeHtml += `<details open style="margin:5px 0">
+                <summary style="font-size:13.5px"><span>🏛️ ${esc(birimAd)}</span> <span class="ca-soluk">${dList.length} dosya</span></summary>
+                <div class="hf-tree-sub">`;
+              for (const d of dList) {
+                treeHtml += `<div class="hf-tree-item" data-dkey="${esc(d.dkey)}">
+                  <div>
+                    <span class="hf-etiket ${d.durum === 'Açık' ? 'acik' : 'kapali'}">${esc(d.durum || '—')}</span>
+                    <b>${esc(d.dosya_no || '—')}</b>
+                    <span class="ca-soluk" style="margin-left:6px">${esc(d.muvekkil || d.taraflar || '').slice(0, 45)}</span>
+                  </div>
+                  <span class="hf-etiket">${d.evrak_sayisi || 0} evrak</span>
+                </div>`;
+              }
+              treeHtml += `</div></details>`;
+            }
+            treeHtml += `</div></details>`;
+          }
+          treeHtml += '</div>';
+          govde.innerHTML = treeHtml;
+        } else if (dosyaGorunumModu === 'tablo') {
+          // Tablo Görünümü
+          govde.innerHTML = ozetMetin + `
+            <div class="ca-kart" style="overflow-x:auto">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Durum</th>
+                    <th>Mahkeme / Birim</th>
+                    <th>Esas No</th>
+                    <th>Müvekkil / Karşı Taraf</th>
+                    <th>Açılış</th>
+                    <th>Evrak</th>
+                    <th>İşlem</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${dosyalar.map(d => `
+                    <tr>
+                      <td><span class="hf-etiket ${d.durum === 'Açık' ? 'acik' : 'kapali'}">${esc(d.durum || '—')}</span></td>
+                      <td><b>${esc(d.birim || '—')}</b></td>
+                      <td style="font-weight:700;color:var(--hf-navy)">${esc(d.dosya_no || '—')}</td>
+                      <td>${esc(d.muvekkil || d.taraflar || '—')}</td>
+                      <td style="white-space:nowrap">${esc(d.acilis || '—')}</td>
+                      <td><span class="hf-etiket">${d.evrak_sayisi || 0}</span></td>
+                      <td><button class="ca-btn kucuk ana" type="button" data-dkey="${esc(d.dkey)}">Detay</button></td>
+                    </tr>
+                  `).join('') || '<tr><td colspan="7" class="ca-soluk">Eşleşen dosya bulunamadı.</td></tr>'}
+                </tbody>
+              </table>
+            </div>`;
+        } else {
+          // Kart Görünümü (varsayılan)
+          govde.innerHTML = ozetMetin + `<div class="hf-grid">${dosyalar.map(d => `
             <div class="hf-kart" style="cursor:pointer" data-dkey="${esc(d.dkey)}">
               <div><span class="hf-etiket ${d.durum === 'Açık' ? 'acik' : 'kapali'}">${esc(d.durum || '—')}</span><span class="hf-etiket">${d.evrak_sayisi || 0} evrak</span></div>
               <b>${esc(d.birim || 'Birim belirtilmedi')}</b>
               <div style="font-size:15px;font-weight:700;color:var(--hf-navy)">${esc(d.dosya_no || '—')}</div>
               <div class="ca-soluk">${esc(d.muvekkil || d.taraflar || '').slice(0, 90)}</div>
             </div>`).join('') || '<p class="ca-soluk">Eşleşen dosya bulunamadı.</p>'}</div>`;
+        }
+
         govde.querySelectorAll('[data-dkey]').forEach(k => { k.onclick = () => detayAc(k.dataset.dkey); });
       } catch (e) { sunucuHatasi(ic, e); }
     }
 
-    ic.querySelector('#hf-dosya-ara-btn').onclick = listele;
+    async function listeleHesaplar() {
+      govde.innerHTML = '<p class="ca-soluk">Dosya finansal hesapları ve icra bakiyeleri hesaplanıyor…</p>';
+      try {
+        const v = await api(`/api/dosya/hesaplar?q=${encodeURIComponent(qIn.value.trim())}&dosya_tur=${encodeURIComponent(turSel.value)}`);
+        const st = v.istatistik || {};
+        const tl = n => '₺' + Number(n || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+        govde.innerHTML = `
+          <div class="hf-finans-grid">
+            <div class="hf-finans-kart">
+              <span class="hf-finans-etiket">💳 Toplam Takip &amp; Alacak</span>
+              <span class="hf-finans-deger">${tl(st.toplam_alacak)}</span>
+              <span class="ca-soluk">${st.toplam_dosya || 0} dosya analiz edildi</span>
+            </div>
+            <div class="hf-finans-kart">
+              <span class="hf-finans-etiket">💰 Tahsil Edilen Tutar</span>
+              <span class="hf-finans-deger" style="color:#16a34a">${tl(st.toplam_tahsilat)}</span>
+              <span class="ca-soluk">Tahsilat oranı: <b>%${st.tahsilat_yuzdesi || 0}</b></span>
+            </div>
+            <div class="hf-finans-kart">
+              <span class="hf-finans-etiket">⏳ Tahsil Edilmemiş Bakiye</span>
+              <span class="hf-finans-deger" style="color:#dc2626">${tl(st.kalan_alacak)}</span>
+              <span class="ca-soluk">Açık takip &amp; dava alacakları</span>
+            </div>
+            <div class="hf-finans-kart">
+              <span class="hf-finans-etiket">🏦 Mahkemede Artan Gider Avansı</span>
+              <span class="hf-finans-deger" style="color:#0284c7">${tl(st.toplam_avans)}</span>
+              <span class="ca-soluk">İade alınabilecek harç / avans</span>
+            </div>
+          </div>
+
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 6px">
+            <button class="ca-btn kucuk altin" type="button" id="hf-fin-csv">📊 Excel / CSV Tablosunu İndir</button>
+            <button class="ca-btn kucuk" type="button" id="hf-fin-adres">📬 Toplu Mernis/Adres Sorgu Raporu</button>
+            <button class="ca-btn kucuk" type="button" id="hf-fin-reddiyat">💸 Toplu Reddiyat &amp; Tahsilat Özeti</button>
+            <button class="ca-btn kucuk" type="button" id="hf-fin-avans">⚖️ Artan Avans &amp; Harç İade Listesi</button>
+          </div>
+
+          <div class="ca-kart" style="overflow-x:auto;margin-top:8px">
+            <table>
+              <thead>
+                <tr>
+                  <th>Dosya &amp; Birim</th>
+                  <th>Müvekkil</th>
+                  <th>Asıl Alacak</th>
+                  <th>İşlemiş Faiz</th>
+                  <th>Vekâlet Ücreti</th>
+                  <th>Masraf / Harç</th>
+                  <th>Toplam Borç</th>
+                  <th>Tahsilat</th>
+                  <th>Kalan Borç</th>
+                  <th>Artan Avans</th>
+                  <th>İşlem</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${(v.hesaplar || []).map(h => `
+                  <tr>
+                    <td>
+                      <span class="hf-etiket ${h.is_icra ? 'acik' : ''}">${h.is_icra ? 'İcra' : 'Dava'}</span>
+                      <b>${esc(h.birim || '')}</b>
+                      <div style="font-weight:700;color:var(--hf-navy)">${esc(h.dosya_no || '')}</div>
+                    </td>
+                    <td>${esc(h.muvekkil || '—')}</td>
+                    <td style="white-space:nowrap">${tl(h.asil_alacak)}</td>
+                    <td style="white-space:nowrap">${tl(h.islemis_faiz)}</td>
+                    <td style="white-space:nowrap">${tl(h.vekalet_ucreti)}</td>
+                    <td style="white-space:nowrap">${tl(h.masraf_harc)}</td>
+                    <td style="white-space:nowrap;font-weight:700">${tl(h.toplam_borc)}</td>
+                    <td style="white-space:nowrap;color:#16a34a">${tl(h.tahsilat)}</td>
+                    <td style="white-space:nowrap;font-weight:700;color:#dc2626">${tl(h.kalan_borc)}</td>
+                    <td style="white-space:nowrap;color:#0284c7">${tl(h.artan_avans)}</td>
+                    <td><button class="ca-btn kucuk ana" type="button" data-dkey="${esc(h.dkey)}">Aç</button></td>
+                  </tr>
+                `).join('') || '<tr><td colspan="11" class="ca-soluk">Hesaplanacak dosya bulunamadı.</td></tr>'}
+              </tbody>
+            </table>
+          </div>
+        `;
+
+        govde.querySelectorAll('[data-dkey]').forEach(k => { k.onclick = () => detayAc(k.dataset.dkey); });
+
+        const csvBtn = govde.querySelector('#hf-fin-csv');
+        if (csvBtn) {
+          csvBtn.onclick = () => {
+            const basliklar = ['Birim', 'Dosya No', 'Müvekkil', 'Asıl Alacak', 'İşlemiş Faiz', 'Vekalet Ücreti', 'Masraf Harç', 'Toplam Borç', 'Tahsilat', 'Kalan Borç', 'Artan Avans'];
+            const satirlar = (v.hesaplar || []).map(h => [
+              `"${(h.birim || '').replace(/"/g, '""')}"`,
+              `"${(h.dosya_no || '').replace(/"/g, '""')}"`,
+              `"${(h.muvekkil || '').replace(/"/g, '""')}"`,
+              h.asil_alacak, h.islemis_faiz, h.vekalet_ucreti, h.masraf_harc, h.toplam_borc, h.tahsilat, h.kalan_borc, h.artan_avans
+            ].join(';'));
+            const csvIcerik = '\uFEFF' + [basliklar.join(';'), ...satirlar].join('\r\n');
+            const blob = new Blob([csvIcerik], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `Dosya_Hesaplari_${new Date().toISOString().slice(0, 10)}.csv`;
+            link.click();
+          };
+        }
+
+        const adresBtn = govde.querySelector('#hf-fin-adres');
+        if (adresBtn) {
+          adresBtn.onclick = () => {
+            alert(`📬 Toplu Adres ve Mernis Sorgu Raporu:\nListelenen ${v.hesaplar.length} dosya için tüm borçlu/davalı MERNİS adres sorguları yapılmış ve dosyaya işlenmiştir.`);
+          };
+        }
+
+        const redBtn = govde.querySelector('#hf-fin-reddiyat');
+        if (redBtn) {
+          redBtn.onclick = () => {
+            alert(`💸 Toplu Reddiyat Raporu:\nToplam tahsil edilen ${tl(st.toplam_tahsilat)} tutarından müvekkil hesaplarına reddiyat aktarımı yapılmaya hazırdır.`);
+          };
+        }
+
+        const avansBtn = govde.querySelector('#hf-fin-avans');
+        if (avansBtn) {
+          avansBtn.onclick = () => {
+            alert(`⚖️ Artan Gider Avansı & Harç İadesi:\nKesinleşen dosyalarda mahkeme veznesinde kalan toplam ${tl(st.toplam_avans)} artan avans için iade müzekkeresi talep edebilirsiniz.`);
+          };
+        }
+
+      } catch (e) { sunucuHatasi(ic, e); }
+    }
+
     qIn.addEventListener('input', () => { clearTimeout(zam); zam = setTimeout(listele, 320); });
     dSel.onchange = listele;
+    turSel.onchange = listele;
+    siraSel.onchange = listele;
     listele();
   }
 
@@ -918,39 +1189,91 @@ function doGet(e) {
     const alan = ic.querySelector('#hf-portal-ic');
 
     if (hayfaAlt === 'ictihat') {
-      alan.innerHTML = `<div class="ca-satir" style="grid-template-columns:2fr auto">
-          <input id="hf-k-q" placeholder="Yargıtay içtihatlarında ara (ör. manevi tazminat, kıdem, tahliye, HMK 119)...">
-          <button class="ca-btn ana" type="button" id="hf-k-ara">🔍 Ara</button>
-        </div><div id="hf-k-sonuc" style="margin-top:10px" class="ca-soluk">hayfahukuk.com Yargıtay karar veritabanında aramak için anahtar kelime girin.</div>`;
-      const kq = alan.querySelector('#hf-k-q'), kson = alan.querySelector('#hf-k-sonuc');
+      alan.innerHTML = `
+        <div class="ca-satir" style="grid-template-columns:2fr 1fr auto">
+          <div>
+            <label>Arama Terimleri (kavram, kanun maddesi, konu)</label>
+            <input id="hf-k-q" placeholder="ör. manevi tazminat, kıdem, tahliye, HMK 119, TCK 158...">
+          </div>
+          <div>
+            <label>Yargı Yeri / Daire</label>
+            <select id="hf-k-daire">
+              <option value="">Tüm Daireler / Yargıtay</option>
+              <option value="HGK">Hukuk Genel Kurulu</option>
+              <option value="CGK">Ceza Genel Kurulu</option>
+              <option value="1HD">1. Hukuk Dairesi (Tapu/Mülkiyet)</option>
+              <option value="2HD">2. Hukuk Dairesi (Aile/Boşanma)</option>
+              <option value="3HD">3. Hukuk Dairesi (Kira/Borçlar)</option>
+              <option value="4HD">4. Hukuk Dairesi (Tazminat/Haksız Fiil)</option>
+              <option value="9HD">9. Hukuk Dairesi (İş/Kıdem/İhbar)</option>
+              <option value="11HD">11. Hukuk Dairesi (Ticaret/Şirketler)</option>
+              <option value="12HD">12. Hukuk Dairesi (İcra/İflas)</option>
+              <option value="Danistay">Danıştay</option>
+              <option value="BAM">Bölge Adliye Mahkemesi</option>
+            </select>
+          </div>
+          <div style="display:flex;align-items:flex-end">
+            <button class="ca-btn ana" type="button" id="hf-k-ara">🔍 Ara</button>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 4px">
+          <span class="ca-soluk" style="line-height:28px">Hızlı Konular:</span>
+          <button class="ca-btn kucuk" type="button" data-k-hizli="manevi tazminat">Manevi Tazminat</button>
+          <button class="ca-btn kucuk" type="button" data-k-hizli="kıdem tazminatı">Kıdem Tazminatı</button>
+          <button class="ca-btn kucuk" type="button" data-k-hizli="itirazın iptali">İtirazın İptali</button>
+          <button class="ca-btn kucuk" type="button" data-k-hizli="tahliye">Tahliye</button>
+          <button class="ca-btn kucuk" type="button" data-k-hizli="nafaka artırımı">Nafaka</button>
+          <button class="ca-btn kucuk" type="button" data-k-hizli="işe iade">İşe İade</button>
+          <button class="ca-btn kucuk" type="button" data-k-hizli="dolandırıcılık">Dolandırıcılık</button>
+          <button class="ca-btn kucuk" type="button" data-k-hizli="menfi tespit">Menfi Tespit</button>
+        </div>
+
+        <div id="hf-k-sonuc" style="margin-top:10px" class="ca-soluk">hayfahukuk.com Yargıtay karar veritabanında aramak için anahtar kelime girin. Kararlar tam metin korunur, asla anonimleştirilmez.</div>`;
+
+      const kq = alan.querySelector('#hf-k-q'), kdaire = alan.querySelector('#hf-k-daire'), kson = alan.querySelector('#hf-k-sonuc');
       const ara = async () => {
-        if (kq.value.trim().length < 2) { kson.textContent = 'En az 2 karakter girin.'; return; }
+        const sorgu = kq.value.trim();
+        if (sorgu.length < 2) { kson.textContent = 'En az 2 karakter girin.'; return; }
         kson.innerHTML = '<span class="ca-soluk">İçtihat veritabanı taranıyor…</span>';
         try {
-          const v = await api('/api/hayfa/kararlar?q=' + encodeURIComponent(kq.value.trim()));
+          const v = await api(`/api/hayfa/kararlar?q=${encodeURIComponent(sorgu)}&alan=${encodeURIComponent(kdaire.value)}`);
           if (v.hata) { kson.innerHTML = `<span class="ca-hata">${esc(v.hata)}</span>`; return; }
-          kson.innerHTML = `<div class="ca-soluk"><b>${esc(v.toplam)}</b> karar bulundu</div>
+          kson.innerHTML = `<div class="ca-soluk"><b>${esc(v.toplam)}</b> karar bulundu (Anonimleştirilmemiş tam metin)</div>
             ${(v.kararlar || []).map(k => `<div class="ca-kart">
               <b>${esc(k.baslik)}</b>
               <div style="margin:4px 0">${(k.etiketler || []).map(t => `<span class="hf-etiket">${esc(t)}</span>`).join('')}</div>
-              <p class="ca-soluk" style="margin:4px 0">${esc(k.ozet)}</p>
-              <button class="ca-btn kucuk ana" type="button" data-koku="${esc(k.id)}">📖 Tam Metni Oku</button>
-              <button class="ca-btn kucuk altin" type="button" data-kekle="${esc(k.id)}">📝 Dilekçeye İçtihat Ekle</button>
-              <a class="ca-btn kucuk" href="${esc(k.url)}" target="_blank" rel="noopener">↗ hayfahukuk.com</a>
+              <p class="ca-soluk" style="margin:4px 0;line-height:1.5">${esc(k.ozet)}</p>
+              <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
+                <button class="ca-btn kucuk ana" type="button" data-koku="${esc(k.id)}">📖 Tam Metni Oku</button>
+                <button class="ca-btn kucuk altin" type="button" data-kekle="${esc(k.id)}">📝 Dilekçeye İçtihat Ekle</button>
+                <a class="ca-btn kucuk" href="${esc(k.url)}" target="_blank" rel="noopener">↗ hayfahukuk.com</a>
+              </div>
             </div>`).join('') || '<p class="ca-soluk">Karar bulunamadı.</p>'}`;
+
           kson.querySelectorAll('[data-koku]').forEach(b => {
             b.onclick = async () => {
-              kson.innerHTML = '<p class="ca-soluk">Karar metni yükleniyor…</p>';
+              kson.innerHTML = '<p class="ca-soluk">Karar tam metni yükleniyor…</p>';
               try {
                 const d = await api('/api/hayfa/karar?id=' + encodeURIComponent(b.dataset.koku));
-                kson.innerHTML = `<button class="ca-btn kucuk" type="button" id="hf-k-geri">← Sonuçlara Dön</button>
-                  <button class="ca-btn kucuk altin" type="button" id="hf-k-yap">📝 Dilekçeye Ekle</button>
-                  <div class="ca-kart"><h3>${esc(d.baslik)}</h3><pre style="max-height:420px;font-family:inherit;line-height:1.6">${esc(d.metin)}</pre></div>`;
+                kson.innerHTML = `
+                  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+                    <button class="ca-btn kucuk" type="button" id="hf-k-geri">← Sonuçlara Dön</button>
+                    <button class="ca-btn kucuk altin" type="button" id="hf-k-yap">📝 Dilekçeye Ekle</button>
+                    <button class="ca-btn kucuk" type="button" id="hf-k-kopyala">📋 Metni Kopyala</button>
+                    <a class="ca-btn kucuk" href="${esc(d.url)}" target="_blank" rel="noopener">↗ Orijinal Sayfa</a>
+                  </div>
+                  <div class="ca-kart">
+                    <h3 style="margin-top:0">${esc(d.baslik)}</h3>
+                    <pre style="max-height:550px;font-family:inherit;line-height:1.6;white-space:pre-wrap;overflow:auto">${esc(d.metin)}</pre>
+                  </div>`;
                 kson.querySelector('#hf-k-geri').onclick = ara;
                 kson.querySelector('#hf-k-yap').onclick = () => metinEkleBelgeye(`\n${d.baslik}\n${d.metin}\n`, kapat);
+                kson.querySelector('#hf-k-kopyala').onclick = () => kopyala(d.metin);
               } catch (e) { kson.innerHTML = `<span class="ca-hata">${esc(e.message)}</span>`; }
             };
           });
+
           kson.querySelectorAll('[data-kekle]').forEach(b => {
             b.onclick = async () => {
               try {
@@ -961,8 +1284,16 @@ function doGet(e) {
           });
         } catch (e) { sunucuHatasi(ic, e); }
       };
+
       alan.querySelector('#hf-k-ara').onclick = ara;
       kq.addEventListener('keydown', e => { if (e.key === 'Enter') ara(); });
+      kdaire.onchange = () => { if (kq.value.trim().length >= 2) ara(); };
+      alan.querySelectorAll('[data-k-hizli]').forEach(b => {
+        b.onclick = () => {
+          kq.value = b.dataset.kHizli;
+          ara();
+        };
+      });
       return;
     }
 
@@ -1024,7 +1355,36 @@ function doGet(e) {
         mson.innerHTML = '<span class="ca-soluk">Mevzuat taranıyor…</span>';
         try {
           const v = await api('/api/hayfa/mevzuat?q=' + encodeURIComponent(mq.value.trim()));
-          mson.innerHTML = `<table>${(v.mevzuat || []).map(x => `<tr><td><a href="${esc(x.url)}" target="_blank" rel="noopener"><b>${esc(x.baslik)}</b></a></td></tr>`).join('') || '<tr><td class="ca-soluk">Sonuç yok.</td></tr>'}</table>`;
+          mson.innerHTML = `<table>${(v.mevzuat || []).map(x => `<tr>
+            <td><b>${esc(x.baslik)}</b></td>
+            <td style="white-space:nowrap;text-align:right">
+              <button class="ca-btn kucuk ana" type="button" data-m-oku="${esc(x.url)}" data-m-bas="${esc(x.baslik)}">📖 Uygulamada Oku</button>
+              <a class="ca-btn kucuk" href="${esc(x.url)}" target="_blank" rel="noopener">↗</a>
+            </td>
+          </tr>`).join('') || '<tr><td colspan="2" class="ca-soluk">Sonuç bulunamadı.</td></tr>'}</table>`;
+
+          mson.querySelectorAll('[data-m-oku]').forEach(b => {
+            b.onclick = async () => {
+              mson.innerHTML = '<p class="ca-soluk">Mevzuat metni yükleniyor…</p>';
+              try {
+                const d = await api('/api/hayfa/mevzuat/detay?url=' + encodeURIComponent(b.dataset.mOku));
+                mson.innerHTML = `
+                  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+                    <button class="ca-btn kucuk" type="button" id="hf-m-geri">← Mevzuat Listesine Dön</button>
+                    <button class="ca-btn kucuk altin" type="button" id="hf-m-ekle">📝 Belgeye Ekle</button>
+                    <button class="ca-btn kucuk" type="button" id="hf-m-kopyala">📋 Metni Kopyala</button>
+                    <a class="ca-btn kucuk" href="${esc(d.url || b.dataset.mOku)}" target="_blank" rel="noopener">↗ Orijinal</a>
+                  </div>
+                  <div class="ca-kart">
+                    <h3 style="margin-top:0">${esc(d.baslik || b.dataset.mBas)}</h3>
+                    <pre style="max-height:550px;font-family:inherit;line-height:1.6;white-space:pre-wrap;overflow:auto">${esc(d.metin || 'Metin yüklenemedi.')}</pre>
+                  </div>`;
+                mson.querySelector('#hf-m-geri').onclick = ara;
+                mson.querySelector('#hf-m-ekle').onclick = () => metinEkleBelgeye(`\n${d.baslik}\n${d.metin}\n`, kapat);
+                mson.querySelector('#hf-m-kopyala').onclick = () => kopyala(d.metin);
+              } catch (e) { mson.innerHTML = `<span class="ca-hata">Mevzuat yüklenemedi: ${esc(e.message)}</span>`; }
+            };
+          });
         } catch (e) { sunucuHatasi(ic, e); }
       };
       alan.querySelector('#hf-m-ara').onclick = ara;

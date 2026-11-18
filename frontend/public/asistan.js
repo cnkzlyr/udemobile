@@ -325,11 +325,60 @@
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
   const SEKMELER = [
-    ['uyap', '🔐 UYAP Giriş'], ['dosyalar', '📁 Dosyalar'], ['yeni', '🔔 Yeni'], ['drive', '☁️ Drive'],
+    ['uyap', '🔐 UYAP Giriş'], ['dosyalar', '📁 Dosyalar'], ['hesaplar', '💰 Dosya Hesapları'],
+    ['yeni', '🔔 Yeni'], ['drive', '☁️ Drive'],
     ['entegrasyon', '📋 Notion/TT'], ['jar', '🔄 JAR Dönüştür'], ['hayfa', '📰 HAYFA'],
     ['sure', '⏱️ Süre'], ['hesap', '🧮 Hesapla'], ['a4', '📄 A4 PDF'],
     ['ajanda', '📅 Ajanda'], ['evrak', '🗂️ Evrak Ara'], ['gorev', '⚙️ Görevler'], ['baglanti', '🔌 Bağlantı']
   ];
+
+  async function driveDurumunuGuncelle() {
+    const el = kok ? kok.querySelector('#ca-hdr-drive-durum') : null;
+    if (!el) return;
+    try {
+      const v = await api('/api/drive');
+      if (v.yapilandirildi) {
+        if (v.mod === 'webhook') {
+          el.innerHTML = '🟢 Drive Sync: Bulut';
+          el.style.background = 'rgba(34,197,94,.18)';
+          el.style.borderColor = 'rgba(34,197,94,.4)';
+          el.style.color = '#86efac';
+        } else if (v.dizin_var && v.yazilabilir) {
+          el.innerHTML = '🟢 Drive Sync: Bağlı';
+          el.style.background = 'rgba(34,197,94,.18)';
+          el.style.borderColor = 'rgba(34,197,94,.4)';
+          el.style.color = '#86efac';
+        } else {
+          el.innerHTML = '🟠 Drive: Salt Okunur';
+          el.style.background = 'rgba(245,158,11,.18)';
+          el.style.borderColor = 'rgba(245,158,11,.4)';
+          el.style.color = '#fde68a';
+        }
+      } else {
+        el.innerHTML = '⚪ Drive: Yapılandırılmadı';
+        el.style.background = 'rgba(200,164,90,.18)';
+        el.style.borderColor = 'rgba(200,164,90,.4)';
+        el.style.color = '#f5ecd9';
+      }
+    } catch (e) {
+      el.innerHTML = '🔴 Drive: Çevrimdışı';
+      el.style.background = 'rgba(239,68,68,.18)';
+      el.style.borderColor = 'rgba(239,68,68,.4)';
+      el.style.color = '#fca5a5';
+    }
+  }
+
+  function dosyaDetayAc(dkey) {
+    sekmeAc('dosyalar');
+    const bekle = () => {
+      if (window.CanHayfa && window.CanHayfa.detayAc) {
+        window.CanHayfa.detayAc(dkey);
+      } else {
+        setTimeout(bekle, 80);
+      }
+    };
+    setTimeout(bekle, 50);
+  }
 
   function panelKur() {
     if (kok) return;
@@ -337,17 +386,26 @@
     if (window.CanHayfa && window.CanHayfa.stilYukle) window.CanHayfa.stilYukle();
     kok = document.createElement('div'); kok.id = 'ca-panel';
     kok.innerHTML = `<div class="ca-kutu" role="dialog" aria-modal="true" aria-label="CanEditor Hukuk Asistanı">
-      <header><h2>⚖️ CanEditor Hukuk Asistanı <span class="hf-badge">HAYFA · Birleşik v4.1</span></h2><button class="ca-kapat" type="button" aria-label="Kapat">×</button></header>
+      <header>
+        <h2>
+          <span>⚖️ CanEditor Hukuk Asistanı</span>
+          <span class="hf-badge">HAYFA · Birleşik v4.2</span>
+          <span id="ca-hdr-drive-durum" style="font-size:11.5px;font-weight:normal;padding:3px 9px;border-radius:12px;background:rgba(200,164,90,.18);color:#f5ecd9;border:1px solid rgba(200,164,90,.4);cursor:pointer;margin-left:6px" title="Google Drive Senkronizasyon Durumu (Açmak için tıklayın)">☁️ Drive: Denetleniyor…</span>
+        </h2>
+        <button class="ca-kapat" type="button" aria-label="Kapat">×</button>
+      </header>
       <nav>${SEKMELER.map(([k, ad]) => `<button type="button" data-sekme="${k}">${ad}</button>`).join('')}</nav>
       <div class="ca-icerik"></div></div>`;
     document.body.appendChild(kok);
     kok.querySelector('.ca-kapat').onclick = kapat;
+    kok.querySelector('#ca-hdr-drive-durum').onclick = () => sekmeAc('drive');
     kok.addEventListener('mousedown', e => { if (e.target === kok) kapat(); });
     document.addEventListener('keydown', e => { if (e.key === 'Escape' && kok.classList.contains('acik')) kapat(); });
     kok.querySelectorAll('nav button').forEach(b => { b.onclick = () => sekmeAc(b.dataset.sekme); });
+    driveDurumunuGuncelle();
   }
 
-  function ac(sekme) { panelKur(); kok.classList.add('acik'); sekmeAc(sekme || aktifSekme); }
+  function ac(sekme) { panelKur(); kok.classList.add('acik'); sekmeAc(sekme || aktifSekme); driveDurumunuGuncelle(); }
   function kapat() { if (kok) kok.classList.remove('acik'); gorevIzleDurdur(); }
 
   function hayfaCtx() {
@@ -367,6 +425,17 @@
     const harita = {
       uyap: uyapSekmesi,
       dosyalar: el => hf.dosyalarSekmesi ? hf.dosyalarSekmesi(el, hayfaCtx()) : (el.textContent = 'Modül yüklenmedi'),
+      hesaplar: el => {
+        if (hf.dosyalarSekmesi) {
+          // Doğrudan Dosya Hesapları görünümünü açar
+          window.dosyaGorunumModu = 'hesaplar';
+          hf.dosyalarSekmesi(el, hayfaCtx());
+          const hBtn = el.querySelector('[data-gorunum="hesaplar"]');
+          if (hBtn) hBtn.click();
+        } else {
+          el.textContent = 'Modül yüklenmedi';
+        }
+      },
       yeni: yeniSekmesi,
       drive: el => hf.driveProSekmesi ? hf.driveProSekmesi(el, hayfaCtx()) : driveSekmesi(el),
       entegrasyon: el => hf.entegrasyonSekmesi ? hf.entegrasyonSekmesi(el, hayfaCtx()) : (el.textContent = 'Modül yüklenmedi'),
@@ -381,6 +450,7 @@
       baglanti: baglantiSekmesi
     };
     (harita[k] || sureSekmesi)(ic);
+    driveDurumunuGuncelle();
   }
 
   // --- Süre ---
@@ -540,20 +610,122 @@
   }
 
   async function ajandaSekmesi(ic) {
-    ic.innerHTML = '<p class="ca-soluk">Yükleniyor…</p>';
-    try {
-      const v = await api('/api/ajanda?gun=60');
-      if (!v.olaylar.length) {
-        ic.innerHTML = `<p>Önümüzdeki 60 günde kayıtlı süre sonu veya duruşma yok.</p><p class="ca-soluk">Kaynaklar: Avukat Asistanı defteri ${v.kaynaklar.defter ? '✓' : '— (henüz yok)'} · UYAP kataloğu ${v.kaynaklar.katalog ? '✓' : '— (henüz yok)'}</p>`;
+    ic.innerHTML = `
+      <div class="ca-kart">
+        <b>📅 Ajanda & Süreli İşler Filtresi</b>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin:8px 0;" id="ca-aj-hizli">
+          <button class="ca-btn kucuk" type="button" data-gun="1">Bugün & 1 Gün</button>
+          <button class="ca-btn kucuk" type="button" data-gun="3">3 Gün</button>
+          <button class="ca-btn kucuk ana" type="button" data-gun="7">1 Hafta</button>
+          <button class="ca-btn kucuk" type="button" data-gun="14">2 Hafta</button>
+          <button class="ca-btn kucuk" type="button" data-gun="30">1 Ay</button>
+          <button class="ca-btn kucuk" type="button" data-gun="90">3 Ay</button>
+          <button class="ca-btn kucuk" type="button" data-gun="180">6 Ay</button>
+          <button class="ca-btn kucuk" type="button" data-gun="-1">Tümü</button>
+        </div>
+        <div class="ca-satir" style="grid-template-columns:1fr 1fr 1fr auto;gap:8px;">
+          <div><label>Başlangıç</label><input type="date" id="ca-aj-bas"></div>
+          <div><label>Bitiş</label><input type="date" id="ca-aj-bit"></div>
+          <div><label>Tür</label>
+            <select id="ca-aj-tur">
+              <option value="">Tümü (Duruşma + Süre)</option>
+              <option value="sure">⏱️ Yalnızca Süreli İşler (Son Gün)</option>
+              <option value="durusma">🏛️ Yalnızca Duruşmalar</option>
+            </select>
+          </div>
+          <div style="display:flex;align-items:flex-end;"><button class="ca-btn ana" type="button" id="ca-aj-yenile">🔍 Filtrele</button></div>
+        </div>
+        <div style="margin-top:8px;">
+          <input type="text" id="ca-aj-ara" placeholder="Ajandada ara (mahkeme, dosya no, açıklama, barkod)..." style="width:100%;">
+        </div>
+      </div>
+      <div id="ca-aj-liste"><p class="ca-soluk">Yükleniyor…</p></div>`;
+
+    const basIn = ic.querySelector('#ca-aj-bas');
+    const bitIn = ic.querySelector('#ca-aj-bit');
+    const turSel = ic.querySelector('#ca-aj-tur');
+    const araIn = ic.querySelector('#ca-aj-ara');
+    const listeEl = ic.querySelector('#ca-aj-liste');
+
+    let aktifGun = 7;
+    let sonOlaylar = [];
+
+    const cizTablo = () => {
+      const q = araIn.value.trim().toLowerCase();
+      const secilenTur = turSel.value;
+      const bugun = isoGun(new Date());
+
+      const filtrelenen = sonOlaylar.filter(o => {
+        if (secilenTur && o.tur !== secilenTur) return false;
+        if (q) {
+          const metin = [o.birim, o.esas, o.baslik, o.yer, o.barkod].filter(Boolean).join(' ').toLowerCase();
+          if (!metin.includes(q)) return false;
+        }
+        return true;
+      });
+
+      if (!filtrelenen.length) {
+        listeEl.innerHTML = '<div class="ca-kart"><p class="ca-soluk">Seçili tarih aralığında ve filtrede duruşma veya süre sonu bulunamadı.</p></div>';
         return;
       }
-      const bugun = isoGun(new Date());
-      ic.innerHTML = `<table><thead><tr><th>Tarih</th><th>Tür</th><th>Dosya</th><th>Açıklama</th></tr></thead><tbody>${v.olaylar.map(o => `
-        <tr><td>${esc(o.tarih.split('-').reverse().join('.'))} ${esc(o.saat || '')}${o.tarih === bugun ? ' <b>(bugün)</b>' : ''}</td>
-        <td>${o.tur === 'sure' ? '⏱️ Son gün' : '🏛️ Duruşma'}</td>
-        <td>${esc(o.birim || '')}<div class="ca-soluk">${esc(o.esas || '')}</div></td>
-        <td>${esc(o.baslik || '')}${o.yer ? `<div class="ca-soluk">${esc(o.yer)}</div>` : ''}<div class="ca-soluk">${esc(o.kaynak)}</div></td></tr>`).join('')}</tbody></table>`;
-    } catch (e) { sunucuHatasi(ic, e); }
+
+      listeEl.innerHTML = `
+        <div class="ca-soluk" style="margin-bottom:6px;">Toplam <b>${filtrelenen.length}</b> kayıt listelendi</div>
+        <table>
+          <thead>
+            <tr><th>Durum & Kalan</th><th>Tarih & Saat</th><th>Tür</th><th>Mahkeme & Esas</th><th>Açıklama & Kaynak</th></tr>
+          </thead>
+          <tbody>
+            ${filtrelenen.map(o => {
+              const k = o.kalan_gun !== undefined ? o.kalan_gun : 0;
+              let rozet = '';
+              if (k < 0) rozet = `<span class="hf-etiket" style="background:#FFCDD2;color:#B71C1C;">🔴 ${Math.abs(k)} gün önce</span>`;
+              else if (k === 0) rozet = `<span class="hf-etiket" style="background:#FFE082;color:#E65100;font-weight:bold;">⚠️ BUGÜN</span>`;
+              else if (k <= 3) rozet = `<span class="hf-etiket" style="background:#FFF9C4;color:#F57F17;font-weight:bold;">🟡 ${k} gün kaldı</span>`;
+              else rozet = `<span class="hf-etiket" style="background:#C8E6C9;color:#1B5E20;">🟢 ${k} gün var</span>`;
+
+              return `<tr>
+                <td>${rozet}</td>
+                <td style="white-space:nowrap;"><b>${esc((o.tarih || '').split('-').reverse().join('.'))}</b> <span class="ca-soluk">${esc(o.saat || '')}</span></td>
+                <td>${o.tur === 'sure' ? '⏱️ <span style="color:#C62828;font-weight:bold;">Süre Sonu</span>' : '🏛️ Duruşma'}</td>
+                <td><b>${esc(o.birim || '')}</b><div class="ca-soluk">${esc(o.esas || '')}</div></td>
+                <td>${esc(o.baslik || '')}${o.yer ? `<div class="ca-soluk">📍 ${esc(o.yer)}</div>` : ''}<div class="ca-soluk">📌 Kaynak: ${esc(o.kaynak || '')}</div></td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>`;
+    };
+
+    const yukle = async () => {
+      listeEl.innerHTML = '<p class="ca-soluk">Ajanda verileri alınıyor…</p>';
+      try {
+        let url = `/api/ajanda?gun=${aktifGun}`;
+        if (basIn.value) url += `&baslangic=${encodeURIComponent(basIn.value)}`;
+        if (bitIn.value) url += `&bitis=${encodeURIComponent(bitIn.value)}`;
+        const v = await api(url);
+        sonOlaylar = v.olaylar || [];
+        cizTablo();
+      } catch (e) {
+        sunucuHatasi(listeEl, e);
+      }
+    };
+
+    ic.querySelectorAll('#ca-aj-hizli button').forEach(btn => {
+      btn.onclick = () => {
+        ic.querySelectorAll('#ca-aj-hizli button').forEach(b => b.classList.remove('ana'));
+        btn.classList.add('ana');
+        aktifGun = parseInt(btn.dataset.gun, 10);
+        basIn.value = '';
+        bitIn.value = '';
+        yukle();
+      };
+    });
+
+    ic.querySelector('#ca-aj-yenile').onclick = yukle;
+    turSel.onchange = cizTablo;
+    araIn.oninput = cizTablo;
+
+    yukle();
   }
 
   /** Katalogdaki indirilmiş evrakı editörde açar. */
@@ -603,44 +775,153 @@
   let izleZam = null;
   function gorevIzleDurdur() { if (izleZam) { clearInterval(izleZam); izleZam = null; } }
 
+  const GOREV_ACIKLAMALARI = {
+    "uets-senkron": "Ulusal Elektronik Tebligat Sistemi'ne (UETS) bağlanarak yeni tebligatları indirir, PTT delil kayıtlarını doğrular ve HMK/CMK yasal sürelerini otomatik hesaplar.",
+    "uets-cevrimdisi": "İnternet veya portal bağlantısı olmadan, daha önce indirilmiş yerel CSV ve tebligat kayıtları üzerinden süre defterini günceller.",
+    "uets-otokontrol": "Tebligat sürelerinde çakışma, kaçırılma riski veya eksik evrak olup olmadığını denetleyen güvenlik raporu üretir.",
+    "evrak-nobetci": "UYAP Avukat Portalını nöbetçi modunda arka planda periyodik olarak tarar. Büronuzun tüm derdest dosyalarındaki yeni evrakları anında yakalar ve indirir.",
+    "evrak-islemlerim": "UYAP Avukat Portalındaki 'İşlemlerim' sekmesini tarar; son yapılan havaleler, tensip zaptı onayları ve ara kararları anında günceller.",
+    "evrak-tebligat": "UYAP sistemine düşen tebligat mazbatalarını ve tebellüğ belgelerini toplu olarak indirip yerel kataloğa ekler.",
+    "evrak-durusmalar": "Büronuzun tüm mahkemelerdeki duruşma tarihlerini, saatlerini ve duruşma salonlarını UYAP'tan çeker.",
+    "evrak-giris": "UYAP portalına güvenli elektronik imza veya mobil imza ile otomatik yetkilendirme ve oturum tazeleme işlemi yapar.",
+    "asistan-gui": "Masaüstü Avukat Asistanı bağımsız yönetim penceresini açar.",
+    "evrak-katalog": "İndirilen tüm evrakları yerel SQLite veritabanına indeksler ve A4 PDF dönüşüm kuyruğunu yönetir."
+  };
+
   async function gorevSekmesi(ic) {
-    ic.innerHTML = '<p class="ca-soluk">Yükleniyor…</p>';
+    ic.innerHTML = '<p class="ca-soluk">Görevler ve servisler yükleniyor…</p>';
     const ciz = async () => {
-      const v = await api('/api/gorevler?satir=12');
+      const v = await api('/api/gorevler?satir=20');
       const acik = Array.from(ic.querySelectorAll('details[open]')).map(d => d.dataset.k);
-      ic.innerHTML = v.gorevler.map(g => `<div class="ca-kart">
-        <b>${esc(g.ad)}</b> ${g.calisiyor ? '<span class="ca-soluk">— çalışıyor…</span>' : (g.kod === null ? '' : (g.kod === 0 ? '<span class="ca-soluk">— ✓ tamamlandı</span>' : `<span class="ca-hata">— hata (kod ${g.kod})</span>`))}
-        <div>${g.kullanilamaz ? `<span class="ca-soluk">🖥️ ${esc(g.kullanilamaz)}</span>` : (g.calisiyor ? `<button class="ca-btn" type="button" data-durdur="${g.kimlik}">⏹ Durdur</button>` : `<button class="ca-btn ana" type="button" data-baslat="${g.kimlik}">▶ ${g.pencere ? 'Aç' : 'Çalıştır'}</button>`)}</div>
-        ${g.gunluk.length ? `<details data-k="${g.kimlik}" ${acik.includes(g.kimlik) || g.calisiyor ? 'open' : ''}><summary class="ca-soluk">Günlük</summary><pre>${esc(g.gunluk.join('\n'))}</pre></details>` : ''}</div>`).join('');
-      ic.querySelectorAll('[data-baslat]').forEach(b => { b.onclick = async () => { b.disabled = true; try { await api('/api/gorev/' + b.dataset.baslat, { method: 'POST', govde: {} }); } catch (e) { alert(e.message); } ciz(); }; });
-      ic.querySelectorAll('[data-durdur]').forEach(b => { b.onclick = async () => { await api('/api/gorev/' + b.dataset.durdur + '/durdur', { method: 'POST', govde: {} }); ciz(); }; });
+      ic.innerHTML = `
+        <div class="ca-kart" style="margin-bottom:12px;background:#E3F2FD;border:1px solid #90CAF9;">
+          <b>⚙️ CanEditor Otomasyon & Arka Plan Görev Yöneticisi</b>
+          <p class="ca-soluk" style="margin:4px 0 0 0;">Buradaki görevler UETS tebligat senkronizasyonunu, UYAP nöbetçi evrak takibini ve dosya indekslemeyi yürütür. İstediğiniz görevi tek tıkla başlatabilir veya durdurabilirsiniz.</p>
+        </div>
+        ${v.gorevler.map(g => {
+          const aciklama = GOREV_ACIKLAMALARI[g.kimlik] || 'Arka plan otomasyon görevi.';
+          let durumRozeti = '';
+          if (g.calisiyor) durumRozeti = '<span class="hf-etiket" style="background:#C8E6C9;color:#1B5E20;font-weight:bold;">🟢 ÇALIŞIYOR</span>';
+          else if (g.kod === 0) durumRozeti = '<span class="hf-etiket" style="background:#E8F5E9;color:#2E7D32;">✓ Tamamlandı</span>';
+          else if (g.kod !== null) durumRozeti = `<span class="hf-etiket" style="background:#FFEBEE;color:#C62828;">❌ Hata (Kod ${g.kod})</span>`;
+          else durumRozeti = '<span class="hf-etiket" style="background:#F5F5F5;color:#616161;">⚪ Beklemede</span>';
+
+          return `<div class="ca-kart" style="margin-bottom:10px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">
+              <div>
+                <b style="font-size:14px;">${esc(g.ad)}</b> ${durumRozeti}
+              </div>
+              <div>
+                ${g.kullanilamaz ? `<span class="ca-soluk">🖥️ ${esc(g.kullanilamaz)}</span>` : (g.calisiyor ? `<button class="ca-btn kucuk" style="background:#D32F2F;color:#fff;" type="button" data-durdur="${g.kimlik}">⏹ Durdur</button>` : `<button class="ca-btn ana kucuk" type="button" data-baslat="${g.kimlik}">▶ ${g.pencere ? 'Pencereyi Aç' : 'Çalıştır'}</button>`)}
+              </div>
+            </div>
+            <p style="font-size:12px;color:#455A64;margin:6px 0 8px 0;line-height:1.4;">${esc(aciklama)}</p>
+            ${g.gunluk.length ? `<details data-k="${g.kimlik}" ${acik.includes(g.kimlik) || g.calisiyor ? 'open' : ''} style="margin-top:6px;"><summary class="ca-soluk" style="cursor:pointer;font-size:12px;">📄 Konsol Günlüğü (${g.gunluk.length} satır)</summary><pre style="max-height:180px;background:#263238;color:#ECEFF1;padding:8px;border-radius:4px;font-size:11px;overflow-x:auto;">${esc(g.gunluk.join('\n'))}</pre></details>` : ''}
+          </div>`;
+        }).join('')}`;
+
+      ic.querySelectorAll('[data-baslat]').forEach(b => {
+        b.onclick = async () => {
+          b.disabled = true;
+          try { await api('/api/gorev/' + b.dataset.baslat, { method: 'POST', govde: {} }); } catch (e) { alert(e.message); }
+          ciz();
+        };
+      });
+      ic.querySelectorAll('[data-durdur]').forEach(b => {
+        b.onclick = async () => {
+          await api('/api/gorev/' + b.dataset.durdur + '/durdur', { method: 'POST', govde: {} });
+          ciz();
+        };
+      });
     };
-    try { await ciz(); izleZam = setInterval(() => { ciz().catch(gorevIzleDurdur); }, 2500); } catch (e) { sunucuHatasi(ic, e); }
+    try { await ciz(); izleZam = setInterval(() => { ciz().catch(gorevIzleDurdur); }, 3000); } catch (e) { sunucuHatasi(ic, e); }
   }
 
   async function baglantiSekmesi(ic) {
     const b = baglantiOku();
-    ic.innerHTML = `<div class="ca-satir">
-        <div><label for="ca-port">Port</label><input id="ca-port" type="number" value="${esc(b.port || 8765)}"></div>
-        <div><label for="ca-anahtar">Eşleştirme anahtarı</label><input id="ca-anahtar" value="${esc(b.anahtar || '')}" autocomplete="off" spellcheck="false"></div>
+    ic.innerHTML = `
+      <div id="ca-bag-saglik" class="ca-kart" style="margin-bottom:12px;background:#FAFAFA;">
+        <b>🔌 Canlı Bağlantı & Sistem Sağlık Durumu</b>
+        <p class="ca-soluk">Sorgulanıyor…</p>
       </div>
-      <button class="ca-btn ana" type="button" id="ca-kaydet">Kaydet ve sına</button>
-      <div id="ca-bag-sonuc" class="ca-kart"></div>
-      <p class="ca-soluk">Anahtarı görmek için: <code>python3 asistan/sunucu.py --anahtar</code>. Sunucu yalnızca bu cihazdan (127.0.0.1) erişilebilir.</p>`;
+
+      <div class="ca-kart">
+        <b>⚙️ Yerel Sunucu ve Eşleştirme Yapılandırması</b>
+        <div class="ca-satir" style="grid-template-columns:1fr 2fr;margin-top:8px;">
+          <div><label for="ca-port">Yerel Port</label><input id="ca-port" type="number" value="${esc(b.port || 8765)}"></div>
+          <div><label for="ca-anahtar">Eşleştirme Anahtarı</label><input id="ca-anahtar" value="${esc(b.anahtar || '')}" autocomplete="off" spellcheck="false"></div>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
+          <button class="ca-btn ana" type="button" id="ca-kaydet">💾 Kaydet ve Sına</button>
+          <button class="ca-btn" type="button" id="ca-log-indir">📥 Teşhis ve Hata Loglarını İndir (Zip)</button>
+        </div>
+      </div>
+
+      <div id="ca-bag-sonuc" class="ca-kart" style="margin-top:12px;"></div>
+      <p class="ca-soluk" style="margin-top:8px;">Anahtarı terminalden görmek için: <code>python3 asistan/sunucu.py --anahtar</code>. Sunucu yalnızca cihaz içinden (127.0.0.1) erişilebilir, dış ağa kapalıdır.</p>`;
+
+    const saglikEl = ic.querySelector('#ca-bag-saglik');
     const sonuc = ic.querySelector('#ca-bag-sonuc');
+
+    const saglikYukle = async () => {
+      try {
+        const s = await api('/api/baglanti/istatistik');
+        saglikEl.innerHTML = `
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+            <b>🔌 Canlı Bağlantı & Sistem Sağlık Durumu</b>
+            <span class="hf-etiket" style="background:#C8E6C9;color:#1B5E20;font-weight:bold;">🟢 KESİNTİSİZ AKTİF</span>
+          </div>
+          <table style="margin-top:8px;">
+            <tr><th>Kesintisiz Çalışma Süresi</th><td><b>${esc(s.calisma_suresi)}</b></td></tr>
+            <tr><th>İşlenen İstek Sayısı</th><td>${esc(s.toplam_istek)} istek</td></tr>
+            <tr><th>Ağ Gecikmesi (Ping)</th><td>${esc(s.ping_ms)} ms (yerel anlık)</td></tr>
+            <tr><th>Bağlantı Kesinti Kaydı</th><td>${esc(s.son_kesinti)} (${s.kesinti_sayisi} kesinti)</td></tr>
+            <tr><th>Google Drive Webhook</th><td>${s.drive_webhook_tanimli ? '🟢 Tanımlı ve Hazır' : '⚪ Webhook linki girilmedi (Drive sekmesinden ayarlayabilirsiniz)'}</td></tr>
+            <tr><th>Sunucu Saati</th><td>${esc(s.sunucu_zamani)}</td></tr>
+          </table>`;
+      } catch (e) {
+        saglikEl.innerHTML = `<b>🔌 Canlı Bağlantı Durumu</b><div class="ca-soluk">Bağlantı istatistikleri alınamadı: ${esc(e.message)}</div>`;
+      }
+    };
+
     const sina = async () => {
       sonuc.textContent = 'Sınanıyor…';
       try {
         const v = await api('/api/durum');
         const m = v.moduller;
         const isaret = x => x ? '✓' : '✗';
-        sonuc.innerHTML = `<b>✓ Bağlı</b> — sunucu ${esc(v.surum)} (${esc(v.platform)}${v.termux ? ', Termux' : ''})
-          <table><tr><th>UETS / Avukat Asistanı</th><td>bağımlılıklar ${isaret(m.avukatasistan.bagimliliklar)} · yapılandırma ${isaret(m.avukatasistan.yapilandirildi)}</td></tr>
-          <tr><th>UYAP Evrak</th><td>bağımlılıklar ${isaret(m.evrak.bagimliliklar)} · katalog ${isaret(m.evrak.katalog)}</td></tr>
-          <tr><th>A4 motoru (sunucu)</th><td>bağımlılıklar ${isaret(m.a4.bagimliliklar)}</td></tr></table>`;
-      } catch (e) { sonuc.innerHTML = `<span class="ca-hata">${esc(e.durum === 401 ? 'Anahtar yanlış.' : 'Sunucuya ulaşılamadı: ' + e.message)}</span>`; }
+        sonuc.innerHTML = `<b>✓ Yerel Asistan Sunucusu Bağlı</b> — sürüm ${esc(v.surum)} (${esc(v.platform)}${v.termux ? ', Termux' : ''})
+          <table style="margin-top:8px;">
+            <tr><th>UETS / Avukat Asistanı</th><td>bağımlılıklar ${isaret(m.avukatasistan.bagimliliklar)} · yapılandırma ${isaret(m.avukatasistan.yapilandirildi)}</td></tr>
+            <tr><th>UYAP Evrak Kataloğu</th><td>bağımlılıklar ${isaret(m.evrak.bagimliliklar)} · katalog ${isaret(m.evrak.katalog)}</td></tr>
+            <tr><th>A4 PDF Motoru</th><td>bağımlılıklar ${isaret(m.a4.bagimliliklar)}</td></tr>
+          </table>`;
+        saglikYukle();
+      } catch (e) {
+        sonuc.innerHTML = `<span class="ca-hata">${esc(e.durum === 401 ? 'Eşleştirme anahtarı yanlış.' : 'Sunucuya ulaşılamadı: ' + e.message)}</span>`;
+      }
     };
-    ic.querySelector('#ca-kaydet').onclick = () => { baglantiYaz({ port: +ic.querySelector('#ca-port').value || 8765, anahtar: ic.querySelector('#ca-anahtar').value.trim() }); sina(); };
+
+    ic.querySelector('#ca-kaydet').onclick = () => {
+      baglantiYaz({ port: +ic.querySelector('#ca-port').value || 8765, anahtar: ic.querySelector('#ca-anahtar').value.trim() });
+      sina();
+    };
+
+    ic.querySelector('#ca-log-indir').onclick = async () => {
+      try {
+        const res = await api('/api/loglar/indir', { ham: true });
+        const buf = await res.arrayBuffer();
+        if (window.saveBytesSmart) {
+          await window.saveBytesSmart(buf, 'CanEditor_Tehis_Loglari.zip', 'application/zip');
+        } else {
+          downloadBlob(new Blob([buf], { type: 'application/zip' }), 'CanEditor_Tehis_Loglari.zip');
+        }
+        alert('✓ Tüm teşhis ve hata logları CanEditor_Tehis_Loglari.zip olarak başarıyla indirildi.');
+      } catch (e) {
+        alert('Loglar indirilemedi: ' + e.message);
+      }
+    };
+
     sina();
   }
 
@@ -720,29 +1001,279 @@
   }
 
   function yeniSekmesi(ic) {
-    ic.innerHTML = '<p class="ca-soluk">Yükleniyor…</p>';
-    const ciz = v => {
-      const ev = v.evraklar || [], tb = v.tebligatlar || [];
-      if (!ev.length && !tb.length) {
-        ic.innerHTML = `<p>✅ Son bakıştan (${esc((v.sonra || '').replace('T', ' '))}) beri UYAP'a yeni evrak ya da tebligat düşmedi.</p>
-          <p class="ca-soluk">Nöbetçi taramasını <b>Görevler</b> sekmesinden başlatabilirsiniz; yeni evraklar burada ve Asistan menüsündeki rozette görünür.</p>`;
-        return;
+    ic.innerHTML = '<p class="ca-soluk">Yeni evraklar ve tebligatlar taranıyor…</p>';
+
+    let mevcutOffset = 0;
+    const sayfaBoyutu = 50;
+    let tumEvraklar = [];
+    let seciliSkeys = new Set();
+    let sonVeri = null;
+
+    async function yukleVeCiz(ekle = false) {
+      if (!ekle) {
+        ic.innerHTML = '<p class="ca-soluk">Yükleniyor…</p>';
+        mevcutOffset = 0;
+        tumEvraklar = [];
+        seciliSkeys.clear();
       }
-      ic.innerHTML = `<div class="ca-soluk">${esc((v.sonra || '').replace('T', ' '))} sonrası: <b>${v.evrak_sayisi}</b> evrak, <b>${v.tebligat_sayisi}</b> tebligat</div>
-        ${tb.length ? `<div class="ca-kart"><b>📨 Tebligatlar</b><table>${tb.map(t => `<tr><td>${esc((t.zaman || '').replace('T', ' ').slice(0, 16))}</td><td>${esc(t.kaynak)}</td>
-          <td>${esc(t.birim || '')}<div class="ca-soluk">${esc(t.esas || '')}</div></td><td>${esc(t.baslik || '')}${t.son_gun ? `<div class="ca-soluk">Son gün: ${esc(t.son_gun)}</div>` : ''}</td></tr>`).join('')}</table></div>` : ''}
-        ${ev.length ? `<div class="ca-kart"><b>📄 Evraklar</b><table>${ev.map(r => `<tr><td>${esc((r.ilk_gorulme || '').replace('T', ' ').slice(0, 16))}</td>
-          <td><b>${esc(r.tur || '')}</b><div class="ca-soluk">${esc(r.aciklama || '')}</div></td>
-          <td>${esc(r.birim || '')}<div class="ca-soluk">${esc(r.dosya_no || '')}${r.muvekkil ? ' · ' + esc(r.muvekkil) : ''}</div></td>
-          <td>${r.yerel ? `<button class="ca-btn" type="button" data-skey="${esc(r.skey)}">Aç</button>` : '<span class="ca-soluk">indirilmedi</span>'}</td></tr>`).join('')}</table></div>` : ''}
-        <button class="ca-btn ana" type="button" id="ca-gorudum">✓ Tümünü görüldü say</button>
-        ${('Notification' in window && Notification.permission === 'default') ? '<button class="ca-btn" type="button" id="ca-bildirim-izin">🔔 Masaüstü bildirimlerine izin ver</button>' : ''}`;
-      evrakDugmeleri(ic);
-      ic.querySelector('#ca-gorudum').onclick = () => { gorulenYaz(v.en_yeni || yerelIso(new Date())); sonToplam = 0; rozetCiz(0); yeniSekmesi(ic); };
-      const iz = ic.querySelector('#ca-bildirim-izin');
-      if (iz) iz.onclick = () => Notification.requestPermission().then(() => yeniSekmesi(ic));
-    };
-    yenilikDenetle().then(ciz).catch(e => sunucuHatasi(ic, e));
+
+      let sonra = gorulenOku();
+      if (!sonra) { sonra = yerelIso(new Date(Date.now() - 86400000)); gorulenYaz(sonra); }
+
+      const qVal = ic.querySelector('#ca-yeni-q') ? ic.querySelector('#ca-yeni-q').value.trim() : '';
+      const durumVal = ic.querySelector('#ca-yeni-durum') ? ic.querySelector('#ca-yeni-durum').value : '';
+
+      try {
+        const v = await api(`/api/yenilikler?limit=${sayfaBoyutu}&offset=${mevcutOffset}&sonra=${encodeURIComponent(sonra)}&q=${encodeURIComponent(qVal)}&durum=${encodeURIComponent(durumVal)}`);
+        sonVeri = v;
+        const yeniGelenler = v.evraklar || [];
+        if (ekle) {
+          tumEvraklar = tumEvraklar.concat(yeniGelenler);
+        } else {
+          tumEvraklar = yeniGelenler;
+        }
+
+        const tb = v.tebligatlar || [];
+
+        if (!tumEvraklar.length && !tb.length && !qVal && !durumVal) {
+          ic.innerHTML = `
+            <div class="ca-kart">
+              <p>✅ Son bakıştan (<b>${esc((v.sonra || '').replace('T', ' '))}</b>) beri yeni evrak veya tebligat düşmedi.</p>
+              <p class="ca-soluk">Arka plandaki UYAP nöbetçisi <b>Görevler</b> sekmesinde çalışmaktadır; yeni evrak düştüğünde burada listelenir.</p>
+              <button class="ca-btn ana" type="button" id="ca-yeni-tekrar-tara">↻ Şimdi Yeniden Tara</button>
+            </div>`;
+          ic.querySelector('#ca-yeni-tekrar-tara').onclick = () => yukleVeCiz(false);
+          return;
+        }
+
+        ic.innerHTML = `
+          <div class="ca-satir" style="grid-template-columns:2fr 1fr auto;margin-bottom:8px">
+            <div>
+              <label>Yeni Evraklarda Ara (esas no, mahkeme, tür, müvekkil)</label>
+              <input id="ca-yeni-q" value="${esc(qVal)}" placeholder="ör. 2026/171, talimat, tanık, Aksaray...">
+            </div>
+            <div>
+              <label>İndirme Durumu</label>
+              <select id="ca-yeni-durum">
+                <option value=""${!durumVal ? ' selected' : ''}>Tümü</option>
+                <option value="yerel"${durumVal === 'yerel' ? ' selected' : ''}>Yalnız İndirilenler (Yerel)</option>
+                <option value="indirilmedi"${durumVal === 'indirilmedi' ? ' selected' : ''}>İndirilmeyi Bekleyenler</option>
+              </select>
+            </div>
+            <div style="display:flex;align-items:flex-end">
+              <button class="ca-btn ana" type="button" id="ca-yeni-filtre-btn">🔍 Filtrele</button>
+            </div>
+          </div>
+
+          <div class="hf-toplu-bar">
+            <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;color:#fff;margin:0;font-weight:600">
+              <input type="checkbox" id="ca-yeni-sec-tum" style="width:18px;height:18px"> Tümünü Seç
+            </label>
+            <span id="ca-yeni-secili-sayi" style="font-size:13px;opacity:.9">(${seciliSkeys.size} seçili)</span>
+            <div style="display:inline-flex;gap:6px;flex-wrap:wrap;margin-left:auto">
+              <button class="ca-btn kucuk altin" type="button" id="ca-toplu-indir">📥 Seçilenleri İndir</button>
+              <button class="ca-btn kucuk" type="button" id="ca-toplu-pdf">📄 PDF'e Çevir</button>
+              <button class="ca-btn kucuk" type="button" id="ca-toplu-drive">☁️ Drive'a Gönder</button>
+              <button class="ca-btn kucuk" type="button" id="ca-toplu-okundu">✓ Görüldü Say</button>
+              <button class="ca-btn kucuk" type="button" id="ca-yeni-tum-goruldu">✓ Tüm Listeyi Görüldü Say</button>
+            </div>
+          </div>
+
+          <div class="ca-soluk" style="margin:6px 0 10px">
+            🕒 <b>${esc((v.sonra || '').replace('T', ' '))}</b> sonrası: 
+            Toplam <b>${v.evrak_sayisi}</b> yeni evrak, <b>${v.tebligat_sayisi}</b> tebligat 
+            (Şu an listelenen: <b>${tumEvraklar.length}</b> evrak)
+          </div>
+
+          ${tb.length ? `
+            <div class="ca-kart" style="border-left:4px solid #ef4444;margin-bottom:12px">
+              <b>📨 Yeni Tebligatlar (${tb.length})</b>
+              <table>
+                <thead><tr><th>Zaman</th><th>Kaynak</th><th>Mahkeme / Esas</th><th>Evrak / Süre</th></tr></thead>
+                <tbody>
+                  ${tb.map(t => `
+                    <tr>
+                      <td style="white-space:nowrap">${esc((t.zaman || '').replace('T', ' ').slice(0, 16))}</td>
+                      <td><span class="hf-etiket ${t.kaynak === 'UETS' ? 'acik' : ''}">${esc(t.kaynak)}</span></td>
+                      <td><b>${esc(t.birim || '')}</b><div style="font-weight:700;color:var(--hf-navy)">${esc(t.esas || '')}</div></td>
+                      <td>
+                        <b>${esc(t.baslik || '')}</b>
+                        ${t.son_gun ? `<div style="color:#dc2626;font-weight:700">⏳ Son gün: ${esc(t.son_gun)}</div>` : ''}
+                      </td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>` : ''}
+
+          <div id="ca-yeni-evrak-kutusu">
+            ${tumEvraklar.map(r => `
+              <div class="ca-kart" style="display:flex;align-items:flex-start;gap:10px;margin-bottom:8px">
+                <input type="checkbox" data-skey-chk="${esc(r.skey)}" ${seciliSkeys.has(r.skey) ? 'checked' : ''} style="width:18px;height:18px;margin-top:4px">
+                <div style="flex:1">
+                  <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:4px">
+                    <span class="ca-soluk">🕒 ${esc((r.ilk_gorulme || r.tarih || '').replace('T', ' ').slice(0, 16))}</span>
+                    <span class="hf-etiket ${r.yerel ? 'acik' : ''}">${r.yerel ? '🟢 İndirildi' : '🟠 İndirilmedi'}</span>
+                  </div>
+                  <div style="font-size:15px;font-weight:700;margin:3px 0 2px">${esc(r.tur || 'Evrak')}</div>
+                  <div class="ca-soluk" style="line-height:1.4">${esc(r.aciklama || '')}</div>
+                  <div style="margin-top:6px;font-size:13px">
+                    🏛️ <button class="ca-btn kucuk" type="button" data-git-dkey="${esc(r.dkey)}" title="Dosyayı aç">
+                      <b>${esc(r.birim || 'Mahkeme')}</b> — <span style="color:var(--hf-navy);font-weight:700">${esc(r.dosya_no || '—')}</span>
+                    </button>
+                    ${r.muvekkil ? `<span class="ca-soluk">· Müvekkil: <b>${esc(r.muvekkil)}</b></span>` : ''}
+                  </div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0">
+                  ${r.yerel ? `
+                    <button class="ca-btn kucuk ana" type="button" data-ac-skey="${esc(r.skey)}">👁️ Aç</button>
+                    <button class="ca-btn kucuk" type="button" data-pdf-skey="${esc(r.skey)}">📄 PDF</button>
+                  ` : `
+                    <button class="ca-btn kucuk altin" type="button" data-indir-skey="${esc(r.skey)}">⬇️ İndir</button>
+                    <button class="ca-btn kucuk" type="button" data-git-dkey="${esc(r.dkey)}">📁 Dosya</button>
+                  `}
+                </div>
+              </div>
+            `).join('') || '<div class="ca-kart"><p class="ca-soluk">Kriterlere uygun yeni evrak bulunamadı.</p></div>'}
+          </div>
+
+          ${v.filtrelenen_evrak > tumEvraklar.length ? `
+            <div style="text-align:center;margin:16px 0">
+              <button class="ca-btn ana" type="button" id="ca-yeni-daha-fazla">
+                📥 +50 Evrak Daha Yükle (Kalan: ${v.filtrelenen_evrak - tumEvraklar.length})
+              </button>
+            </div>
+          ` : ''}
+
+          <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">
+            <button class="ca-btn" type="button" id="ca-yeni-gorudum-alt">✓ Tümünü Görüldü Say</button>
+            ${('Notification' in window && Notification.permission === 'default') ? '<button class="ca-btn" type="button" id="ca-bildirim-izin">🔔 Masaüstü bildirimlerine izin ver</button>' : ''}
+          </div>
+        `;
+
+        // Event listener bağlamaları
+        const secTum = ic.querySelector('#ca-yeni-sec-tum');
+        const secSayi = ic.querySelector('#ca-yeni-secili-sayi');
+
+        const guncelleSeciliSayi = () => {
+          secSayi.textContent = `(${seciliSkeys.size} seçili)`;
+          if (secTum) secTum.checked = tumEvraklar.length > 0 && seciliSkeys.size === tumEvraklar.length;
+        };
+
+        if (secTum) {
+          secTum.onchange = () => {
+            if (secTum.checked) {
+              tumEvraklar.forEach(e => seciliSkeys.add(e.skey));
+            } else {
+              seciliSkeys.clear();
+            }
+            ic.querySelectorAll('[data-skey-chk]').forEach(c => { c.checked = secTum.checked; });
+            guncelleSeciliSayi();
+          };
+        }
+
+        ic.querySelectorAll('[data-skey-chk]').forEach(c => {
+          c.onchange = () => {
+            const skey = c.dataset.skeyChk;
+            if (c.checked) seciliSkeys.add(skey); else seciliSkeys.delete(skey);
+            guncelleSeciliSayi();
+          };
+        });
+
+        // Tekil işlemler
+        ic.querySelectorAll('[data-ac-skey]').forEach(b => {
+          b.onclick = () => evrakAc(b.dataset.acSkey);
+        });
+
+        ic.querySelectorAll('[data-pdf-skey]').forEach(b => {
+          b.onclick = async () => {
+            try {
+              const res = await api('/api/evrak/toplu_islem', { method: 'POST', govde: { eylem: 'pdf', skeys: [b.dataset.pdfSkey] } });
+              alert(res.mesaj || 'PDF dönüştürme tamamlandı.');
+              yukleVeCiz(false);
+            } catch (e) { alert(e.message); }
+          };
+        });
+
+        ic.querySelectorAll('[data-indir-skey]').forEach(b => {
+          b.onclick = async () => {
+            try {
+              const res = await api('/api/evrak/toplu_islem', { method: 'POST', govde: { eylem: 'indir', skeys: [b.dataset.indirSkey] } });
+              alert(res.mesaj || 'İndirme kuyruğuna alındı.');
+            } catch (e) { alert(e.message); }
+          };
+        });
+
+        ic.querySelectorAll('[data-git-dkey]').forEach(b => {
+          b.onclick = () => {
+            if (b.dataset.gitDkey) dosyaDetayAc(b.dataset.gitDkey);
+          };
+        });
+
+        // Toplu Eylemler
+        const calistirToplu = async (eylem) => {
+          const skeys = Array.from(seciliSkeys);
+          if (!skeys.length) return alert('Lütfen en az bir evrak seçin.');
+          try {
+            const res = await api('/api/evrak/toplu_islem', { method: 'POST', govde: { eylem, skeys } });
+            alert(res.mesaj || `${skeys.length} evrak işlendi.`);
+            if (eylem === 'okundu') {
+              yukleVeCiz(false);
+            }
+          } catch (e) { alert(e.message); }
+        };
+
+        const topIndir = ic.querySelector('#ca-toplu-indir');
+        if (topIndir) topIndir.onclick = () => calistirToplu('indir');
+
+        const topPdf = ic.querySelector('#ca-toplu-pdf');
+        if (topPdf) topPdf.onclick = () => calistirToplu('pdf');
+
+        const topDrive = ic.querySelector('#ca-toplu-drive');
+        if (topDrive) topDrive.onclick = () => calistirToplu('drive');
+
+        const topOkundu = ic.querySelector('#ca-toplu-okundu');
+        if (topOkundu) topOkundu.onclick = () => calistirToplu('okundu');
+
+        const gorulduTumu = () => {
+          gorulenYaz(sonVeri && sonVeri.en_yeni ? sonVeri.en_yeni : yerelIso(new Date()));
+          sonToplam = 0;
+          rozetCiz(0);
+          yukleVeCiz(false);
+        };
+
+        const tumGorulduBtn = ic.querySelector('#ca-yeni-tum-goruldu');
+        if (tumGorulduBtn) tumGorulduBtn.onclick = gorulduTumu;
+
+        const gorudumAlt = ic.querySelector('#ca-yeni-gorudum-alt');
+        if (gorudumAlt) gorudumAlt.onclick = gorulduTumu;
+
+        const filtreBtn = ic.querySelector('#ca-yeni-filtre-btn');
+        if (filtreBtn) filtreBtn.onclick = () => yukleVeCiz(false);
+
+        const qInput = ic.querySelector('#ca-yeni-q');
+        if (qInput) {
+          qInput.onkeydown = e => { if (e.key === 'Enter') yukleVeCiz(false); };
+        }
+
+        const dInput = ic.querySelector('#ca-yeni-durum');
+        if (dInput) dInput.onchange = () => yukleVeCiz(false);
+
+        const dahaFazlaBtn = ic.querySelector('#ca-yeni-daha-fazla');
+        if (dahaFazlaBtn) {
+          dahaFazlaBtn.onclick = () => {
+            mevcutOffset += sayfaBoyutu;
+            yukleVeCiz(true);
+          };
+        }
+
+        const iz = ic.querySelector('#ca-bildirim-izin');
+        if (iz) iz.onclick = () => Notification.requestPermission().then(() => yukleVeCiz(false));
+
+      } catch (e) { sunucuHatasi(ic, e); }
+    }
+
+    yukleVeCiz(false);
   }
 
   async function driveSekmesi(ic) {

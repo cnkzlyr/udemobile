@@ -55,6 +55,7 @@ public class MainActivity extends Activity {
     private TextView tvPreviewContent;
     private Button btnCopyText;
 
+    private Button btnOpenAsistan;
     private Button btnNewDoc;
     private Button btnPickFile;
     private Button btnLaunchBlank;
@@ -130,6 +131,7 @@ public class MainActivity extends Activity {
         tvPreviewContent = findViewById(R.id.tvPreviewContent);
         btnCopyText = findViewById(R.id.btnCopyText);
 
+        btnOpenAsistan = findViewById(R.id.btnOpenAsistan);
         btnNewDoc = findViewById(R.id.btnNewDoc);
         btnPickFile = findViewById(R.id.btnPickFile);
         btnLaunchBlank = findViewById(R.id.btnLaunchBlank);
@@ -152,6 +154,14 @@ public class MainActivity extends Activity {
             prefs.edit().putBoolean(KEY_DIRECT_OPEN, isChecked).apply();
             Toast.makeText(this, isChecked ? "Doğrudan Mobil Editör açılacak" : "Önizleme/seçim modu etkin", Toast.LENGTH_SHORT).show();
         });
+
+        if (btnOpenAsistan != null) {
+            btnOpenAsistan.setOnClickListener(v -> {
+                Intent intent = new Intent(this, EditorActivity.class);
+                intent.putExtra("ac_asistan", true);
+                startActivity(intent);
+            });
+        }
 
         btnNewDoc.setOnClickListener(v -> {
             Intent intent = new Intent(this, EditorActivity.class);

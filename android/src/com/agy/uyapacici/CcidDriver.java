@@ -98,6 +98,25 @@ public class CcidDriver {
         }
     }
 
+    /** Takılı tüm CCID cihazlarını listele */
+    public synchronized List<UsbDevice> getAvailableCcidDevices() {
+        List<UsbDevice> list = new ArrayList<>();
+        if (usbManager == null) return list;
+        try {
+            HashMap<String, UsbDevice> map = usbManager.getDeviceList();
+            if (map != null) {
+                for (UsbDevice dev : map.values()) {
+                    if (isCcidDevice(dev)) list.add(dev);
+                }
+            }
+        } catch (Exception ignored) {}
+        return list;
+    }
+
+    public synchronized UsbDevice getConnectedDevice() {
+        return connectedDevice;
+    }
+
     /** USB Cihazını Bul ve Bağlan */
     public synchronized boolean scanAndConnect() {
         if (usbManager == null) return false;
@@ -105,6 +124,11 @@ public class CcidDriver {
         if (deviceList == null || deviceList.isEmpty()) {
             disconnect();
             return false;
+        }
+
+        // Eğer mevcut cihaz hâlâ bağlı ve geçerliyse koru
+        if (connectedDevice != null && deviceList.containsKey(connectedDevice.getDeviceName()) && activeConnection != null) {
+            return true;
         }
 
         for (UsbDevice device : deviceList.values()) {
@@ -116,6 +140,7 @@ public class CcidDriver {
                 return connectDevice(device);
             }
         }
+        disconnect();
         return false;
     }
 
@@ -169,7 +194,7 @@ public class CcidDriver {
     }
 
     /** Cihaz arayüzünü bağla ve Bulk endpoint'leri ayarla */
-    private synchronized boolean connectDevice(UsbDevice device) {
+    public synchronized boolean connectDevice(UsbDevice device) {
         try {
             if (activeConnection != null && connectedDevice != null && connectedDevice.getDeviceId() == device.getDeviceId()) {
                 return true; // Zaten bağlı
@@ -255,8 +280,18 @@ public class CcidDriver {
         }
     }
 
-    public boolean isConnected() {
-        return activeConnection != null && connectedDevice != null;
+    public synchronized boolean isConnected() {
+        if (activeConnection == null || connectedDevice == null) return false;
+        if (usbManager != null) {
+            try {
+                HashMap<String, UsbDevice> map = usbManager.getDeviceList();
+                if (map == null || !map.containsKey(connectedDevice.getDeviceName())) {
+                    disconnect();
+                    return false;
+                }
+            } catch (Exception ignored) {}
+        }
+        return true;
     }
 
     public String getReaderName() {

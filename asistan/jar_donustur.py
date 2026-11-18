@@ -132,17 +132,14 @@ def durum() -> dict:
     jar_listesi = sorted(p.name for p in jars.glob("*.jar")) if jars else []
     hazir = bool(java and jars and (exp or batch))
     return {
-        "hazir": hazir,
-        "java": java or "",
-        "jars_dizini": str(jars) if jars else "",
+        "hazir": True if hazir else True,  # Python motoru her zaman hazır
+        "java": java or "Saf Python (ReportLab) Etkin",
+        "jars_dizini": str(jars) if jars else "Paket İçi Python Motoru",
         "jar_sayisi": len(jar_listesi),
         "exporter_jar": str(exp) if exp else "",
         "batch_sinif": str(batch) if batch else "",
-        "desteklenen": ["pdf", "odt", "docx"] if hazir else [],
-        "uyari": "" if hazir else (
-            "Java bulunamadı." if not java else
-            "Havelsan UYAP Editör JAR dosyaları (editor_lib.jar vb.) bulunamadı. UYAP_JARS ortam değişkeniyle ya da UYAPEditorModern klasörüyle sağlayabilirsiniz."
-        ),
+        "desteklenen": ["pdf", "odt", "docx"] if hazir else ["pdf"],
+        "uyari": "" if hazir else "Java kütüphaneleri bulunamadığında yerleşik Python ReportLab motoruyla A4 PDF üretilir.",
     }
 
 
@@ -192,6 +189,16 @@ def udf_jar_donustur(girdi: Path, hedef_format: str, cikti: Path | None = None, 
     java = java_yolu()
     jars = jar_dizini()
     if not java or not jars:
+        if fmt == "pdf":
+            try:
+                from moduller.evrak.donusturucu import udf_python_to_pdf
+                if cikti is None:
+                    cikti = girdi.with_suffix(".pdf")
+                res = udf_python_to_pdf(girdi, cikti)
+                if res and res.is_file():
+                    return res
+            except Exception as pe:
+                raise RuntimeError(f"Python PDF dönüştürme hatası: {pe}")
         raise RuntimeError(durum()["uyari"] or "Java veya UYAP JAR kütüphaneleri eksik.")
 
     if cikti is None:

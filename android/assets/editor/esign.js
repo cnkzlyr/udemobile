@@ -244,6 +244,18 @@
     return buildSignedDataFrom(a);
   }
 
+  function combineB64(existingB64, addedB64) {
+    try {
+      const existing = b64d(existingB64);
+      const added = b64d(addedB64);
+      const res = combine(existing, added);
+      return b64e(res);
+    } catch (e) {
+      console.error('combineB64 hatası:', e);
+      return '';
+    }
+  }
+
   function findCertFor(p, sidRaw) {
     for (const c of p.certs) {
       try {
@@ -546,7 +558,14 @@
         const sgnF = zip.file('sign.sgn');
         const cF = zip.file('content.xml');
         if (sgnF && cF) {
-          if (modified) throw new Error('Bu belge imzalı ve imzadan sonra değiştirildi. Değiştirilmiş belgeye ek imza atılırsa önceki imzalar geçersiz olur. Önce belgeyi "Kaydet" ile kaydedin (önceki imzalar kaldırılır) veya değişiklik yapmadan yeniden açıp imzalayın.');
+          if (modified) {
+            const currentSnap = window.snapshotDocument ? window.snapshotDocument() : null;
+            if (currentSnap && window.__origDocSnapshot && currentSnap === window.__origDocSnapshot) {
+              if (window.markDocumentPristine) window.markDocumentPristine();
+            } else {
+              throw new Error('Bu belge imzalı ve imzadan sonra değiştirildi. Değiştirilmiş belgeye ek imza atılırsa önceki imzalar geçersiz olur. Önce belgeyi "Kaydet" ile kaydedin (önceki imzalar kaldırılır) veya değişiklik yapmadan yeniden açıp imzalayın.');
+            }
+          }
           const content = await cF.async('uint8array'), existingSgn = await sgnF.async('uint8array');
           let oncekiImzaci = 0;
           try { oncekiImzaci = ((await verify(content, existingSgn)).signers || []).length; } catch (e) {}
@@ -585,9 +604,12 @@
     }
     // İmzalı belgeyi yeniden yükle → imza şeridi ve doğrulama güncellenir, belge "değiştirilmemiş" olur
     const buf = udfBytes.buffer.slice(udfBytes.byteOffset, udfBytes.byteOffset + udfBytes.byteLength);
+    window.currentDocOriginalBuffer = buf;
+    if (typeof currentDocOriginalBuffer !== 'undefined') currentDocOriginalBuffer = buf;
     const keepPath = window.currentDocPath || null;
     if (typeof openDocumentFromBytes === 'function') await openDocumentFromBytes(buf, name, keepPath);
     if (keepPath) window.currentDocPath = keepPath;
+    if (window.markDocumentPristine) window.markDocumentPristine();
   }
 
   // ------------------------------------------------------------------ üst düzey akışlar
@@ -820,7 +842,7 @@
 
   window.ESign = {
     // çekirdek
-    parseCert, buildSignedAttrs, assembleCms, combine, detach, verify, verifyUdf, ecdsaRawToDer,
+    parseCert, buildSignedAttrs, assembleCms, combine, combineB64, detach, verify, verifyUdf, ecdsaRawToDer,
     // akışlar
     mobileSign, smartCardSign, scList, canMobileSign, normalizePhone,
     // test yardımcıları

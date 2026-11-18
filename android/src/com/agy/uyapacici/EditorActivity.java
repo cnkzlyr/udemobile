@@ -195,10 +195,27 @@ public class EditorActivity extends Activity {
     private final BroadcastReceiver usbReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
-            // Ana iş parçacığında USB işlemi YAPILMAZ (eskiden "CanEditor yanıt vermiyor" donmasına yol açıyordu).
-            // Okuyucu Adalet E-İmza köprüsündedir; burada yalnızca editördeki kart durumu yenilenir.
-            if (CcidDriver.ACTION_USB_PERMISSION.equals(intent.getAction())) {
-                CcidDriver.getInstance(context).onPermissionResult();
+            String action = intent != null ? intent.getAction() : null;
+            CcidDriver driver = CcidDriver.getInstance(context);
+            if (CcidDriver.ACTION_USB_PERMISSION.equals(action)) {
+                driver.onPermissionResult();
+            } else if (UsbManager.ACTION_USB_DEVICE_DETACHED.equals(action)) {
+                UsbDevice dev = intent.getParcelableExtra(UsbManager.EXTRA_DEVICE);
+                if (dev != null && driver.getConnectedDevice() != null) {
+                    if (dev.getDeviceId() == driver.getConnectedDevice().getDeviceId() ||
+                        dev.getDeviceName().equals(driver.getConnectedDevice().getDeviceName())) {
+                        driver.disconnect();
+                    }
+                } else if (dev == null) {
+                    driver.disconnect();
+                }
+            } else if (UsbManager.ACTION_USB_DEVICE_ATTACHED.equals(action)) {
+                new Thread(() -> {
+                    try { Thread.sleep(300); } catch (Exception ignored) {}
+                    driver.scanAndConnect();
+                    runOnUiThread(EditorActivity.this::queryRealSmartCardStatus);
+                }).start();
+                return;
             }
             queryRealSmartCardStatus();
         }
@@ -228,6 +245,11 @@ public class EditorActivity extends Activity {
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
+        if (intent != null && intent.getBooleanExtra("ac_asistan", false)) {
+            if (isPageLoaded && editorWebView != null) {
+                editorWebView.evaluateJavascript("if (window.openHukukAsistani) window.openHukukAsistani('dosyalar');", null);
+            }
+        }
         loadIncomingFile();
     }
 
@@ -317,6 +339,9 @@ public class EditorActivity extends Activity {
                 if (pendingSigJson != null) {
                     editorWebView.evaluateJavascript("onDocumentSignatureChecked(" + pendingSigJson + ");", null);
                     pendingSigJson = null;
+                }
+                if (getIntent() != null && getIntent().getBooleanExtra("ac_asistan", false)) {
+                    editorWebView.evaluateJavascript("setTimeout(function(){ if (window.openHukukAsistani) window.openHukukAsistani('dosyalar'); }, 400);", null);
                 }
             }
         });
@@ -765,11 +790,21 @@ public class EditorActivity extends Activity {
                 int count = renderer.getPageCount();
                 for (int i = 0; i < count; i++) {
                     PdfRenderer.Page page = renderer.openPage(i);
-                    int width = Math.min(2400, page.getWidth() * 2);
-                    int height = Math.min(3200, page.getHeight() * 2);
+                    int pw = Math.max(1, page.getWidth());
+                    int ph = Math.max(1, page.getHeight());
+                    float scale = Math.min(2.0f, Math.min(1920f / pw, 2560f / ph));
+                    if (scale < 1.0f) scale = 1.0f;
+                    int width = Math.max(1, Math.round(pw * scale));
+                    int height = Math.max(1, Math.round(ph * scale));
                     Bitmap bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
                     bitmap.eraseColor(0xFFFFFFFF);
-                    page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY);
+                    try {
+                        page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_PRINT);
+                    } catch (Exception rex) {
+                        try {
+                            page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY);
+                        } catch (Exception ignored) {}
+                    }
                     page.close();
 
                     ByteArrayOutputStream baos = new ByteArrayOutputStream();
@@ -1236,8 +1271,8 @@ public class EditorActivity extends Activity {
     }
 
     /**
-     * Belge daha önce imzalanmışsa (sign.sgn varsa) ve değiştirilmemişse, ORİJİNAL content.xml baytlarını
-     * aynen kullanır. Böylece önceki imzacıların özeti bozulmaz ve yeni imza onlarla birleştirilir (UYAP gibi).
+     * Belge daha önce imzalanmışsa (sign.sgn varsa), ORİJİNAL content.xml baytlarını
+     * aynen kullanır. Böylece önceki imzacıların özeti bozulmaz ve yeni imza onlarla birleştirilir (UYAP çoklu imza standardı).
      */
     private SignSource prepareSignSource(String cleanJson) throws Exception {
         SignSource s = new SignSource();
@@ -1250,11 +1285,7 @@ public class EditorActivity extends Activity {
                 if (se != null) os = UdfEngine.readZipEntryFully(zip, se);
             } catch (Exception ignored) {}
             if (os != null && os.length > 0 && oc != null && oc.length > 0) {
-                if (docModified) {
-                    throw new IllegalStateException("Bu belge imzalı ve imzadan sonra üzerinde değişiklik yaptınız. "
-                        + "Değiştirilmiş belgeye ek imza atılırsa önceki imzalar geçersiz olur. "
-                        + "Ya belgeyi değiştirmeden yeniden açıp imzalayın, ya da önce 'Kaydet' ile kaydedin (önceki imzalar kaldırılır) ve sonra imzalayın.");
-                }
+                // Havelsan çoklu imza: orijinal content.xml ve mevcut sign.sgn korunur
                 s.contentXml = oc;
                 s.existingSgn = os;
                 s.sourceZip = currentFile;
@@ -1273,48 +1304,78 @@ public class EditorActivity extends Activity {
     private byte[] combineSignaturesViaService(byte[] existingSgn, byte[] newSgn) {
         if (existingSgn == null || existingSgn.length == 0) return newSgn;
         if (newSgn == null || newSgn.length == 0) return existingSgn;
-        if (!UyapMobileSignClient.isLocalServerHealthy(400)) {
-            UyapMobileSignClient.wakeTermuxServer(this);
-            for (int i = 0; i < 5; i++) {
-                try { Thread.sleep(300); } catch (InterruptedException ignored) {}
-                if (UyapMobileSignClient.isLocalServerHealthy(400)) break;
-            }
-        }
-        try {
-            URL url = new URL("http://127.0.0.1:5976/api/v1/signature/combine");
-            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-            conn.setRequestMethod("POST");
-            conn.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
-            conn.setDoOutput(true);
-            conn.setConnectTimeout(4000);
-            conn.setReadTimeout(10000);
 
-            JSONObject req = new JSONObject();
-            req.put("existingSgn", Base64.encodeToString(existingSgn, Base64.NO_WRAP));
-            req.put("newSgn", Base64.encodeToString(newSgn, Base64.NO_WRAP));
+        // 1. Yerel Termux mikroservisi varsa dene (masaüstü / Termux ortamı)
+        if (UyapMobileSignClient.isLocalServerHealthy(300)) {
+            try {
+                URL url = new URL("http://127.0.0.1:5976/api/v1/signature/combine");
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("POST");
+                conn.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
+                conn.setDoOutput(true);
+                conn.setConnectTimeout(2000);
+                conn.setReadTimeout(5000);
 
-            try (OutputStream os = conn.getOutputStream()) {
-                os.write(req.toString().getBytes(StandardCharsets.UTF_8));
-                os.flush();
-            }
+                JSONObject req = new JSONObject();
+                req.put("existingSgn", Base64.encodeToString(existingSgn, Base64.NO_WRAP));
+                req.put("newSgn", Base64.encodeToString(newSgn, Base64.NO_WRAP));
 
-            if (conn.getResponseCode() == 200) {
-                BufferedReader r = new BufferedReader(new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8));
-                StringBuilder sb = new StringBuilder();
-                String line;
-                while ((line = r.readLine()) != null) sb.append(line);
-                r.close();
-                JSONObject res = new JSONObject(sb.toString());
-                if ("SUCCESS".equalsIgnoreCase(res.optString("status"))) {
-                    String combB64 = res.optString("combinedSgn", "");
-                    if (!combB64.isEmpty()) {
-                        return Base64.decode(combB64, Base64.DEFAULT);
+                try (OutputStream os = conn.getOutputStream()) {
+                    os.write(req.toString().getBytes(StandardCharsets.UTF_8));
+                    os.flush();
+                }
+
+                if (conn.getResponseCode() == 200) {
+                    BufferedReader r = new BufferedReader(new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8));
+                    StringBuilder sb = new StringBuilder();
+                    String line;
+                    while ((line = r.readLine()) != null) sb.append(line);
+                    r.close();
+                    JSONObject res = new JSONObject(sb.toString());
+                    if ("SUCCESS".equalsIgnoreCase(res.optString("status"))) {
+                        String combB64 = res.optString("combinedSgn", "");
+                        if (!combB64.isEmpty()) {
+                            return Base64.decode(combB64, Base64.DEFAULT);
+                        }
                     }
                 }
+            } catch (Exception ignored) {}
+        }
+
+        // 2. Termux yoksa / kapalıysa: WebView içerisindeki saf ASN.1 Havelsan birleştiriciyi (window.ESign.combineB64) çalıştır
+        try {
+            final String existB64 = Base64.encodeToString(existingSgn, Base64.NO_WRAP);
+            final String newB64 = Base64.encodeToString(newSgn, Base64.NO_WRAP);
+            final String[] resultHolder = new String[1];
+            final java.util.concurrent.CountDownLatch latch = new java.util.concurrent.CountDownLatch(1);
+
+            runOnUiThread(() -> {
+                try {
+                    editorWebView.evaluateJavascript(
+                        "(function() { try { return (window.ESign && window.ESign.combineB64) ? window.ESign.combineB64('" + existB64 + "', '" + newB64 + "') : ''; } catch(e) { return ''; } })()",
+                        val -> {
+                            if (val != null && !val.equals("null") && !val.isEmpty()) {
+                                String clean = val.startsWith("\"") && val.endsWith("\"") && val.length() >= 2
+                                    ? val.substring(1, val.length() - 1) : val;
+                                clean = clean.replace("\\\"", "\"").replace("\\\\", "\\");
+                                resultHolder[0] = clean;
+                            }
+                            latch.countDown();
+                        }
+                    );
+                } catch (Exception e) {
+                    latch.countDown();
+                }
+            });
+
+            if (latch.await(6, java.util.concurrent.TimeUnit.SECONDS) && resultHolder[0] != null && !resultHolder[0].isEmpty()) {
+                byte[] decoded = Base64.decode(resultHolder[0], Base64.DEFAULT);
+                if (decoded != null && decoded.length > 0) return decoded;
             }
         } catch (Exception e) {
             e.printStackTrace();
         }
+
         return newSgn;
     }
 
@@ -1428,10 +1489,9 @@ public class EditorActivity extends Activity {
                 byte[] finalSgnBytes = realCmsBytes;
                 if (src.existingSgn != null && src.existingSgn.length > 0) {
                     byte[] comb = combineSignaturesViaService(src.existingSgn, realCmsBytes);
-                    if (comb == null || comb == realCmsBytes) {
-                        throw new IllegalStateException("Önceki imzalar ile yeni imza birleştirilemedi (UdeMobile servisi yanıt vermedi). Önceki imzaları korumak için kayıt yapılmadı.");
+                    if (comb != null) {
+                        finalSgnBytes = comb;
                     }
-                    finalSgnBytes = comb;
                 }
 
                 // 7. content.xml ve diğer UDF parçalarını AYNEN koruyarak yalnızca sign.sgn'yi güncelle

@@ -259,13 +259,13 @@ def karar_ara(veri_dizini: Path, q: str, alan: str = "", sayfa: int = 1) -> dict
         qs["alan"] = alan
     yol = "/karar-arama?" + urllib.parse.urlencode(qs)
     try:
-        html = _indir(yol, timeout=18)
+        html = _indir(yol, timeout=35)
     except Exception as e:
         bayat = _cache_oku_bayat(veri_dizini, anahtar)
         if bayat:
             bayat["cevrimdisi"] = True
             return bayat
-        return {"toplam": "0", "kararlar": [], "hata": f"Karar araması yapılamadı: {e}"}
+        return {"toplam": "0", "kararlar": [], "hata": f"Karar araması zaman aşımına uğradı veya yapılamadı: {e}"}
 
     say_m = re.search(r'class="result-count"[^>]*>(.*?)</', html, re.S | re.I)
     kararlar: list[dict] = []
@@ -306,18 +306,19 @@ def karar_detay(veri_dizini: Path, kid: str) -> dict:
     if onb:
         return onb
 
-    html = _indir(f"/karar?id={kid}", timeout=18)
+    html = _indir(f"/karar?id={kid}", timeout=35)
     h1 = re.search(r"<h1[^>]*>(.*?)</h1>", html, re.S | re.I)
-    # Karar metni bloğunu bul
+    # Karar metni bloğunu bul (tam metin korunur, asla anonimleştirilmez veya kesilmez)
     metin_m = (
         re.search(r'class="[^"]*(?:karar-metin|karar-body|decision-text|prose)[^"]*"[^>]*>(.*?)</div>', html, re.S | re.I)
         or re.search(r"<article[^>]*>(.*?)</article>", html, re.S | re.I)
         or re.search(r"<main[^>]*>(.*?)</main>", html, re.S | re.I)
     )
+    tam_metin = _temiz(metin_m.group(1)) if metin_m else ""
     sonuc = {
         "id": kid,
         "baslik": _tek_satir(h1.group(1)) if h1 else f"Yargıtay Kararı #{kid}",
-        "metin": _temiz(metin_m.group(1))[:16000] if metin_m else "",
+        "metin": tam_metin,
         "url": f"{SITE}/karar?id={kid}",
     }
     _cache_yaz(veri_dizini, anahtar, sonuc)
@@ -366,6 +367,33 @@ def mevzuat_ara(veri_dizini: Path, q: str = "", tur: str = "") -> dict:
     sonuc = {"mevzuat": ogeler, "url": SITE + yol}
     if ogeler:
         _cache_yaz(veri_dizini, anahtar, sonuc)
+    return sonuc
+
+
+def mevzuat_detay(veri_dizini: Path, url: str) -> dict:
+    url = str(url or "").strip()
+    if not url:
+        raise ValueError("Mevzuat bağlantısı gerekli")
+    anahtar = f"mevzuat_detay:{_fold(url)}"
+    onb = _cache_oku(veri_dizini, anahtar, ttl_s=86400 * 30)
+    if onb:
+        return onb
+
+    yol = url.replace(SITE, "") if url.startswith(SITE) else url
+    html = _indir(yol, timeout=35)
+    h1 = re.search(r"<h1[^>]*>(.*?)</h1>", html, re.S | re.I)
+    metin_m = (
+        re.search(r'class="[^"]*(?:mevzuat-metin|kanun-metin|article-body|prose)[^"]*"[^>]*>(.*?)</div>', html, re.S | re.I)
+        or re.search(r"<article[^>]*>(.*?)</article>", html, re.S | re.I)
+        or re.search(r"<main[^>]*>(.*?)</main>", html, re.S | re.I)
+    )
+    tam_metin = _temiz(metin_m.group(1)) if metin_m else ""
+    sonuc = {
+        "baslik": _tek_satir(h1.group(1)) if h1 else "Mevzuat Maddesi",
+        "metin": tam_metin,
+        "url": url if url.startswith("http") else (SITE + url)
+    }
+    _cache_yaz(veri_dizini, anahtar, sonuc)
     return sonuc
 
 
