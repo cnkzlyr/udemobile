@@ -1102,11 +1102,53 @@ class Isleyici(BaseHTTPRequestHandler):
                 return self._json(dosya_not_ekle(govde))
             if yol == "/api/drive/ayar":
                 return self._json(_drive_indeks.drive_ayar_yaz(evrak_veri_dizini(), govde))
+            if yol == "/api/drive/test_webhook":
+                url = str(govde.get("url") or "").strip()
+                if not url:
+                    ayar = _drive_indeks.drive_ayar_oku(evrak_veri_dizini())
+                    url = ayar.get("google_drive_webhook", "")
+                if not url:
+                    raise ValueError("Webhook URL boş. Lütfen önce Webhook linkini girin.")
+                if "/edit" in url or "/sharing" in url or ("/d/" in url and not url.endswith("/exec")):
+                    raise ValueError("Girdiğiniz adres düzenleme/paylaşım linkidir (/edit). Lütfen Google Apps Script'te 'Dağıt > Yeni dağıtım > Web uygulaması' URL'sini (/exec) kullanın.")
+                if not (url.startswith("http://") or url.startswith("https://")):
+                    raise ValueError("Webhook URL https:// ile başlamalıdır.")
+                try:
+                    import urllib.request
+                    test_govde = json.dumps({"action": "ping", "test": True}).encode("utf-8")
+                    req = urllib.request.Request(url, data=test_govde, headers={"Content-Type": "application/json"}, method="POST")
+                    with urllib.request.urlopen(req, timeout=15) as resp:
+                        durum = resp.getcode()
+                        return self._json({"tamam": True, "mesaj": f"✓ Webhook başarıyla yanıt verdi (HTTP {durum})! Google Drive bağlantısı çalışıyor."})
+                except urllib.error.HTTPError as he:
+                    if he.code in (302, 200, 201):
+                        return self._json({"tamam": True, "mesaj": f"✓ Webhook doğrulandı (HTTP {he.code})! Google Drive bağlantısı hazır."})
+                    raise ValueError(f"Webhook HTTP {he.code} hatası verdi. 'Erişimi olanlar' ayarını 'Herkes' (Anyone) yaptığınızdan emin olun.")
+                except Exception as ex:
+                    raise ValueError(f"Webhook testinde hata: {str(ex)}")
             if yol == "/api/drive/indeksle":
                 ayar = _drive_indeks.drive_ayar_oku(evrak_veri_dizini())
                 dizin = str(govde.get("dizin") or ayar.get("google_drive_dir") or "").strip()
-                if not dizin:
-                    raise ValueError("Önce Google Drive klasör yolunu ayarlayın.")
+                if not dizin or dizin.startswith("http://") or dizin.startswith("https://"):
+                    # Android / ayarlanmamış ortam için akıllı varsayılan
+                    varsayilanlar = [
+                        Path("/sdcard/Download/UYAP_Arsiv"),
+                        Path("/sdcard/Download"),
+                        evrak_veri_dizini() / "UYAP_Arsiv",
+                    ]
+                    dizin_secilen = None
+                    for vd in varsayilanlar:
+                        if vd.is_dir():
+                            dizin_secilen = vd
+                            break
+                    if not dizin_secilen:
+                        dizin_secilen = varsayilanlar[0]
+                        try:
+                            dizin_secilen.mkdir(parents=True, exist_ok=True)
+                        except OSError:
+                            dizin_secilen = evrak_veri_dizini() / "UYAP_Arsiv"
+                            dizin_secilen.mkdir(parents=True, exist_ok=True)
+                    dizin = str(dizin_secilen)
                 return self._json(_drive_indeks.indeksle(drive_indeks_yolu(), Path(dizin)))
             if yol == "/api/drive/esitle":
                 return self._json(_drive_indeks.esitle_eksikler(katalog_yolu(), evrak_veri_dizini(), int(govde.get("limit") or 100)))

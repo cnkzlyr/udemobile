@@ -278,13 +278,14 @@
   #ca-panel{position:fixed;inset:0;z-index:100000;display:none;align-items:center;justify-content:center;background:rgba(15,23,42,.45)}
   #ca-panel.acik{display:flex}
   #ca-panel .ca-kutu{background:var(--ce-surface,#fff);color:var(--ce-text,#1f2937);width:min(860px,calc(100vw - 24px));max-height:calc(100vh - 32px);display:flex;flex-direction:column;border-radius:12px;box-shadow:0 20px 50px rgba(0,0,0,.25);font:14px/1.5 var(--ce-font-ui,system-ui,sans-serif);overflow:hidden}
-  #ca-panel header{display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid var(--ce-border,#e2e6ec)}
+  #ca-panel header{display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid var(--ce-border,#e2e6ec);flex-shrink:0}
   #ca-panel header h2{margin:0;font-size:16px;flex:1}
   #ca-panel .ca-kapat{border:0;background:none;font-size:20px;cursor:pointer;color:inherit;padding:2px 8px}
-  #ca-panel nav{display:flex;gap:4px;padding:8px 12px 0;border-bottom:1px solid var(--ce-border,#e2e6ec);overflow-x:auto}
-  #ca-panel nav button{border:0;background:none;padding:8px 12px;border-bottom:2px solid transparent;cursor:pointer;color:var(--ce-muted,#6b7280);font:inherit;white-space:nowrap}
+  #ca-panel nav{display:flex;gap:4px;padding:0 8px;border-bottom:1px solid var(--ce-border,#e2e6ec);overflow-x:auto;overflow-y:hidden;flex-shrink:0;min-height:46px;height:46px;align-items:center;white-space:nowrap;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+  #ca-panel nav::-webkit-scrollbar{display:none}
+  #ca-panel nav button{border:0;background:none;padding:0 12px;height:36px;line-height:36px;border-bottom:2px solid transparent;cursor:pointer;color:var(--ce-muted,#6b7280);font:inherit;white-space:nowrap;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center}
   #ca-panel nav button.secili{color:var(--ce-accent,#2563eb);border-bottom-color:var(--ce-accent,#2563eb);font-weight:600}
-  #ca-panel .ca-icerik{padding:16px;overflow:auto}
+  #ca-panel .ca-icerik{padding:16px;overflow-y:auto;overflow-x:hidden;flex:1 1 0%;min-height:0;-webkit-overflow-scrolling:touch}
   #ca-panel input:not([type=checkbox]):not([type=range]),#ca-panel select{width:100%!important;max-width:none!important;min-width:0!important;height:auto!important;min-height:38px;line-height:1.4!important;padding:8px 10px!important;font-size:14px!important;margin:0!important}
   #ca-panel th{background:transparent!important;font-weight:600;width:auto}
   #ca-panel label{display:block;font-size:12px;color:var(--ce-muted,#6b7280);margin:10px 0 4px}
@@ -307,7 +308,13 @@
   #ca-panel td,#ca-panel th{text-align:left;padding:6px 8px;border-bottom:1px solid var(--ce-border,#eef0f3);vertical-align:top}
   #ca-panel .ca-soluk{color:var(--ce-muted,#6b7280);font-size:12px}
   #ca-panel pre{background:var(--ce-bg,#f6f7f9);padding:8px;border-radius:8px;max-height:220px;overflow:auto;font-size:12px;white-space:pre-wrap}
-  @media (max-width:600px){#ca-panel .ca-kutu{width:100vw;max-height:100vh;height:100vh;border-radius:0}}
+  @media (max-width:720px){
+    #ca-panel .ca-kutu{width:100vw!important;max-height:100dvh!important;height:100dvh!important;border-radius:0!important;display:flex!important;flex-direction:column!important;overflow:hidden!important}
+    #ca-panel header{flex-shrink:0!important;min-height:48px!important;height:48px!important}
+    #ca-panel nav{flex-shrink:0!important;min-height:46px!important;height:46px!important;overflow-x:auto!important;overflow-y:hidden!important;white-space:nowrap!important;position:sticky!important;top:0!important;z-index:25!important}
+    #ca-panel nav button{flex-shrink:0!important;height:34px!important;line-height:34px!important;padding:0 12px!important;font-size:12.5px!important;white-space:nowrap!important}
+    #ca-panel .ca-icerik{flex:1 1 0%!important;min-height:0!important;overflow-y:auto!important;-webkit-overflow-scrolling:touch!important;padding:12px!important}
+  }
   `;
 
   let kok = null, aktifSekme = 'sure', stilVar = false;
@@ -350,7 +357,11 @@
   function sekmeAc(k) {
     aktifSekme = k;
     gorevIzleDurdur();
+    const btn = kok ? kok.querySelector(`nav button[data-sekme="${k}"]`) : null;
     kok.querySelectorAll('nav button').forEach(b => b.classList.toggle('secili', b.dataset.sekme === k));
+    if (btn && typeof btn.scrollIntoView === 'function') {
+      try { btn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' }); } catch (e) {}
+    }
     const ic = kok.querySelector('.ca-icerik');
     const hf = window.CanHayfa || {};
     const harita = {

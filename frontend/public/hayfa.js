@@ -11,6 +11,58 @@
 (function () {
   'use strict';
 
+  const GOOGLE_APPS_SCRIPT_KODU = `// ===========================================================================
+// UYAP Google Drive Webhook Betiği (script.google.com)
+// Bu kodu Google Drive'ınızda "Yeni > Diğer > Google Apps Script" açıp yapıştırın.
+// Ardından "Dağıt (Deploy) > Yeni Dağıtım > Web Uygulaması" seçip URL'yi alın.
+// ===========================================================================
+function doPost(e) {
+  try {
+    var data = JSON.parse(e.postData.contents);
+    if (data.action === "ping" || data.test) {
+      return ContentService.createTextOutput(JSON.stringify({ status: "ok", message: "Bağlantı başarılı!" }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    var rootFolderName = "UYAP_Arsiv";
+    var rootFolders = DriveApp.getFoldersByName(rootFolderName);
+    var root = rootFolders.hasNext() ? rootFolders.next() : DriveApp.createFolder(rootFolderName);
+    
+    // Klasör hiyerarşisini bul veya oluştur
+    var folder = root;
+    if (data.folder_path) {
+      var parts = data.folder_path.replace(/\\\\/g, "/").split("/");
+      for (var i = 0; i < parts.length; i++) {
+        var part = parts[i].trim();
+        if (!part) continue;
+        var sub = folder.getFoldersByName(part);
+        folder = sub.hasNext() ? sub.next() : folder.createFolder(part);
+      }
+    }
+    
+    // Dosyayı oluştur
+    var decoded = Utilities.base64Decode(data.content);
+    var blob = Utilities.newBlob(decoded, "application/pdf", data.filename || "evrak.pdf");
+    var file = folder.createFile(blob);
+    
+    return ContentService.createTextOutput(JSON.stringify({
+      status: "success",
+      filename: data.filename,
+      fileId: file.getId(),
+      url: file.getUrl()
+    })).setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({
+      status: "error",
+      message: err.toString()
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+}
+function doGet(e) {
+  return ContentService.createTextOutput(JSON.stringify({ status: "ok", message: "CanEditor Google Drive Webhook Aktif" }))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+`;
+
   const HAYFA_CSS = `
   /* HAYFA Hukuk & Danışmanlık Kurumsal Renk Paleti + Mobil Uyumlu Tasarım */
   :root {
@@ -22,18 +74,30 @@
     max-height: calc(100vh - 24px);
     border-radius: 16px;
     border: 1px solid rgba(200,164,90,.28);
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
   }
   #ca-panel header {
     background: linear-gradient(135deg, var(--hf-navy) 0%, var(--hf-navy-2) 65%, var(--hf-navy-3) 100%);
     color: #fff;
-    padding: 13px 18px;
+    padding: 12px 16px;
     border-bottom: 2px solid var(--hf-gold);
+    flex-shrink: 0 !important;
+    min-height: 50px !important;
+    height: 50px !important;
+    box-sizing: border-box !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
   }
   #ca-panel header h2 {
     font-family: Georgia, 'Playfair Display', serif;
     letter-spacing: .3px;
     color: #fff;
     display: flex; align-items: center; gap: 10px;
+    font-size: 15px !important;
+    margin: 0 !important;
   }
   #ca-panel header .hf-badge {
     font: 600 11px/1 system-ui, sans-serif;
@@ -42,29 +106,65 @@
     padding: 4px 9px; border-radius: 999px;
   }
   #ca-panel nav {
-    background: var(--ce-surface, #f8fafc);
-    padding: 6px 10px 0;
-    gap: 2px;
-    scrollbar-width: thin;
-    -webkit-overflow-scrolling: touch;
+    background: var(--ce-surface, #f8fafc) !important;
+    padding: 0 8px !important;
+    gap: 4px !important;
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    flex-shrink: 0 !important;
+    min-height: 48px !important;
+    height: 48px !important;
+    align-items: center !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    white-space: nowrap !important;
+    border-bottom: 2px solid var(--hf-gold, #c8a45a) !important;
+    scrollbar-width: none !important;
+    -webkit-overflow-scrolling: touch !important;
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 25 !important;
+    box-sizing: border-box !important;
   }
-  body.ce-dark-mode #ca-panel nav { background: #0f172a; }
+  #ca-panel nav::-webkit-scrollbar { display: none !important; }
+  body.ce-dark-mode #ca-panel nav { background: #0f172a !important; }
   #ca-panel nav button {
-    padding: 9px 11px;
-    font-size: 13px;
-    border-radius: 8px 8px 0 0;
-    transition: background .15s, color .15s;
+    padding: 0 14px !important;
+    height: 34px !important;
+    line-height: 34px !important;
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    border-radius: 8px !important;
+    border: 1px solid transparent !important;
+    flex-shrink: 0 !important;
+    white-space: nowrap !important;
+    color: var(--ce-muted, #64748b) !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    cursor: pointer !important;
+    transition: background .15s, color .15s !important;
+    box-sizing: border-box !important;
   }
   #ca-panel nav button.secili {
-    color: var(--hf-navy);
-    background: var(--hf-gold-soft);
-    border-bottom-color: var(--hf-gold);
-    font-weight: 700;
+    color: var(--hf-navy, #0f2341) !important;
+    background: var(--hf-gold-soft, #f5ecd9) !important;
+    border: 1px solid var(--hf-gold, #c8a45a) !important;
+    font-weight: 700 !important;
   }
   body.ce-dark-mode #ca-panel nav button.secili {
-    color: #f5d896;
-    background: rgba(200,164,90,.15);
-    border-bottom-color: var(--hf-gold);
+    color: #f5d896 !important;
+    background: rgba(200,164,90,.22) !important;
+    border-color: var(--hf-gold, #c8a45a) !important;
+  }
+  #ca-panel .ca-icerik {
+    flex: 1 1 0% !important;
+    min-height: 0 !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    -webkit-overflow-scrolling: touch !important;
+    box-sizing: border-box !important;
   }
   #ca-panel .ca-btn.ana {
     background: var(--hf-navy);
@@ -110,9 +210,57 @@
   }
   #ca-yuzen .ca-sayi { color: #fde047 !important; }
   @media (max-width: 720px) {
-    #ca-panel .ca-kutu { width: 100vw; max-height: 100dvh; height: 100dvh; border-radius: 0; border: 0; }
-    #ca-panel .ca-icerik { padding: 12px; }
-    #ca-panel nav button { padding: 10px 10px; font-size: 12.5px; }
+    #ca-panel .ca-kutu {
+      width: 100vw !important;
+      max-height: 100dvh !important;
+      height: 100dvh !important;
+      border-radius: 0 !important;
+      border: 0 !important;
+      display: flex !important;
+      flex-direction: column !important;
+      overflow: hidden !important;
+    }
+    #ca-panel header {
+      flex-shrink: 0 !important;
+      min-height: 48px !important;
+      height: 48px !important;
+      padding: 10px 14px !important;
+    }
+    #ca-panel nav {
+      flex-shrink: 0 !important;
+      min-height: 46px !important;
+      height: 46px !important;
+      padding: 0 6px !important;
+      position: sticky !important;
+      top: 0 !important;
+      z-index: 25 !important;
+      display: flex !important;
+      flex-direction: row !important;
+      flex-wrap: nowrap !important;
+      overflow-x: auto !important;
+      overflow-y: hidden !important;
+      white-space: nowrap !important;
+      -webkit-overflow-scrolling: touch !important;
+    }
+    #ca-panel nav button {
+      padding: 0 12px !important;
+      height: 32px !important;
+      line-height: 32px !important;
+      font-size: 12.5px !important;
+      flex-shrink: 0 !important;
+      white-space: nowrap !important;
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+    }
+    #ca-panel .ca-icerik {
+      flex: 1 1 0% !important;
+      min-height: 0 !important;
+      overflow-y: auto !important;
+      overflow-x: hidden !important;
+      padding: 12px !important;
+      -webkit-overflow-scrolling: touch !important;
+    }
     #ca-panel table, #ca-panel tbody, #ca-panel tr, #ca-panel td { display: block; width: 100%; }
     #ca-panel thead { display: none; }
     #ca-panel tr { border: 1px solid var(--ce-border, #e5e8ee); border-radius: 10px; padding: 8px; margin-bottom: 8px; }
@@ -367,22 +515,126 @@
           <div id="hf-drv-sonuc" class="ca-soluk" style="margin-top:8px">Aramak için yazın veya önce Drive'ı veritabanına indeksleyin.</div>
         </div>
 
-        <details class="ca-kart">
-          <summary style="cursor:pointer;font-weight:600">⚙️ Google Drive & Telegram Ayarları</summary>
+        <details class="ca-kart" id="hf-cfg-detay">
+          <summary style="cursor:pointer;font-weight:600">⚙️ Google Drive &amp; Telegram Ayarları</summary>
           <div class="ca-satir" style="margin-top:8px">
-            <div><label>Yerel Google Drive Klasörü</label><input id="hf-cfg-dir" value="${esc(a.google_drive_dir || '')}" placeholder="ör. G:\\Drive'ım\\UYAP_Arsiv"></div>
-            <div><label>Bulut Webhook URL (Android / Uzak)</label><input id="hf-cfg-wh" value="${esc(a.google_drive_webhook || '')}" placeholder="https://script.google.com/macros/s/.../exec"></div>
+            <div>
+              <label>Yerel Google Drive Klasörü</label>
+              <input id="hf-cfg-dir" value="${esc(a.google_drive_dir || '')}" placeholder="Bilgisayarda G:\\Drive'ım\\UYAP_Arsiv (Telefonda boş bırakın)">
+              <small class="ca-soluk" style="display:block;margin-top:3px;font-size:11px">
+                📱 <b>Telefonda boş bırakın:</b> Cihazda belgeler <code>/sdcard/Download/UYAP_Arsiv</code> yoluna otomatik yazılır. Link yapıştırmayınız.
+              </small>
+            </div>
+            <div>
+              <label>Bulut Webhook URL (Android / Uzak)</label>
+              <input id="hf-cfg-wh" value="${esc(a.google_drive_webhook || '')}" placeholder="https://script.google.com/macros/s/.../exec">
+              <small class="ca-soluk" style="display:block;margin-top:3px;font-size:11px">
+                ☁️ Google Apps Script Web Uygulaması bağlantısı (sonu <code>/exec</code> ile biter).
+              </small>
+            </div>
             <div><label>Telegram Bot Token</label><input id="hf-cfg-tg" type="password" placeholder="${a.telegram_token_var ? '•••• (kayıtlı)' : 'isteğe bağlı'}"></div>
             <div><label>Telegram Chat ID</label><input id="hf-cfg-chat" value="${esc(a.telegram_chat_id || '')}" placeholder="ör. 123456789"></div>
           </div>
-          <label style="display:flex;gap:8px;align-items:center;color:inherit;font-size:13px"><input type="checkbox" id="hf-cfg-auto" style="width:auto"${a.drive_auto_index !== false ? ' checked' : ''}> Her nöbetçi turunda Drive veritabanını otomatik güncelle</label>
-          <button class="ca-btn ana" type="button" id="hf-cfg-kaydet">💾 Ayarları Kaydet</button>
+
+          <div id="hf-cfg-wh-uyari" style="display:none;margin-top:8px;padding:9px 12px;border-radius:8px;background:#fef2f2;border:1px solid #f87171;color:#991b1b;font-size:12.5px;line-height:1.4"></div>
+          <div id="hf-cfg-dir-uyari" style="display:none;margin-top:8px;padding:9px 12px;border-radius:8px;background:#fffbeb;border:1px solid #f59e0b;color:#92400e;font-size:12.5px;line-height:1.4"></div>
+
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+            <button class="ca-btn ana" type="button" id="hf-cfg-kaydet">💾 Ayarları Kaydet</button>
+            <button class="ca-btn" type="button" id="hf-cfg-test-wh">🧪 Webhook Bağlantısını Test Et</button>
+            <button class="ca-btn altin" type="button" id="hf-cfg-kopyala-gs">📋 Google Apps Script Kodunu Kopyala</button>
+          </div>
+          <div id="hf-cfg-bildirim" class="ca-soluk" style="margin-top:6px"></div>
+          <label style="display:flex;gap:8px;align-items:center;color:inherit;font-size:13px;margin-top:10px"><input type="checkbox" id="hf-cfg-auto" style="width:auto"${a.drive_auto_index !== false ? ' checked' : ''}> Her nöbetçi turunda Drive veritabanını otomatik güncelle</label>
+        </details>
+
+        <details class="ca-kart" style="background:var(--hf-gold-soft,#f5ecd9);border:1px solid var(--hf-gold,#c8a45a)">
+          <summary style="cursor:pointer;font-weight:700;color:var(--hf-navy,#0f2341)">📖 Telefonda Google Drive Kurulum Kılavuzu (Adım Adım — 1 Dakika)</summary>
+          <div style="margin-top:8px;font-size:13px;line-height:1.6;color:#1e293b">
+            <p style="margin:4px 0"><b>1. Adım:</b> Yukarıdaki <b>"📋 Google Apps Script Kodunu Kopyala"</b> düğmesine basın.</p>
+            <p style="margin:4px 0"><b>2. Adım:</b> Telefon tarayıcınızda (Chrome vb.) <b><a href="https://script.google.com" target="_blank" style="color:#2563eb;font-weight:600;text-decoration:underline">script.google.com</a></b> açıp sol üstteki <b>"+ Yeni proje"</b> butonuna dokunun.</p>
+            <p style="margin:4px 0"><b>3. Adım:</b> Ekrandaki örnek kodları silin, kopyaladığınız kodu yapıştırın ve üstteki disket (💾 Kaydet) simgesine dokunun.</p>
+            <p style="margin:4px 0;padding:8px;background:rgba(255,255,255,.8);border-radius:6px;border-left:4px solid #ef4444">
+              <b>⚠️ EN ÖNEMLİ NOKTA ("Paylaş" DEĞİL, "Dağıt"):</b><br>
+              ❌ Sağ üstteki <i>"Paylaş"</i> (veya <i>"Share"</i>) butonu sadece projeyi düzenleme davetidir (<code>/edit?usp=sharing</code> ile biter) ve UYAP evraklarını <b>kabul etmez!</b><br>
+              ✅ Sağ üstteki mavi <b>"Dağıt (Deploy)"</b> butonuna dokunun → <b>"Yeni dağıtım"</b> seçin.<br>
+              • Sol üstteki dişli ⚙️ simgesinden <b>"Web uygulaması"</b> seçin.<br>
+              • <i>Uygulamayı şu kullanıcı olarak çalıştır:</i> <b>Ben</b><br>
+              • <i>Erişimi olanlar (Who has access):</i> <b>Mutlaka "Herkes" (Anyone)</b> seçin.<br>
+              • Mavi <b>"Dağıt"</b> butonuna basın ve Google hesabınızın erişim izinlerini onaylayın.<br>
+              • Ekrana gelen <b>"Web uygulaması URL'si"</b>ni kopyalayın (<code>https://script.google.com/macros/s/.../exec</code> ile biter).
+            </p>
+            <p style="margin:4px 0"><b>4. Adım:</b> Kopyaladığınız <code>.../exec</code> URL'sini yukarıdaki <b>"Bulut Webhook URL"</b> kutusuna yapıştırıp <b>"💾 Ayarları Kaydet"</b> deyin.</p>
+            <p style="margin:4px 0"><b>📁 Klasör Kutusu:</b> <i>"Yerel Google Drive Klasörü"</i> kutusunu telefonunuzda <b>boş bırakın</b>. İndirilen evraklar otomatik olarak telefonunuzun <code>/sdcard/Download/UYAP_Arsiv</code> klasöründe tutulur ve oradan Google Drive'ınıza yüklenir.</p>
+          </div>
         </details>`;
 
       const islem = ic.querySelector('#hf-drv-islem');
+      const whInput = ic.querySelector('#hf-cfg-wh');
+      const whUyari = ic.querySelector('#hf-cfg-wh-uyari');
+      const dirInput = ic.querySelector('#hf-cfg-dir');
+      const dirUyari = ic.querySelector('#hf-cfg-dir-uyari');
+      const bildirim = ic.querySelector('#hf-cfg-bildirim');
+
+      function linkKontrol() {
+        if (!whInput) return;
+        const v = whInput.value.trim();
+        if (v && (v.includes('/edit') || v.includes('usp=sharing') || (v.includes('/d/') && !v.endsWith('/exec')))) {
+          whUyari.style.display = 'block';
+          whUyari.innerHTML = '⚠️ <b>Dikkat:</b> Girdiğiniz link bir düzenleme/paylaşım linkidir (<code>.../edit</code>). Google Drive webhook için Google Apps Script ekranında sağ üstteki mavi <b>"Dağıt (Deploy)" &gt; "Yeni dağıtım" &gt; "Web uygulaması" &gt; "Herkes"</b> adımlarını uygulayıp aldığınız <code>.../exec</code> ile biten linki yapıştırmalısınız.';
+        } else {
+          whUyari.style.display = 'none';
+        }
+
+        const d = dirInput ? dirInput.value.trim() : '';
+        if (d && (d.startsWith('http://') || d.startsWith('https://'))) {
+          dirUyari.style.display = 'block';
+          dirUyari.innerHTML = 'ℹ️ <b>Bilgi:</b> "Yerel Google Drive Klasörü" kutusuna internet linki girilemez. Bilgisayarda klasör yolu (ör. G:\\Drive\'ım\\UYAP_Arsiv) içindir. Telefonda bu kutuyu <b>boş bırakabilirsiniz</b> (evraklar otomatik olarak <code>/sdcard/Download/UYAP_Arsiv</code> konumuna kaydedilir). İnternet linkini yandaki <b>Bulut Webhook URL</b> kutusuna yapıştırınız.';
+        } else {
+          dirUyari.style.display = 'none';
+        }
+      }
+      if (whInput) whInput.addEventListener('input', linkKontrol);
+      if (dirInput) dirInput.addEventListener('input', linkKontrol);
+      linkKontrol();
+
+      const kopyalaGsBtn = ic.querySelector('#hf-cfg-kopyala-gs');
+      if (kopyalaGsBtn) {
+        kopyalaGsBtn.onclick = async () => {
+          try {
+            await navigator.clipboard.writeText(GOOGLE_APPS_SCRIPT_KODU);
+            if (bildirim) bildirim.innerHTML = '<span style="color:#16a34a;font-weight:600">✓ Google Apps Script kodu panoya kopyalandı! script.google.com adresine yapıştırabilirsiniz.</span>';
+          } catch (e) {
+            prompt('Aşağıdaki kodu kopyalayıp script.google.com adresine yapıştırın:', GOOGLE_APPS_SCRIPT_KODU);
+          }
+        };
+      }
+
+      const testWhBtn = ic.querySelector('#hf-cfg-test-wh');
+      if (testWhBtn) {
+        testWhBtn.onclick = async () => {
+          const wh = whInput ? whInput.value.trim() : '';
+          if (!wh) {
+            if (bildirim) bildirim.innerHTML = '<span class="ca-hata">Lütfen önce bir Webhook URL girin.</span>';
+            return;
+          }
+          if (wh.includes('/edit') || wh.includes('usp=sharing')) {
+            if (bildirim) bildirim.innerHTML = '<span class="ca-hata">Girdiğiniz link paylaşım linkidir (/edit). Lütfen "Dağıt &gt; Web Uygulaması" linkini (/exec) kullanın.</span>';
+            return;
+          }
+          if (bildirim) bildirim.textContent = '⏳ Webhook bağlantısı test ediliyor…';
+          try {
+            const r = await api('/api/drive/test_webhook', { method: 'POST', govde: { url: wh } });
+            if (bildirim) bildirim.innerHTML = `<span style="color:#16a34a;font-weight:600">${esc(r.mesaj || '✓ Webhook başarılı!')}</span>`;
+          } catch (e) {
+            if (bildirim) bildirim.innerHTML = `<span class="ca-hata">${esc(e.message)}</span>`;
+          }
+        };
+      }
+
       ic.querySelector('#hf-drv-yenile').onclick = () => driveProSekmesi(ic, ctx);
       ic.querySelector('#hf-drv-indeks').onclick = async () => {
-        islem.textContent = '⏳ Google Drive klasörü taranıp SQLite veritabanına alınıyor…';
+        islem.textContent = '⏳ Google Drive / yerel klasör taranıp SQLite veritabanına alınıyor…';
         try {
           const r = await api('/api/drive/indeksle', { method: 'POST', govde: {} });
           islem.textContent = `✓ İndekslendi: ${r.toplam.toLocaleString('tr-TR')} dosya (${r.boyut_mb} MB) · +${r.yeni} yeni, ${r.guncellenen} güncellendi, ${r.silinen} silindi (${r.sure_ms} ms)`;
@@ -397,16 +649,27 @@
         } catch (e) { islem.innerHTML = `<span class="ca-hata">${esc(e.message)}</span>`; }
       };
       ic.querySelector('#hf-cfg-kaydet').onclick = async () => {
+        let dirVal = ic.querySelector('#hf-cfg-dir').value.trim();
+        let whVal = ic.querySelector('#hf-cfg-wh').value.trim();
+        if (dirVal && (dirVal.startsWith('http://') || dirVal.startsWith('https://'))) {
+          if (!whVal) whVal = dirVal;
+          dirVal = '';
+        }
         const g = {
-          google_drive_dir: ic.querySelector('#hf-cfg-dir').value.trim(),
-          google_drive_webhook: ic.querySelector('#hf-cfg-wh').value.trim(),
+          google_drive_dir: dirVal,
+          google_drive_webhook: whVal,
           telegram_chat_id: ic.querySelector('#hf-cfg-chat').value.trim(),
           drive_auto_index: ic.querySelector('#hf-cfg-auto').checked
         };
         const tg = ic.querySelector('#hf-cfg-tg').value.trim();
         if (tg) g.telegram_token = tg;
-        try { await api('/api/drive/ayar', { method: 'POST', govde: g }); driveProSekmesi(ic, ctx); }
-        catch (e) { alert(e.message); }
+        try {
+          await api('/api/drive/ayar', { method: 'POST', govde: g });
+          if (window.showToast) window.showToast('✓ Drive & Telegram ayarları kaydedildi');
+          driveProSekmesi(ic, ctx);
+        } catch (e) {
+          alert(e.message);
+        }
       };
 
       const dq = ic.querySelector('#hf-drv-q'), du = ic.querySelector('#hf-drv-uz'), dson = ic.querySelector('#hf-drv-sonuc');

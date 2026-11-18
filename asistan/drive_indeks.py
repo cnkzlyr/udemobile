@@ -105,7 +105,14 @@ def drive_ayar_yaz(evrak_veri_dizini: Path, girdi: dict) -> dict:
         cfg = {}
 
     if "google_drive_dir" in girdi:
-        cfg["google_drive_dir"] = str(girdi["google_drive_dir"] or "").strip()
+        d = str(girdi["google_drive_dir"] or "").strip()
+        if d.startswith("http://") or d.startswith("https://"):
+            # Kullanıcı web URL'sini yerel klasör kutusuna yapıştırmış
+            if not cfg.get("google_drive_webhook"):
+                cfg["google_drive_webhook"] = d
+            cfg["google_drive_dir"] = ""
+        else:
+            cfg["google_drive_dir"] = d
     if "google_drive_webhook" in girdi:
         url = str(girdi["google_drive_webhook"] or "").strip()
         if url and not (url.startswith("https://") or url.startswith("http://")):
@@ -132,7 +139,10 @@ def indeksle(db_yolu: Path, drive_dizini: Path, max_dosya: int = 200_000) -> dic
     """Google Drive klasörünü artımlı olarak SQLite veritabanına indeksler."""
     kok = Path(drive_dizini)
     if not kok.is_dir():
-        raise ValueError(f"Drive klasörü bulunamadı: {kok}")
+        try:
+            kok.mkdir(parents=True, exist_ok=True)
+        except OSError:
+            raise ValueError(f"Drive klasörü bulunamadı ve oluşturulamadı: {kok}")
 
     t0 = time.monotonic()
     simdi_iso = time.strftime("%Y-%m-%dT%H:%M:%S")
