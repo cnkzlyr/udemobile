@@ -11,7 +11,7 @@
 # başlatmanızı ister, sonra aynı komutu tekrar çalıştırırsınız.
 # Not: Windows PowerShell yerel komutların stderr çıktısını hata sanabildiği için ErrorActionPreference
 #      'Continue' tutulur; her yerel komutun çıkış kodu Calistir ile ayrıca denetlenir.
-param([string]$Surum = "4.0.0", [switch]$LinuxYok, [switch]$AndroidYok, [switch]$Yeniden)
+param([string]$Surum = "4.0.1", [switch]$LinuxYok, [switch]$AndroidYok, [switch]$Yeniden)
 # -Yeniden: daha önce derlenmiş paketler olsa da her şeyi baştan derler
 $ErrorActionPreference = "Continue"
 $ProgressPreference = "SilentlyContinue"
@@ -100,7 +100,9 @@ if ($LASTEXITCODE -ne 0) { Calistir gh auth login --hostname github.com --git-pr
 
 # ---------------------------------------------------------------------------------------------
 Adim "4/7 Linux paketleri + Android çalışma ortamları (WSL içinde, ~30-40 dk)"
-$linuxHazir = (Get-ChildItem "dist-linux\*${Surum}*" -ErrorAction SilentlyContinue).Count -ge 3 -and
+$linuxDamga = "dist-linux\caneditor-commit.txt"
+$linuxHazir = (Test-Path $linuxDamga) -and (((Get-Content $linuxDamga -Raw) -join "").Trim() -eq ((git rev-parse HEAD) -join "").Trim()) -and
+    (Get-ChildItem "dist-linux\*${Surum}*" -ErrorAction SilentlyContinue).Count -ge 2 -and
     (Test-Path "build\eimza\jre-arm64.zip") -and (Test-Path "build\asistan-android\asistan-rt-arm64.zip") -and (Test-Path "build\uyapmobil\rt-arm64.zip")
 if ($linuxHazir -and -not $Yeniden) { Write-Host "   Linux paketleri ve Android çalışma ortamları zaten hazır (yeniden derlemek için -Yeniden)." }
 elseif (-not $LinuxYok) {
@@ -128,12 +130,17 @@ exit `$hata
     wsl -d $Distro -u root -- bash "$wk/build/wsl_derle.sh"
     if ($LASTEXITCODE -eq 3) { Uyar "Linux paketleri hazır; Android çalışma ortamlarından biri hazırlanamadı (yukarıdaki UYARI satırlarına bakın)." }
     elseif ($LASTEXITCODE -ne 0) { Uyar "Linux derlemesi başarısız oldu (yukarıdaki hatalara bakın); Windows paketleriyle devam ediliyor." }
+    if ($LASTEXITCODE -eq 0) { Set-Content -Path $linuxDamga -Value ((git rev-parse HEAD) -join "").Trim() -Encoding ASCII }
 }
 
 # ---------------------------------------------------------------------------------------------
 Adim "5/7 Windows: gömülü Java + Hukuk Asistanı sunucusu + görünmez Chrome + kurulum dosyaları"
 $winExe = "src-tauri\target\release\bundle\nsis\CanEditor_${Surum}_x64-setup.exe"
-if ((Test-Path $winExe) -and -not $Yeniden) {
+# Yalnızca AYNI kaynak koddan (aynı commit) derlenmişse atlanır: eski kodla paket yayınlanmasın
+$Commit = ((git rev-parse HEAD) -join "").Trim()
+$winDamga = "src-tauri\target\release\bundle\caneditor-commit.txt"
+$winGuncel = (Test-Path $winExe) -and (Test-Path $winDamga) -and (((Get-Content $winDamga -Raw) -join "").Trim() -eq $Commit)
+if ($winGuncel -and -not $Yeniden) {
     Write-Host "   Windows kurulum dosyaları zaten derlenmiş (yeniden derlemek için -Yeniden)."
 } else {
 Calistir python -m pip install --upgrade pip
@@ -152,6 +159,7 @@ if ($LASTEXITCODE -ne 0) {
     Uyar "MSI derlenemedi (VBScript kapalı olabilir); yalnız .exe kurulum dosyası yayınlanacak."
     Calistir npx.cmd tauri build --bundles nsis
 }
+if (Test-Path $winExe) { Set-Content -Path $winDamga -Value $Commit -Encoding ASCII }
 }
 
 # ---------------------------------------------------------------------------------------------

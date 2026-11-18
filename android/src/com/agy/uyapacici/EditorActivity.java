@@ -113,6 +113,9 @@ public class EditorActivity extends Activity {
         initViews();
         setupWebView();
         setupListeners();
+        // Asistanın UYAP oturumu için görünmez tarayıcı (Termux/Chrome gerekmez); sunucu başlamadan önce hazır olmalı
+        GizliTarayici.hazirla(this);
+        AsistanServisi.baglantiBaslat(this);
 
         // USB CCID sürücüsü. 127.0.0.1:5975'i artık RESMİ Adalet E-İmza (AdaletServisi, gömülü Java) dinler;
         // eski tahmini dahili sunucu (EmbeddedAdaletServer) portu işgal ediyordu, başlatılmaz. Adalet servisi

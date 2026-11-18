@@ -840,6 +840,15 @@ class UyapBrowserBridge:
         if self._is_port_open():
             return True, f"Mevcut tarayıcı oturumuna bağlanıldı (Port {self.port})."
 
+        if os.environ.get("CANASISTAN_ANDROID") == "1":
+            # Android: tarayıcı CanEditor'un gizli WebView'ıdır (sunucu 127.0.0.1:9223'e köprüler); Chrome/Termux yok
+            for _ in range(20):
+                time.sleep(1.0)
+                if self._is_port_open():
+                    return True, "CanEditor gizli UYAP tarayıcısına bağlanıldı."
+            self.last_error = "Gizli UYAP tarayıcısı yanıt vermiyor; CanEditor uygulamasını açıp yeniden deneyin."
+            return False, self.last_error
+
         chrome_bin = self._find_chrome_bin()
         if not chrome_bin:
             if sys.platform == "win32":

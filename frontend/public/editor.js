@@ -687,7 +687,11 @@ function getDocFooterHtml(pageNum, totalPages) {
       const match = tpl.match(/data-verification-code="([^"]+)"/);
       const code = match ? match[1] : (currentDocVerificationCode || '');
       if (code) {
-        const qrSvg = createQrSvg("https://vatandas.uyap.gov.tr/?k=" + encodeURIComponent(code), 68); // Havelsan: 51 pt
+        // Havelsan: 51 pt (68 px). Alt kenar boşluğu daha darsa karekod küçülür: altbilgiyi/gövdeyi asla itmez.
+        const qrPx = Math.max(34, Math.min(68, Math.floor(window.__qrBoyutPx || 68)));
+        const qrSvg = createQrSvg("https://vatandas.uyap.gov.tr/?k=" + encodeURIComponent(code), qrPx);
+        tpl = tpl.replace(/(<div class="udf-footer-qr-container"[^>]*?)width:68px;/g, `$1width:${qrPx}px;`);
+        tpl = tpl.replace(/(class="udf-footer-layout udf-hv-footer"[^>]*?style=")/g, `$1--qr-px:${qrPx}px; `);
         tpl = tpl.replace(/(<div class="udf-footer-qr-container"[^>]*>)(<\/div>)/, `$1${qrSvg}$2`);
       }
     }
@@ -1037,6 +1041,8 @@ function updatePagination() {
     // Eski formül (altKenar + footerFOffset) alt kenarı geniş belgelerde 1. sayfayı ~40 pt erken kesiyordu.
     let measuredFooterH = footerHeightPx;
     let footerHasQr = false;
+    // Karekod alt kenar boşluğuna sığmalı (sayfa kenarından 5 px, gövdeden 2 px pay)
+    window.__qrBoyutPx = bottomMarginPx - 5 - 2;
     try {
       const fm = document.createElement('div');
       fm.className = 'page-footer-box';

@@ -137,8 +137,39 @@ fn python_adaylari() -> Vec<(&'static str, Vec<&'static str>)> {
     }
 }
 
-fn surec_kaydet(c: &mut Command) -> Result<(), String> {
-    c.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
+/// Bizim başlattığımız sunucu hâlâ çalışıyor mu? (çalışıyorsa ikinci kez başlatılmaz: port çakışmasın)
+fn surec_yasiyor() -> bool {
+    match SUREC.lock() {
+        Ok(mut s) => match s.as_mut() {
+            Some(c) => matches!(c.try_wait(), Ok(None)),
+            None => false,
+        },
+        Err(_) => false,
+    }
+}
+
+fn gunluk_yolu(veri: &PathBuf) -> PathBuf {
+    veri.join("sunucu.log")
+}
+
+/// Sunucu günlüğünün sonu (hata iletisine eklenir: kullanıcı/destek gerçek nedeni görür)
+fn gunluk_sonu(veri: &PathBuf) -> String {
+    let t = std::fs::read_to_string(gunluk_yolu(veri)).unwrap_or_default();
+    let satirlar: Vec<&str> = t.lines().rev().take(6).collect();
+    satirlar.into_iter().rev().collect::<Vec<_>>().join(" | ")
+}
+
+fn surec_kaydet(c: &mut Command, veri: &PathBuf) -> Result<(), String> {
+    c.stdin(Stdio::null());
+    match std::fs::File::create(gunluk_yolu(veri)) {
+        Ok(f) => {
+            let f2 = f.try_clone().map_err(|e| e.to_string())?;
+            c.stdout(Stdio::from(f)).stderr(Stdio::from(f2));
+        }
+        Err(_) => {
+            c.stdout(Stdio::null()).stderr(Stdio::null());
+        }
+    }
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
@@ -157,7 +188,7 @@ fn baslat(app: &tauri::AppHandle, veri: &PathBuf) -> Result<(), String> {
         let mut c = Command::new(&exe);
         c.arg("--port").arg(PORT.to_string());
         ortam_ekle(app, &mut c, veri);
-        return surec_kaydet(&mut c).map_err(|e| format!("Gömülü asistan sunucusu başlatılamadı: {e}"));
+        return surec_kaydet(&mut c, veri).map_err(|e| format!("Gömülü asistan sunucusu başlatılamadı: {e}"));
     }
     // 2) Geliştirme / taşınabilir kurulum: sistemdeki Python ile kaynak koddan
     let betik = sunucu_betigi(app).ok_or("Asistan sunucusu pakette bulunamadı")?;
@@ -166,7 +197,7 @@ fn baslat(app: &tauri::AppHandle, veri: &PathBuf) -> Result<(), String> {
         let mut c = Command::new(komut);
         c.args(&on_ek).arg(&betik).arg("--port").arg(PORT.to_string());
         ortam_ekle(app, &mut c, veri);
-        match surec_kaydet(&mut c) {
+        match surec_kaydet(&mut c, veri) {
             Ok(()) => return Ok(()),
             Err(e) => son_hata = format!("{komut}: {e}"),
         }
@@ -193,14 +224,21 @@ fn baglanti_hazirla(app: &tauri::AppHandle) -> Result<Baglanti, String> {
     }
     let mut baslatildi = false;
     if !ayakta() {
-        baslat(&app, &veri)?;
-        baslatildi = true;
+        // Önceki çağrının başlattığı sunucu hâlâ açılıyorsa yenisi başlatılmaz, onu beklenir
+        if !surec_yasiyor() {
+            baslat(&app, &veri)?;
+            baslatildi = true;
+        }
+        // İlk açılışta (modüllerin kopyalanması + Windows Defender taraması) 30-60 sn sürebilir
         let bas = Instant::now();
         while !ayakta() {
-            if bas.elapsed() > Duration::from_secs(8) {
-                return Err("Asistan sunucusu başlatıldı ama yanıt vermedi".into());
+            if !surec_yasiyor() {
+                return Err(format!("Asistan sunucusu kapandı. {}", gunluk_sonu(&veri)));
             }
-            std::thread::sleep(Duration::from_millis(150));
+            if bas.elapsed() > Duration::from_secs(90) {
+                return Err(format!("Asistan sunucusu açılıyor, henüz yanıt vermedi. {}", gunluk_sonu(&veri)));
+            }
+            std::thread::sleep(Duration::from_millis(250));
         }
     }
     let anahtar = anahtar_oku(&dizinler).ok_or("Sunucu çalışıyor ama eşleştirme anahtarı okunamadı")?;

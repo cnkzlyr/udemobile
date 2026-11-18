@@ -38,6 +38,7 @@ import re
 import runpy
 import secrets
 import shutil
+import socket
 import sqlite3
 import subprocess
 import sys
@@ -439,11 +440,11 @@ GOREVLER: dict[str, dict] = {
     "uets-otokontrol":  {"ad": "Tebligat otokontrol raporu", "cwd": AVUKAT_DIR, "cmd": [*PY, "main.py", "--autocontrol", "--offline"]},
     "asistan-gui":      {"ad": "Avukat Asistanı penceresi", "cwd": AVUKAT_DIR, "cmd": [*PY, "avukat_gui.py"], "pencere": True},
     "evrak-katalog":    {"ad": "UYAP Evrak Kataloğu penceresi", "cwd": EVRAK_DIR, "cmd": [*PY, "katalog_gui.py"], "pencere": True},
-    "evrak-giris":      {"ad": "UYAP oturum aç (e-imza)", "cwd": EVRAK_DIR, "cmd": [*PY, "uyap_indirici.py", "--cli", "--mode", "login"], "tarayici": True},
-    "evrak-islemlerim": {"ad": "UYAP: İşlemlerim evraklarını indir", "cwd": EVRAK_DIR, "cmd": [*PY, "uyap_indirici.py", "--cli", "--mode", "islemlerim"], "tarayici": True},
-    "evrak-tebligat":   {"ad": "UYAP: tebligat evraklarını indir", "cwd": EVRAK_DIR, "cmd": [*PY, "uyap_indirici.py", "--cli", "--mode", "dosyalar", "--evrak-turu", "tebligat", "--scope", "all"], "tarayici": True},
-    "evrak-durusmalar": {"ad": "UYAP: duruşma listesini çek", "cwd": EVRAK_DIR, "cmd": [*PY, "uyap_indirici.py", "--cli", "--mode", "durusmalar"], "tarayici": True},
-    "evrak-nobetci":    {"ad": "UYAP nöbetçi: tek tarama turu", "cwd": EVRAK_DIR, "cmd": [*PY, "uyap_watcher.py", "--once"], "tarayici": True},
+    "evrak-giris":      {"ad": "UYAP oturum aç (e-imza)", "cwd": EVRAK_DIR, "cmd": [*PY, "uyap_indirici.py", "--cli", "--mode", "login"], "cdp": True},
+    "evrak-islemlerim": {"ad": "UYAP: İşlemlerim evraklarını indir", "cwd": EVRAK_DIR, "cmd": [*PY, "uyap_indirici.py", "--cli", "--mode", "islemlerim"], "cdp": True},
+    "evrak-tebligat":   {"ad": "UYAP: tebligat evraklarını indir", "cwd": EVRAK_DIR, "cmd": [*PY, "uyap_indirici.py", "--cli", "--mode", "dosyalar", "--evrak-turu", "tebligat", "--scope", "all"], "cdp": True},
+    "evrak-durusmalar": {"ad": "UYAP: duruşma listesini çek", "cwd": EVRAK_DIR, "cmd": [*PY, "uyap_indirici.py", "--cli", "--mode", "durusmalar"], "cdp": True},
+    "evrak-nobetci":    {"ad": "UYAP nöbetçi: tek tarama turu", "cwd": EVRAK_DIR, "cmd": [*PY, "uyap_watcher.py", "--once"], "cdp": True},
 }
 
 
@@ -493,6 +494,8 @@ class Gorev:
 
     def kullanilamama_nedeni(self) -> str:
         """Android'de tarayıcı otomasyonu ve masaüstü pencereleri yoktur; bu görevler masaüstünde çalışır."""
+        if ANDROID and self.tanim.get("cdp") and not os.environ.get("CANASISTAN_WEBVIEW_SOKET"):
+            return "Gizli UYAP tarayıcısı hazır değil; CanEditor uygulamasını yeniden açın."
         if ANDROID and self.tanim.get("tarayici"):
             return "Bu görev tarayıcı otomasyonu gerektirir; CanEditor masaüstü uygulamasında çalışır."
         if ANDROID and self.tanim.get("pencere"):
@@ -536,6 +539,196 @@ class Gorev:
 
 
 GOREV_DURUM: dict[str, Gorev] = {k: Gorev(k, v) for k, v in GOREVLER.items()}
+
+
+# ---------------------------------------------------------------------------
+# UYAP oturumunu sürekli açık tut: e-İmza takılıysa e-İmza, değilse Mobil İmza (uyap_watcher --once
+# içindeki akilli_oturum_ac). Oturum düşerse bir sonraki turda kendiliğinden yeniden kurulur.
+# ---------------------------------------------------------------------------
+
+def _uyap_cfg_yolu() -> Path:
+    return evrak_veri_dizini() / ".uyap_config.json"
+
+
+def _uyap_cfg() -> dict:
+    try:
+        return json.loads(_uyap_cfg_yolu().read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+def _pin_var() -> bool:
+    try:
+        return bool((evrak_veri_dizini() / "pin.txt").read_text(encoding="utf-8").strip())
+    except OSError:
+        return bool(os.environ.get("UYAP_E_IMZA_PIN"))
+
+
+def _maskele(s: str, acik: int = 3) -> str:
+    s = str(s or "")
+    return "" if not s else ("•" * max(0, len(s) - acik) + s[-acik:])
+
+
+def uyap_ayar_oku() -> dict:
+    c = _uyap_cfg()
+    return {"tc": _maskele(c.get("tc", "")), "gsm": _maskele(c.get("gsm", "")), "operator": c.get("operator", ""),
+            "tc_var": bool(c.get("tc")), "gsm_var": bool(c.get("gsm")), "pin_var": _pin_var(),
+            "bagli_tut": c.get("canasistan_bagli_tut", True), "aralik_dk": int(c.get("canasistan_aralik_dk") or 10)}
+
+
+def uyap_ayar_yaz(g: dict) -> dict:
+    d = evrak_veri_dizini()
+    d.mkdir(parents=True, exist_ok=True)
+    c = _uyap_cfg()
+    import re as _re
+    if g.get("tc"):
+        tc = _re.sub(r"\D", "", str(g["tc"]))
+        if len(tc) != 11:
+            raise ValueError("T.C. Kimlik No 11 haneli olmalı")
+        c["tc"] = tc
+    if g.get("gsm"):
+        gsm = _re.sub(r"\D", "", str(g["gsm"]))[-10:]
+        if len(gsm) != 10 or not gsm.startswith("5"):
+            raise ValueError("GSM 5 ile başlayan 10 hane olmalı (5321234567)")
+        c["gsm"] = gsm
+    if g.get("operator") in ("turkcell", "turktelekom", "vodafone"):
+        c["operator"] = g["operator"]
+    if "bagli_tut" in g:
+        c["canasistan_bagli_tut"] = bool(g["bagli_tut"])
+    if g.get("aralik_dk"):
+        c["canasistan_aralik_dk"] = max(3, min(240, int(g["aralik_dk"])))
+    if g.get("sil") == "mobil":
+        c.pop("tc", None), c.pop("gsm", None)
+    yol = _uyap_cfg_yolu()
+    gecici = yol.with_suffix(".tmp")
+    gecici.write_text(json.dumps(c, ensure_ascii=False, indent=2), encoding="utf-8")
+    os.replace(gecici, yol)
+    pin_yolu = d / "pin.txt"
+    if g.get("pin"):
+        pin_yolu.write_text(str(g["pin"]).strip(), encoding="utf-8")
+    elif g.get("sil") == "pin" and pin_yolu.exists():
+        pin_yolu.unlink()
+    for f in (yol, pin_yolu):
+        try:
+            os.chmod(f, 0o600)
+        except OSError:
+            pass
+    BAGLI_TUT.uyandir()
+    return uyap_ayar_oku()
+
+
+class BagliTutucu:
+    """Arka planda nöbetçi turlarını çalıştırır: her tur önce oturumu doğrular/yeniden açar, sonra tarar."""
+    YENIDEN_DENE_S = 60
+
+    def __init__(self):
+        self.olay = threading.Event()
+        self.sonraki = 0.0
+        self.son_neden = ""
+
+    def uyandir(self):
+        self.sonraki = 0.0
+        self.olay.set()
+
+    def etkin(self) -> tuple[bool, str]:
+        c = _uyap_cfg()
+        if not c.get("canasistan_bagli_tut", True):
+            return False, "Bağlı tut kapalı"
+        if not (_pin_var() or (c.get("tc") and c.get("gsm"))):
+            return False, "Giriş bilgisi yok: e-İmza PIN'i ya da Mobil İmza (TC + GSM) girin"
+        return True, ""
+
+    def durum(self) -> dict:
+        g = GOREV_DURUM["evrak-nobetci"]
+        ok, neden = self.etkin()
+        gunluk = list(g.gunluk)
+        oturum = None
+        for satir in reversed(gunluk):
+            k = satir.lower()
+            if "oturum" in k and any(x in k for x in ("açılamadı", "doğrulanamadı", "açık değil")):
+                oturum = False
+                break
+            if "girilemedi" in k:
+                oturum = False
+                break
+            if "oturum" in k and any(x in k for x in ("doğrulandı", "açıldı", "oturumu açık", "aktif")):
+                oturum = True
+                break
+        return {"etkin": ok, "neden": neden or g.kullanilamama_nedeni(), "calisiyor": g.calisiyor(),
+                "son_baslangic": g.baslangic, "son_bitis": g.bitis, "son_kod": g.kod, "oturum": oturum,
+                "sonraki": self.sonraki if ok else None, "gunluk": gunluk[-8:], "ayar": uyap_ayar_oku()}
+
+    def dongu(self):
+        while True:
+            self.olay.wait(timeout=20)
+            self.olay.clear()
+            try:
+                ok, self.son_neden = self.etkin()
+                g = GOREV_DURUM["evrak-nobetci"]
+                if not ok or g.calisiyor() or g.kullanilamama_nedeni() or time.time() < self.sonraki:
+                    continue
+                if g.bitis and g.kod not in (0, None) and time.time() - g.bitis < self.YENIDEN_DENE_S:
+                    continue
+                g.baslat()
+                aralik = int(_uyap_cfg().get("canasistan_aralik_dk") or 10) * 60
+                self.sonraki = time.time() + aralik
+            except Exception as e:  # noqa: BLE001 — döngü asla ölmesin
+                self.son_neden = str(e)
+                self.sonraki = time.time() + self.YENIDEN_DENE_S
+
+    def baslat(self):
+        if os.environ.get("CANASISTAN_BAGLI_TUT", "1") != "0":
+            threading.Thread(target=self.dongu, daemon=True, name="bagli-tut").start()
+
+
+BAGLI_TUT = BagliTutucu()
+
+
+def cdp_kopru_baslat(port: int = 9223) -> None:
+    """Android: uygulamanın gizli WebView'ının DevTools soketini (soyut UNIX soketi) 127.0.0.1:port'a açar.
+    UYAP modülleri masaüstündeki Chrome ile konuşur gibi bu WebView'ı kullanır: Chrome/Termux gerekmez."""
+    soket_adi = os.environ.get("CANASISTAN_WEBVIEW_SOKET")
+    if not soket_adi or not hasattr(socket, "AF_UNIX"):
+        return
+
+    def aktar(a, b):
+        try:
+            while True:
+                veri = a.recv(65536)
+                if not veri:
+                    break
+                b.sendall(veri)
+        except OSError:
+            pass
+        finally:
+            for x in (a, b):
+                try:
+                    x.shutdown(socket.SHUT_RDWR)
+                except OSError:
+                    pass
+                x.close()
+
+    def dinle():
+        srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try:
+            srv.bind(("127.0.0.1", port))
+        except OSError:
+            return
+        srv.listen(16)
+        while True:
+            istemci, _ = srv.accept()
+            hedef = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            try:
+                hedef.connect("\0" + soket_adi)
+            except OSError:
+                istemci.close()
+                hedef.close()
+                continue
+            threading.Thread(target=aktar, args=(istemci, hedef), daemon=True).start()
+            threading.Thread(target=aktar, args=(hedef, istemci), daemon=True).start()
+
+    threading.Thread(target=dinle, daemon=True, name="cdp-kopru").start()
 
 
 def modul_durumu() -> dict:
@@ -621,7 +814,7 @@ class Isleyici(BaseHTTPRequestHandler):
             self._json({"uygulama": "CanEditor Hukuk Asistanı", "surum": SURUM})
             return None
         if not self._yetkili():
-            self._json({"hata": "Anahtar gerekli", "ipucu": "python3 asistan/sunucu.py --anahtar"}, 401)
+            self._json({"hata": "Anahtar gerekli", "ipucu": "Asistan → Bağlantı"}, 401)
             return None
         return u.path, {k: v[-1] for k, v in urllib.parse.parse_qs(u.query).items()}
 
@@ -661,6 +854,8 @@ class Isleyici(BaseHTTPRequestHandler):
                 return self._json(yenilikler(q.get("sonra", ""), int(q.get("limit") or 30)))
             if yol == "/api/drive":
                 return self._json(drive_durumu())
+            if yol == "/api/uyap":
+                return self._json(BAGLI_TUT.durum())
             if yol == "/api/ajanda":
                 return self._json(ajanda(int(q.get("gun") or 60)))
             if yol == "/api/gorevler":
@@ -686,6 +881,11 @@ class Isleyici(BaseHTTPRequestHandler):
                 else:
                     g.baslat()
                 return self._json(g.ozet())
+            if yol == "/api/uyap/ayar":
+                return self._json(uyap_ayar_yaz(govde))
+            if yol == "/api/uyap/simdi":
+                BAGLI_TUT.uyandir()
+                return self._json(BAGLI_TUT.durum())
             if yol == "/api/a4":
                 return self._json(a4_birlestir(list(govde.get("dosyalar") or []), govde.get("cikti")))
             self._json({"hata": "Bulunamadı"}, 404)
@@ -731,6 +931,8 @@ def main(argv=None):
         print(k)
         return 0
     srv = sunucu_olustur(a.port, k)
+    cdp_kopru_baslat()
+    BAGLI_TUT.baslat()
     print(f"CanEditor Hukuk Asistanı {SURUM} — http://127.0.0.1:{a.port}", flush=True)
     print(f"Eşleştirme anahtarı: {k}", flush=True)
     print("CanEditor → Asistan → Bağlan penceresine bu anahtarı girin (masaüstü uygulamada otomatik).", flush=True)

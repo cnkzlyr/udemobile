@@ -228,7 +228,10 @@
       try {
         const b = await inv('asistan_baglanti');   // Rust tarafında arka plan iş parçacığında çalışır
         if (b && b.anahtar) { baglantiYaz({ port: b.port, anahtar: b.anahtar }); return b; }
-      } catch (e) { /* gömülü sunucu yoksa elle eşleştirmeye düş */ }
+      } catch (e) {
+        // Gömülü sunucu henüz açılmadı/çöktü: gerçek nedeni göster (kayıtlı eşleştirme varsa onu dene)
+        if (!baglantiOku().anahtar) throw Object.assign(new Error(String(e && e.message || e)), { durum: 503 });
+      }
     }
     const b = baglantiOku();
     return { port: b.port || 8765, anahtar: b.anahtar || '' };
@@ -295,6 +298,10 @@
   #ca-panel .ca-uyari{background:#fff7e6;color:#7a4b00;border-radius:8px;padding:8px 10px;margin-top:8px;font-size:13px}
   body.ce-dark-mode #ca-panel .ca-uyari{background:#3a2a07;color:#f5d48a}
   #ca-panel .ca-hata{color:#b42318}
+  #ca-yuzen{position:fixed;right:84px;bottom:22px;z-index:99990;display:flex;align-items:center;gap:6px;padding:9px 14px;border-radius:22px;border:1px solid var(--ce-border,#d0d5dd);background:var(--ce-surface,#fff);color:var(--ce-text,#1f2937);box-shadow:0 6px 18px rgba(0,0,0,.18);font:600 13px/1 var(--ce-font-ui,system-ui,sans-serif);cursor:pointer}
+  #ca-yuzen .ca-nokta{width:9px;height:9px;border-radius:50%;background:#9ca3af}
+  #ca-yuzen .ca-sayi{color:#dc2626}
+  @media print{#ca-yuzen{display:none}}
   .ca-rozet{display:inline-block;min-width:18px;height:18px;line-height:18px;padding:0 5px;margin-left:5px;border-radius:9px;background:#dc2626;color:#fff;font-size:11px;font-weight:700;text-align:center;vertical-align:1px}
   #ca-panel table{width:100%;border-collapse:collapse;font-size:13px}
   #ca-panel td,#ca-panel th{text-align:left;padding:6px 8px;border-bottom:1px solid var(--ce-border,#eef0f3);vertical-align:top}
@@ -311,7 +318,7 @@
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
   const SEKMELER = [
-    ['yeni', '🔔 Yeni'], ['sure', '⏱️ Süre Hesapla'], ['hesap', '🧮 Hesaplamalar'], ['a4', '📄 A4 PDF'], ['ajanda', '📅 Ajanda'],
+    ['uyap', '🔐 UYAP Giriş'], ['yeni', '🔔 Yeni'], ['sure', '⏱️ Süre Hesapla'], ['hesap', '🧮 Hesaplamalar'], ['a4', '📄 A4 PDF'], ['ajanda', '📅 Ajanda'],
     ['evrak', '🗂️ UYAP Evrak'], ['drive', '☁️ Drive'], ['gorev', '⚙️ Görevler'], ['baglanti', '🔌 Bağlantı']
   ];
 
@@ -338,7 +345,7 @@
     gorevIzleDurdur();
     kok.querySelectorAll('nav button').forEach(b => b.classList.toggle('secili', b.dataset.sekme === k));
     const ic = kok.querySelector('.ca-icerik');
-    ({ yeni: yeniSekmesi, sure: sureSekmesi, hesap: hesapSekmesi, a4: a4Sekmesi, ajanda: ajandaSekmesi, evrak: evrakSekmesi,
+    ({ uyap: uyapSekmesi, yeni: yeniSekmesi, sure: sureSekmesi, hesap: hesapSekmesi, a4: a4Sekmesi, ajanda: ajandaSekmesi, evrak: evrakSekmesi,
        drive: driveSekmesi, gorev: gorevSekmesi, baglanti: baglantiSekmesi })[k](ic);
   }
 
@@ -409,14 +416,82 @@
   }
 
   // --- Sunucu gerektiren sekmeler ---
+  // Paketli uygulama mı (sunucu kendiliğinden başlar) yoksa taşınabilir web mi (elle eşleştirme)?
+  function paketli() {
+    const ab = window.AndroidBridge;
+    return !!(tauriInvoke() || (ab && !ab.__stub && typeof ab.asistanHazirla === 'function'));
+  }
+  let yenidenZam = null, yenidenSayac = 0;
   function sunucuHatasi(ic, e) {
     const anahtarYok = e && e.durum === 401;
+    const sekme = aktifSekme;
+    if (paketli() && !anahtarYok) {
+      // Paketli uygulamada kullanıcıya komut gösterilmez: sunucu arka planda açılıyor, kendiliğinden yeniden denenir
+      yenidenSayac++;
+      ic.innerHTML = `<div class="ca-kart"><b>⏳ Hukuk Asistanı başlatılıyor…</b>
+        <p>İlk açılışta bu 10-60 saniye sürebilir. Hazır olunca bu sayfa kendiliğinden açılır; bir şey yapmanız gerekmez.</p>
+        <p class="ca-soluk">Deneme ${yenidenSayac}${e && e.message ? ' · son durum: ' + esc(e.message) : ''}</p></div>`;
+      clearTimeout(yenidenZam);
+      yenidenZam = setTimeout(() => {
+        if (kok && kok.classList.contains('acik') && aktifSekme === sekme) { baglantiUnut(); sekmeAc(sekme); }
+      }, Math.min(3000 + yenidenSayac * 1000, 10000));
+      return;
+    }
     ic.innerHTML = `<div class="ca-kart"><b>${anahtarYok ? '🔑 Eşleştirme gerekli' : '🔌 Asistan sunucusuna ulaşılamadı'}</b>
-      <p>${anahtarYok ? 'Sunucu çalışıyor ama bu cihaz eşleştirilmemiş.' : 'UETS, UYAP evrak ve ajanda özellikleri yerel asistan sunucusunu kullanır. Masaüstü uygulamasında bu sunucu otomatik başlar; başlamadıysa CanEditor\'u yeniden açın.'}</p>
+      <p>${anahtarYok ? 'Sunucu çalışıyor ama bu cihaz eşleştirilmemiş.' : 'Bu taşınabilir web sürümüdür: asistan özellikleri için bilgisayarda asistan sunucusunu başlatın. (Windows, Linux, macOS ve Android uygulamalarında sunucu gömülüdür ve kendiliğinden başlar.)'}</p>
       <pre>python3 asistan/sunucu.py</pre>
-      <p class="ca-soluk">Masaüstü (Windows, macOS, Linux) ve Android uygulamasında sunucu pakete gömülüdür ve kendiliğinden başlar; Python veya Termux gerekmez. Yalnızca taşınabilir web sürümünde sunucunun yazdırdığı anahtarı <b>Bağlantı</b> sekmesine girin.</p>
+      <p class="ca-soluk">Sunucunun yazdırdığı anahtarı <b>Bağlantı</b> sekmesine girin.</p>
       <button class="ca-btn" type="button" id="ca-bagla">🔌 Bağlantı ayarları</button></div>`;
     ic.querySelector('#ca-bagla').onclick = () => sekmeAc('baglanti');
+  }
+
+  // --- UYAP Giriş: e-İmza takılıysa e-İmza, değilse Mobil İmza; oturum sürekli açık tutulur ---
+  function zamanYaz(t) { return t ? new Date(t * 1000).toLocaleString('tr-TR') : '—'; }
+  async function uyapSekmesi(ic) {
+    ic.innerHTML = '<p class="ca-soluk">Yükleniyor…</p>';
+    let v;
+    try { v = await api('/api/uyap'); } catch (e) { sunucuHatasi(ic, e); return; }
+    yenidenSayac = 0;
+    const a = v.ayar || {};
+    ic.innerHTML = `<div class="ca-kart" id="ca-uyap-durum"></div>
+      <div class="ca-kart"><b>Giriş bilgileri</b>
+        <p class="ca-soluk">e-İmza kartı takılıysa PIN ile e-İmza; takılı değilse ya da bağlantı koparsa Mobil İmza gönderilir ve oturum açılana kadar denenir. Bilgiler yalnızca bu cihazda saklanır.</p>
+        <div class="ca-satir">
+          <div><label>T.C. Kimlik No (Mobil İmza)</label><input id="ca-u-tc" inputmode="numeric" maxlength="11" placeholder="${a.tc_var ? esc(a.tc) + ' (kayıtlı)' : '11 hane'}"></div>
+          <div><label>GSM</label><input id="ca-u-gsm" inputmode="tel" placeholder="${a.gsm_var ? esc(a.gsm) + ' (kayıtlı)' : '5321234567'}"></div>
+          <div><label>Operatör</label><select id="ca-u-op">${[['turkcell', 'Turkcell'], ['turktelekom', 'Türk Telekom'], ['vodafone', 'Vodafone']].map(([k, ad]) => `<option value="${k}"${a.operator === k ? ' selected' : ''}>${ad}</option>`).join('')}</select></div>
+          <div><label>e-İmza PIN</label><input id="ca-u-pin" type="password" autocomplete="off" placeholder="${a.pin_var ? '•••• (kayıtlı)' : 'isteğe bağlı'}"></div>
+        </div>
+        <label style="display:flex;gap:8px;align-items:center;color:inherit;font-size:14px"><input type="checkbox" id="ca-u-tut" style="width:auto"${a.bagli_tut !== false ? ' checked' : ''}> Oturumu sürekli açık tut (koptukça yeniden bağlan)</label>
+        <div style="max-width:220px"><label>Kontrol aralığı (dakika)</label><input id="ca-u-ara" type="number" min="3" max="240" value="${a.aralik_dk || 10}"></div>
+        <button class="ca-btn ana" type="button" id="ca-u-kaydet">💾 Kaydet ve bağlan</button>
+        <button class="ca-btn" type="button" id="ca-u-simdi">🔄 Şimdi bağlan</button>
+        <span id="ca-u-mesaj" class="ca-soluk"></span></div>`;
+    const durumCiz = d => {
+      const k = ic.querySelector('#ca-uyap-durum'); if (!k) return;
+      const rozet = d.oturum === true ? '🟢 UYAP oturumu açık' : d.calisiyor ? '⏳ Bağlanılıyor…' : d.oturum === false ? '🔴 Oturum açılamadı — yeniden denenecek' : d.etkin ? '⚪ Sıradaki kontrol bekleniyor' : /kapalı/.test(d.neden || '') ? '⚪ Bağlı tut kapalı' : '⚪ Giriş bilgisi girilmedi';
+      k.innerHTML = `<div class="ca-hedef" style="font-size:18px">${rozet}</div>
+        ${d.neden ? `<div class="ca-uyari">${esc(d.neden)}</div>` : ''}
+        <p class="ca-soluk">Son deneme: ${zamanYaz(d.son_baslangic)} · Sonraki: ${d.sonraki ? zamanYaz(d.sonraki) : '—'}</p>
+        ${d.gunluk && d.gunluk.length ? `<pre style="white-space:pre-wrap;max-height:160px;overflow:auto">${esc(d.gunluk.join('\n'))}</pre>` : ''}`;
+      oturumNoktasi(d);
+    };
+    durumCiz(v);
+    const mesaj = ic.querySelector('#ca-u-mesaj');
+    ic.querySelector('#ca-u-kaydet').onclick = async () => {
+      const g = { operator: ic.querySelector('#ca-u-op').value, bagli_tut: ic.querySelector('#ca-u-tut').checked, aralik_dk: +ic.querySelector('#ca-u-ara').value || 10 };
+      const tc = ic.querySelector('#ca-u-tc').value.trim(), gsm = ic.querySelector('#ca-u-gsm').value.trim(), pin = ic.querySelector('#ca-u-pin').value;
+      if (tc) g.tc = tc; if (gsm) g.gsm = gsm; if (pin) g.pin = pin;
+      mesaj.textContent = 'Kaydediliyor…';
+      try { await api('/api/uyap/ayar', { method: 'POST', govde: g }); mesaj.textContent = '✓ Kaydedildi; bağlantı başlatılıyor.'; uyapSekmesi(ic); }
+      catch (e) { mesaj.innerHTML = `<span class="ca-hata">${esc(e.message)}</span>`; }
+    };
+    ic.querySelector('#ca-u-simdi').onclick = async () => {
+      try { durumCiz(await api('/api/uyap/simdi', { method: 'POST', govde: {} })); mesaj.textContent = '✓ Bağlantı denemesi başlatıldı.'; }
+      catch (e) { mesaj.innerHTML = `<span class="ca-hata">${esc(e.message)}</span>`; }
+    };
+    gorevIzleDurdur();
+    izleZam = setInterval(() => { api('/api/uyap').then(durumCiz).catch(() => {}); }, 4000);
   }
 
   async function ajandaSekmesi(ic) {
@@ -537,14 +612,35 @@
   function rozetCiz(n) {
     stilEkle();
     const baslik = Array.from(document.querySelectorAll('.ce-menu-title')).find(b => b.textContent.trim().startsWith('Asistan'));
+    const y0 = yuzenKur(); if (y0 && !n) y0.querySelector('.ca-sayi').textContent = '';
     if (!baslik) return;
     let r = baslik.querySelector('.ca-rozet');
     if (!n) { if (r) r.remove(); return; }
     if (!r) { r = document.createElement('span'); r.className = 'ca-rozet'; baslik.appendChild(r); }
     r.textContent = n > 99 ? '99+' : String(n);
     r.title = n + ' yeni evrak / tebligat';
+    const y = yuzenKur(); if (y) y.querySelector('.ca-sayi').textContent = n ? ' ' + (n > 99 ? '99+' : n) : '';
     const sek = kok && kok.querySelector('nav button[data-sekme="yeni"]');
     if (sek) sek.textContent = '🔔 Yeni (' + n + ')';
+  }
+
+  // Her ekranda görünen Asistan düğmesi: yeni evrak sayısı + UYAP oturum durumu tek bakışta
+  let yuzenDugme = null;
+  function yuzenKur() {
+    if (yuzenDugme || !document.body) return yuzenDugme;
+    stilEkle();
+    yuzenDugme = document.createElement('button');
+    yuzenDugme.type = 'button'; yuzenDugme.id = 'ca-yuzen'; yuzenDugme.title = 'Hukuk Asistanı';
+    yuzenDugme.innerHTML = '<span class="ca-nokta"></span>⚖️ Asistan<span class="ca-sayi"></span>';
+    yuzenDugme.onclick = () => ac(aktifSekme === 'sure' ? 'uyap' : aktifSekme);
+    document.body.appendChild(yuzenDugme);
+    return yuzenDugme;
+  }
+  function oturumNoktasi(d) {
+    const b = yuzenKur(); if (!b) return;
+    const n = b.querySelector('.ca-nokta');
+    n.style.background = d.oturum === true ? '#16a34a' : d.calisiyor ? '#f59e0b' : d.oturum === false ? '#dc2626' : '#9ca3af';
+    b.title = 'Hukuk Asistanı — ' + (d.oturum === true ? 'UYAP oturumu açık' : d.calisiyor ? 'UYAP\'a bağlanılıyor' : d.oturum === false ? 'UYAP oturumu kapalı' : 'UYAP oturumu bilinmiyor');
   }
 
   function bildir(baslik, govde) {
@@ -638,7 +734,8 @@
     return !!(tauriInvoke() || (ab && !ab.__stub && ab.asistanHazirla) || baglantiOku().anahtar);
   }
   if (typeof document !== 'undefined' && document.addEventListener) {
-    const basla = () => { if (izleyiciBaslasinMi()) setTimeout(yenilikIzle, 4000); };
+    const oturumIzle = () => { api('/api/uyap').then(oturumNoktasi).catch(() => {}).finally(() => setTimeout(oturumIzle, 30000)); };
+    const basla = () => { if (izleyiciBaslasinMi()) { yuzenKur(); setTimeout(yenilikIzle, 4000); setTimeout(oturumIzle, 6000); } };
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', basla); else basla();
   }
 

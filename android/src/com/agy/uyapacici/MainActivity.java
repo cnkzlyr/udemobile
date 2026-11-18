@@ -84,6 +84,10 @@ public class MainActivity extends Activity {
         checkSystemStatus();
         loadRecentDocuments();
 
+        // Hukuk Asistanı + görünmez UYAP tarayıcısı uygulama açılır açılmaz arka planda hazırlanır (Termux yok)
+        GizliTarayici.hazirla(this);
+        AsistanServisi.baglantiBaslat(this);
+
         // Termux artık gerekmez: izin yalnızca Termux kuruluysa (eski masaüstü UYAP modu için) istenir.
         if (isPackageInstalled("com.termux")) requestTermuxPermissionIfNeeded();
         checkStoragePermission();
