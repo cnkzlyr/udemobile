@@ -359,7 +359,9 @@ def main():
 
     # UYAP Editör ayrı uygulaması (com.agy.uyapeditor): aynı kaynak kod ve imza anahtarı
     step("8b. UYAP Editör ayrı uygulaması (scripts/uyapeditor_apk.py)")
-    r = subprocess.run([sys.executable, os.path.join(PROJECT_ROOT, "scripts", "uyapeditor_apk.py")])
+    r = subprocess.run([sys.executable, os.path.join(PROJECT_ROOT, "scripts", "uyapeditor_apk.py")],
+                       env={**os.environ, "ANDROID_KEYSTORE": os.path.abspath(keystore_path),
+                            "ANDROID_KEYSTORE_PASS": ks_sifre})
     if r.returncode != 0:
         print("UYAP Editör APK'sı derlenemedi.")
         sys.exit(1)

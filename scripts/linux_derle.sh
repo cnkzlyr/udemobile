@@ -70,10 +70,17 @@ export APPIMAGE_EXTRACT_AND_RUN=1   # WSL/konteynerde FUSE olmadan AppImage ara�
 # klasörlerindeki kitaplıklar arama yolunda olmalı (yoksa "Could not find dependency: libjvm.so").
 T="$KOK/src-tauri"
 export LD_LIBRARY_PATH="$T/eimza/jre/lib/server:$T/eimza/jre/lib:$T/sidecar/asistan-sunucu-x86_64/_internal:$T/tarayici-x86_64/chrome${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-npx tauri build --bundles deb rpm appimage
+npx tauri build --bundles deb rpm
 mkdir -p dist-linux
 B="${CARGO_TARGET_DIR:-src-tauri/target}/release/bundle"
-cp -f "$B"/deb/*.deb "$B"/rpm/*.rpm "$B"/appimage/*.AppImage dist-linux/
+cp -f "$B"/deb/*.deb "$B"/rpm/*.rpm dist-linux/
+# AppImage ayrı ve hatası ölümcül değil: linuxdeploy'un eski strip'i Ubuntu 24.04 kitaplıklarındaki
+# .relr.dyn bölümlerini tanımıyor -> NO_STRIP=true. Yine başarısız olursa deb/rpm yayınlanır.
+if NO_STRIP=true npx tauri build --bundles appimage; then
+  cp -f "$B"/appimage/*.AppImage dist-linux/
+else
+  echo "UYARI: AppImage üretilemedi (deb ve rpm hazır)"; APPIMAGE_HATA=1
+fi
 ls -la dist-linux/
 bilgi "TAMAM: dist-linux/"
 [ "${ANDROID_HATA:-0}" = 0 ] || { echo "UYARI: Android çalışma ortamlarından biri hazırlanamadı (yukarıya bakın)"; exit 3; }

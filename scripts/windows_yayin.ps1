@@ -192,6 +192,13 @@ if (-not $AndroidYok) {
 }
 python scripts/pack_release.py
 if ($LASTEXITCODE -ne 0) { Uyar "pack_release.py hata kodu döndü ($LASTEXITCODE); üretilebilen dosyalar yine de yüklenecek." }
+# Yeni oluşturulan imza anahtarını kalıcı yere yedekle: sonraki APK'lar aynı anahtarla imzalanır (güncelleme olarak kurulur)
+$kalici = "$env:USERPROFILE\.android-sdk\debug.keystore"
+if ((Test-Path "$Kok\debug.keystore") -and -not (Test-Path $kalici)) {
+    New-Item -ItemType Directory -Force (Split-Path $kalici) | Out-Null
+    Copy-Item "$Kok\debug.keystore" $kalici
+    Write-Host "   imza anahtarı yedeklendi: $kalici (bunu kaybetmeyin)"
+}
 
 # ---------------------------------------------------------------------------------------------
 Adim "7/7 GitHub Release v$Surum"

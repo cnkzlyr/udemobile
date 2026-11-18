@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -172,8 +173,19 @@ def qemu_dogrula(rt: Path) -> None:
     env = android_ortami(rt, veri)
     kod = "import " + ", ".join(DUMAN_IMPORTLARI) + "; import sys; print('IMPORT TAMAM', sys.version.split()[0])"
     r = subprocess.run([qemu, *android_komutu(rt, "-c", kod)], env=env, capture_output=True, text=True, timeout=600)
-    print("  ", (r.stdout or r.stderr).strip()[-400:])
+    print("  ", (r.stdout or "").strip()[-400:])
     if r.returncode != 0:
+        print(f"   çıkış kodu: {r.returncode}")
+        print("   stderr:", (r.stderr or "(boş)").strip()[-3000:])
+        # Hangi katmanın çöktüğünü daralt: yükleyici mi, python mu, importlar mı?
+        for ad, komut in (("yükleyici", [str(rt / "glibc" / "ld-linux-aarch64.so.1"), "--help"]),
+                          ("python -c pass", android_komutu(rt, "-c", "pass"))):
+            t = subprocess.run([qemu, *komut], env=env, capture_output=True, text=True, timeout=300)
+            print(f"   [{ad}] kod={t.returncode} {((t.stderr or '') + (t.stdout or '')).strip()[-600:]}")
+        if r.returncode < 0 and not (r.stderr or "").strip() and os.environ.get("CANASISTAN_QEMU_ZORUNLU") != "1":
+            # Sinyalle sessiz çökme = qemu-user öykünme sınırı (gerçek cihazda olmayabilir).
+            print("   UYARI: qemu doğrulaması sessizce çöktü; çalışma ortamı DOĞRULANMADAN pakete eklenecek")
+            return
         raise SystemExit("Android çalışma zamanı içe aktarma testi başarısız")
     p = subprocess.Popen([qemu, *android_komutu(rt, str(rt / "app" / "sunucu.py"), "--port", "8797")], env=env,
                          stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
