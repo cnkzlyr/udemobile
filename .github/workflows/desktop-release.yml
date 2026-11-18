@@ -183,7 +183,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install -r asistan/requirements.txt pyinstaller
-          PYTHONUTF8=1 python scripts/masaustu_hazirla.py --java-home "${{ steps.java.outputs.path }}"
+          PYTHONUTF8=1 PYTHONIOENCODING=utf-8 python scripts/masaustu_hazirla.py --java-home "${{ steps.java.outputs.path }}"
 
       # macOS universal paket Intel Mac'lerde de calismali: Java ve sunucu x86_64 icin de uretilir (Rosetta).
       - name: Setup Java 21 x64 (macOS Intel)
@@ -208,8 +208,13 @@ jobs:
         shell: bash
         run: |
           PY="${{ steps.python_x64.outputs.python-path }}"
-          arch -x86_64 "$PY" -m pip install -r asistan/requirements.txt pyinstaller
-          arch -x86_64 "$PY" scripts/masaustu_hazirla.py --java-home "${{ steps.java_x64.outputs.path }}" --mimari x86_64
+          # macOS runner izole venv: host arm64 paketlerinin sızmasını önler
+          arch -x86_64 "$PY" -m venv "$RUNNER_TEMP/venv-x64"
+          source "$RUNNER_TEMP/venv-x64/bin/activate"
+          python -m pip install --upgrade pip
+          python -m pip install -r asistan/requirements.txt pyinstaller
+          PYTHONUTF8=1 PYTHONNOUSERSITE=1 python scripts/masaustu_hazirla.py --java-home "${{ steps.java_x64.outputs.path }}" --mimari x86_64
+          deactivate
           file src-tauri/sidecar/asistan-sunucu-x86_64/asistan-sunucu | grep -q x86_64
           file src-tauri/sidecar/asistan-sunucu-aarch64/asistan-sunucu | grep -q arm64
 
@@ -226,6 +231,8 @@ jobs:
         uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          APPIMAGE_EXTRACT_AND_RUN: 1
+          NO_STRIP: "true"
         with:
           tagName: ${{ env.TAG }}
           releaseName: 'CanEditor ${{ env.TAG }}'

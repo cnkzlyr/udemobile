@@ -71,8 +71,10 @@ public class EditorActivity extends Activity {
 
     public static final String EXTRA_FILE_PATH = "extra_file_path";
     private static final int REQUEST_PICK_IMAGE = 3001;
+    private static final int REQUEST_FILE_CHOOSER = 3002;
 
     private WebView editorWebView;
+    private android.webkit.ValueCallback<Uri[]> filePathCallback = null;
     private EditText etDocTitle;
     private Button btnBack;
     private Button btnQuickSave;
@@ -104,6 +106,8 @@ public class EditorActivity extends Activity {
         CrashReporter.install(this);
 
         try {
+            StrictMode.ThreadPolicy policy = new StrictMode.ThreadPolicy.Builder().permitAll().build();
+            StrictMode.setThreadPolicy(policy);
             StrictMode.VmPolicy.Builder builder = new StrictMode.VmPolicy.Builder();
             StrictMode.setVmPolicy(builder.build());
         } catch (Exception ignored) {}
@@ -255,7 +259,40 @@ public class EditorActivity extends Activity {
         settings.setLoadWithOverviewMode(true);
 
         editorWebView.addJavascriptInterface(new EditorBridge(), "AndroidBridge");
-        editorWebView.setWebChromeClient(new WebChromeClient());
+        editorWebView.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public boolean onShowFileChooser(WebView webView, android.webkit.ValueCallback<Uri[]> filePathCb, FileChooserParams fileChooserParams) {
+                if (filePathCallback != null) {
+                    filePathCallback.onReceiveValue(null);
+                    filePathCallback = null;
+                }
+                filePathCallback = filePathCb;
+                try {
+                    Intent intent = fileChooserParams != null ? fileChooserParams.createIntent() : null;
+                    if (intent == null) {
+                        intent = new Intent(Intent.ACTION_GET_CONTENT);
+                        intent.addCategory(Intent.CATEGORY_OPENABLE);
+                        intent.setType("*/*");
+                    }
+                    startActivityForResult(intent, REQUEST_FILE_CHOOSER);
+                    return true;
+                } catch (Exception e) {
+                    try {
+                        Intent fallback = new Intent(Intent.ACTION_GET_CONTENT);
+                        fallback.addCategory(Intent.CATEGORY_OPENABLE);
+                        fallback.setType("*/*");
+                        startActivityForResult(Intent.createChooser(fallback, "Belge Seç"), REQUEST_FILE_CHOOSER);
+                        return true;
+                    } catch (Exception ex) {
+                        if (filePathCallback != null) {
+                            filePathCallback.onReceiveValue(null);
+                            filePathCallback = null;
+                        }
+                        return false;
+                    }
+                }
+            }
+        });
         editorWebView.setWebViewClient(new WebViewClient() {
             @Override
             public void onPageFinished(WebView view, String url) {
@@ -390,7 +427,14 @@ public class EditorActivity extends Activity {
                         } else {
                             // Tek motor: UDF masaüstündeki ile AYNI JS motoruyla (desktop_bridge.js) açılır.
                             // Gerçek e-imza doğrulaması Java (UdfEngine.verifySignature) ile yapılır.
-                            byte[] bytes = java.nio.file.Files.readAllBytes(currentFile.toPath());
+                            byte[] bytes;
+                            try (FileInputStream fis = new FileInputStream(currentFile);
+                                 ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+                                byte[] buf = new byte[32768];
+                                int n;
+                                while ((n = fis.read(buf)) != -1) baos.write(buf, 0, n);
+                                bytes = baos.toByteArray();
+                            }
                             final String fBase64 = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP);
                             final String fName = JSONObject.quote(currentFile.getName());
                             String sj = null;
@@ -1019,6 +1063,26 @@ public class EditorActivity extends Activity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQUEST_FILE_CHOOSER) {
+            if (filePathCallback != null) {
+                Uri[] results = null;
+                if (resultCode == RESULT_OK && data != null) {
+                    String dataString = data.getDataString();
+                    android.content.ClipData clipData = data.getClipData();
+                    if (clipData != null) {
+                        results = new Uri[clipData.getItemCount()];
+                        for (int i = 0; i < clipData.getItemCount(); i++) {
+                            results[i] = clipData.getItemAt(i).getUri();
+                        }
+                    } else if (dataString != null) {
+                        results = new Uri[]{Uri.parse(dataString)};
+                    }
+                }
+                filePathCallback.onReceiveValue(results);
+                filePathCallback = null;
+            }
+            return;
+        }
         if (requestCode == REQUEST_PICK_IMAGE && resultCode == RESULT_OK && data != null) {
             Uri imageUri = data.getData();
             if (imageUri != null) {

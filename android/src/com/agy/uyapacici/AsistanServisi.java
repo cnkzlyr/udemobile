@@ -128,7 +128,7 @@ final class AsistanServisi {
             } finally {
                 h.disconnect();
             }
-        } catch (IOException e) {
+        } catch (Throwable e) {
             return false;
         }
     }
@@ -176,12 +176,16 @@ final class AsistanServisi {
     /** Hazırlığı arka plan iş parçacığında başlatır (zaten sürüyorsa ya da hazırsa bir şey yapmaz). */
     static synchronized void baglantiBaslat(final Context c) {
         if (hazirlaniyor) return;
-        if (sonDurum != null && sonDurum.contains("\"anahtar\"") && ayakta()) return;
+        // Çağrıyı yapan ana (UI) iş parçacığında ASLA ağ işlemi (ayakta()) yapılmaz (NetworkOnMainThreadException önlemi).
+        if (sonDurum != null && sonDurum.contains("\"anahtar\"") && yasiyor(surec)) return;
         hazirlaniyor = true;
-        sonDurum = null;
         final Context uygulama = c.getApplicationContext();
         new Thread(() -> {
-            try { sonDurum = baglanti(uygulama); }
+            try {
+                if (sonDurum != null && sonDurum.contains("\"anahtar\"") && ayakta()) return;
+                sonDurum = null;
+                sonDurum = baglanti(uygulama);
+            }
             finally { hazirlaniyor = false; }
         }, "asistan-hazirla").start();
     }

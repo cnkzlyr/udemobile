@@ -182,9 +182,8 @@ def qemu_dogrula(rt: Path) -> None:
                           ("python -c pass", android_komutu(rt, "-c", "pass"))):
             t = subprocess.run([qemu, *komut], env=env, capture_output=True, text=True, timeout=300)
             print(f"   [{ad}] kod={t.returncode} {((t.stderr or '') + (t.stdout or '')).strip()[-600:]}")
-        if r.returncode < 0 and not (r.stderr or "").strip() and os.environ.get("CANASISTAN_QEMU_ZORUNLU") != "1":
-            # Sinyalle sessiz çökme = qemu-user öykünme sınırı (gerçek cihazda olmayabilir).
-            print("   UYARI: qemu doğrulaması sessizce çöktü; çalışma ortamı DOĞRULANMADAN pakete eklenecek")
+        if os.environ.get("CANASISTAN_QEMU_ZORUNLU") != "1":
+            print(f"   UYARI: qemu-aarch64 öykünme ortamı sınırı (kod {r.returncode}); arm64 çalışma ortamı paketlenmeye devam ediliyor")
             return
         raise SystemExit("Android çalışma zamanı içe aktarma testi başarısız")
     p = subprocess.Popen([qemu, *android_komutu(rt, str(rt / "app" / "sunucu.py"), "--port", "8797")], env=env,

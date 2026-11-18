@@ -12,7 +12,9 @@ uyapcodes.txt
 debug.keystore
 
 
-*.idsig
+# Release binary artifacts (exceeds GitHub git 100MB limit, published via GitHub Releases API)
+release/*.apk
+release/*.idsig
 scratch/
 *.class
 __pycache__/

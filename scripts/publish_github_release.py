@@ -15,36 +15,36 @@ with open(os.path.join(os.path.dirname(__file__), "..", "package.json")) as f:
     VERSION = json.load(f)["version"]
 
 TAG = f"v{VERSION}"
-NAME = f"CanEditor v{VERSION} — Mobil Akış Görünümü (Tensip/Zapt) Düzen Düzeltmesi & %100 Havelsan UYAP Kaynak Koruma"
+NAME = f"CanEditor v{VERSION} — Birleşik Hukuk Platformu, Termux'suz Asistan ve Çapraz Platform UYAP Editörü"
 
-BODY = f"""# CanEditor v{VERSION}
+BODY = f"""# CanEditor v{VERSION} — Birleşik Hukuk Platformu
 
-## 🌟 v{VERSION} ile Gelenler (Mobil Akış Görünümü Düzen Düzeltmeleri & %100 Havelsan UYAP Uyumluluk)
+## 🌟 v{VERSION} ile Gelenler
 
-### 0. 📱 Mobil Akış Görünümü (`Mobil Görünüm`) Düzeltmeleri (Tensip Zaptı / Duruşma Tutanağı / Kararlar)
-- **Mahkeme Başlığı Dikey Harf Kırılması Giderildi (`T.C. / ANKARA / 29. AĞIR CEZA MAHKEMESİ`):** A4 sol yarıya ortalamak için yüksek `RightIndent` (`RightIndent="285.7pt"` = `10.08cm`) içeren mahkeme başlıklarının mobil ekran genişliğinde (`~8.6cm`) negatif genişliğe düşüp harf harf (`T`, `.`, `C`, `.`) dikey kırılması giderildi.
-- **Sağa İtilmiş Alt Başlıkların (`(ADLİ KONTROL)`) Ekran Dışına Taşması Giderildi:** A4 üzerinde yüksek `LeftIndent` (`LeftIndent="370.3pt"` = `13.06cm`) ile sağa yerleştirilen başlıkların mobil görünümde ekran dışına taşması ve boşluk bırakması önlendi; mobil görünümde otomatik olarak sağa/alta hizalanır.
-- **Asılı Girintili ve Sekmeli Üstveri Satırları (`DOSYA NO`, `BAŞKAN`, `ÜYE`, `KATİP`, `DAVACI`, `SANIK`, `SUÇ`, `SUÇ TARİHİ`) Ergonomik Mobil Sütun:** A4 için `6.46cm–6.70cm` olan sekme durağı ve asılı girintinin mobil ekranda değer sütununa yalnızca `2cm` bırakması ve `justify` nedeniyle kelimeler arasında dev boşluklar oluşturması giderildi. Mobil görünümde tüm `:` iki nokta üst üste hizaları milimetrik korunarak etiket sütunu `2.60cm` olarak ölçeklenir ve değer sütununa ekranın **%68'i** ayrılır.
-- **%100 Havelsan UYAP Kayıt Garantisi (`data-orig-ml / mr / ti / align`):** Mobil görünümdeki tüm görsel uyarlamalar orijinal A4 girintilerinden (`data-orig-*`) bağımsız çalışır; belge Mobil Görünüm'de iken kaydedildiğinde bile `RightIndent="285.7143"`, `LeftIndent="370.2857"`, `Hanging="184.96242"` ve `TabSet` öznitelikleri **%100 bayt-bayt birebir** korunur.
+### 1. 🛡️ Android Çökme Düzeltmesi (Yeni Belge & Belge Aç)
+- **NetworkOnMainThread Giderildi:** Hukuk Asistanı arka plan servis denetimi ana iş parçacığından tamamen izole edilerek arka plan iş parçacığına taşındı. "Yeni Belge" ve "Belge Aç" butonlarına dokunulduğunda oluşan anlık çökme tamamen giderildi.
+- **Android WebView Yerel Dosya Seçici Entegrasyonu:** Editör içindeki dosya açma eylemlerinde Android sistem dosya seçicisi (`onShowFileChooser`) devreye sokuldu.
+- **Geriye Dönük Uyumluluk:** Android API 21+ cihazlar için dosya akış okumaları güvenceye alındı.
 
-### 1. 🏛️ %100 Havelsan UYAP Uyumluluk ve Kaynak Koruma Motoru (`Layer-1 + Layer-2 XML Span Splicer`)
-- **Dokunulmadan Kaydedilen Belgelerde %100 Bayt-Bayt Birebirlik:** Açılan herhangi bir `.udf` belgesi (imzalı kararlar, Yargıtay ilamları, `<data>` şablonlu evraklar dahil) düzenlenmeden kaydedildiğinde `content.xml`, `documentproperties.xml` ve `sign.sgn` **%100 bayt-bayt birebir** korunur.
-- **Kısmi Düzenlenen Belgelerde Katman-1 & Katman-2 Kaynak Koruma:** Belgedeki bir paragraf veya cümle düzenlendiğinde, dokunulmayan tüm paragraflar, tablolar, çoklu `<header>` / `<footer>` blokları, `<styles>` tanımları, `<field>`, `<space>`, `<tab>` etiketleri ve hassas kayan nokta girintileri (`SpaceAbove="5.67"`, `FirstLineIndent="35.4375"`, `Hanging="151.42857"`) orijinal XML kaynağından birebir korunur; yalnızca düzenlenen metin parçasının `startOffset` ve `length` öznitelikleri yerinde güncellenir.
-- **Sıfır Yapay Biçim Bozulması:** Sabit satır yüksekliğinin (`data-udf-pitch`) kaydetme sırasında yapay `LineSpacing="12.85"` olarak yazılması ve sayfa bölme (`flow.js` / `editor.js`) sırasında `SpaceBelow` (`data-orig-mb`) niteliğinin silinmesi tamamen giderildi.
-- **Bölünen Paragraf ve Sekme Seçimi Düzeltmeleri:** Aynı sayfaya düşen bölünmüş paragraf parçalarının birleştirilmemesi sorunu ve `.udf-tab-space` içeren satırlarda `Home` → `Shift+End` tuşlarının 9 paragraf birden seçmesi sorunu giderildi.
+### 2. 🏛️ Birleşik Platform Mimarisi (Masaüstü, Android, Web)
+- **Tek Uygulama (CanEditor):** Orijinal UYAP Editör karmaşası kaldırılarak tüm UYAP ve Hukuk Asistanı yetenekleri CanEditor çatısı altında birleştirildi.
+- **UYAP Dosya Yönetim Merkezi:** Dava dosyaları, notlar, Google Drive eşleşmesi ve doğrudan Notion/TickTick aktarımı.
+- **Resmî Havelsan JAR Dönüştürme Motoru:** Doğrudan Havelsan kütüphaneleriyle milimetrik UDF → PDF, ODT ve DOCX dönüştürme.
+- **Google Drive Veritabanı İndeksi:** Yerel SQLite indeksleme, Türkçe-duyarsız arama ve otomatik esas numarası tespiti.
+- **Notion & TickTick Canlı Entegrasyonu:** Görev takibi, duruşma ve tebligatların otomatik görev ve dava kartına dönüştürülmesi.
+- **HAYFA Hukuk Bilgi Köprüsü:** Yargıtay İçtihat arama (tek tıkla dilekçeye ekleme), mevzuat, Resmî Gazete, haberler ve %100 çevrimdışı Adliye & IBAN rehberi.
+- **7/7 Hukuk Hesaplayıcısı:** Vekâlet, Faiz, Harç, SMM, CMK, İnfaz (5275 s.K.) ve Ceza Artırım/İndirim (TCK m.61/62).
 
-### 2. ✨ Modern Hukuk Çalışma Alanı Özellikleri
-- **⚡ Komut Paleti (`Ctrl+K` / `⌘K`):** Dosya, UYAP/Havelsan, e-imza, dilekçe şablonları, AI formatlama ve görünüm komutlarına anında arama ile erişim.
-- **📑 Belge Anahattı & Hukuki Bölüm Gezgini:** Mahkeme başlığı, Dosya/Esas/Karar No, Davacı/Davalı/Sanık, Konu, Açıklamalar, Hukuki Sebepler, Deliller, Sonuç ve İstem / Hüküm bölümlerini otomatik algılayan ve tek tıkla ilgili sayfaya/paragrafa kaydıran yan çekmece.
-- **🏛️ Havelsan UYAP %100 Uyumluluk Raporu & Canlı Doğrulama:** Üst çubuktaki `🏛️ UYAP %100` rozetiyle belgenin kaynak koruma istatistiklerini ve tek tıkla çalışan canlı ZIP/XML doğrulama testini görüntüleme.
-- **🧘 Odak Modu (Zen) & 🌙 Gece Modu / 📜 Gece Kağıdı:** Kaydedilen `.udf` dosyalarının iç stillerini hiçbir şekilde etkilemeyen, salt CSS tabanlı gece arayüzü, koyu kağıt ve dikkat dağıtmayan tam ekran yazım modu.
-- **🔐 Chrome E-İmza Köprüsü, Yerel E-İmza & Gömülü Java Korundu:** Chrome UYAP/Celse e-imza köprüsü (`Adalet E-İmza`), editör içi Akıllı Kart (PKCS#11 / CCID), Mobil İmza ve gömülü OpenJDK 14 çalışma ortamı eksiksiz korundu.
+### 3. ⚙️ Gömülü Çalışma Ortamı (Termux'suz & Sürücüsüz)
+- **Android:** Gömülü CPython 3.12 (aarch64) ve gömülü Java 21 ile Termux gerekmeden tek APK olarak çalışır.
+- **Masaüstü (Windows / macOS / Linux):** Kurulum gerektirmeden arka planda çalışan görünmez tarayıcı ve e-İmza köprüsü.
 
-## 📦 Paketler
-- Android (CanEditor): `CanEditor-v{VERSION}.apk` / `CanEditor-latest.apk`
-- Android (Orijinal UYAP Editör): `UYAP-Editor-v{VERSION}.apk` / `UYAP-Editor-latest.apk`
-- Taşınabilir Web: `CanEditor-Portable-Web-GUI-v{VERSION}.zip`
-- Windows / macOS / Linux: GitHub Actions tarafından bu sürüme otomatik eklenir
+## 📦 İndirme Bağlantıları
+- **Android:** `CanEditor-v{VERSION}.apk` / `CanEditor-latest.apk`
+- **Windows:** `CanEditor_{VERSION}_x64-setup.exe` (NSIS) / `CanEditor_{VERSION}_x64_en-US.msi` (MSI)
+- **macOS:** `CanEditor_{VERSION}_universal.dmg` (Apple Silicon & Intel)
+- **Linux:** `CanEditor_{VERSION}_amd64.AppImage` / `CanEditor_{VERSION}_amd64.deb` / `CanEditor-{VERSION}-1.x86_64.rpm`
+- **Taşınabilir Web:** `CanEditor-Portable-Web-GUI-v{VERSION}.zip`
 """
 
 def request(url, data=None, headers=None, method="GET"):
