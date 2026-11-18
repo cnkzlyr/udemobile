@@ -66,6 +66,12 @@ KOK = Path(__file__).resolve().parent
 if str(KOK) not in sys.path:
     sys.path.insert(0, str(KOK))
 
+try:
+    import dns_cozucu
+    dns_cozucu.yama_kur()
+except Exception:
+    pass
+
 import drive_indeks as _drive_indeks  # noqa: E402
 import entegrasyon as _entegrasyon    # noqa: E402
 import hayfa_kopru as _hayfa_kopru    # noqa: E402
@@ -1116,16 +1122,32 @@ class Isleyici(BaseHTTPRequestHandler):
                 try:
                     import urllib.request
                     test_govde = json.dumps({"action": "ping", "test": True}).encode("utf-8")
-                    req = urllib.request.Request(url, data=test_govde, headers={"Content-Type": "application/json"}, method="POST")
+                    req = urllib.request.Request(
+                        url,
+                        data=test_govde,
+                        headers={"Content-Type": "application/json", "User-Agent": "CanEditor/4.1"},
+                        method="POST"
+                    )
                     with urllib.request.urlopen(req, timeout=15) as resp:
                         durum = resp.getcode()
+                        try:
+                            veri = json.loads(resp.read().decode("utf-8"))
+                            if veri.get("status") in ("ok", "success") or "message" in veri:
+                                return self._json({"tamam": True, "mesaj": f"✓ Webhook başarıyla yanıt verdi (HTTP {durum})! Google Apps Script bağlantısı aktif."})
+                        except Exception:
+                            pass
                         return self._json({"tamam": True, "mesaj": f"✓ Webhook başarıyla yanıt verdi (HTTP {durum})! Google Drive bağlantısı çalışıyor."})
                 except urllib.error.HTTPError as he:
                     if he.code in (302, 200, 201):
                         return self._json({"tamam": True, "mesaj": f"✓ Webhook doğrulandı (HTTP {he.code})! Google Drive bağlantısı hazır."})
-                    raise ValueError(f"Webhook HTTP {he.code} hatası verdi. 'Erişimi olanlar' ayarını 'Herkes' (Anyone) yaptığınızdan emin olun.")
+                    if he.code in (401, 403):
+                        raise ValueError(f"Webhook HTTP {he.code} erişim hatası verdi. Google Apps Script dağıtımında 'Erişimi olanlar' (Who has access) kısmını 'Herkes' (Anyone) yaptığınızdan emin olun.")
+                    raise ValueError(f"Webhook HTTP {he.code} hatası verdi: {he.reason}")
                 except Exception as ex:
-                    raise ValueError(f"Webhook testinde hata: {str(ex)}")
+                    msg = str(ex)
+                    if "Temporary failure in name resolution" in msg or "Name or service not known" in msg:
+                        raise ValueError("İnternet veya DNS bağlantı hatası: script.google.com çözümlenemedi. Lütfen internet bağlantınızı kontrol edin.")
+                    raise ValueError(f"Webhook testinde hata: {msg}")
             if yol == "/api/drive/indeksle":
                 ayar = _drive_indeks.drive_ayar_oku(evrak_veri_dizini())
                 dizin = str(govde.get("dizin") or ayar.get("google_drive_dir") or "").strip()

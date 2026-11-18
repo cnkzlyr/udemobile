@@ -23,6 +23,12 @@ import sqlite3
 import time
 from pathlib import Path
 
+try:
+    import dns_cozucu
+    dns_cozucu.yama_kur()
+except Exception:
+    pass
+
 _FOLD = str.maketrans({
     "İ": "i", "I": "i", "ı": "i", "Ş": "s", "ş": "s", "Ğ": "g", "ğ": "g",
     "Ü": "u", "ü": "u", "Ö": "o", "ö": "o", "Ç": "c", "ç": "c", "Â": "a", "â": "a",
