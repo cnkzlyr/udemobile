@@ -147,6 +147,11 @@ def motor(url=None):
 
 def sifirla_baglanti():
     global _ENGINE
+    if _ENGINE is not None:
+        try:
+            _ENGINE.dispose()
+        except Exception:
+            pass
     _ENGINE = None
 
 
@@ -471,12 +476,15 @@ def tasi(hedef_url):
     kaynak = motor()
     hedef = motor(hedef_url)
     sayilar = {}
-    with kaynak.connect() as k, hedef.begin() as h:
-        for tablo in meta.sorted_tables:
-            if h.execute(select(func.count()).select_from(tablo)).scalar():
-                raise RuntimeError(f"Hedefte '{tablo.name}' tablosu boş değil; taşıma durduruldu (veri ezilmesin).")
-            satirlar = [dict(r._mapping) for r in k.execute(select(tablo)).all()]
-            if satirlar:
-                h.execute(insert(tablo), satirlar)
-            sayilar[tablo.name] = len(satirlar)
+    try:
+        with kaynak.connect() as k, hedef.begin() as h:
+            for tablo in meta.sorted_tables:
+                if h.execute(select(func.count()).select_from(tablo)).scalar():
+                    raise RuntimeError(f"Hedefte '{tablo.name}' tablosu boş değil; taşıma durduruldu (veri ezilmesin).")
+                satirlar = [dict(r._mapping) for r in k.execute(select(tablo)).all()]
+                if satirlar:
+                    h.execute(insert(tablo), satirlar)
+                sayilar[tablo.name] = len(satirlar)
+    finally:
+        hedef.dispose()
     return sayilar

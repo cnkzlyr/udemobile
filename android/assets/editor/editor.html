@@ -63,7 +63,7 @@
         <button onclick="if(window.newDocument)newDocument();else location.reload()">Yeni <kbd>Ctrl+N</kbd></button>
         <button onclick="triggerOpenDocument()">Aç… <kbd>Ctrl+O</kbd></button>
         <button onclick="triggerQuickSave()">Kaydet <kbd>Ctrl+S</kbd></button>
-        <button onclick="uyapEditordeAc()" title="Belgeyi resmi UYAP Doküman Editörü'nde aç (birebir görünüm ve PDF)">🏛️ Orijinal UYAP Editör'de aç</button>
+        <button onclick="openHukukAsistani('jar')" title="Resmî Havelsan JAR motoruyla 1:1 PDF / ODT / DOCX dönüştür ve paylaş">🔄 Resmî JAR Dönüştür / Paylaş…</button>
         <div class="ce-sub"><span>Farklı Kaydet</span>
           <div class="ce-menu-pop ce-sub-pop" id="saveAsDropdown">
             <button onclick="triggerSaveAs('udf')">UYAP Belgesi (.udf)</button>
@@ -201,13 +201,21 @@
     </div>
     <div class="ce-menu"><button type="button" class="ce-menu-title">Asistan</button>
       <div class="ce-menu-pop">
+        <button onclick="openHukukAsistani('uyap')">🔐 UYAP Giriş (e-İmza / Mobil İmza)…</button>
+        <button onclick="openHukukAsistani('dosyalar')">📁 UYAP Dosyalarım (Dava Yönetimi)…</button>
+        <button onclick="openHukukAsistani('yeni')">🔔 Yeni Evrak &amp; Tebligatlar…</button>
+        <button onclick="openHukukAsistani('drive')">☁️ Google Drive &amp; Veritabanı…</button>
+        <button onclick="openHukukAsistani('entegrasyon')">📋 Notion &amp; TickTick…</button>
+        <hr>
+        <button onclick="openHukukAsistani('hayfa')">📰 HAYFA Hukuk (İçtihat · Haber · RG · Adliye)…</button>
+        <button onclick="openHukukAsistani('jar')">🔄 Resmî JAR Dönüştür &amp; Paylaş…</button>
         <button onclick="openHukukAsistani('sure')">⏱️ Yasal Süre Hesapla…</button>
+        <button onclick="openHukukAsistani('hesap')">🧮 Vekâlet · Faiz · Harç · SMM · CMK · İnfaz…</button>
         <button onclick="openHukukAsistani('a4')">📄 Görsel/PDF → A4 PDF Birleştir…</button>
         <hr>
         <button onclick="openHukukAsistani('ajanda')">📅 Ajanda (Duruşma ve Süre Sonları)…</button>
         <button onclick="openHukukAsistani('evrak')">🗂️ UYAP Evrak Kataloğunda Ara…</button>
         <button onclick="openHukukAsistani('gorev')">⚙️ UETS / UYAP Görevleri…</button>
-        <hr>
         <button onclick="openHukukAsistani('baglanti')">🔌 Asistan Sunucusu Bağlantısı…</button>
       </div>
     </div>
@@ -1144,7 +1152,7 @@
       <div class="modal-footer" style="display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap;">
         <button type="button" class="modal-btn secondary" onclick="runLiveUdfCompatCheck()">🔬 Anlık UDF Uyumluluk Testi Çalıştır</button>
         <div style="display: flex; gap: 8px;">
-          <button type="button" class="modal-btn secondary" onclick="uyapEditordeAc()">🏛️ Orijinal UYAP Editör'de Aç</button>
+          <button type="button" class="modal-btn secondary" onclick="closeModal('modal-udf-compat');openHukukAsistani('jar')">🔄 Resmî JAR ile Dönüştür</button>
           <button type="button" class="modal-btn primary" onclick="closeModal('modal-udf-compat')">Tamam</button>
         </div>
       </div>
@@ -1160,6 +1168,8 @@
   <script src="pdfexport.js"></script>
   <script src="esign.js"></script>
   <script src="flow.js"></script>
+  <script src="hukuk_hesap.js"></script>
+  <script src="hayfa.js"></script>
   <script src="asistan.js"></script>
   <script src="ui-shell.js"></script>
   <script src="history.js"></script>
@@ -1177,7 +1187,7 @@
     <div style="display: flex; gap: 16px; align-items: center;">
       <span style="opacity: 0.7;">Kısayollar: <b>Ctrl+K</b> Komut Paleti • <b>Ctrl+O</b> Aç • <b>Ctrl+S</b> UDF • <b>Ctrl+P</b> PDF/Yazdır</span>
       <span>•</span>
-      <span style="color: #38BDF8; font-weight: 600;">CanEditor v4.0.0 (Cross-Platform)</span>
+      <span style="color: #c8a45a; font-weight: 600;">CanEditor v4.1.0 (Birleşik Hukuk Platformu)</span>
     </div>
   </footer>
 

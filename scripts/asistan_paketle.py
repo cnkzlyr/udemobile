@@ -137,6 +137,7 @@ def main() -> int:
              "--name", "asistan-sunucu", "--distpath", str(dagitim), "--workpath", str(is_dizini / "work"),
              "--specpath", str(is_dizini),
              "--add-data", f"{MODULLER}{os.pathsep}moduller",
+             "--add-data", f"{ASISTAN / 'veri'}{os.pathsep}veri",
              ]
     for ad in sorted(HARIC):
         komut += ["--exclude-module", ad]

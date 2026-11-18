@@ -11,7 +11,7 @@
 # başlatmanızı ister, sonra aynı komutu tekrar çalıştırırsınız.
 # Not: Windows PowerShell yerel komutların stderr çıktısını hata sanabildiği için ErrorActionPreference
 #      'Continue' tutulur; her yerel komutun çıkış kodu Calistir ile ayrıca denetlenir.
-param([string]$Surum = "4.0.1", [switch]$LinuxYok, [switch]$AndroidYok, [switch]$Yeniden)
+param([string]$Surum = "4.1.0", [switch]$LinuxYok, [switch]$AndroidYok, [switch]$Yeniden)
 # -Yeniden: daha önce derlenmiş paketler olsa da her şeyi baştan derler
 $ErrorActionPreference = "Continue"
 $ProgressPreference = "SilentlyContinue"
@@ -214,10 +214,10 @@ $dosyalar = @()
 $dosyalar += Get-ChildItem "src-tauri\target\release\bundle\nsis\*_${Surum}_*setup.exe" -ErrorAction SilentlyContinue
 $dosyalar += Get-ChildItem "src-tauri\target\release\bundle\msi\*_${Surum}_*.msi" -ErrorAction SilentlyContinue
 $dosyalar += Get-ChildItem "dist-linux\*${Surum}*" -ErrorAction SilentlyContinue
-foreach ($ad in @("CanEditor-Portable-Web-GUI-v$Surum.zip", "CanEditor-v$Surum.apk", "UYAP-Editor-v$Surum.apk")) {
+foreach ($ad in @("CanEditor-Portable-Web-GUI-v$Surum.zip", "CanEditor-v$Surum.apk")) {
     if (Test-Path "release\$ad") { $dosyalar += Get-Item "release\$ad" }
 }
-foreach ($cift in @(@("CanEditor-v$Surum.apk", "CanEditor-latest.apk"), @("UYAP-Editor-v$Surum.apk", "UYAP-Editor-latest.apk"))) {
+foreach ($cift in @(@("CanEditor-v$Surum.apk", "CanEditor-latest.apk"))) {
     if (Test-Path "release\$($cift[0])") {
         Copy-Item "release\$($cift[0])" "$env:TEMP\$($cift[1])" -Force
         $dosyalar += Get-Item "$env:TEMP\$($cift[1])"

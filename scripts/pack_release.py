@@ -7,7 +7,7 @@ import shutil
 import zipfile
 import subprocess
 
-VERSION = "4.0.1"
+VERSION = "4.1.0"
 XZ_SHA256 = "211b306cfc44f8f96df3a0a3ddaf75ba8c5289eed77d60d72f889bb855f535e5"
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 IS_WINDOWS = os.name == "nt"
@@ -88,7 +88,7 @@ def sync_frontend_to_android_assets():
     step("0. Syncing frontend/public/* to android/assets/editor/*")
     assets_dir = os.path.join(PROJECT_ROOT, "android", "assets", "editor")
     os.makedirs(assets_dir, exist_ok=True)
-    for fname in ["desktop_bridge.js", "editor.css", "editor.js", "favicon.svg", "history.js", "icons.svg", "jszip.min.js", "updater.js", "ui-shell.js", "flow.js", "esign.js", "pdfexport.js", "jspdf.umd.min.js", "pdf.min.js", "pdf.worker.min.js", "utif.js", "asistan.js", "hukuk_hesap.js"]:
+    for fname in ["desktop_bridge.js", "editor.css", "editor.js", "favicon.svg", "history.js", "icons.svg", "jszip.min.js", "updater.js", "ui-shell.js", "flow.js", "esign.js", "pdfexport.js", "jspdf.umd.min.js", "pdf.min.js", "pdf.worker.min.js", "utif.js", "asistan.js", "hukuk_hesap.js", "hayfa.js"]:
         src = os.path.join(PROJECT_ROOT, "frontend", "public", fname)
         if os.path.exists(src):
             shutil.copy2(src, os.path.join(assets_dir, fname))
@@ -121,7 +121,7 @@ def main():
     if os.path.exists(zip_path):
         os.remove(zip_path)
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
-        for fname in ["desktop_bridge.js", "editor.css", "editor.js", "favicon.svg", "history.js", "icons.svg", "jszip.min.js", "updater.js", "ui-shell.js", "flow.js", "esign.js", "pdfexport.js", "jspdf.umd.min.js", "pdf.min.js", "pdf.worker.min.js", "utif.js", "asistan.js", "hukuk_hesap.js"]:
+        for fname in ["desktop_bridge.js", "editor.css", "editor.js", "favicon.svg", "history.js", "icons.svg", "jszip.min.js", "updater.js", "ui-shell.js", "flow.js", "esign.js", "pdfexport.js", "jspdf.umd.min.js", "pdf.min.js", "pdf.worker.min.js", "utif.js", "asistan.js", "hukuk_hesap.js", "hayfa.js"]:
             p = os.path.join("frontend", "public", fname)
             if os.path.exists(p):
                 z.write(p, arcname=fname)
@@ -357,14 +357,7 @@ def main():
     shutil.copy2(out_apk, latest_apk)
     print(f"Copied to {latest_apk}.")
 
-    # UYAP Editör ayrı uygulaması (com.agy.uyapeditor): aynı kaynak kod ve imza anahtarı
-    step("8b. UYAP Editör ayrı uygulaması (scripts/uyapeditor_apk.py)")
-    r = subprocess.run([sys.executable, os.path.join(PROJECT_ROOT, "scripts", "uyapeditor_apk.py")],
-                       env={**os.environ, "ANDROID_KEYSTORE": os.path.abspath(keystore_path),
-                            "ANDROID_KEYSTORE_PASS": ks_sifre})
-    if r.returncode != 0:
-        print("UYAP Editör APK'sı derlenemedi.")
-        sys.exit(1)
+    # Tek uygulama politikası (v4.1.0+): ayrı UYAP-Editor APK artık üretilmez; tüm editör + asistan CanEditor'da birleşiktir.
 
     # 9. Verify
     step("8. Verifying APK signature")

@@ -66,14 +66,17 @@ import donusturucu as dn
 # ---------------------------------------------------------------------------
 
 def _kayitli_pin(ui) -> str:
-    """e-İmza PIN'i: uyap_indirici'nin yüklediği (pin dosyası / UYAP_E_IMZA_PIN), yoksa pin.txt."""
+    """e-İmza PIN'i: uyap_indirici'nin yüklediği (pin dosyası / UYAP_E_IMZA_PIN), yoksa DATA_DIR/pin.txt."""
     pin = getattr(ui, "DEFAULT_E_IMZA_PIN", "") or ""
-    if not pin and os.path.exists("pin.txt"):
-        try:
-            with open("pin.txt", "r", encoding="utf-8") as f:
-                pin = f.read().strip()
-        except OSError:
-            pass
+    if not pin:
+        for aday in (DATA_DIR / "pin.txt", BASE_DIR / "pin.txt", Path("pin.txt")):
+            try:
+                if aday.is_file():
+                    pin = aday.read_text(encoding="utf-8").strip()
+                    if pin:
+                        break
+            except OSError:
+                continue
     return pin
 
 class TelegramClient:
@@ -213,12 +216,26 @@ class UyapWatcher:
         )
         import uyap_indirici as ui
         self.is_termux = getattr(ui, "IS_TERMUX", False) or sys.platform != "win32"
-        gdrive_cfg = config.get("google_drive_dir", "")
+        gdrive_cfg = str(config.get("google_drive_dir") or "").strip()
+        fallback_dir = Path(os.environ.get("UYAP_INDIRME_DIZINI") or (DATA_DIR / "UYAP_Indirilenler"))
         if self.is_termux:
             sd_cand = Path("/sdcard/UYAP_Indirilenler")
-            self.download_dir = sd_cand if sd_cand.parent.exists() else DATA_DIR / "UYAP_Indirilenler"
+            self.download_dir = sd_cand if sd_cand.parent.exists() else fallback_dir
+        elif gdrive_cfg:
+            cand = Path(gdrive_cfg)
+            # Sürücü (ör. G:\) bağlı değilse çökme; yerel yedek klasöre düş
+            try:
+                if cand.exists() or cand.parent.exists() or (cand.anchor and Path(cand.anchor).exists()):
+                    cand.mkdir(parents=True, exist_ok=True)
+                    self.download_dir = cand
+                else:
+                    logger.warning("Google Drive klasörü erişilebilir değil (%s); yerel klasör kullanılıyor: %s", cand, fallback_dir)
+                    self.download_dir = fallback_dir
+            except OSError as e:
+                logger.warning("Google Drive klasörü oluşturulamadı (%s): %s; yerel klasör kullanılıyor: %s", cand, e, fallback_dir)
+                self.download_dir = fallback_dir
         else:
-            self.download_dir = Path(gdrive_cfg or os.environ.get("UYAP_INDIRME_DIZINI") or DATA_DIR / "UYAP_Indirilenler")
+            self.download_dir = fallback_dir
         self.download_dir.mkdir(parents=True, exist_ok=True)
         self.bridge = None
         self.motor = None
@@ -471,6 +488,25 @@ class UyapWatcher:
                             else:
                                 self.tg.send_message(msg_text)
 
+                            # Otomatik Notion & TickTick aktarımı (CanEditor Hukuk Asistanı köprüsü)
+                            try:
+                                asistan_kok = BASE_DIR.parent.parent
+                                if str(asistan_kok) not in sys.path:
+                                    sys.path.insert(0, str(asistan_kok))
+                                import entegrasyon as _ent  # type: ignore
+                                avukat_dir = BASE_DIR.parent / "avukatasistan"
+                                if _ent.ayar_ozeti(avukat_dir).get("otomatik_senkron"):
+                                    _ent.uyap_otomatik_aktar(
+                                        avukat_dir,
+                                        birim=str(case["birim"] or ""),
+                                        dosya_no=str(case["dosya_no"] or ""),
+                                        tur=str(tur or ""),
+                                        aciklama=str(acik or ""),
+                                        tarih=str(tarih or ""),
+                                    )
+                            except Exception as ee:
+                                logger.debug("Otomatik Notion/TickTick aktarımı atlandı: %s", ee)
+
                         stats["new_downloaded"] += 1
 
                 # Taranma zamanını tazele
@@ -504,9 +540,21 @@ class UyapWatcher:
             # WAF'a takılmamak için nazik bekleme
             time.sleep(0.4)
 
-        # Google Drive varsa veritabanı anlık snapshot'ını güncelle
-        if drive_dir:
-            self.katalog.cloud_backup(drive_dir / "uyap_katalog_yedek.db")
+        # Google Drive varsa veritabanı anlık snapshot'ını güncelle ve Drive indeksini tazele
+        if drive_dir and drive_dir.is_dir():
+            try:
+                self.katalog.cloud_backup(drive_dir / "uyap_katalog_yedek.db")
+            except Exception as be:
+                logger.warning("Drive katalog yedeği yazılamadı: %s", be)
+            if self.config.get("drive_auto_index", True):
+                try:
+                    asistan_kok = BASE_DIR.parent.parent
+                    if str(asistan_kok) not in sys.path:
+                        sys.path.insert(0, str(asistan_kok))
+                    import drive_indeks as _di  # type: ignore
+                    _di.indeksle(DATA_DIR / "drive_indeks.db", drive_dir)
+                except Exception as ie:
+                    logger.debug("Drive indeksleme atlandı: %s", ie)
 
         stats["elapsed_seconds"] = round(time.time() - start_time, 1)
         mins = int(stats["elapsed_seconds"] // 60)

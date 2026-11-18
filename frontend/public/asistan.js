@@ -318,16 +318,19 @@
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
   const SEKMELER = [
-    ['uyap', '🔐 UYAP Giriş'], ['yeni', '🔔 Yeni'], ['sure', '⏱️ Süre Hesapla'], ['hesap', '🧮 Hesaplamalar'], ['a4', '📄 A4 PDF'], ['ajanda', '📅 Ajanda'],
-    ['evrak', '🗂️ UYAP Evrak'], ['drive', '☁️ Drive'], ['gorev', '⚙️ Görevler'], ['baglanti', '🔌 Bağlantı']
+    ['uyap', '🔐 UYAP Giriş'], ['dosyalar', '📁 Dosyalar'], ['yeni', '🔔 Yeni'], ['drive', '☁️ Drive'],
+    ['entegrasyon', '📋 Notion/TT'], ['jar', '🔄 JAR Dönüştür'], ['hayfa', '📰 HAYFA'],
+    ['sure', '⏱️ Süre'], ['hesap', '🧮 Hesapla'], ['a4', '📄 A4 PDF'],
+    ['ajanda', '📅 Ajanda'], ['evrak', '🗂️ Evrak Ara'], ['gorev', '⚙️ Görevler'], ['baglanti', '🔌 Bağlantı']
   ];
 
   function panelKur() {
     if (kok) return;
     stilEkle();
+    if (window.CanHayfa && window.CanHayfa.stilYukle) window.CanHayfa.stilYukle();
     kok = document.createElement('div'); kok.id = 'ca-panel';
-    kok.innerHTML = `<div class="ca-kutu" role="dialog" aria-modal="true" aria-label="Hukuk Asistanı">
-      <header><h2>⚖️ Hukuk Asistanı</h2><button class="ca-kapat" type="button" aria-label="Kapat">×</button></header>
+    kok.innerHTML = `<div class="ca-kutu" role="dialog" aria-modal="true" aria-label="CanEditor Hukuk Asistanı">
+      <header><h2>⚖️ CanEditor Hukuk Asistanı <span class="hf-badge">HAYFA · Birleşik v4.1</span></h2><button class="ca-kapat" type="button" aria-label="Kapat">×</button></header>
       <nav>${SEKMELER.map(([k, ad]) => `<button type="button" data-sekme="${k}">${ad}</button>`).join('')}</nav>
       <div class="ca-icerik"></div></div>`;
     document.body.appendChild(kok);
@@ -340,13 +343,33 @@
   function ac(sekme) { panelKur(); kok.classList.add('acik'); sekmeAc(sekme || aktifSekme); }
   function kapat() { if (kok) kok.classList.remove('acik'); gorevIzleDurdur(); }
 
+  function hayfaCtx() {
+    return { api, esc, sunucuHatasi, evrakAc, kapat, sekmeAc };
+  }
+
   function sekmeAc(k) {
     aktifSekme = k;
     gorevIzleDurdur();
     kok.querySelectorAll('nav button').forEach(b => b.classList.toggle('secili', b.dataset.sekme === k));
     const ic = kok.querySelector('.ca-icerik');
-    ({ uyap: uyapSekmesi, yeni: yeniSekmesi, sure: sureSekmesi, hesap: hesapSekmesi, a4: a4Sekmesi, ajanda: ajandaSekmesi, evrak: evrakSekmesi,
-       drive: driveSekmesi, gorev: gorevSekmesi, baglanti: baglantiSekmesi })[k](ic);
+    const hf = window.CanHayfa || {};
+    const harita = {
+      uyap: uyapSekmesi,
+      dosyalar: el => hf.dosyalarSekmesi ? hf.dosyalarSekmesi(el, hayfaCtx()) : (el.textContent = 'Modül yüklenmedi'),
+      yeni: yeniSekmesi,
+      drive: el => hf.driveProSekmesi ? hf.driveProSekmesi(el, hayfaCtx()) : driveSekmesi(el),
+      entegrasyon: el => hf.entegrasyonSekmesi ? hf.entegrasyonSekmesi(el, hayfaCtx()) : (el.textContent = 'Modül yüklenmedi'),
+      jar: el => hf.jarSekmesi ? hf.jarSekmesi(el, hayfaCtx()) : (el.textContent = 'Modül yüklenmedi'),
+      hayfa: el => hf.hayfaSekmesi ? hf.hayfaSekmesi(el, hayfaCtx()) : (el.textContent = 'Modül yüklenmedi'),
+      sure: sureSekmesi,
+      hesap: hesapSekmesi,
+      a4: a4Sekmesi,
+      ajanda: ajandaSekmesi,
+      evrak: evrakSekmesi,
+      gorev: gorevSekmesi,
+      baglanti: baglantiSekmesi
+    };
+    (harita[k] || sureSekmesi)(ic);
   }
 
   // --- Süre ---
@@ -778,9 +801,24 @@
         <div><label>Tutar (TL)</label><input name="tutar" inputmode="decimal" placeholder="ör. 20.000"></div>
         <div><label>Müvekkil</label><select name="sorumlu"><option value="1">Şirket / vergi sorumlusu (stopaj keser)</option><option value="">Gerçek kişi (stopaj yok)</option></select></div></div>`,
       cmk: `<div class="ca-satir"><div><label>Görevlendirme</label><select name="kalem">${secenek(H.TARIFE.cmk, 'agir')}</select></div>
-        <div><label>Adet (tek makbuz)</label><input name="adet" type="number" min="1" value="1"></div></div>`
+        <div><label>Adet (tek makbuz)</label><input name="adet" type="number" min="1" value="1"></div></div>`,
+      infaz: `<div class="ca-satir">
+        <div><label>Yıl</label><input name="yil" type="number" min="0" value="3"></div>
+        <div><label>Ay</label><input name="ay" type="number" min="0" value="0"></div>
+        <div><label>Gün</label><input name="gun" type="number" min="0" value="0"></div>
+        <div><label>Koşullu Salıverilme Oranı</label><select name="oran"><option value="1/2">1/2 (Genel)</option><option value="2/3">2/3 (İstisna / Mükerrir)</option><option value="3/4">3/4 (Ağır / Terör / Uyuşturucu)</option></select></div>
+        <div><label>Mahsup (Tutukluluk gün)</label><input name="mahsupGun" type="number" min="0" value="0"></div>
+        <div><label>Denetimli Serbestlik (yıl)</label><input name="denetimliYil" type="number" min="0" max="3" step="0.5" value="1"></div>
+      </div>`,
+      ceza: `<div class="ca-satir">
+        <div><label>Temel Ceza — Yıl</label><input name="yil" type="number" min="0" value="2"></div>
+        <div><label>Ay</label><input name="ay" type="number" min="0" value="0"></div>
+        <div><label>Gün</label><input name="gun" type="number" min="0" value="0"></div>
+        <div><label>Artırım (TCK 43 vb.)</label><select name="artir"><option value="">Yok</option><option value="1/4">+1/4</option><option value="1/3">+1/3</option><option value="1/2">+1/2</option><option value="3/4">+3/4</option></select></div>
+        <div><label>İndirim (Tahrik/Teşebbüs)</label><select name="indir"><option value="">Yok</option><option value="1/4">-1/4</option><option value="1/3">-1/3</option><option value="1/2">-1/2</option><option value="3/4">-3/4</option></select></div>
+      </div><label style="display:flex;gap:8px;align-items:center;color:inherit"><input type="checkbox" name="tck62" style="width:auto" checked> TCK m.62 takdiri indirim (-1/6) uygula</label>`
     };
-    const ADLAR = { vekalet: '⚖️ Vekâlet ücreti', faiz: '📈 Faiz', harc: '🏛️ Harç', smm: '🧾 Serbest meslek makbuzu', cmk: '🛡️ CMK makbuzu' };
+    const ADLAR = { vekalet: '⚖️ Vekâlet', faiz: '📈 Faiz', harc: '🏛️ Harç', smm: '🧾 SMM', cmk: '🛡️ CMK', infaz: '⛓️ İnfaz', ceza: '⚖️ Ceza' };
     ic.innerHTML = `<div class="ca-satir" style="grid-template-columns:1fr"><div>${Object.entries(ADLAR).map(([k, a]) =>
         `<button class="ca-btn${k === hesapTur ? ' ana' : ''}" type="button" data-hesap="${k}">${a}</button>`).join('')}</div></div>
       <form id="ca-hesap-form" onsubmit="return false">${FORM[hesapTur]}</form><div id="ca-hesap-sonuc"></div>
@@ -790,18 +828,28 @@
     const sayi = v => parseFloat(String(v || '').replace(/\./g, '').replace(',', '.').replace(/[^\d.\-]/g, '')) || 0;
     const hesapla = () => {
       const f = Object.fromEntries(new FormData(form).entries());
-      ['deger', 'anapara', 'tutar', 'oran'].forEach(k => { if (k in f) f[k] = sayi(f[k]); });
+      ['deger', 'anapara', 'tutar', 'oran'].forEach(k => { if (k in f && hesapTur !== 'infaz') f[k] = sayi(f[k]); });
       f.yarisi = !!form.querySelector('[name=yarisi]:checked'); f.giderim = !!form.querySelector('[name=giderim]:checked');
       f.vekaletname = !!form.querySelector('[name=vekaletname]:checked'); f.sorumlu = !!f.sorumlu; f.adet = +f.adet || 1;
-      const r = H[{ vekalet: 'vekalet', faiz: 'faiz', harc: 'harc', smm: 'smm', cmk: 'cmkMakbuz' }[hesapTur]](f);
+      if (hesapTur === 'ceza') {
+        f.adimlar = [];
+        if (f.artir) { const [p, d] = f.artir.split('/'); f.adimlar.push({ tip: 'artir', pay: +p, payda: +d, ad: 'Kanuni artırım' }); }
+        if (f.indir) { const [p, d] = f.indir.split('/'); f.adimlar.push({ tip: 'indir', pay: +p, payda: +d, ad: 'Kanuni indirim' }); }
+        if (form.querySelector('[name=tck62]:checked')) f.adimlar.push({ tip: 'indir', pay: 1, payda: 6, ad: 'TCK m.62 takdiri indirim' });
+      }
+      const r = H[{ vekalet: 'vekalet', faiz: 'faiz', harc: 'harc', smm: 'smm', cmk: 'cmkMakbuz', infaz: 'infaz', ceza: 'ceza' }[hesapTur]](f);
       if (r.hata) { kutu.innerHTML = `<p class="ca-soluk">${esc(r.hata)}</p>`; return; }
       const tablo = r.tablo ? `<table><tr><th>Dönem</th><th>Gün</th><th>Oran</th><th>Faiz</th></tr>${r.tablo.map(t =>
         `<tr><td>${t.bas.toLocaleDateString('tr-TR')} – ${t.bit.toLocaleDateString('tr-TR')}</td><td>${t.gun}</td><td>%${t.oran.toLocaleString('tr-TR')}</td><td>${H.TL(t.faiz)}</td></tr>`).join('')}</table>` : '';
-      kutu.innerHTML = `<div class="ca-kart">${tablo}<table>${r.satirlar.map(x =>
-        `<tr${x.vurgu ? ' style="font-weight:700"' : ''}><td>${esc(x.ad)}${x.ref ? `<div class="ca-soluk">${esc(x.ref)}</div>` : ''}</td><td style="text-align:right;white-space:nowrap">${x.vurgu ? '<span class="ca-hedef" style="font-size:18px">' : ''}${H.TL(x.tutar)}${x.vurgu ? '</span>' : ''}</td></tr>`).join('')}</table>
+      const satirHtml = (r.metinSatirlar && r.metinSatirlar.length)
+        ? r.metinSatirlar.map(x => `<tr${x.vurgu ? ' style="font-weight:700"' : ''}><td>${esc(x.ad)}${x.ref ? `<div class="ca-soluk">${esc(x.ref)}</div>` : ''}</td><td style="text-align:right;white-space:nowrap">${x.vurgu ? '<span class="ca-hedef" style="font-size:16px">' : ''}${esc(x.deger)}${x.vurgu ? '</span>' : ''}</td></tr>`).join('')
+        : r.satirlar.map(x => `<tr${x.vurgu ? ' style="font-weight:700"' : ''}><td>${esc(x.ad)}${x.ref ? `<div class="ca-soluk">${esc(x.ref)}</div>` : ''}</td><td style="text-align:right;white-space:nowrap">${x.vurgu ? '<span class="ca-hedef" style="font-size:18px">' : ''}${H.TL(x.tutar)}${x.vurgu ? '</span>' : ''}</td></tr>`).join('');
+      kutu.innerHTML = `<div class="ca-kart">${tablo}<table>${satirHtml}</table>
         ${r.not ? `<p class="ca-soluk">${esc(r.not)}</p>` : ''}<button class="ca-btn" type="button" id="ca-hesap-ekle">📝 Belgeye ekle</button></div>`;
       kutu.querySelector('#ca-hesap-ekle').onclick = () => {
-        const metin = r.satirlar.map(x => `${x.ad}: ${H.TL(x.tutar)}${x.ref ? ' (' + x.ref + ')' : ''}`).join('\n');
+        const metin = (r.metinSatirlar && r.metinSatirlar.length)
+          ? r.metinSatirlar.map(x => `${x.ad}: ${x.deger}${x.ref ? ' (' + x.ref + ')' : ''}`).join('\n')
+          : r.satirlar.map(x => `${x.ad}: ${H.TL(x.tutar)}${x.ref ? ' (' + x.ref + ')' : ''}`).join('\n');
         try { document.execCommand('insertText', false, metin); } catch (e) { navigator.clipboard && navigator.clipboard.writeText(metin); }
         kapat();
       };

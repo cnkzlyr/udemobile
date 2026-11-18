@@ -1199,7 +1199,7 @@ async function parseUdfArrayBuffer(buffer) {
           const wCm = wStr ? Math.round((parseFloat(wStr) / 28.3465) * 100) / 100 : 0;
           const hCm = hStr ? Math.round((parseFloat(hStr) / 28.3465) * 100) / 100 : 1.76;
           const dimStyle = `max-height:${hCm}cm;${wCm > 0 ? ` max-width:${wCm}cm;` : " max-width:82%;"} width:auto; object-fit:contain;`;
-          const qrPart = verificationCode ? `<div class="udf-footer-qr-container" data-verification-code="${escapeHtmlStr(verificationCode)}" style="width:68px; height:68px; flex:0 0 auto;"></div>` : "";
+          const qrPart = verificationCode ? `<div class="udf-footer-qr-container" data-verification-code="${escapeHtmlStr(verificationCode)}" style="width:68px; height:0; flex:0 0 auto; position:relative; align-self:flex-end;"></div>` : "";
           if (hasPageNum) {
             footerHtml += `<div class="udf-footer-layout udf-hv-footer" data-has-qr="${qrPart ? 1 : 0}" style="display:flex; align-items:flex-end; width:100%; gap:6px;"><div style="flex:1 1 auto; display:flex; justify-content:center; align-items:flex-end;"><img class="udf-footer-img" data-udf-width="${escapeHtmlStr(wStr)}" data-udf-height="${escapeHtmlStr(hStr)}" src="data:image/png;base64,${fImgData.trim()}" style="${dimStyle} max-height:none;" /></div><span class="udf-footer-page-label" style="align-self:flex-end; margin-bottom:2px;">${pageLabelText}</span>${qrPart}</div>`;
           } else {
@@ -1214,7 +1214,7 @@ async function parseUdfArrayBuffer(buffer) {
       }
     });
     if (!hasFooterImg && hasPageNum) {
-      const qrPart = verificationCode ? `<div class="udf-footer-qr-container" data-verification-code="${escapeHtmlStr(verificationCode)}" style="width:68px; height:68px; flex:0 0 auto;"></div>` : "";
+      const qrPart = verificationCode ? `<div class="udf-footer-qr-container" data-verification-code="${escapeHtmlStr(verificationCode)}" style="width:68px; height:0; flex:0 0 auto; position:relative; align-self:flex-end;"></div>` : "";
       const textPart = verificationCode ? `<div class="udf-official-footer-text" style="flex:1 1 auto; border-top:0.75pt solid #000; padding-top:2px; text-align:left; font-family:Arial, sans-serif; font-size:5pt; line-height:1.3; color:#000; white-space:nowrap; overflow:hidden;">UYAP Bilişim Sistemindeki bu dokümana http://vatandas.uyap.gov.tr adresinden <span style="font-size:9pt;">${escapeHtmlStr(verificationCode)}</span> ile erişebilirsiniz.</div>` : "";
       footerHtml += `<div class="udf-footer-layout udf-hv-footer" data-has-qr="${qrPart ? 1 : 0}" style="display:flex; flex-direction:column; align-items:stretch; justify-content:flex-end; width:100%;"><div class="udf-footer-page-label" style="text-align:right; line-height:1.2;">${pageLabelText}</div><div style="display:flex; align-items:flex-end; gap:6px;">${textPart || '<div style="flex:1"></div>'}${qrPart}</div></div>`;
     }

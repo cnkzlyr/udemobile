@@ -876,10 +876,14 @@ class UyapBrowserBridge:
             "--no-default-browser-check",
             "--disable-session-crashed-bubble",
         ]
+        is_headless_shell = "headless-shell" in os.path.basename(chrome_bin).lower()
         has_display = self._detect_display()
-        if self.is_headless or not has_display:
+        if self.is_headless or not has_display or is_headless_shell:
             self.is_headless = True
-            cmd += ["--headless=new", "--disable-gpu", "--window-size=1366,900"]
+            # chrome-headless-shell zaten yalnızca başsızdır; --headless=new parametresi bazı sürümlerde reddedilir
+            if not is_headless_shell:
+                cmd.append("--headless=new")
+            cmd += ["--disable-gpu", "--window-size=1366,900"]
         if IS_TERMUX or (sys.platform.startswith("linux") and hasattr(os, "geteuid") and os.geteuid() == 0):
             # Termux/Android'de Chromium sandbox'ı çalışmaz; /dev/shm yoktur.
             cmd += ["--no-sandbox", "--disable-dev-shm-usage"]
@@ -890,6 +894,8 @@ class UyapBrowserBridge:
         try:
             if sys.platform == "win32":
                 flags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0) | getattr(subprocess, "DETACHED_PROCESS", 0)
+                if self.is_headless:
+                    flags |= 0x08000000  # CREATE_NO_WINDOW: arka planda hiç pencere/konsol göstermeden aç
                 self.proc = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
                                              stderr=subprocess.DEVNULL, creationflags=flags, close_fds=True)
             else:
@@ -954,10 +960,19 @@ class UyapBrowserBridge:
             return None
         return [t for t in tabs if t.get("type") == "page"]
 
-    @staticmethod
-    def _ws_url(tab: dict) -> str:
-        ws = tab.get("webSocketDebuggerUrl") or ""
-        # 'localhost' bazı Windows makinelerde ::1'e çözülüp bağlantıyı reddeder
+    def _ws_url(self, tab: dict) -> str:
+        ws = (tab.get("webSocketDebuggerUrl") or "").strip()
+        if not ws:
+            return ""
+        # Android WebView DevTools soyut UNIX soketinden geldiği için host/port eksik olabilir
+        # (örn. ws://localhost/devtools/page/1 veya ws:///devtools/page/1); her zaman 127.0.0.1:<port> yap.
+        from urllib.parse import urlparse
+        u = urlparse(ws)
+        if u.scheme in ("ws", "wss") and (not u.hostname or u.hostname in ("localhost", "127.0.0.1", "::1") or u.port is None):
+            path = u.path or "/"
+            if u.query:
+                path += "?" + u.query
+            return f"{u.scheme}://127.0.0.1:{self.port}{path}"
         return ws.replace("ws://localhost:", "ws://127.0.0.1:")
 
     def _pick(self, pages: list, target: str) -> dict | None:
@@ -979,12 +994,15 @@ class UyapBrowserBridge:
         """UYAP sekmesi yoksa boş bir sekmeyi UYAP'a yönlendirir ya da yeni sekme açar."""
         blank = next((t for t in pages if (t.get("url") or "").startswith(self.BLANK_PREFIXES)
                       and t.get("webSocketDebuggerUrl")), None)
+        # Android WebView tek sayfa taşır (/json/new desteklemez): mevcut sayfayı UYAP'a yönlendir
+        if not blank and os.environ.get("CANASISTAN_ANDROID") == "1":
+            blank = next((t for t in pages if t.get("webSocketDebuggerUrl")), None)
         if blank:
             try:
                 self._ws_call(self._ws_url(blank), "Page.navigate", {"url": UYAP_BASE_URL}, timeout=10)
             except Exception:
                 blank = None
-        if not blank:
+        if not blank and os.environ.get("CANASISTAN_ANDROID") != "1":
             from urllib.parse import quote
             # Yeni Chrome sürümleri /json/new için PUT ister; eskileri GET
             if self._cdp_http(f"/json/new?{quote(UYAP_BASE_URL, safe=':/')}", method="PUT") is None:

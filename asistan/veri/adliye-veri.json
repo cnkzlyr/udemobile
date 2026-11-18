@@ -1,0 +1,2695 @@
+{
+  "olusturma": "2026-11-15",
+  "aciklama": "Adalet Bakanlığı adliye sitelerinden (il.adalet.gov.tr) alınan başlangıç verisi. IBAN'lar kontrol basamağıyla doğrulanmıştır.",
+  "binalar": {
+    "ank-merkez": {
+      "il": "Ankara",
+      "ilce": "Altındağ",
+      "adliye": "Ankara Adliyesi",
+      "bina": "Merkez Bina",
+      "adres": "Hacı Bayram Veli Mahallesi Atatürk Bulvarı No:40 Sıhhiye/Ankara",
+      "telefon": "0312 509 31 80",
+      "aciklama": "Cumhuriyet Başsavcılığı soruşturma birimleri, ceza mahkemeleri",
+      "web": "https://ankara.adalet.gov.tr",
+      "kaynak": "https://ankara.adalet.gov.tr/iletisim",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15"
+    },
+    "ank-ek1": {
+      "il": "Ankara",
+      "ilce": "Altındağ",
+      "adliye": "Ankara Adliyesi",
+      "bina": "1 Nolu Ek Hizmet Binası",
+      "adres": "Doğanbey, Şehit Ömer Halisdemir Bulvarı No:53, 06050 Altındağ/Ankara",
+      "telefon": "0312 540 45 00",
+      "aciklama": "Asliye hukuk ve sulh hukuk mahkemeleri",
+      "web": "https://ankara.adalet.gov.tr",
+      "kaynak": "https://ankara.adalet.gov.tr/iletisim",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15"
+    },
+    "ist-ana": {
+      "il": "İstanbul",
+      "ilce": "Şişli",
+      "adliye": "İstanbul Adliyesi (Çağlayan)",
+      "bina": "İstanbul Adalet Sarayı – Ana Bina",
+      "adres": "Çağlayan Meydanı Şişli Merkez Mah. Abide-i Hürriyet Cad. No:223 Şişli/İstanbul",
+      "telefon": "0212 375 75 75",
+      "web": "https://istanbul.adalet.gov.tr",
+      "kaynak": "https://istanbul.adalet.gov.tr/iletisim",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15"
+    },
+    "ist-ek": {
+      "il": "İstanbul",
+      "ilce": "Şişli",
+      "adliye": "İstanbul Adliyesi (Çağlayan)",
+      "bina": "İstanbul Adalet Sarayı – Ek Bina",
+      "adres": "Kuştepe Mah. İnönü Cad. No:1 Şişli/İstanbul",
+      "telefon": "0212 375 85 85",
+      "aciklama": "İcra mahkemeleri ve icra müdürlükleri",
+      "web": "https://istanbul.adalet.gov.tr",
+      "kaynak": "https://istanbul.adalet.gov.tr/iletisim",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15"
+    },
+    "ist-anadolu": {
+      "il": "İstanbul",
+      "ilce": "Kartal",
+      "adliye": "İstanbul Anadolu Adliyesi",
+      "bina": "İstanbul Anadolu Adalet Sarayı",
+      "adres": "",
+      "telefon": "0216 303 33 33",
+      "web": "https://istanbulanadolu.adalet.gov.tr",
+      "kaynak": "https://istanbulanadolu.adalet.gov.tr/istanbul-anadolu-adalet-sarayi-icra-mudurlukleri",
+      "notlar": "Adres resmî sayfada yer almıyor; lütfen ekleyin.",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15"
+    },
+    "bak-ana": {
+      "il": "İstanbul",
+      "ilce": "Bakırköy",
+      "adliye": "Bakırköy Adliyesi",
+      "bina": "Ana Bina",
+      "adres": "Osmaniye Mahallesi İsmail Erez Bulvarı No:14 P.K. 34144 Bakırköy/İstanbul",
+      "telefon": "",
+      "web": "https://bakirkoy.adalet.gov.tr",
+      "kaynak": "https://bakirkoy.adalet.gov.tr/iletisim",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15"
+    },
+    "bak-ek": {
+      "il": "İstanbul",
+      "ilce": "Bahçelievler",
+      "adliye": "Bakırköy Adliyesi",
+      "bina": "Bahçelievler Ek Binası (Yenibosna)",
+      "adres": "Fevzi Çakmak Mah. Ahmet Taner Kışlalı Cd. No:6 Bahçelievler/İstanbul",
+      "telefon": "",
+      "aciklama": "Tüketici, fikri sınai haklar hukuk, asliye hukuk, sulh hukuk, aile ve iş mahkemeleri",
+      "web": "https://bakirkoy.adalet.gov.tr",
+      "kaynak": "https://bakirkoy.adalet.gov.tr/iletisim",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15"
+    },
+    "kucuk": {
+      "il": "İstanbul",
+      "ilce": "Küçükçekmece",
+      "adliye": "Küçükçekmece Adliyesi",
+      "bina": "Ana Bina",
+      "adres": "Kartaltepe, Malazgirt Cd. No:2-4, 34295 Küçükçekmece/İstanbul",
+      "telefon": "0212 411 51 00",
+      "web": "https://kucukcekmece.adalet.gov.tr",
+      "kaynak": "https://kucukcekmece.adalet.gov.tr/iletisim",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15"
+    },
+    "gop": {
+      "il": "İstanbul",
+      "ilce": "Eyüpsultan",
+      "adliye": "Gaziosmanpaşa Adliyesi",
+      "bina": "Ana Bina",
+      "adres": "5. Levent Mahallesi, Mareşal Fevzi Çakmak Caddesi B Blok No:29/1 Eyüpsultan/İstanbul",
+      "telefon": "0212 370 17 00",
+      "faks": "0212 370 17 55",
+      "eposta": "gaziosmanpasacbs@adalet.gov.tr",
+      "web": "https://gaziosmanpasa.adalet.gov.tr",
+      "kaynak": "https://gaziosmanpasa.adalet.gov.tr/iletisim",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15"
+    },
+    "izmir": {
+      "il": "İzmir",
+      "ilce": "Bayraklı",
+      "adliye": "İzmir Adliyesi",
+      "bina": "İzmir Adliyesi",
+      "adres": "",
+      "telefon": "0232 411 20 00",
+      "web": "https://izmir.adalet.gov.tr",
+      "kaynak": "https://izmir.adalet.gov.tr/icra-mudurlukleri-iban-numaralari",
+      "notlar": "Adres resmî sayfadan alınamadı; lütfen ekleyin.",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15"
+    },
+    "konya": {
+      "il": "Konya",
+      "ilce": "Karatay",
+      "adliye": "Konya Adliyesi",
+      "bina": "Ana Bina",
+      "adres": "Akabe Mah. Cemil Çiçek Cad. No:63 Karatay/Konya",
+      "telefon": "0332 221 31 00",
+      "faks": "0332 221 32 45",
+      "eposta": "konyacbs@adalet.gov.tr",
+      "web": "https://konya.adalet.gov.tr",
+      "kaynak": "https://konya.adalet.gov.tr/iletisim",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15"
+    },
+    "bursa": {
+      "il": "Bursa",
+      "ilce": "Osmangazi",
+      "adliye": "Bursa Adliyesi",
+      "bina": "Adalet Sarayı Binası (Uluyol)",
+      "adres": "Hacıilyas Mahallesi Kıbrıs Şehitleri Caddesi No:21 PK 16220 Osmangazi/Bursa",
+      "telefon": "0224 272 50 04",
+      "faks": "0224 271 60 65",
+      "eposta": "bursacbs@adalet.gov.tr",
+      "web": "https://bursa.adalet.gov.tr",
+      "kaynak": "https://bursa.adalet.gov.tr/iletisim",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15"
+    },
+    "antalya": {
+      "il": "Antalya",
+      "ilce": "Muratpaşa",
+      "adliye": "Antalya Adliyesi",
+      "bina": "Ana Bina",
+      "adres": "Meltem Mah. Dumlupınar Blv. 07030 Muratpaşa/Antalya",
+      "telefon": "0242 246 30 00",
+      "faks": "0242 237 78 18",
+      "web": "https://antalya.adalet.gov.tr",
+      "kaynak": "https://antalya.adalet.gov.tr/iletisim",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15"
+    },
+    "antalya-ek": {
+      "il": "Antalya",
+      "ilce": "Muratpaşa",
+      "adliye": "Antalya Adliyesi",
+      "bina": "Ek Hizmet Binası",
+      "adres": "Meltem Mah. Dumlupınar Blv. 07030 Muratpaşa/Antalya",
+      "telefon": "0242 245 34 00",
+      "aciklama": "İcra daireleri",
+      "web": "https://antalya.adalet.gov.tr",
+      "kaynak": "https://antalya.adalet.gov.tr/iletisim",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15"
+    },
+    "adana": {
+      "il": "Adana",
+      "ilce": "Yüreğir",
+      "adliye": "Adana Adliyesi",
+      "bina": "Ana Bina",
+      "adres": "Kazım Karabekir Mahallesi Mustafa Kemal Paşa Bulvarı No:29 Yüreğir/Adana",
+      "telefon": "0322 355 05 00",
+      "faks": "0322 355 05 25",
+      "eposta": "adanacbs@adalet.gov.tr",
+      "web": "https://adana.adalet.gov.tr",
+      "kaynak": "https://adana.adalet.gov.tr/iletisim",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15"
+    }
+  },
+  "birimler": [
+    {
+      "bina": "ank-merkez",
+      "ad": "Ankara 1. Genel İcra Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR140001500158007290493112",
+          "banka": "Vakıfbank"
+        },
+        {
+          "tur": "Harç ve vergiler",
+          "iban": "TR080001500158007296864180",
+          "banka": "Vakıfbank"
+        },
+        {
+          "tur": "Cezaevi yapı pulu",
+          "iban": "TR020001500158007300566099",
+          "banka": "Vakıfbank"
+        },
+        {
+          "tur": "Online takip harç",
+          "iban": "TR580001500158007298776120",
+          "banka": "Vakıfbank"
+        }
+      ],
+      "notlar": "Vakıfbank şube kodu: 325",
+      "kaynak": "https://ankara.adalet.gov.tr/icra-daireleri-iban-numaralari"
+    },
+    {
+      "bina": "ank-merkez",
+      "ad": "Ankara 2. Genel İcra Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR250001500158007290493108",
+          "banka": "Vakıfbank"
+        },
+        {
+          "tur": "Harç ve vergiler",
+          "iban": "TR150001500158007296864054",
+          "banka": "Vakıfbank"
+        },
+        {
+          "tur": "Cezaevi yapı pulu",
+          "iban": "TR100001500158007300565567",
+          "banka": "Vakıfbank"
+        },
+        {
+          "tur": "Online takip harç",
+          "iban": "TR280001500158007298777436",
+          "banka": "Vakıfbank"
+        }
+      ],
+      "notlar": "Vakıfbank şube kodu: 325",
+      "kaynak": "https://ankara.adalet.gov.tr/icra-daireleri-iban-numaralari"
+    },
+    {
+      "bina": "ank-merkez",
+      "ad": "Ankara 3. Genel İcra Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR900001500158007290493102",
+          "banka": "Vakıfbank"
+        },
+        {
+          "tur": "Harç ve vergiler",
+          "iban": "TR830001500158007296863994",
+          "banka": "Vakıfbank"
+        },
+        {
+          "tur": "Cezaevi yapı pulu",
+          "iban": "TR740001500158007300565191",
+          "banka": "Vakıfbank"
+        },
+        {
+          "tur": "Online takip harç",
+          "iban": "TR110001500158007298776093",
+          "banka": "Vakıfbank"
+        }
+      ],
+      "notlar": "Vakıfbank şube kodu: 325",
+      "kaynak": "https://ankara.adalet.gov.tr/icra-daireleri-iban-numaralari"
+    },
+    {
+      "bina": "ank-merkez",
+      "ad": "Ankara 4. Genel İcra Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR850001500158007290493095",
+          "banka": "Vakıfbank"
+        },
+        {
+          "tur": "Harç ve vergiler",
+          "iban": "TR160001500158007296864036",
+          "banka": "Vakıfbank"
+        },
+        {
+          "tur": "Cezaevi yapı pulu",
+          "iban": "TR180001500158007300563483",
+          "banka": "Vakıfbank"
+        },
+        {
+          "tur": "Online takip harç",
+          "iban": "TR500001500158007298776070",
+          "banka": "Vakıfbank"
+        }
+      ],
+      "notlar": "Vakıfbank şube kodu: 325",
+      "kaynak": "https://ankara.adalet.gov.tr/icra-daireleri-iban-numaralari"
+    },
+    {
+      "bina": "ank-merkez",
+      "ad": "Ankara 5. Genel İcra Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR100001500158007290493087",
+          "banka": "Vakıfbank"
+        },
+        {
+          "tur": "Harç ve vergiler",
+          "iban": "TR730001500158007296864271",
+          "banka": "Vakıfbank"
+        },
+        {
+          "tur": "Cezaevi yapı pulu",
+          "iban": "TR290001500158007300563188",
+          "banka": "Vakıfbank"
+        },
+        {
+          "tur": "Online takip harç",
+          "iban": "TR340001500158007298775970",
+          "banka": "Vakıfbank"
+        }
+      ],
+      "notlar": "Vakıfbank şube kodu: 325",
+      "kaynak": "https://ankara.adalet.gov.tr/icra-daireleri-iban-numaralari"
+    },
+    {
+      "bina": "ank-merkez",
+      "ad": "Ankara 6. Genel İcra Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR430001500158007290493075",
+          "banka": "Vakıfbank"
+        },
+        {
+          "tur": "Harç ve vergiler",
+          "iban": "TR880001500158007296864195",
+          "banka": "Vakıfbank"
+        },
+        {
+          "tur": "Cezaevi yapı pulu",
+          "iban": "TR080001500158007300563178",
+          "banka": "Vakıfbank"
+        },
+        {
+          "tur": "Online takip harç",
+          "iban": "TR790001500158007298775839",
+          "banka": "Vakıfbank"
+        }
+      ],
+      "notlar": "Vakıfbank şube kodu: 325",
+      "kaynak": "https://ankara.adalet.gov.tr/icra-daireleri-iban-numaralari"
+    },
+    {
+      "bina": "ank-merkez",
+      "ad": "Ankara 7. Genel İcra Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR440001500158007290493057",
+          "banka": "Vakıfbank"
+        },
+        {
+          "tur": "Harç ve vergiler",
+          "iban": "TR420001500158007298776990",
+          "banka": "Vakıfbank"
+        },
+        {
+          "tur": "Cezaevi yapı pulu",
+          "iban": "TR560001500158007300563090",
+          "banka": "Vakıfbank"
+        },
+        {
+          "tur": "Online takip harç",
+          "iban": "TR420001500158007298776990",
+          "banka": "Vakıfbank"
+        }
+      ],
+      "notlar": "Vakıfbank şube kodu: 325",
+      "kaynak": "https://ankara.adalet.gov.tr/icra-daireleri-iban-numaralari"
+    },
+    {
+      "bina": "ank-merkez",
+      "ad": "Ankara 8. Genel İcra Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR350001500158007290493025",
+          "banka": "Vakıfbank"
+        },
+        {
+          "tur": "Harç ve vergiler",
+          "iban": "TR230001500158007296864007",
+          "banka": "Vakıfbank"
+        },
+        {
+          "tur": "Cezaevi yapı pulu",
+          "iban": "TR960001500158007300563049",
+          "banka": "Vakıfbank"
+        },
+        {
+          "tur": "Online takip harç",
+          "iban": "TR380001500158007298777256",
+          "banka": "Vakıfbank"
+        }
+      ],
+      "notlar": "Vakıfbank şube kodu: 325",
+      "kaynak": "https://ankara.adalet.gov.tr/icra-daireleri-iban-numaralari"
+    },
+    {
+      "bina": "ank-merkez",
+      "ad": "Ankara Abonelik Sözleşmeleri İcra Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR150001500158007306482865",
+          "banka": "Vakıfbank"
+        },
+        {
+          "tur": "Harç ve vergiler",
+          "iban": "TR060001500158007306482930",
+          "banka": "Vakıfbank"
+        },
+        {
+          "tur": "Cezaevi yapı pulu",
+          "iban": "TR360001500158007306482972",
+          "banka": "Vakıfbank"
+        }
+      ],
+      "notlar": "Vakıfbank şube kodu: 325",
+      "kaynak": "https://ankara.adalet.gov.tr/icra-daireleri-iban-numaralari"
+    },
+    {
+      "bina": "ank-merkez",
+      "ad": "Ankara İflas Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR630001500158007290493103",
+          "banka": "Vakıfbank"
+        },
+        {
+          "tur": "Harç ve vergiler",
+          "iban": "TR790001500158007296864066",
+          "banka": "Vakıfbank"
+        },
+        {
+          "tur": "Cezaevi yapı pulu",
+          "iban": "TR240001500158007300565218",
+          "banka": "Vakıfbank"
+        },
+        {
+          "tur": "Online takip harç",
+          "iban": "TR580001500158007298777963",
+          "banka": "Vakıfbank"
+        }
+      ],
+      "notlar": "Vakıfbank şube kodu: 325",
+      "kaynak": "https://ankara.adalet.gov.tr/icra-daireleri-iban-numaralari"
+    },
+    {
+      "bina": "ank-merkez",
+      "ad": "Ankara Gayrimenkul Satış İcra Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR810001500158007309615068",
+          "banka": "Vakıfbank"
+        },
+        {
+          "tur": "Harç ve vergiler",
+          "iban": "TR790001500158007309615104",
+          "banka": "Vakıfbank"
+        },
+        {
+          "tur": "Cezaevi yapı pulu",
+          "iban": "TR030001500158007309615114",
+          "banka": "Vakıfbank"
+        }
+      ],
+      "notlar": "Vakıfbank şube kodu: 325",
+      "kaynak": "https://ankara.adalet.gov.tr/icra-daireleri-iban-numaralari"
+    },
+    {
+      "bina": "ank-merkez",
+      "ad": "Ankara Banka Alacakları İcra Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR250001500158007319377768",
+          "banka": "Vakıfbank"
+        },
+        {
+          "tur": "Harç ve vergiler",
+          "iban": "TR950001500158007319378545",
+          "banka": "Vakıfbank"
+        },
+        {
+          "tur": "Cezaevi yapı pulu",
+          "iban": "TR520001500158007319378640",
+          "banka": "Vakıfbank"
+        }
+      ],
+      "notlar": "Vakıfbank şube kodu: 325",
+      "kaynak": "https://ankara.adalet.gov.tr/icra-daireleri-iban-numaralari"
+    },
+    {
+      "bina": "izmir",
+      "ad": "İzmir 1. İcra Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR210001500158007290492986",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        },
+        {
+          "tur": "Harç ve vergiler",
+          "iban": "TR560001500158007299328183",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        },
+        {
+          "tur": "Cezaevi yapı pulu",
+          "iban": "TR800001500158007300569933",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        }
+      ],
+      "kaynak": "https://izmir.adalet.gov.tr/icra-mudurlukleri-iban-numaralari"
+    },
+    {
+      "bina": "izmir",
+      "ad": "İzmir 2. İcra Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR260001500158007290492993",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        },
+        {
+          "tur": "Harç ve vergiler",
+          "iban": "TR580001500158007299328341",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        },
+        {
+          "tur": "Cezaevi yapı pulu",
+          "iban": "TR030001500158007300569961",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        }
+      ],
+      "kaynak": "https://izmir.adalet.gov.tr/icra-mudurlukleri-iban-numaralari"
+    },
+    {
+      "bina": "izmir",
+      "ad": "İzmir 3. İcra Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR790001500158007290493009",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        },
+        {
+          "tur": "Harç ve vergiler",
+          "iban": "TR220001500158007292739003",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        },
+        {
+          "tur": "Cezaevi yapı pulu",
+          "iban": "TR330001500158007296064450",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        }
+      ],
+      "kaynak": "https://izmir.adalet.gov.tr/icra-mudurlukleri-iban-numaralari"
+    },
+    {
+      "bina": "izmir",
+      "ad": "İzmir 4. İcra Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR890001500158007290493023",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        },
+        {
+          "tur": "Harç ve vergiler",
+          "iban": "TR450001500158007299328478",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        },
+        {
+          "tur": "Cezaevi yapı pulu",
+          "iban": "TR210001500158007300570025",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        }
+      ],
+      "kaynak": "https://izmir.adalet.gov.tr/icra-mudurlukleri-iban-numaralari"
+    },
+    {
+      "bina": "izmir",
+      "ad": "İzmir 5. İcra Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR610001500158007290493042",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        },
+        {
+          "tur": "Harç ve vergiler",
+          "iban": "TR100001500158007299328526",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        },
+        {
+          "tur": "Cezaevi yapı pulu",
+          "iban": "TR940001500158007300570069",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        }
+      ],
+      "kaynak": "https://izmir.adalet.gov.tr/icra-mudurlukleri-iban-numaralari"
+    },
+    {
+      "bina": "izmir",
+      "ad": "İzmir 6. İcra Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR490001500158007290492288",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        },
+        {
+          "tur": "Harç ve vergiler",
+          "iban": "TR720001500158007299328574",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        },
+        {
+          "tur": "Cezaevi yapı pulu",
+          "iban": "TR400001500158007300570071",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        }
+      ],
+      "kaynak": "https://izmir.adalet.gov.tr/icra-mudurlukleri-iban-numaralari"
+    },
+    {
+      "bina": "izmir",
+      "ad": "İzmir 7. İcra Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR740001500158007290493196",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        },
+        {
+          "tur": "Harç ve vergiler",
+          "iban": "TR420001500158007299328629",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        },
+        {
+          "tur": "Cezaevi yapı pulu",
+          "iban": "TR830001500158007300570073",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        }
+      ],
+      "kaynak": "https://izmir.adalet.gov.tr/icra-mudurlukleri-iban-numaralari"
+    },
+    {
+      "bina": "izmir",
+      "ad": "İzmir 8. İcra Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR080001500158007290493414",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        },
+        {
+          "tur": "Harç ve vergiler",
+          "iban": "TR900001500158007299328929",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        },
+        {
+          "tur": "Cezaevi yapı pulu",
+          "iban": "TR920001500158007296064455",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        }
+      ],
+      "kaynak": "https://izmir.adalet.gov.tr/icra-mudurlukleri-iban-numaralari"
+    },
+    {
+      "bina": "izmir",
+      "ad": "İzmir 9. İcra Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR560001500158007290493423",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        },
+        {
+          "tur": "Harç ve vergiler",
+          "iban": "TR650001500158007299328991",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        },
+        {
+          "tur": "Cezaevi yapı pulu",
+          "iban": "TR070001500158007300570083",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        }
+      ],
+      "kaynak": "https://izmir.adalet.gov.tr/icra-mudurlukleri-iban-numaralari"
+    },
+    {
+      "bina": "izmir",
+      "ad": "İzmir 10. İcra Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR080001500158007290492250",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        },
+        {
+          "tur": "Harç ve vergiler",
+          "iban": "TR890001500158007299329044",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        },
+        {
+          "tur": "Cezaevi yapı pulu",
+          "iban": "TR380001500158007296064457",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        }
+      ],
+      "kaynak": "https://izmir.adalet.gov.tr/icra-mudurlukleri-iban-numaralari"
+    },
+    {
+      "bina": "izmir",
+      "ad": "İzmir 11. İcra Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR230001500158007290493435",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        },
+        {
+          "tur": "Harç ve vergiler",
+          "iban": "TR280001500158007299329075",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        },
+        {
+          "tur": "Cezaevi yapı pulu",
+          "iban": "TR110001500158007296064458",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        }
+      ],
+      "kaynak": "https://izmir.adalet.gov.tr/icra-mudurlukleri-iban-numaralari"
+    },
+    {
+      "bina": "izmir",
+      "ad": "İzmir 12. İcra Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR120001500158007290493439",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        },
+        {
+          "tur": "Harç ve vergiler",
+          "iban": "TR420001500158007299329211",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        },
+        {
+          "tur": "Cezaevi yapı pulu",
+          "iban": "TR810001500158007296064459",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        }
+      ],
+      "kaynak": "https://izmir.adalet.gov.tr/icra-mudurlukleri-iban-numaralari"
+    },
+    {
+      "bina": "izmir",
+      "ad": "İzmir 13. İcra Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR490001500158007290493452",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        },
+        {
+          "tur": "Harç ve vergiler",
+          "iban": "TR230001500158007299329262",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        },
+        {
+          "tur": "Cezaevi yapı pulu",
+          "iban": "TR540001500158007296064460",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        }
+      ],
+      "kaynak": "https://izmir.adalet.gov.tr/icra-mudurlukleri-iban-numaralari"
+    },
+    {
+      "bina": "izmir",
+      "ad": "İzmir 14. İcra Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR040001500158007290493486",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        },
+        {
+          "tur": "Harç ve vergiler",
+          "iban": "TR860001500158007299329292",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        },
+        {
+          "tur": "Cezaevi yapı pulu",
+          "iban": "TR270001500158007296064461",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        }
+      ],
+      "kaynak": "https://izmir.adalet.gov.tr/icra-mudurlukleri-iban-numaralari"
+    },
+    {
+      "bina": "izmir",
+      "ad": "İzmir 15. İcra Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR950001500158007290493497",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        },
+        {
+          "tur": "Harç ve vergiler",
+          "iban": "TR830001500158007299329346",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        },
+        {
+          "tur": "Cezaevi yapı pulu",
+          "iban": "TR970001500158007296064462",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        }
+      ],
+      "kaynak": "https://izmir.adalet.gov.tr/icra-mudurlukleri-iban-numaralari"
+    },
+    {
+      "bina": "izmir",
+      "ad": "İzmir 16. İcra Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR460001500158007290493506",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        },
+        {
+          "tur": "Harç ve vergiler",
+          "iban": "TR580001500158007299329408",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        },
+        {
+          "tur": "Cezaevi yapı pulu",
+          "iban": "TR700001500158007296064463",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        }
+      ],
+      "kaynak": "https://izmir.adalet.gov.tr/icra-mudurlukleri-iban-numaralari"
+    },
+    {
+      "bina": "izmir",
+      "ad": "İzmir 17. İcra Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR670001500158007290493516",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        },
+        {
+          "tur": "Harç ve vergiler",
+          "iban": "TR680001500158007299329616",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        },
+        {
+          "tur": "Cezaevi yapı pulu",
+          "iban": "TR430001500158007296064464",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        }
+      ],
+      "kaynak": "https://izmir.adalet.gov.tr/icra-mudurlukleri-iban-numaralari"
+    },
+    {
+      "bina": "izmir",
+      "ad": "İzmir 18. İcra Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR830001500158007290497690",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        },
+        {
+          "tur": "Harç ve vergiler",
+          "iban": "TR730001500158007299329914",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        },
+        {
+          "tur": "Cezaevi yapı pulu",
+          "iban": "TR160001500158007296064465",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        }
+      ],
+      "kaynak": "https://izmir.adalet.gov.tr/icra-mudurlukleri-iban-numaralari"
+    },
+    {
+      "bina": "izmir",
+      "ad": "İzmir 19. İcra Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR580001500158007290493581",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        },
+        {
+          "tur": "Harç ve vergiler",
+          "iban": "TR860001500158007299330068",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        },
+        {
+          "tur": "Cezaevi yapı pulu",
+          "iban": "TR860001500158007296064466",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        }
+      ],
+      "kaynak": "https://izmir.adalet.gov.tr/icra-mudurlukleri-iban-numaralari"
+    },
+    {
+      "bina": "izmir",
+      "ad": "İzmir 20. İcra Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR730001500158007290493602",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        },
+        {
+          "tur": "Harç ve vergiler",
+          "iban": "TR090001500158007299330387",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        },
+        {
+          "tur": "Cezaevi yapı pulu",
+          "iban": "TR280001500158007300570093",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        }
+      ],
+      "kaynak": "https://izmir.adalet.gov.tr/icra-mudurlukleri-iban-numaralari"
+    },
+    {
+      "bina": "izmir",
+      "ad": "İzmir 21. İcra Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR230001500158007290493629",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        },
+        {
+          "tur": "Harç ve vergiler",
+          "iban": "TR790001500158007299330485",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        },
+        {
+          "tur": "Cezaevi yapı pulu",
+          "iban": "TR550001500158007300570092",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        }
+      ],
+      "kaynak": "https://izmir.adalet.gov.tr/icra-mudurlukleri-iban-numaralari"
+    },
+    {
+      "bina": "izmir",
+      "ad": "İzmir 22. İcra Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR600001500158007290493642",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        },
+        {
+          "tur": "Harç ve vergiler",
+          "iban": "TR090001500158007299330678",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        },
+        {
+          "tur": "Cezaevi yapı pulu",
+          "iban": "TR390001500158007300570089",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        }
+      ],
+      "kaynak": "https://izmir.adalet.gov.tr/icra-mudurlukleri-iban-numaralari"
+    },
+    {
+      "bina": "izmir",
+      "ad": "İzmir 23. İcra Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR920001500158007290493648",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        },
+        {
+          "tur": "Harç ve vergiler",
+          "iban": "TR070001500158007299330714",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        },
+        {
+          "tur": "Cezaevi yapı pulu",
+          "iban": "TR660001500158007300570088",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        }
+      ],
+      "kaynak": "https://izmir.adalet.gov.tr/icra-mudurlukleri-iban-numaralari"
+    },
+    {
+      "bina": "izmir",
+      "ad": "İzmir 24. İcra Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR620001500158007296395765",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        },
+        {
+          "tur": "Harç ve vergiler",
+          "iban": "TR250001500158007299330778",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        },
+        {
+          "tur": "Cezaevi yapı pulu",
+          "iban": "TR230001500158007300570086",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        }
+      ],
+      "kaynak": "https://izmir.adalet.gov.tr/icra-mudurlukleri-iban-numaralari"
+    },
+    {
+      "bina": "izmir",
+      "ad": "İzmir 25. İcra Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR810001500158007296395811",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        },
+        {
+          "tur": "Harç ve vergiler",
+          "iban": "TR750001500158007299330848",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        },
+        {
+          "tur": "Cezaevi yapı pulu",
+          "iban": "TR500001500158007300570085",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        }
+      ],
+      "kaynak": "https://izmir.adalet.gov.tr/icra-mudurlukleri-iban-numaralari"
+    },
+    {
+      "bina": "izmir",
+      "ad": "İzmir 26. İcra Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR430001500158007297855181",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        },
+        {
+          "tur": "Harç ve vergiler",
+          "iban": "TR770001500158007299331006",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        },
+        {
+          "tur": "Cezaevi yapı pulu",
+          "iban": "TR340001500158007300570082",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        }
+      ],
+      "kaynak": "https://izmir.adalet.gov.tr/icra-mudurlukleri-iban-numaralari"
+    },
+    {
+      "bina": "izmir",
+      "ad": "İzmir 27. İcra Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR940001500158007299062204",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        },
+        {
+          "tur": "Harç ve vergiler",
+          "iban": "TR210001500158007299331044",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        },
+        {
+          "tur": "Cezaevi yapı pulu",
+          "iban": "TR880001500158007300570080",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        }
+      ],
+      "kaynak": "https://izmir.adalet.gov.tr/icra-mudurlukleri-iban-numaralari"
+    },
+    {
+      "bina": "izmir",
+      "ad": "İzmir 28. İcra Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR600001500158007299062234",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        },
+        {
+          "tur": "Harç ve vergiler",
+          "iban": "TR190001500158007299331080",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        },
+        {
+          "tur": "Cezaevi yapı pulu",
+          "iban": "TR290001500158007300570075",
+          "banka": "Vakıfbank İzmir Adliye Şubesi"
+        }
+      ],
+      "kaynak": "https://izmir.adalet.gov.tr/icra-mudurlukleri-iban-numaralari"
+    },
+    {
+      "bina": "izmir",
+      "ad": "İzmir Gayrimenkul Satış İcra Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR120001500158007318781646",
+          "banka": "Vakıfbank İzmir Bölge Adliye Mahkemesi Şubesi"
+        },
+        {
+          "tur": "Harç ve vergiler",
+          "iban": "TR890001500158007318781715",
+          "banka": "Vakıfbank İzmir Bölge Adliye Mahkemesi Şubesi"
+        },
+        {
+          "tur": "Cezaevi yapı pulu",
+          "iban": "TR930001500158007318783195",
+          "banka": "Vakıfbank İzmir Bölge Adliye Mahkemesi Şubesi"
+        }
+      ],
+      "kaynak": "https://izmir.adalet.gov.tr/icra-mudurlukleri-iban-numaralari"
+    },
+    {
+      "bina": "izmir",
+      "ad": "İzmir Banka Alacakları İcra Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR670001500158007318789289",
+          "banka": "Vakıfbank İzmir Bölge Adliye Mahkemesi Şubesi"
+        },
+        {
+          "tur": "Harç ve vergiler",
+          "iban": "TR900001500158007318791203",
+          "banka": "Vakıfbank İzmir Bölge Adliye Mahkemesi Şubesi"
+        },
+        {
+          "tur": "Cezaevi yapı pulu",
+          "iban": "TR450001500158007318792304",
+          "banka": "Vakıfbank İzmir Bölge Adliye Mahkemesi Şubesi"
+        }
+      ],
+      "kaynak": "https://izmir.adalet.gov.tr/icra-mudurlukleri-iban-numaralari"
+    },
+    {
+      "bina": "izmir",
+      "ad": "İzmir Abonelik Alacakları İcra Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR540001500158007318788359",
+          "banka": "Vakıfbank İzmir Bölge Adliye Mahkemesi Şubesi"
+        },
+        {
+          "tur": "Harç ve vergiler",
+          "iban": "TR670001500158007318790356",
+          "banka": "Vakıfbank İzmir Bölge Adliye Mahkemesi Şubesi"
+        },
+        {
+          "tur": "Cezaevi yapı pulu",
+          "iban": "TR770001500158007318792019",
+          "banka": "Vakıfbank İzmir Bölge Adliye Mahkemesi Şubesi"
+        }
+      ],
+      "kaynak": "https://izmir.adalet.gov.tr/icra-mudurlukleri-iban-numaralari"
+    },
+    {
+      "bina": "ist-anadolu",
+      "ad": "İstanbul Anadolu 1. İcra Müdürlüğü",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR160001500158007290497053",
+          "banka": "Vakıfbank"
+        },
+        {
+          "tur": "Harç ve vergiler",
+          "iban": "TR290001500158007299378624",
+          "banka": "Vakıfbank"
+        }
+      ],
+      "notlar": "Eski unvanı: Kadıköy 1. İcra",
+      "kaynak": "https://istanbulanadolu.adalet.gov.tr/istanbul-anadolu-adalet-sarayi-icra-mudurlukleri"
+    },
+    {
+      "bina": "ist-anadolu",
+      "ad": "İstanbul Anadolu 2. İcra Müdürlüğü",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR590001500158007290497055",
+          "banka": "Vakıfbank"
+        },
+        {
+          "tur": "Harç ve vergiler",
+          "iban": "TR790001500158007299385193",
+          "banka": "Vakıfbank"
+        }
+      ],
+      "notlar": "Eski unvanı: Kadıköy 2. İcra",
+      "kaynak": "https://istanbulanadolu.adalet.gov.tr/istanbul-anadolu-adalet-sarayi-icra-mudurlukleri"
+    },
+    {
+      "bina": "ist-anadolu",
+      "ad": "İstanbul Anadolu 3. İcra Müdürlüğü",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR170001500158007290497035",
+          "banka": "Vakıfbank"
+        },
+        {
+          "tur": "Harç ve vergiler",
+          "iban": "TR980001500158007299395618",
+          "banka": "Vakıfbank"
+        }
+      ],
+      "notlar": "Eski unvanı: Kadıköy 3. İcra",
+      "kaynak": "https://istanbulanadolu.adalet.gov.tr/istanbul-anadolu-adalet-sarayi-icra-mudurlukleri"
+    },
+    {
+      "bina": "ist-anadolu",
+      "ad": "İstanbul Anadolu 4. İcra Müdürlüğü",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR580001500158007290497073",
+          "banka": "Vakıfbank"
+        },
+        {
+          "tur": "Harç ve vergiler",
+          "iban": "TR500001500158007299438483",
+          "banka": "Vakıfbank"
+        }
+      ],
+      "notlar": "Eski unvanı: Kadıköy 4. İcra",
+      "kaynak": "https://istanbulanadolu.adalet.gov.tr/istanbul-anadolu-adalet-sarayi-icra-mudurlukleri"
+    },
+    {
+      "bina": "ist-anadolu",
+      "ad": "İstanbul Anadolu 5. İcra Müdürlüğü",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR050001500158007290497057",
+          "banka": "Vakıfbank"
+        },
+        {
+          "tur": "Harç ve vergiler",
+          "iban": "TR300001500158007299374532",
+          "banka": "Vakıfbank"
+        }
+      ],
+      "notlar": "Eski unvanı: Kadıköy 5. İcra",
+      "kaynak": "https://istanbulanadolu.adalet.gov.tr/istanbul-anadolu-adalet-sarayi-icra-mudurlukleri"
+    },
+    {
+      "bina": "ist-anadolu",
+      "ad": "İstanbul Anadolu 6. İcra Müdürlüğü",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR440001500158007290497131",
+          "banka": "Vakıfbank"
+        },
+        {
+          "tur": "Harç ve vergiler",
+          "iban": "TR840001500158007299375985",
+          "banka": "Vakıfbank"
+        }
+      ],
+      "notlar": "Eski unvanı: Kadıköy 6. İcra",
+      "kaynak": "https://istanbulanadolu.adalet.gov.tr/istanbul-anadolu-adalet-sarayi-icra-mudurlukleri"
+    },
+    {
+      "bina": "ist-anadolu",
+      "ad": "İstanbul Anadolu 7. İcra Müdürlüğü",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR620001500158007290497098",
+          "banka": "Vakıfbank"
+        },
+        {
+          "tur": "Harç ve vergiler",
+          "iban": "TR510001500158007299374833",
+          "banka": "Vakıfbank"
+        }
+      ],
+      "notlar": "Eski unvanı: Kadıköy 7. İcra",
+      "kaynak": "https://istanbulanadolu.adalet.gov.tr/istanbul-anadolu-adalet-sarayi-icra-mudurlukleri"
+    },
+    {
+      "bina": "ist-anadolu",
+      "ad": "İstanbul Anadolu 8. İcra Müdürlüğü",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR250001500158007290497182",
+          "banka": "Vakıfbank"
+        },
+        {
+          "tur": "Harç ve vergiler",
+          "iban": "TR410001500158007299391406",
+          "banka": "Vakıfbank"
+        }
+      ],
+      "notlar": "Eski unvanı: Kadıköy 8. İcra",
+      "kaynak": "https://istanbulanadolu.adalet.gov.tr/istanbul-anadolu-adalet-sarayi-icra-mudurlukleri"
+    },
+    {
+      "bina": "ist-anadolu",
+      "ad": "İstanbul Anadolu 9. İcra Müdürlüğü",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR660001500158007290574820",
+          "banka": "Vakıfbank"
+        },
+        {
+          "tur": "Harç ve vergiler",
+          "iban": "TR170001500158007300569224",
+          "banka": "Vakıfbank"
+        }
+      ],
+      "notlar": "Eski unvanı: Pendik 1. İcra",
+      "kaynak": "https://istanbulanadolu.adalet.gov.tr/istanbul-anadolu-adalet-sarayi-icra-mudurlukleri"
+    },
+    {
+      "bina": "ist-anadolu",
+      "ad": "İstanbul Anadolu 10. İcra Müdürlüğü",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR910001500158007290574855",
+          "banka": "Vakıfbank"
+        },
+        {
+          "tur": "Harç ve vergiler",
+          "iban": "TR380001500158007300569137",
+          "banka": "Vakıfbank"
+        }
+      ],
+      "notlar": "Eski unvanı: Pendik 2. İcra",
+      "kaynak": "https://istanbulanadolu.adalet.gov.tr/istanbul-anadolu-adalet-sarayi-icra-mudurlukleri"
+    },
+    {
+      "bina": "ist-anadolu",
+      "ad": "İstanbul Anadolu 11. İcra Müdürlüğü",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR560001500158007290500213",
+          "banka": "Vakıfbank"
+        },
+        {
+          "tur": "Harç ve vergiler",
+          "iban": "TR080001500158007300569677",
+          "banka": "Vakıfbank"
+        }
+      ],
+      "notlar": "Eski unvanı: Tuzla 1. İcra",
+      "kaynak": "https://istanbulanadolu.adalet.gov.tr/istanbul-anadolu-adalet-sarayi-icra-mudurlukleri"
+    },
+    {
+      "bina": "ist-anadolu",
+      "ad": "İstanbul Anadolu 12. İcra Müdürlüğü",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR160001500158007290498120",
+          "banka": "Vakıfbank"
+        },
+        {
+          "tur": "Harç ve vergiler",
+          "iban": "TR460001500158007299352516",
+          "banka": "Vakıfbank"
+        }
+      ],
+      "notlar": "Eski unvanı: Üsküdar 1. İcra",
+      "kaynak": "https://istanbulanadolu.adalet.gov.tr/istanbul-anadolu-adalet-sarayi-icra-mudurlukleri"
+    },
+    {
+      "bina": "ist-anadolu",
+      "ad": "İstanbul Anadolu 13. İcra Müdürlüğü",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR780001500158007290498071",
+          "banka": "Vakıfbank"
+        },
+        {
+          "tur": "Harç ve vergiler",
+          "iban": "TR710001500158007299359826",
+          "banka": "Vakıfbank"
+        }
+      ],
+      "notlar": "Eski unvanı: Üsküdar 2. İcra",
+      "kaynak": "https://istanbulanadolu.adalet.gov.tr/istanbul-anadolu-adalet-sarayi-icra-mudurlukleri"
+    },
+    {
+      "bina": "ist-anadolu",
+      "ad": "İstanbul Anadolu 14. İcra Müdürlüğü",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR940001500158007290498171",
+          "banka": "Vakıfbank"
+        },
+        {
+          "tur": "Harç ve vergiler",
+          "iban": "TR430001500158007300573218",
+          "banka": "Vakıfbank"
+        }
+      ],
+      "notlar": "Eski unvanı: Üsküdar 3. İcra",
+      "kaynak": "https://istanbulanadolu.adalet.gov.tr/istanbul-anadolu-adalet-sarayi-icra-mudurlukleri"
+    },
+    {
+      "bina": "ist-anadolu",
+      "ad": "İstanbul Anadolu 15. İcra Müdürlüğü",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR930001500158007290498092",
+          "banka": "Vakıfbank"
+        },
+        {
+          "tur": "Harç ve vergiler",
+          "iban": "TR530001500158007299355882",
+          "banka": "Vakıfbank"
+        }
+      ],
+      "notlar": "Eski unvanı: Üsküdar 4. İcra",
+      "kaynak": "https://istanbulanadolu.adalet.gov.tr/istanbul-anadolu-adalet-sarayi-icra-mudurlukleri"
+    },
+    {
+      "bina": "ist-anadolu",
+      "ad": "İstanbul Anadolu 16. İcra Müdürlüğü",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR820001500158007297936929",
+          "banka": "Vakıfbank"
+        },
+        {
+          "tur": "Harç ve vergiler",
+          "iban": "TR050001500158007299296509",
+          "banka": "Vakıfbank"
+        }
+      ],
+      "notlar": "Eski unvanı: Üsküdar 5. İcra",
+      "kaynak": "https://istanbulanadolu.adalet.gov.tr/istanbul-anadolu-adalet-sarayi-icra-mudurlukleri"
+    },
+    {
+      "bina": "ist-anadolu",
+      "ad": "İstanbul Anadolu 17. İcra Müdürlüğü",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR350001500158007297937096",
+          "banka": "Vakıfbank"
+        },
+        {
+          "tur": "Harç ve vergiler",
+          "iban": "TR660001500158007299301037",
+          "banka": "Vakıfbank"
+        }
+      ],
+      "notlar": "Eski unvanı: Üsküdar 6. İcra",
+      "kaynak": "https://istanbulanadolu.adalet.gov.tr/istanbul-anadolu-adalet-sarayi-icra-mudurlukleri"
+    },
+    {
+      "bina": "ist-anadolu",
+      "ad": "İstanbul Anadolu 18. İcra Müdürlüğü",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR890001500158007290497291",
+          "banka": "Vakıfbank"
+        },
+        {
+          "tur": "Harç ve vergiler",
+          "iban": "TR290001500158007299248353",
+          "banka": "Vakıfbank"
+        }
+      ],
+      "notlar": "Eski unvanı: Ümraniye 1. İcra",
+      "kaynak": "https://istanbulanadolu.adalet.gov.tr/istanbul-anadolu-adalet-sarayi-icra-mudurlukleri"
+    },
+    {
+      "bina": "ist-anadolu",
+      "ad": "İstanbul Anadolu 19. İcra Müdürlüğü",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR070001500158007290497312",
+          "banka": "Vakıfbank"
+        },
+        {
+          "tur": "Harç ve vergiler",
+          "iban": "TR170001500158007299244980",
+          "banka": "Vakıfbank"
+        }
+      ],
+      "notlar": "Eski unvanı: Ümraniye 2. İcra",
+      "kaynak": "https://istanbulanadolu.adalet.gov.tr/istanbul-anadolu-adalet-sarayi-icra-mudurlukleri"
+    },
+    {
+      "bina": "ist-anadolu",
+      "ad": "İstanbul Anadolu 20. İcra Müdürlüğü",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR620001500158007292580755",
+          "banka": "Vakıfbank"
+        },
+        {
+          "tur": "Harç ve vergiler",
+          "iban": "TR860001500158007299248103",
+          "banka": "Vakıfbank"
+        }
+      ],
+      "notlar": "Eski unvanı: Ümraniye 3. İcra",
+      "kaynak": "https://istanbulanadolu.adalet.gov.tr/istanbul-anadolu-adalet-sarayi-icra-mudurlukleri"
+    },
+    {
+      "bina": "ist-anadolu",
+      "ad": "İstanbul Anadolu 21. İcra Müdürlüğü",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR340001500158007290494207",
+          "banka": "Vakıfbank"
+        },
+        {
+          "tur": "Harç ve vergiler",
+          "iban": "TR070001500158007299294048",
+          "banka": "Vakıfbank"
+        }
+      ],
+      "notlar": "Eski unvanı: Kartal ve S.Beyli 1. İcra",
+      "kaynak": "https://istanbulanadolu.adalet.gov.tr/istanbul-anadolu-adalet-sarayi-icra-mudurlukleri"
+    },
+    {
+      "bina": "ist-anadolu",
+      "ad": "İstanbul Anadolu 22. İcra Müdürlüğü",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR800001500158007290494252",
+          "banka": "Vakıfbank"
+        },
+        {
+          "tur": "Harç ve vergiler",
+          "iban": "TR180001500158007299294044",
+          "banka": "Vakıfbank"
+        }
+      ],
+      "notlar": "Eski unvanı: Kartal ve S.Beyli 2. İcra",
+      "kaynak": "https://istanbulanadolu.adalet.gov.tr/istanbul-anadolu-adalet-sarayi-icra-mudurlukleri"
+    },
+    {
+      "bina": "ist-anadolu",
+      "ad": "İstanbul Anadolu 23. İcra Müdürlüğü",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR840001500158007290494277",
+          "banka": "Vakıfbank"
+        },
+        {
+          "tur": "Harç ve vergiler",
+          "iban": "TR450001500158007299294043",
+          "banka": "Vakıfbank"
+        }
+      ],
+      "notlar": "Eski unvanı: Kartal 3. İcra",
+      "kaynak": "https://istanbulanadolu.adalet.gov.tr/istanbul-anadolu-adalet-sarayi-icra-mudurlukleri"
+    },
+    {
+      "bina": "ist-anadolu",
+      "ad": "İstanbul Anadolu 24. İcra Müdürlüğü",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR020001500158007290494298",
+          "banka": "Vakıfbank"
+        },
+        {
+          "tur": "Harç ve vergiler",
+          "iban": "TR880001500158007299294045",
+          "banka": "Vakıfbank"
+        }
+      ],
+      "notlar": "Eski unvanı: Kartal 4. İcra",
+      "kaynak": "https://istanbulanadolu.adalet.gov.tr/istanbul-anadolu-adalet-sarayi-icra-mudurlukleri"
+    },
+    {
+      "bina": "ist-anadolu",
+      "ad": "İstanbul Anadolu 25. İcra Müdürlüğü",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR590001500158007290494339",
+          "banka": "Vakıfbank"
+        },
+        {
+          "tur": "Harç ve vergiler",
+          "iban": "TR180001500158007299290164",
+          "banka": "Vakıfbank"
+        }
+      ],
+      "notlar": "Eski unvanı: Kartal 5. İcra",
+      "kaynak": "https://istanbulanadolu.adalet.gov.tr/istanbul-anadolu-adalet-sarayi-icra-mudurlukleri"
+    },
+    {
+      "bina": "ist-anadolu",
+      "ad": "İstanbul Anadolu Abonelik Söz. İcra Dairesi (MTS)",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR110001500158007312418852",
+          "banka": "Vakıfbank"
+        },
+        {
+          "tur": "Harç ve vergiler",
+          "iban": "TR650001500158007312418947",
+          "banka": "Vakıfbank"
+        }
+      ],
+      "notlar": "",
+      "kaynak": "https://istanbulanadolu.adalet.gov.tr/istanbul-anadolu-adalet-sarayi-icra-mudurlukleri"
+    },
+    {
+      "bina": "ist-anadolu",
+      "ad": "İstanbul Anadolu 1. Banka Alacakları İcra Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR810001500158007312418853",
+          "banka": "Vakıfbank"
+        },
+        {
+          "tur": "Harç ve vergiler",
+          "iban": "TR330001500158007312418941",
+          "banka": "Vakıfbank"
+        }
+      ],
+      "notlar": "",
+      "kaynak": "https://istanbulanadolu.adalet.gov.tr/istanbul-anadolu-adalet-sarayi-icra-mudurlukleri"
+    },
+    {
+      "bina": "ist-anadolu",
+      "ad": "İstanbul Anadolu 2. Banka Alacakları İcra Dairesi (Vergi Dairesi / No: Kartal / 4811462866)",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR190001500158007364317006",
+          "banka": "Vakıfbank"
+        },
+        {
+          "tur": "Harç ve vergiler",
+          "iban": "TR360001500158007364317088",
+          "banka": "Vakıfbank"
+        }
+      ],
+      "notlar": "",
+      "kaynak": "https://istanbulanadolu.adalet.gov.tr/istanbul-anadolu-adalet-sarayi-icra-mudurlukleri"
+    },
+    {
+      "bina": "ist-anadolu",
+      "ad": "İstanbul Anadolu Gayrimenkul Satış İcra Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR540001500158007312418854",
+          "banka": "Vakıfbank"
+        },
+        {
+          "tur": "Harç ve vergiler",
+          "iban": "TR130001500158007312418913",
+          "banka": "Vakıfbank"
+        }
+      ],
+      "notlar": "",
+      "kaynak": "https://istanbulanadolu.adalet.gov.tr/istanbul-anadolu-adalet-sarayi-icra-mudurlukleri"
+    },
+    {
+      "bina": "ist-ek",
+      "ad": "İstanbul 1. İcra Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "telefon": "0212 375 85 85",
+      "dahili": "5022, 5017, 5011, 5010",
+      "ibanlar": [],
+      "kaynak": "https://istanbul.adalet.gov.tr/icra-ve-iflas-daireleri-iletisim"
+    },
+    {
+      "bina": "ist-ek",
+      "ad": "İstanbul 2. İcra Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "telefon": "0212 375 85 85",
+      "dahili": "5035, 5037, 5034, 5030",
+      "ibanlar": [],
+      "kaynak": "https://istanbul.adalet.gov.tr/icra-ve-iflas-daireleri-iletisim"
+    },
+    {
+      "bina": "ist-ek",
+      "ad": "İstanbul 3. İcra Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "telefon": "0212 375 85 85",
+      "dahili": "5050, 5049, 5045, 5040",
+      "ibanlar": [],
+      "kaynak": "https://istanbul.adalet.gov.tr/icra-ve-iflas-daireleri-iletisim"
+    },
+    {
+      "bina": "ist-ek",
+      "ad": "İstanbul 4. İcra Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "telefon": "0212 375 85 85",
+      "dahili": "5059, 5068, 5064, 5060",
+      "ibanlar": [],
+      "kaynak": "https://istanbul.adalet.gov.tr/icra-ve-iflas-daireleri-iletisim"
+    },
+    {
+      "bina": "ist-ek",
+      "ad": "İstanbul 5. İcra Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "telefon": "0212 375 85 85",
+      "dahili": "5076, 5078, 5072, 5070",
+      "ibanlar": [],
+      "kaynak": "https://istanbul.adalet.gov.tr/icra-ve-iflas-daireleri-iletisim"
+    },
+    {
+      "bina": "ist-ek",
+      "ad": "İstanbul 6. İcra Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "telefon": "0212 375 85 85",
+      "dahili": "5090, 5088, 5098, 5095",
+      "ibanlar": [],
+      "kaynak": "https://istanbul.adalet.gov.tr/icra-ve-iflas-daireleri-iletisim"
+    },
+    {
+      "bina": "ist-ek",
+      "ad": "İstanbul 7. İcra Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "telefon": "0212 375 85 85",
+      "dahili": "5105, 5106, 5102, 5100",
+      "ibanlar": [],
+      "kaynak": "https://istanbul.adalet.gov.tr/icra-ve-iflas-daireleri-iletisim"
+    },
+    {
+      "bina": "ist-ek",
+      "ad": "İstanbul 8. İcra Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "telefon": "0212 375 85 85",
+      "dahili": "5116, 5118, 5123, 5120",
+      "ibanlar": [],
+      "kaynak": "https://istanbul.adalet.gov.tr/icra-ve-iflas-daireleri-iletisim"
+    },
+    {
+      "bina": "ist-ek",
+      "ad": "İstanbul 9. İcra Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "telefon": "0212 375 85 85",
+      "dahili": "5136, 5140, 5131, 5130",
+      "ibanlar": [],
+      "kaynak": "https://istanbul.adalet.gov.tr/icra-ve-iflas-daireleri-iletisim"
+    },
+    {
+      "bina": "ist-ek",
+      "ad": "İstanbul 10. İcra Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "telefon": "0212 375 85 85",
+      "dahili": "4175, 4180",
+      "ibanlar": [],
+      "kaynak": "https://istanbul.adalet.gov.tr/icra-ve-iflas-daireleri-iletisim"
+    },
+    {
+      "bina": "ist-ek",
+      "ad": "İstanbul 11. İcra Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "telefon": "0212 375 85 85",
+      "dahili": "5165, 5169, 5163, 5160",
+      "ibanlar": [],
+      "kaynak": "https://istanbul.adalet.gov.tr/icra-ve-iflas-daireleri-iletisim"
+    },
+    {
+      "bina": "ist-ek",
+      "ad": "İstanbul 12. İcra Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "telefon": "0212 375 85 85",
+      "dahili": "5186, 5177, 5175, 5170",
+      "ibanlar": [],
+      "kaynak": "https://istanbul.adalet.gov.tr/icra-ve-iflas-daireleri-iletisim"
+    },
+    {
+      "bina": "ist-ek",
+      "ad": "İstanbul 13. İcra Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "telefon": "0212 375 85 85",
+      "dahili": "5201, 5199, 5191, 5190",
+      "ibanlar": [],
+      "kaynak": "https://istanbul.adalet.gov.tr/icra-ve-iflas-daireleri-iletisim"
+    },
+    {
+      "bina": "ist-ek",
+      "ad": "İstanbul 14. İcra Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "telefon": "0212 375 85 85",
+      "dahili": "5208, 5293, 5211, 5210",
+      "ibanlar": [],
+      "kaynak": "https://istanbul.adalet.gov.tr/icra-ve-iflas-daireleri-iletisim"
+    },
+    {
+      "bina": "ist-ek",
+      "ad": "İstanbul 18. İcra Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "telefon": "0212 375 85 85",
+      "dahili": "5229, 5231, 5222, 5220",
+      "ibanlar": [],
+      "kaynak": "https://istanbul.adalet.gov.tr/icra-ve-iflas-daireleri-iletisim"
+    },
+    {
+      "bina": "ist-ek",
+      "ad": "İstanbul 19. İcra Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "telefon": "0212 375 85 85",
+      "dahili": "5248, 5234, 5245, 5236",
+      "ibanlar": [],
+      "kaynak": "https://istanbul.adalet.gov.tr/icra-ve-iflas-daireleri-iletisim"
+    },
+    {
+      "bina": "ist-ek",
+      "ad": "İstanbul 20. İcra Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "telefon": "0212 375 85 85",
+      "dahili": "5259, 5257, 5252, 5250",
+      "ibanlar": [],
+      "kaynak": "https://istanbul.adalet.gov.tr/icra-ve-iflas-daireleri-iletisim"
+    },
+    {
+      "bina": "ist-ek",
+      "ad": "İstanbul 21. İcra Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "telefon": "0212 375 85 85",
+      "dahili": "5278, 5279, 5274, 5270",
+      "ibanlar": [],
+      "kaynak": "https://istanbul.adalet.gov.tr/icra-ve-iflas-daireleri-iletisim"
+    },
+    {
+      "bina": "ist-ek",
+      "ad": "İstanbul 22. İcra Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "telefon": "0212 375 85 85",
+      "dahili": "5285, 5289, 5282, 5280",
+      "ibanlar": [],
+      "kaynak": "https://istanbul.adalet.gov.tr/icra-ve-iflas-daireleri-iletisim"
+    },
+    {
+      "bina": "ist-ek",
+      "ad": "İstanbul 23. İcra Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "telefon": "0212 375 85 85",
+      "dahili": "5308, 5306, 5301, 5300",
+      "ibanlar": [],
+      "kaynak": "https://istanbul.adalet.gov.tr/icra-ve-iflas-daireleri-iletisim"
+    },
+    {
+      "bina": "ist-ek",
+      "ad": "İstanbul 24. İcra Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "telefon": "0212 375 85 85",
+      "dahili": "5313, 5315, 5314, 5310",
+      "ibanlar": [],
+      "kaynak": "https://istanbul.adalet.gov.tr/icra-ve-iflas-daireleri-iletisim"
+    },
+    {
+      "bina": "ist-ek",
+      "ad": "İstanbul 25. İcra Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "telefon": "0212 375 85 85",
+      "dahili": "5329, 5328, 5332, 5330",
+      "ibanlar": [],
+      "kaynak": "https://istanbul.adalet.gov.tr/icra-ve-iflas-daireleri-iletisim"
+    },
+    {
+      "bina": "ist-ek",
+      "ad": "İstanbul 26. İcra Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "telefon": "0212 375 85 85",
+      "dahili": "5350, 5353, 5343, 5340",
+      "ibanlar": [],
+      "kaynak": "https://istanbul.adalet.gov.tr/icra-ve-iflas-daireleri-iletisim"
+    },
+    {
+      "bina": "ist-ek",
+      "ad": "İstanbul 27. İcra Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "telefon": "0212 375 85 85",
+      "dahili": "5361, 5362, 5364, 5360",
+      "ibanlar": [],
+      "kaynak": "https://istanbul.adalet.gov.tr/icra-ve-iflas-daireleri-iletisim"
+    },
+    {
+      "bina": "ist-ek",
+      "ad": "İstanbul 28. İcra Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "telefon": "0212 375 85 85",
+      "dahili": "5383, 5381, 5377, 5370",
+      "ibanlar": [],
+      "kaynak": "https://istanbul.adalet.gov.tr/icra-ve-iflas-daireleri-iletisim"
+    },
+    {
+      "bina": "ist-ek",
+      "ad": "İstanbul 29. İcra Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "telefon": "0212 375 85 85",
+      "dahili": "5387, 5388, 5391, 5390",
+      "ibanlar": [],
+      "kaynak": "https://istanbul.adalet.gov.tr/icra-ve-iflas-daireleri-iletisim"
+    },
+    {
+      "bina": "ist-ek",
+      "ad": "İstanbul 30. İcra Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "telefon": "0212 375 85 85",
+      "dahili": "5401, 5402, 5403, 5404",
+      "ibanlar": [],
+      "kaynak": "https://istanbul.adalet.gov.tr/icra-ve-iflas-daireleri-iletisim"
+    },
+    {
+      "bina": "ist-ek",
+      "ad": "İstanbul 31. İcra Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "telefon": "0212 375 85 85",
+      "dahili": "5427, 5426, 5422, 5420",
+      "ibanlar": [],
+      "kaynak": "https://istanbul.adalet.gov.tr/icra-ve-iflas-daireleri-iletisim"
+    },
+    {
+      "bina": "ist-ek",
+      "ad": "İstanbul 32. İcra Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "telefon": "0212 375 85 85",
+      "dahili": "5439, 5438, 5433, 5430",
+      "ibanlar": [],
+      "kaynak": "https://istanbul.adalet.gov.tr/icra-ve-iflas-daireleri-iletisim"
+    },
+    {
+      "bina": "ist-ek",
+      "ad": "İstanbul 33. İcra Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "telefon": "0212 375 85 85",
+      "dahili": "5452, 5453, 5454, 5451",
+      "ibanlar": [],
+      "kaynak": "https://istanbul.adalet.gov.tr/icra-ve-iflas-daireleri-iletisim"
+    },
+    {
+      "bina": "ist-ek",
+      "ad": "İstanbul 34. İcra Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "telefon": "0212 375 85 85",
+      "dahili": "5465, 5468, 5461, 5460",
+      "ibanlar": [],
+      "kaynak": "https://istanbul.adalet.gov.tr/icra-ve-iflas-daireleri-iletisim"
+    },
+    {
+      "bina": "ist-ek",
+      "ad": "İstanbul 35. İcra Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "telefon": "0212 375 85 85",
+      "dahili": "5487, 5488, 5484, 5480",
+      "ibanlar": [],
+      "kaynak": "https://istanbul.adalet.gov.tr/icra-ve-iflas-daireleri-iletisim"
+    },
+    {
+      "bina": "ist-ek",
+      "ad": "İstanbul 36. İcra Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "telefon": "0212 375 85 85",
+      "dahili": "5993, 5994, 5995, 5996",
+      "ibanlar": [],
+      "kaynak": "https://istanbul.adalet.gov.tr/icra-ve-iflas-daireleri-iletisim"
+    },
+    {
+      "bina": "ist-ek",
+      "ad": "İstanbul 37. İcra Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "telefon": "0212 375 85 85",
+      "dahili": "5977, 5976, 5973, 5970",
+      "ibanlar": [],
+      "kaynak": "https://istanbul.adalet.gov.tr/icra-ve-iflas-daireleri-iletisim"
+    },
+    {
+      "bina": "ist-ek",
+      "ad": "İstanbul 1. İflas Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "telefon": "0212 375 85 85",
+      "dahili": "4225, 4226, 4227, 4228",
+      "ibanlar": [],
+      "kaynak": "https://istanbul.adalet.gov.tr/icra-ve-iflas-daireleri-iletisim"
+    },
+    {
+      "bina": "ist-ek",
+      "ad": "İstanbul 2. İflas Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "telefon": "0212 375 85 85",
+      "dahili": "4212, 4214, 4215, 4216",
+      "ibanlar": [],
+      "kaynak": "https://istanbul.adalet.gov.tr/icra-ve-iflas-daireleri-iletisim"
+    },
+    {
+      "bina": "ist-ek",
+      "ad": "İstanbul 3. İflas Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "telefon": "0212 375 85 85",
+      "dahili": "4205, 4202, 4200, 4203",
+      "ibanlar": [],
+      "kaynak": "https://istanbul.adalet.gov.tr/icra-ve-iflas-daireleri-iletisim"
+    },
+    {
+      "bina": "ist-ek",
+      "ad": "İstanbul Banka Alacakları İcra Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "telefon": "0212 375 85 85",
+      "dahili": "4100, 4113, 4117, 4120",
+      "ibanlar": [],
+      "kaynak": "https://istanbul.adalet.gov.tr/icra-ve-iflas-daireleri-iletisim"
+    },
+    {
+      "bina": "ist-ek",
+      "ad": "İstanbul Abonelik Sözleşmeleri İcra Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "telefon": "0212 375 85 85",
+      "dahili": "4161, 4159",
+      "ibanlar": [],
+      "kaynak": "https://istanbul.adalet.gov.tr/icra-ve-iflas-daireleri-iletisim"
+    },
+    {
+      "bina": "ist-ek",
+      "ad": "İstanbul Gayrimenkul Satış İcra Dairesi",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "telefon": "0212 375 85 85",
+      "dahili": "4175, 4176",
+      "ibanlar": [],
+      "kaynak": "https://istanbul.adalet.gov.tr/icra-ve-iflas-daireleri-iletisim"
+    },
+    {
+      "bina": "ist-ek",
+      "ad": "İstanbul İcra Müdürü",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "telefon": "0212 375 85 85",
+      "dahili": "1105",
+      "ibanlar": [],
+      "kaynak": "https://istanbul.adalet.gov.tr/icra-ve-iflas-daireleri-iletisim"
+    },
+    {
+      "bina": "ist-ek",
+      "ad": "İstanbul Danışma",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "telefon": "0212 375 85 85",
+      "dahili": "1113",
+      "ibanlar": [],
+      "kaynak": "https://istanbul.adalet.gov.tr/icra-ve-iflas-daireleri-iletisim"
+    },
+    {
+      "bina": "ist-ek",
+      "ad": "İstanbul Esas Büro",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "telefon": "0212 375 85 85",
+      "dahili": "1103, 1104",
+      "ibanlar": [],
+      "kaynak": "https://istanbul.adalet.gov.tr/icra-ve-iflas-daireleri-iletisim"
+    },
+    {
+      "bina": "ist-ek",
+      "ad": "İstanbul Mali İşler Bürosu",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "telefon": "0212 375 85 85",
+      "dahili": "1110, 1111, 1115",
+      "ibanlar": [],
+      "kaynak": "https://istanbul.adalet.gov.tr/icra-ve-iflas-daireleri-iletisim"
+    },
+    {
+      "bina": "ist-ek",
+      "ad": "İstanbul Satış Büro",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "telefon": "0212 375 85 85",
+      "dahili": "1108, 1109",
+      "ibanlar": [],
+      "kaynak": "https://istanbul.adalet.gov.tr/icra-ve-iflas-daireleri-iletisim"
+    },
+    {
+      "bina": "ist-ek",
+      "ad": "İstanbul Haciz Büro",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "telefon": "0212 375 85 85",
+      "dahili": "1101, 1102",
+      "ibanlar": [],
+      "kaynak": "https://istanbul.adalet.gov.tr/icra-ve-iflas-daireleri-iletisim"
+    },
+    {
+      "bina": "ist-ek",
+      "ad": "İstanbul Dosya Arşiv ve Tarama Bürosu",
+      "tur": "İcra dairesi",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "telefon": "0212 375 85 85",
+      "dahili": "1106, 1107",
+      "ibanlar": [],
+      "kaynak": "https://istanbul.adalet.gov.tr/icra-ve-iflas-daireleri-iletisim"
+    },
+    {
+      "bina": "konya",
+      "ad": "Konya 1. İcra Dairesi",
+      "tur": "İcra dairesi",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR820001500158007290495186",
+          "banka": "Vakıf Bank Adliye Şubesi"
+        },
+        {
+          "tur": "Harç ve vergiler",
+          "iban": "TR290001500158007299303643",
+          "banka": "Vakıf Bank Adliye Şubesi"
+        }
+      ],
+      "kaynak": "https://konya.adalet.gov.tr/icra-mudurlukleri",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "telefon": "0332 221 31 00",
+      "dahili": "4057 - 4058",
+      "vergi_dairesi": "MEVLANA V.D.",
+      "vergi_no": "1780009682"
+    },
+    {
+      "bina": "konya",
+      "ad": "Konya 2. İcra Dairesi",
+      "tur": "İcra dairesi",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR910001500158007290495218",
+          "banka": "Vakıf Bank Adliye Şubesi"
+        }
+      ],
+      "kaynak": "https://konya.adalet.gov.tr/icra-mudurlukleri",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "telefon": "0332 221 31 00",
+      "dahili": "4050 - 4063",
+      "vergi_dairesi": "MEVLANA V.D.",
+      "vergi_no": "4700046702"
+    },
+    {
+      "bina": "konya",
+      "ad": "Konya 3. İcra Dairesi",
+      "tur": "İcra dairesi",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR420001500158007290495227",
+          "banka": "Vakıf Bank Adliye Şubesi"
+        }
+      ],
+      "kaynak": "https://konya.adalet.gov.tr/icra-mudurlukleri",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "telefon": "0332 221 31 00",
+      "dahili": "4046 - 4047",
+      "vergi_dairesi": "MEVLANA V.D.",
+      "vergi_no": "9050006846"
+    },
+    {
+      "bina": "konya",
+      "ad": "Konya 4. İcra Dairesi",
+      "tur": "İcra dairesi",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR950001500158007290495437",
+          "banka": "Vakıf Bank Adliye Şubesi"
+        }
+      ],
+      "kaynak": "https://konya.adalet.gov.tr/icra-mudurlukleri",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "telefon": "0332 221 31 00",
+      "dahili": "4038 - 4040",
+      "vergi_dairesi": "MEVLANA V.D.",
+      "vergi_no": "313 000 4554"
+    },
+    {
+      "bina": "konya",
+      "ad": "Konya 5. İcra Dairesi",
+      "tur": "İcra dairesi",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR460001500158007290495446",
+          "banka": "Vakıf Bank Adliye Şubesi"
+        }
+      ],
+      "kaynak": "https://konya.adalet.gov.tr/icra-mudurlukleri",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "telefon": "0332 221 31 00",
+      "dahili": "4032 - 4034",
+      "vergi_dairesi": "MEVLANA V.D.",
+      "vergi_no": "166 004 6671"
+    },
+    {
+      "bina": "konya",
+      "ad": "Konya 6. İcra Dairesi",
+      "tur": "İcra dairesi",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR300001500158007290495443",
+          "banka": "Vakıf Bank Adliye Şubesi"
+        }
+      ],
+      "kaynak": "https://konya.adalet.gov.tr/icra-mudurlukleri",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "telefon": "0332 221 31 00",
+      "dahili": "4117 - 4118",
+      "vergi_dairesi": "MEVLANA V.D.",
+      "vergi_no": "062 000 4911"
+    },
+    {
+      "bina": "konya",
+      "ad": "Konya 7. İcra Dairesi",
+      "tur": "İcra dairesi",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR240001500158007290495454",
+          "banka": "Vakıf Bank Adliye Şubesi"
+        }
+      ],
+      "kaynak": "https://konya.adalet.gov.tr/icra-mudurlukleri",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "telefon": "0332 221 31 00",
+      "dahili": "4111 - 4112",
+      "vergi_dairesi": "MEVLANA V.D.",
+      "vergi_no": "946 003 5056"
+    },
+    {
+      "bina": "konya",
+      "ad": "Konya 8. İcra Dairesi",
+      "tur": "İcra dairesi",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR140001500158007290495440",
+          "banka": "Vakıf Bank Adliye Şubesi"
+        }
+      ],
+      "kaynak": "https://konya.adalet.gov.tr/icra-mudurlukleri",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "telefon": "0332 221 31 00",
+      "dahili": "4094 - 4095",
+      "vergi_dairesi": "MEVLANA V.D.",
+      "vergi_no": "001 022 0317"
+    },
+    {
+      "bina": "konya",
+      "ad": "Konya 9. İcra Dairesi",
+      "tur": "İcra dairesi",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR190001500158007290495447",
+          "banka": "Vakıf Bank Adliye Şubesi"
+        }
+      ],
+      "kaynak": "https://konya.adalet.gov.tr/icra-mudurlukleri",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "telefon": "0332 221 31 00",
+      "dahili": "4097",
+      "vergi_dairesi": "MEVLANA V.D.",
+      "vergi_no": "001 022 1158"
+    },
+    {
+      "bina": "konya",
+      "ad": "Konya 10. İcra Dairesi",
+      "tur": "İcra dairesi",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR940001500158007290495455",
+          "banka": "Vakıf Bank Adliye Şubesi"
+        }
+      ],
+      "kaynak": "https://konya.adalet.gov.tr/icra-mudurlukleri",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "telefon": "0332 221 31 00",
+      "dahili": "4091 - 4092",
+      "vergi_dairesi": "MEVLANA V.D.",
+      "vergi_no": "643 026 4906"
+    },
+    {
+      "bina": "konya",
+      "ad": "Konya 12. İcra Dairesi",
+      "tur": "İcra dairesi",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR420001500158007292606432",
+          "banka": "Vakıf Bank Adliye Şubesi"
+        }
+      ],
+      "kaynak": "https://konya.adalet.gov.tr/icra-mudurlukleri",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "telefon": "0332 221 31 00",
+      "dahili": "4151 - 4180",
+      "vergi_dairesi": "MEVLANA V.D.",
+      "vergi_no": "643 036 6362"
+    },
+    {
+      "bina": "konya",
+      "ad": "Konya 13. İcra Dairesi",
+      "tur": "İcra dairesi",
+      "ibanlar": [
+        {
+          "tur": "Emanet kasa",
+          "iban": "TR680001500158007292606255",
+          "banka": "Vakıf Bank Adliye Şubesi"
+        }
+      ],
+      "kaynak": "https://konya.adalet.gov.tr/icra-mudurlukleri",
+      "kaynak_turu": "resmi",
+      "dogrulama": "2026-11-15",
+      "telefon": "0332 221 31 00",
+      "dahili": "4175 - 4177",
+      "vergi_dairesi": "MEVLANA V.D.",
+      "vergi_no": "644 035 9083"
+    }
+  ]
+}

@@ -63,11 +63,17 @@ def jars_dir() -> Path | None:
     cands = [Path(env)] if env else []
     cands += list(_candidates("jars"))
     home = Path.home()
-    cands += [home / ".uyap_evrak" / "jars", home / "UYAPEditorModern" / "jars",
+    cands += [home / ".uyap_evrak" / "jars", home / "UYAPEditorModern" / "jars", home / "UYAPEditorModern",
               Path("/data/data/com.termux/files/home/jars")]
-    for pf in (os.environ.get("ProgramFiles"), os.environ.get("ProgramFiles(x86)"), os.environ.get("LOCALAPPDATA")):
+    for env_dir in (os.environ.get("LOCALAPPDATA"), os.environ.get("APPDATA")):
+        if env_dir:
+            ed = Path(env_dir)
+            cands += [ed / "UYAPEditorModern", ed / "UYAPEditorModern" / "jars",
+                      ed / "com.caneditor.app" / "uyap-editor" / "editor",
+                      ed / "CanEditor" / "uyap-editor" / "editor"]
+    for pf in (os.environ.get("ProgramFiles"), os.environ.get("ProgramFiles(x86)"), os.environ.get("LOCALAPPDATA"), r"C:\\"):
         if pf:
-            for name in ("UYAP Editor", "UYAP Editör", "UYAPEditor", "UYAP\\UYAP Editor"):
+            for name in ("UYAP Editor", "UYAP Editör", "UYAPEditor", "UYAP\\UYAP Editor", "Uyap", "UYAP"):
                 cands += [Path(pf) / name / "lib", Path(pf) / name / "jars", Path(pf) / name]
     for c in cands:
         try:

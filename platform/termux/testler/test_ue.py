@@ -42,6 +42,7 @@ class UdfTesti(unittest.TestCase):
 
 
 class ArgumanTesti(unittest.TestCase):
+    @unittest.skipIf(os.name == "nt", "POSIX file:// URI testi")
     def test_file_uri_ve_bosluk(self):
         d = tempfile.mkdtemp()
         p = os.path.join(d, "dilekçe örnek.udf")
@@ -121,6 +122,7 @@ class KomutTesti(unittest.TestCase):
 
 
 class GlibcTesti(unittest.TestCase):
+    @unittest.skipIf(os.name == "nt", "Linux ELF testi")
     def test_elf_yorumlayici(self):
         import sys
         self.assertIn("ld", ue.elf_yorumlayici(os.path.realpath(sys.executable)))

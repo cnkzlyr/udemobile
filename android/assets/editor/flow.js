@@ -750,6 +750,217 @@
     }
   }
 
+
+  // ---------------------------------------------------------------- belge geneli seçim (Ctrl+A, sayfalar arası)
+  // Her sayfa ayrı contenteditable olduğundan tarayıcının "tümünü seç"i yalnız odaklı sayfada kalır ve
+  // sayfalar arası seçimde sil / yaz / yapıştır / kes / biçimlendir hiç çalışmaz. Bu katman seçimi sayfa
+  // gövdelerine böler: her işlem her sayfanın kendi parçasına uygulanır (üst/altbilgiler hiç dokunulmaz).
+  const BLOK = 'p, li, h1, h2, h3, h4, h5, h6, div.udf-paragraph, td, th';
+  function govdeOf(n) {
+    const el = n && (n.nodeType === 1 ? n : n.parentElement);
+    const b = el && el.closest ? el.closest('.page-body-box') : null;
+    return b && b.closest('.a4-sheet-page') ? b : null;
+  }
+  /** Seçim birden fazla sayfa gövdesine yayılıyorsa {aralik, parcalar:[{govde, aralik}]} döner. */
+  function sayfalarArasi() {
+    const sel = window.getSelection();
+    if (!sel || !sel.rangeCount || sel.isCollapsed) return null;
+    const rg = sel.getRangeAt(0);
+    const all = bodies();
+    let i0 = all.indexOf(govdeOf(rg.startContainer)), i1 = all.indexOf(govdeOf(rg.endContainer));
+    // Başlangıç/bitiş gövde dışında (sayfa boşluğu, altbilgi) kalmışsa en yakın gövdeye kenetlenir
+    if (i0 < 0) i0 = all.findIndex(b => rg.comparePoint(b, 0) >= 0 && rg.intersectsNode(b));
+    if (i1 < 0) { for (let i = all.length - 1; i >= 0; i--) if (rg.intersectsNode(all[i])) { i1 = i; break; } }
+    if (i0 < 0 || i1 < 0 || i1 <= i0) return null;
+    const parcalar = [];
+    for (let i = i0; i <= i1; i++) {
+      const b = all[i], r = document.createRange();
+      r.selectNodeContents(b);
+      if (i === i0 && govdeOf(rg.startContainer) === b) r.setStart(rg.startContainer, rg.startOffset);
+      if (i === i1 && govdeOf(rg.endContainer) === b) r.setEnd(rg.endContainer, rg.endOffset);
+      parcalar.push({ govde: b, aralik: r });
+    }
+    return { aralik: rg, parcalar };
+  }
+  function secimYap(r) { const s = window.getSelection(); s.removeAllRanges(); s.addRange(r); }
+  function tumunuSec() {
+    const all = bodies();
+    if (!all.length) return false;
+    const r = document.createRange();
+    r.setStart(all[0], 0);
+    r.setEnd(all[all.length - 1], all[all.length - 1].childNodes.length);
+    try { all[0].focus({ preventScroll: true }); } catch (e) { /* eski tarayıcı */ }
+    secimYap(r);
+    return true;
+  }
+  /** Seçili içeriği (yalnız gövdelerden, sayfa sırasıyla) HTML + düz metin olarak verir. */
+  function secimIcerigi(x) {
+    const kap = document.createElement('div');
+    x.parcalar.forEach(({ aralik }) => {
+      const parca = aralik.cloneContents();
+      parca.querySelectorAll && parca.querySelectorAll('.' + SKIP_CLASSES.join(', .')).forEach(n => n.remove());
+      kap.appendChild(parca);
+    });
+    // Sayfa sınırında bölünmüş paragrafın iki parçası tek paragraf olarak kopyalanır
+    kap.querySelectorAll('[data-split-continuation]').forEach(n => {
+      const onceki = n.previousElementSibling;
+      if (onceki && onceki.tagName === n.tagName) { while (n.firstChild) onceki.appendChild(n.firstChild); n.remove(); }
+    });
+    // Düz metin: her blok (paragraf, liste öğesi, tablo satırı) ayrı satır
+    const metin = [];
+    const yaz = (n) => {
+      n.childNodes.forEach(c => {
+        if (c.nodeType === 3) { metin.length ? metin[metin.length - 1] += c.nodeValue : metin.push(c.nodeValue); return; }
+        if (c.nodeType !== 1) return;
+        if (c.tagName === 'BR') { metin.push(''); return; }
+        const blok = /^(P|DIV|LI|H[1-6]|TR|TABLE|UL|OL)$/.test(c.tagName);
+        if (blok) metin.push('');
+        yaz(c);
+        if (c.tagName === 'TD' || c.tagName === 'TH') metin[metin.length - 1] += '\t';
+      });
+    };
+    yaz(kap);
+    return { html: kap.innerHTML, metin: metin.map(t => t.replace(/\u200b/g, '').replace(/\t$/, '')).join('\n').replace(/^\n+|\n+$/g, '') };
+  }
+  /** Sayfalar arası seçimi siler; imleci silinen yerin başına koyar (Word gibi uç paragraflar birleşir). */
+  function sayfalarArasiSil(x) {
+    const ilk = x.parcalar[0], son = x.parcalar[x.parcalar.length - 1];
+    const basEl = ilk.aralik.startContainer.nodeType === 1 ? ilk.aralik.startContainer : ilk.aralik.startContainer.parentElement;
+    const basBlok = basEl && basEl.closest ? basEl.closest(BLOK) : null;
+    const sonEl = son.aralik.endContainer.nodeType === 1 ? son.aralik.endContainer : son.aralik.endContainer.parentElement;
+    const sonBlok = sonEl && sonEl.closest ? sonEl.closest(BLOK) : null;
+    const sonKismi = sonBlok && son.govde.contains(sonBlok) && (() => {
+      const r = document.createRange(); r.selectNodeContents(sonBlok); r.setStart(son.aralik.endContainer, son.aralik.endOffset);
+      return r.toString().length > 0;
+    })();
+    busy = true;
+    try {
+      x.parcalar.forEach(({ aralik }) => aralik.deleteContents());
+      // Bitişteki paragrafın kalan kısmı başlangıç paragrafına eklenir
+      if (basBlok && sonBlok && sonKismi && basBlok !== sonBlok && basBlok.isConnected && sonBlok.isConnected &&
+          ilk.govde.contains(basBlok) && !sonBlok.closest('td, th')) {
+        if (basBlok.lastChild && basBlok.lastChild.nodeName === 'BR') basBlok.lastChild.remove();
+        while (sonBlok.firstChild) basBlok.appendChild(sonBlok.firstChild);
+        sonBlok.remove();
+      }
+      // Boş kalan gövdeler/paragraflar
+      x.parcalar.forEach(({ govde }) => {
+        govde.querySelectorAll(BLOK).forEach(b => { if (!b.textContent && !b.querySelector('img, br, table, hr')) b.appendChild(document.createElement('br')); });
+        if (!contentChildren(govde).length) govde.innerHTML = '<p><br></p>';
+      });
+    } finally { busy = false; }
+    const r = document.createRange();
+    if (basBlok && basBlok.isConnected) {
+      try { r.setStart(ilk.aralik.startContainer, Math.min(ilk.aralik.startOffset, ilk.aralik.startContainer.nodeType === 3 ? ilk.aralik.startContainer.length : ilk.aralik.startContainer.childNodes.length)); }
+      catch (e) { r.selectNodeContents(basBlok); }
+      if (!basBlok.contains(r.startContainer) && r.startContainer !== basBlok) r.selectNodeContents(basBlok);
+    } else {
+      const k = contentChildren(ilk.govde)[0] || ilk.govde;
+      r.selectNodeContents(k);
+    }
+    r.collapse(true);
+    try { ilk.govde.focus({ preventScroll: true }); } catch (e) { ilk.govde.focus(); }
+    secimYap(r);
+    schedule(0);
+  }
+  function kaydet() { if (window.CanHistory) { try { window.CanHistory.commit(); } catch (e) { /* geçmiş yoksa */ } } }
+
+  // Biçimlendirme (kalın, italik, yazı tipi, boyut, hizalama, renk…) her sayfanın parçasına ayrı uygulanır
+  const ozgunExec = document.execCommand.bind(document);
+  const BICIMSIZ = new Set(['copy', 'cut', 'paste', 'undo', 'redo', 'selectall', 'inserttext', 'inserthtml', 'insertparagraph',
+    'insertlinebreak', 'delete', 'forwarddelete', 'insertimage', 'inserthorizontalrule']);
+  document.execCommand = function (komut, ui, deger) {
+    const k = String(komut || '').toLowerCase();
+    if (k === 'selectall' && bodies().length) { if (!isMobileFlow() && tumunuSec()) return true; }
+    const x = !BICIMSIZ.has(k) && sayfalarArasi();
+    if (!x) return ozgunExec(komut, ui, deger);
+    let sonuc = false, bas = null, bit = null;
+    busy = true;
+    try {
+      x.parcalar.forEach(({ govde, aralik }, i) => {
+        try { govde.focus({ preventScroll: true }); } catch (e) { /* odak yok */ }
+        secimYap(aralik);
+        sonuc = ozgunExec(komut, ui, deger) || sonuc;
+        const s = window.getSelection();
+        if (s.rangeCount) {
+          const r = s.getRangeAt(0);
+          if (i === 0) bas = [r.startContainer, r.startOffset];
+          bit = [r.endContainer, r.endOffset];
+        }
+      });
+    } finally { busy = false; }
+    try {
+      const r = document.createRange();
+      r.setStart(bas[0], bas[1]); r.setEnd(bit[0], bit[1]);
+      secimYap(r);
+    } catch (e) { /* seçim yeniden kurulamadı */ }
+    schedule(0);
+    return sonuc;
+  };
+
+  function secimKlavye(e) {
+    if (e.defaultPrevented || e.isComposing) return;
+    const mod = e.ctrlKey || e.metaKey;
+    if (mod && !e.altKey && !e.shiftKey && (e.key === 'a' || e.key === 'A' || e.code === 'KeyA')) {
+      if (isMobileFlow() || !govdeOf(document.activeElement) && !govdeOf((window.getSelection() || {}).anchorNode)) return;
+      e.preventDefault();
+      tumunuSec();
+      return;
+    }
+    const x = sayfalarArasi();
+    if (!x) return;
+    if (e.key === 'Backspace' || e.key === 'Delete') {
+      e.preventDefault(); sayfalarArasiSil(x); kaydet(); return;
+    }
+    if (mod && !e.altKey && !e.shiftKey) {
+      // Tarayıcının yerleşik biçim kısayolları yalnız odaklı sayfaya uygulanır: tüm parçalara biz uygularız
+      const kisayol = { b: 'bold', i: 'italic', u: 'underline' }[(e.key || '').toLowerCase()];
+      if (kisayol) { e.preventDefault(); document.execCommand(kisayol, false, null); kaydet(); }
+      return;
+    }
+    if (mod || e.altKey) return;
+    if (e.key === 'Enter') {
+      e.preventDefault(); sayfalarArasiSil(x); ozgunExec(e.shiftKey ? 'insertLineBreak' : 'insertParagraph'); kaydet(); return;
+    }
+    if (e.key && e.key.length === 1) {
+      e.preventDefault(); sayfalarArasiSil(x); ozgunExec('insertText', false, e.key); kaydet();
+    }
+  }
+  function secimKopyala(e, kes) {
+    const x = sayfalarArasi();
+    if (!x || !e.clipboardData) return;
+    const ic = secimIcerigi(x);
+    e.preventDefault();
+    e.clipboardData.setData('text/html', ic.html);
+    e.clipboardData.setData('text/plain', ic.metin);
+    if (kes) { sayfalarArasiSil(x); kaydet(); }
+  }
+  function secimYapistir(e) {
+    const x = sayfalarArasi();
+    if (!x || !e.clipboardData) return;
+    e.preventDefault();
+    const html = e.clipboardData.getData('text/html'), metin = e.clipboardData.getData('text/plain');
+    sayfalarArasiSil(x);
+    if (html) ozgunExec('insertHTML', false, html.replace(/<!--(Start|End)Fragment-->/g, ''));
+    else if (metin) ozgunExec('insertText', false, metin);
+    kaydet();
+  }
+  function secimGirdi(e) {
+    // IME / sanal klavye / sürükle-bırak: keydown yakalanmadıysa beforeinput'ta seçim önce silinir
+    if (e.defaultPrevented) return;
+    const x = sayfalarArasi();
+    if (!x) return;
+    const t = e.inputType || '';
+    if (/^(insert|delete)/.test(t) && !/^insertFromPaste/.test(t)) {
+      e.preventDefault();
+      sayfalarArasiSil(x);
+      if (t === 'insertText' && e.data) ozgunExec('insertText', false, e.data);
+      else if (t === 'insertParagraph') ozgunExec('insertParagraph');
+      else if (t === 'insertLineBreak') ozgunExec('insertLineBreak');
+      kaydet();
+    }
+  }
+
   // ---------------------------------------------------------------- bağlama
   function attach() {
     const c = container();
@@ -763,7 +974,12 @@
       }
     });
     observer.observe(c, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['style', 'class'] });
+    document.addEventListener('keydown', secimKlavye, true);
     document.addEventListener('keydown', onKeyDown, true);
+    document.addEventListener('copy', e => secimKopyala(e, false), true);
+    document.addEventListener('cut', e => secimKopyala(e, true), true);
+    document.addEventListener('paste', secimYapistir, true);
+    document.addEventListener('beforeinput', secimGirdi, true);
     // Kullanıcı niyeti: yazma mı kaydırma mı? (keepCaretVisible yalnızca yazarken)
     const yazdi = () => { lastEditTs = Date.now(); };
     const kaydirdi = () => { lastScrollTs = Date.now(); };
@@ -781,7 +997,7 @@
     if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => schedule(0));
   }
 
-  window.CanFlow = { reflow, schedule, attach };
+  window.CanFlow = { reflow, schedule, attach, tumunuSec, sayfalarArasi };
   window.liveReflow = reflow;
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => setTimeout(attach, 0));
   else setTimeout(attach, 0);

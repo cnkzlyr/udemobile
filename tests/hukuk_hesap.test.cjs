@@ -51,3 +51,12 @@ test('serbest meslek makbuzu ve CMK makbuzu', () => {
   yakin(H.cmkMakbuz({ kalem: 'agir', adet: 1 }).odenen, 12387 / 1.2 - 12387 / 1.2 * 0.2 * 0.5, 'CMK ağır ceza');
   yakin(H.cmkMakbuz({ kalem: 'sorusturma', adet: 1 }).odenen, 4027 / 1.2, 'CMK soruşturma (tevkifatsız)');
 });
+
+test('infaz ve ceza artırım/indirim hesaplayıcıları', () => {
+  const inf = H.infaz({ yil: 4, ay: 0, gun: 0, oran: '1/2', mahsupGun: 30, denetimliYil: 1 });
+  assert.strictEqual(inf.toplamGun, 1460);
+  assert.strictEqual(inf.kosulluGun, 730);
+  assert.strictEqual(inf.cezaevindeYatacak, 335);
+  const cz = H.ceza({ yil: 2, ay: 0, gun: 0, adimlar: [{ tip: 'artir', pay: 1, payda: 4 }, { tip: 'indir', pay: 1, payda: 6 }] });
+  assert.strictEqual(cz.sonucGun, 760);
+});

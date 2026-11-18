@@ -417,6 +417,17 @@ select {
 .udf-footer-qr-container svg {
   display: block;
 }
+/* Resmi altbilgi karekodu: altbilgi satırının altına yaslı, yukarıya alt kenar boşluğu içinde çizilir.
+   Yerleşime yükseklik katmaz (height:0 kapsayıcı) — altbilgi ve gövde yüksekliği karekoddan etkilenmez. */
+.udf-hv-footer[data-has-qr="1"] > .udf-footer-page-label {
+  padding-right: calc(var(--qr-px, 68px) + 6px);
+}
+.udf-hv-footer .udf-footer-qr-container svg,
+.full-banner .udf-footer-qr-container svg {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+}
 
 /* Havelsan UYAP E-İmza Rozeti (Sağ Üst Köşe) */
 .official-doc-seal {

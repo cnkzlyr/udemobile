@@ -4,6 +4,9 @@ import android.annotation.SuppressLint;
 import android.content.Context;
 import android.os.Build;
 import android.webkit.CookieManager;
+import android.webkit.JsPromptResult;
+import android.webkit.JsResult;
+import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
@@ -51,6 +54,26 @@ final class GizliTarayici {
             }
             CookieManager.getInstance().setAcceptCookie(true);
             wv.setWebViewClient(new WebViewClient());
+            // Arka planda çalışan e-Devlet/UYAP sayfalarındaki JS alert/confirm kutuları oturumu kilitlemesin
+            wv.setWebChromeClient(new WebChromeClient() {
+                @Override
+                public boolean onJsAlert(WebView view, String url, String message, JsResult result) {
+                    Tani.yaz("asistan", "gizli tarayıcı alert: " + message);
+                    result.confirm();
+                    return true;
+                }
+                @Override
+                public boolean onJsConfirm(WebView view, String url, String message, JsResult result) {
+                    Tani.yaz("asistan", "gizli tarayıcı confirm: " + message);
+                    result.confirm();
+                    return true;
+                }
+                @Override
+                public boolean onJsPrompt(WebView view, String url, String message, String defaultValue, JsPromptResult result) {
+                    result.cancel();
+                    return true;
+                }
+            });
             // Ekran dışı da olsa düzen boyutu olsun (sayfa betikleri genişlik ölçer)
             wv.layout(0, 0, 1366, 900);
             wv.loadUrl(UYAP);

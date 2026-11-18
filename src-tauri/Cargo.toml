@@ -1,6 +1,6 @@
 [package]
 name = "can-editor"
-version = "4.0.1"
+version = "4.1.0"
 description = "CanEditor - Cross-Platform UYAP & Word Editor"
 authors = ["Can Kızılyar"]
 edition = "2021"

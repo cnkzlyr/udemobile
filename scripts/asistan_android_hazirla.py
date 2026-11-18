@@ -144,7 +144,7 @@ def uygulama_kopyala(rt: Path) -> None:
     app = rt / "app"
     if app.exists():
         shutil.rmtree(app)
-    shutil.copytree(KOK / "asistan", app, ignore=shutil.ignore_patterns("__pycache__", "testler", "*.pyc"))
+    shutil.copytree(KOK / "asistan", app, ignore=shutil.ignore_patterns("__pycache__", "testler", "*.pyc", ".env", "*.db", "*.log", ".uyap_config.json", "pin.txt"))
 
 
 def android_komutu(rt: Path, *arg) -> list[str]:

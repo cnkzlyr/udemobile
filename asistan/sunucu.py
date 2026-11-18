@@ -31,6 +31,7 @@ Kullanım
 from __future__ import annotations
 
 import argparse
+import base64
 import hashlib
 import json
 import os
@@ -49,8 +50,15 @@ from collections import deque
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-SURUM = "1.0.0"
+SURUM = "4.1.0"
 KOK = Path(__file__).resolve().parent
+if str(KOK) not in sys.path:
+    sys.path.insert(0, str(KOK))
+
+import drive_indeks as _drive_indeks  # noqa: E402
+import entegrasyon as _entegrasyon    # noqa: E402
+import hayfa_kopru as _hayfa_kopru    # noqa: E402
+import jar_donustur as _jar_donustur  # noqa: E402
 # Pakete gömülü (PyInstaller) ikili: Python kurulu olmadan çalışır. Modül kodu paketin içinde salt okunurdur;
 # modüller verilerini kendi klasörlerine yazdığı için ilk açılışta kullanıcı veri dizinine eşitlenir.
 DONDURULMUS = bool(getattr(sys, "frozen", False))
@@ -158,10 +166,19 @@ def defter_yolu() -> Path:
     return AVUKAT_DIR / "veri" / "defter.db"
 
 
+class _KapananConn(sqlite3.Connection):
+    """with blokundan çıkınca bağlantıyı gerçekten kapatır (Windows dosya kilidini önler)."""
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        try:
+            return super().__exit__(exc_type, exc_val, exc_tb)
+        finally:
+            self.close()
+
+
 def _ro(db: Path) -> sqlite3.Connection | None:
     if not db.is_file():
         return None
-    c = sqlite3.connect(f"file:{urllib.parse.quote(str(db))}?mode=ro", uri=True, timeout=10)
+    c = sqlite3.connect(f"file:{urllib.parse.quote(str(db))}?mode=ro", uri=True, timeout=10, factory=_KapananConn)
     c.row_factory = sqlite3.Row
     return c
 
@@ -405,6 +422,142 @@ def drive_durumu() -> dict:
             sonuc["uyarilar"].append(f"Nöbetçi {yas_dk} dakikadır tarama yapmadı (aralık {aralik} dk): çalışıyor mu?")
     elif sonuc["yapilandirildi"]:
         sonuc["uyarilar"].append("Nöbetçi henüz hiç tur tamamlamadı.")
+    sonuc["ayar"] = _drive_indeks.drive_ayar_oku(vd)
+    sonuc["indeks"] = _drive_indeks.indeks_ozeti(drive_indeks_yolu())
+    return sonuc
+
+
+def drive_indeks_yolu() -> Path:
+    return evrak_veri_dizini() / "drive_indeks.db"
+
+
+def dosya_not_db_yolu() -> Path:
+    return veri_dizini() / "dosya_notlar.db"
+
+
+def _not_db():
+    import contextlib
+    @contextlib.contextmanager
+    def _cm():
+        p = dosya_not_db_yolu()
+        p.parent.mkdir(parents=True, exist_ok=True)
+        c = sqlite3.connect(str(p), timeout=10)
+        c.row_factory = sqlite3.Row
+        try:
+            c.execute("""CREATE TABLE IF NOT EXISTS dosya_not (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                dkey TEXT NOT NULL,
+                esas_no TEXT NOT NULL DEFAULT '',
+                baslik TEXT NOT NULL DEFAULT '',
+                metin TEXT NOT NULL,
+                zaman TEXT NOT NULL
+            )""")
+            c.execute("CREATE INDEX IF NOT EXISTS ix_dn_dkey ON dosya_not(dkey)")
+            yield c
+            c.commit()
+        finally:
+            c.close()
+    return _cm()
+
+
+def dosyalar_listele(q: str = "", durum: str = "", limit: int = 150) -> dict:
+    """UYAP kataloğundaki tüm dava dosyalarını filtreli listeler."""
+    c = _ro(katalog_yolu())
+    if c is None:
+        return {"hazir": False, "toplam": 0, "acik": 0, "dosyalar": [],
+                "mesaj": "UYAP dosya kataloğu henüz oluşturulmadı. Önce UYAP girişi yapıp tarama başlatın."}
+    with c:
+        kosul, param = [], []
+        if durum and durum.lower() not in ("tumu", "tümü", "all"):
+            kosul.append("COALESCE(durum,'') LIKE ?")
+            param.append(f"%{durum}%")
+        pos, neg = terimler(q)
+        for t in pos:
+            kosul.append("(COALESCE(birim,'') LIKE ? OR COALESCE(dosya_no,'') LIKE ? OR COALESCE(muvekkil_ara,'') LIKE ? OR COALESCE(taraf_ara,'') LIKE ? OR COALESCE(dosya_tur,'') LIKE ?)")
+            param += [f"%{t}%"] * 5
+        for t in neg:
+            kosul.append("NOT (COALESCE(birim,'') LIKE ? OR COALESCE(taraf_ara,'') LIKE ?)")
+            param += [f"%{t}%"] * 2
+        where = ("WHERE " + " AND ".join(kosul)) if kosul else ""
+        sql = (
+            "SELECT dkey, birim, dosya_no, dosya_tur, durum, yargi, acilis, muvekkil, taraflar, evrak_sayisi, taranma "
+            f"FROM dosya {where} "
+            "ORDER BY CASE WHEN durum='Açık' THEN 0 ELSE 1 END, COALESCE(taranma,'') DESC, COALESCE(acilis,'') DESC LIMIT ?"
+        )
+        rows = _satirlar(c.execute(sql, (*param, max(1, min(limit, 500)))))
+        toplam = c.execute("SELECT COUNT(*) FROM dosya").fetchone()[0]
+        acik = c.execute("SELECT COUNT(*) FROM dosya WHERE durum='Açık'").fetchone()[0]
+    return {"hazir": True, "toplam": toplam, "acik": acik, "dosyalar": rows}
+
+
+def dosya_detay(dkey: str) -> dict:
+    """Tek bir UYAP dosyasının tüm ayrıntıları: evraklar, duruşmalar, tebligatlar, Drive dosyaları ve yerel notlar."""
+    if not dkey:
+        raise ValueError("dkey gerekli")
+    c = _ro(katalog_yolu())
+    if c is None:
+        raise ValueError("UYAP kataloğu henüz yok")
+    with c:
+        d = c.execute("SELECT * FROM dosya WHERE dkey=?", (dkey,)).fetchone()
+        if not d:
+            raise ValueError("Dosya bulunamadı")
+        dosya = dict(d)
+        evraklar = _satirlar(c.execute(
+            """SELECT skey, tur, aciklama, tarih, kategori, durum, uzanti, is_ek,
+                      (pdf_path IS NOT NULL OR path IS NOT NULL) AS yerel
+               FROM evrak WHERE dkey=? ORDER BY tarih DESC, id DESC LIMIT 300""",
+            (dkey,),
+        ))
+        durusmalar = []
+        if _tablo_var(c, "durusma"):
+            durusmalar = _satirlar(c.execute(
+                "SELECT tarih, saat, yer, aciklama, durum FROM durusma WHERE dosya_no=? ORDER BY tarih DESC LIMIT 50",
+                (dosya.get("dosya_no") or "",),
+            ))
+        tebligatlar = []
+        if _tablo_var(c, "tebligat"):
+            tebligatlar = _satirlar(c.execute(
+                "SELECT tebligat_turu, evrak_adi, eklenme FROM tebligat WHERE dosya_no=? ORDER BY eklenme DESC LIMIT 50",
+                (dosya.get("dosya_no") or "",),
+            ))
+    with _not_db() as nc:
+        notlar = _satirlar(nc.execute(
+            "SELECT id, baslik, metin, zaman FROM dosya_not WHERE dkey=? ORDER BY id DESC LIMIT 50",
+            (dkey,),
+        ))
+    drive_dosyalar = []
+    if dosya.get("dosya_no") and drive_indeks_yolu().is_file():
+        drive_dosyalar = _drive_indeks.ara(drive_indeks_yolu(), esas=dosya["dosya_no"], limit=40).get("sonuclar") or []
+    return {
+        "dosya": dosya,
+        "evraklar": evraklar,
+        "durusmalar": durusmalar,
+        "tebligatlar": tebligatlar,
+        "notlar": notlar,
+        "drive_dosyalar": drive_dosyalar,
+    }
+
+
+def dosya_not_ekle(g: dict) -> dict:
+    dkey = str(g.get("dkey") or "").strip()
+    metin = str(g.get("metin") or "").strip()
+    if not dkey or not metin:
+        raise ValueError("dkey ve not metni zorunlu")
+    baslik = str(g.get("baslik") or "Dosya Notu").strip()[:160]
+    esas = str(g.get("esas_no") or "").strip()
+    birim = str(g.get("birim") or "").strip()
+    zaman = time.strftime("%Y-%m-%dT%H:%M:%S")
+    with _not_db() as nc:
+        cur = nc.execute(
+            "INSERT INTO dosya_not(dkey, esas_no, baslik, metin, zaman) VALUES (?,?,?,?,?)",
+            (dkey, esas, baslik, metin, zaman),
+        )
+        nid = cur.lastrowid
+    sonuc = {"ok": True, "id": nid, "zaman": zaman, "senkron": None}
+    if g.get("senkron_et") and esas:
+        sonuc["senkron"] = _entegrasyon.uyap_otomatik_aktar(
+            AVUKAT_DIR, birim=birim, dosya_no=esas, tur=baslik, aciklama=metin, tarih=zaman[:10]
+        )
     return sonuc
 
 
@@ -797,13 +950,31 @@ class Isleyici(BaseHTTPRequestHandler):
         k = self.headers.get("X-Asistan-Anahtar", "")
         return bool(k) and secrets.compare_digest(k.encode(), self.anahtar.encode())
 
-    def _govde(self) -> dict:
+    def _govde(self, max_bayt: int = 1_000_000) -> dict:
         n = int(self.headers.get("Content-Length") or 0)
         if n <= 0:
             return {}
-        if n > 1_000_000:
+        if n > max_bayt:
             raise ValueError("İstek gövdesi çok büyük")
         return json.loads(self.rfile.read(n).decode("utf-8") or "{}")
+
+    def _dosya_gonder(self, veri: bytes, dosya_adi: str, mime: str | None = None):
+        if not mime:
+            uz = Path(dosya_adi).suffix.lower()
+            mime = {
+                ".pdf": "application/pdf",
+                ".odt": "application/vnd.oasis.opendocument.text",
+                ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                ".tif": "image/tiff", ".tiff": "image/tiff",
+                ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+            }.get(uz, "application/octet-stream")
+        self.send_response(200)
+        self._cors()
+        self.send_header("Content-Type", mime)
+        self.send_header("Content-Disposition", "inline; filename*=UTF-8''" + urllib.parse.quote(dosya_adi))
+        self.send_header("Content-Length", str(len(veri)))
+        self.end_headers()
+        self.wfile.write(veri)
 
     def _on_kontrol(self) -> tuple[str, dict] | None:
         if not self._host_gecerli():
@@ -834,26 +1005,54 @@ class Isleyici(BaseHTTPRequestHandler):
             if yol == "/api/durum":
                 return self._json({"surum": SURUM, "moduller": modul_durumu(), "katalog": str(katalog_yolu()),
                                    "defter": str(defter_yolu()), "platform": sys.platform,
+                                   "jar": _jar_donustur.durum(),
+                                   "entegrasyon": _entegrasyon.ayar_ozeti(AVUKAT_DIR),
                                    "termux": os.environ.get("PREFIX", "").startswith("/data/data/com.termux")})
+            if yol == "/api/dosyalar":
+                return self._json(dosyalar_listele(q.get("q", ""), q.get("durum", ""), int(q.get("limit") or 150)))
+            if yol == "/api/dosya/detay":
+                return self._json(dosya_detay(q.get("dkey", "")))
             if yol == "/api/evrak/ara":
                 return self._json(evrak_ara(q.get("q", ""), int(q.get("limit") or 100)))
             if yol == "/api/evrak/dosya":
                 p = evrak_dosya_yolu(q.get("skey", ""))
                 if not p:
                     return self._json({"hata": "Dosya bulunamadı"}, 404)
-                veri = p.read_bytes()
-                self.send_response(200)
-                self._cors()
-                self.send_header("Content-Type", "application/pdf" if p.suffix.lower() == ".pdf" else "application/octet-stream")
-                self.send_header("Content-Disposition", "inline; filename*=UTF-8''" + urllib.parse.quote(p.name))
-                self.send_header("Content-Length", str(len(veri)))
-                self.end_headers()
-                self.wfile.write(veri)
-                return
+                return self._dosya_gonder(p.read_bytes(), p.name)
             if yol == "/api/yenilikler":
                 return self._json(yenilikler(q.get("sonra", ""), int(q.get("limit") or 30)))
             if yol == "/api/drive":
                 return self._json(drive_durumu())
+            if yol == "/api/drive/ara":
+                return self._json(_drive_indeks.ara(drive_indeks_yolu(), q.get("q", ""), q.get("uzanti", ""), q.get("esas", ""), int(q.get("limit") or 120)))
+            if yol == "/api/drive/dosya":
+                ayar = _drive_indeks.drive_ayar_oku(evrak_veri_dizini())
+                p = _drive_indeks.guvenli_drive_dosyasi(Path(ayar["google_drive_dir"]), q.get("rel", "")) if ayar.get("google_drive_dir") else None
+                if not p:
+                    return self._json({"hata": "Drive dosyası bulunamadı"}, 404)
+                return self._dosya_gonder(p.read_bytes(), p.name)
+            if yol == "/api/donustur/durum":
+                return self._json(_jar_donustur.durum())
+            if yol == "/api/entegrasyon/ayar":
+                return self._json(_entegrasyon.ayar_ozeti(AVUKAT_DIR))
+            if yol == "/api/notion/dosyalar":
+                return self._json(_entegrasyon.notion_dosyalar(AVUKAT_DIR, q.get("q", ""), int(q.get("limit") or 100), yenile=q.get("yenile") == "1"))
+            if yol == "/api/ticktick/gorevler":
+                return self._json(_entegrasyon.ticktick_gorevler(AVUKAT_DIR, q.get("project_id", ""), int(q.get("limit") or 80)))
+            if yol == "/api/hayfa/haberler":
+                return self._json(_hayfa_kopru.haberler(veri_dizini(), q.get("kategori", ""), q.get("q", ""), int(q.get("limit") or 24), yenile=q.get("yenile") == "1"))
+            if yol == "/api/hayfa/haber":
+                return self._json(_hayfa_kopru.haber_detay(veri_dizini(), q.get("id", "")))
+            if yol == "/api/hayfa/resmi-gazete":
+                return self._json(_hayfa_kopru.resmi_gazete(veri_dizini(), q.get("tarih", ""), yenile=q.get("yenile") == "1"))
+            if yol == "/api/hayfa/kararlar":
+                return self._json(_hayfa_kopru.karar_ara(veri_dizini(), q.get("q", ""), q.get("alan", ""), int(q.get("sayfa") or 1)))
+            if yol == "/api/hayfa/karar":
+                return self._json(_hayfa_kopru.karar_detay(veri_dizini(), q.get("id", "")))
+            if yol == "/api/hayfa/mevzuat":
+                return self._json(_hayfa_kopru.mevzuat_ara(veri_dizini(), q.get("q", ""), q.get("tur", "")))
+            if yol == "/api/hayfa/adliyeler":
+                return self._json(_hayfa_kopru.adliye_ara(q.get("q", ""), q.get("il", ""), q.get("tur", ""), int(q.get("limit") or 80)))
             if yol == "/api/uyap":
                 return self._json(BAGLI_TUT.durum())
             if yol == "/api/ajanda":
@@ -861,6 +1060,8 @@ class Isleyici(BaseHTTPRequestHandler):
             if yol == "/api/gorevler":
                 return self._json({"gorevler": [g.ozet(int(q.get("satir") or 40)) for g in GOREV_DURUM.values()]})
             self._json({"hata": "Bulunamadı"}, 404)
+        except (ValueError, RuntimeError) as e:
+            self._json({"hata": str(e)}, 400)
         except Exception as e:  # noqa: BLE001 — istemciye anlamlı hata dön
             self._json({"hata": str(e)}, 500)
 
@@ -870,7 +1071,7 @@ class Isleyici(BaseHTTPRequestHandler):
             return
         yol, _ = r
         try:
-            govde = self._govde()
+            govde = self._govde(max_bayt=25_000_000 if yol == "/api/donustur" else 1_000_000)
             if yol.startswith("/api/gorev/"):
                 kimlik, _, eylem = yol[len("/api/gorev/"):].partition("/")
                 g = GOREV_DURUM.get(kimlik)
@@ -886,6 +1087,61 @@ class Isleyici(BaseHTTPRequestHandler):
             if yol == "/api/uyap/simdi":
                 BAGLI_TUT.uyandir()
                 return self._json(BAGLI_TUT.durum())
+            if yol == "/api/dosya/not":
+                return self._json(dosya_not_ekle(govde))
+            if yol == "/api/drive/ayar":
+                return self._json(_drive_indeks.drive_ayar_yaz(evrak_veri_dizini(), govde))
+            if yol == "/api/drive/indeksle":
+                ayar = _drive_indeks.drive_ayar_oku(evrak_veri_dizini())
+                dizin = str(govde.get("dizin") or ayar.get("google_drive_dir") or "").strip()
+                if not dizin:
+                    raise ValueError("Önce Google Drive klasör yolunu ayarlayın.")
+                return self._json(_drive_indeks.indeksle(drive_indeks_yolu(), Path(dizin)))
+            if yol == "/api/drive/esitle":
+                return self._json(_drive_indeks.esitle_eksikler(katalog_yolu(), evrak_veri_dizini(), int(govde.get("limit") or 100)))
+            if yol == "/api/donustur":
+                fmt = str(govde.get("format") or "pdf").lower()
+                if govde.get("skey"):
+                    p = evrak_dosya_yolu(str(govde["skey"]))
+                    if not p:
+                        raise ValueError("Katalogda indirilmiş dosya bulunamadı.")
+                    out, ad, mime = _jar_donustur.bayttan_donustur(p.name, p.read_bytes(), fmt)
+                elif govde.get("drive_rel"):
+                    ayar = _drive_indeks.drive_ayar_oku(evrak_veri_dizini())
+                    p = _drive_indeks.guvenli_drive_dosyasi(Path(ayar["google_drive_dir"]), str(govde["drive_rel"])) if ayar.get("google_drive_dir") else None
+                    if not p:
+                        raise ValueError("Drive dosyası bulunamadı.")
+                    out, ad, mime = _jar_donustur.bayttan_donustur(p.name, p.read_bytes(), fmt)
+                elif govde.get("icerik_b64"):
+                    ham = base64.b64decode(str(govde["icerik_b64"]))
+                    out, ad, mime = _jar_donustur.bayttan_donustur(str(govde.get("dosya_adi") or "Belge.udf"), ham, fmt)
+                else:
+                    raise ValueError("skey, drive_rel veya icerik_b64 gerekli.")
+                if govde.get("json"):
+                    return self._json({"dosya_adi": ad, "mime": mime, "boyut": len(out), "icerik_b64": base64.b64encode(out).decode("ascii")})
+                return self._dosya_gonder(out, ad, mime)
+            if yol == "/api/entegrasyon/ayar":
+                return self._json(_entegrasyon.ayar_kaydet(AVUKAT_DIR, govde))
+            if yol == "/api/notion/not":
+                return self._json(_entegrasyon.notion_not_ekle(
+                    AVUKAT_DIR, str(govde.get("page_id") or ""), str(govde.get("baslik") or "Not"),
+                    str(govde.get("metin") or ""), str(govde.get("son_tebligat") or ""), str(govde.get("durusma") or ""),
+                ))
+            if yol == "/api/ticktick/ekle":
+                return self._json(_entegrasyon.ticktick_gorev_ekle(
+                    AVUKAT_DIR, str(govde.get("baslik") or ""), str(govde.get("icerik") or ""),
+                    str(govde.get("project_id") or ""), str(govde.get("mahkeme") or ""),
+                    str(govde.get("son_tarih") or ""), int(govde.get("oncelik") or 3),
+                    govde.get("etiketler") if isinstance(govde.get("etiketler"), list) else None,
+                ))
+            if yol == "/api/ticktick/tamamla":
+                return self._json(_entegrasyon.ticktick_tamamla(AVUKAT_DIR, str(govde.get("project_id") or ""), str(govde.get("task_id") or "")))
+            if yol == "/api/entegrasyon/uyap-aktar":
+                return self._json(_entegrasyon.uyap_otomatik_aktar(
+                    AVUKAT_DIR, str(govde.get("birim") or ""), str(govde.get("dosya_no") or ""),
+                    str(govde.get("tur") or ""), str(govde.get("aciklama") or ""),
+                    str(govde.get("tarih") or ""), str(govde.get("muvekkil") or ""),
+                ))
             if yol == "/api/a4":
                 return self._json(a4_birlestir(list(govde.get("dosyalar") or []), govde.get("cikti")))
             self._json({"hata": "Bulunamadı"}, 404)

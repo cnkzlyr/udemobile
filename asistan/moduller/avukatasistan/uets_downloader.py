@@ -255,7 +255,7 @@ def setup_driver(headless=False, user_data_dir=None):
         os.makedirs(user_data_dir, exist_ok=True)
         chrome_options.add_argument(f"--user-data-dir={user_data_dir}")
 
-    if headless:
+    if headless and not gomulu_kabuk:
         chrome_options.add_argument("--headless=new")
 
     chrome_options.add_argument("--no-sandbox")

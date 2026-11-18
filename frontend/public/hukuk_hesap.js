@@ -221,7 +221,55 @@
     };
   }
 
-  const API = { TARIFE, TL, aautNispi, vekalet, faiz, harc, smm, cmkMakbuz };
+  /** İnfaz (5275 s.K.): oran '1/2' | '2/3' | '3/4', yil/ay/gun, mahsupGun, denetimliYil (varsayılan 1). */
+  function infaz({ yil, ay, gun, oran, mahsupGun, denetimliYil }) {
+    const toplamGun = (Math.max(0, +yil || 0) * 365) + (Math.max(0, +ay || 0) * 30) + Math.max(0, +gun || 0);
+    if (toplamGun <= 0) return { hata: 'Hükmedilen ceza süresini (yıl/ay/gün) girin.' };
+    const carpan = oran === '3/4' ? 0.75 : (oran === '2/3' ? (2 / 3) : 0.5);
+    const kosulluGun = Math.ceil(toplamGun * carpan);
+    const mahsup = Math.max(0, Math.floor(+mahsupGun || 0));
+    const dsGun = Math.max(0, Math.round((denetimliYil == null ? 1 : +denetimliYil) * 365));
+    const kalanKosullu = Math.max(0, kosulluGun - mahsup);
+    const cezaevindeYatacak = Math.max(0, kalanKosullu - dsGun);
+    const fmt = g => {
+      const y = Math.floor(g / 365), a = Math.floor((g % 365) / 30), gn = g % 30;
+      return [y ? y + ' yıl' : '', a ? a + ' ay' : '', (gn || (!y && !a)) ? gn + ' gün' : ''].filter(Boolean).join(' ') + ` (${g} gün)`;
+    };
+    return {
+      toplamGun, kosulluGun, kalanKosullu, cezaevindeYatacak,
+      metinSatirlar: [
+        { ad: 'Toplam hükmedilen ceza', deger: fmt(toplamGun), ref: 'TCK / 5275 s.K.' },
+        { ad: `Koşullu salıverilme süresi (${oran || '1/2'})`, deger: fmt(kosulluGun), ref: '5275 s.K. m.107' },
+        ...(mahsup ? [{ ad: 'Tutukluluk / gözaltı mahsubu', deger: `-${fmt(mahsup)}`, ref: 'TCK m.63' }] : []),
+        { ad: 'Denetimli serbestlik süresi', deger: fmt(dsGun), ref: '5275 s.K. m.105/A' },
+        { ad: 'Cezaevinde geçirilecek tahmini süre', deger: fmt(cezaevindeYatacak), ref: '', vurgu: true }
+      ],
+      satirlar: [],
+      not: 'Bilgilendirme amaçlıdır. Suç tarihi, mükerrirlik, 7242/7456 s.K. geçici maddeleri ve iyi hal değerlendirmesi infaz hâkimliğince belirlenir.'
+    };
+  }
+
+  /** Ceza artırım/indirim hesabı (TCK m.61 sırası): temel gün (yıl*365+ay*30+gun) üzerinde adımlar [{tip:'artir'|'indir', pay, payda, ad}]. */
+  function ceza({ yil, ay, gun, adimlar }) {
+    let g = (Math.max(0, +yil || 0) * 365) + (Math.max(0, +ay || 0) * 30) + Math.max(0, +gun || 0);
+    if (g <= 0) return { hata: 'Temel ceza süresini girin.' };
+    const fmt = n => {
+      const y = Math.floor(n / 365), a = Math.floor((n % 365) / 30), gn = n % 30;
+      return [y ? y + ' yıl' : '', a ? a + ' ay' : '', (gn || (!y && !a)) ? gn + ' gün' : ''].filter(Boolean).join(' ');
+    };
+    const metinSatirlar = [{ ad: 'Temel ceza', deger: fmt(g), ref: 'TCK m.61' }];
+    for (const a of (adimlar || [])) {
+      const pay = +a.pay || 0, payda = +a.payda || 1;
+      if (pay <= 0 || payda <= 0) continue;
+      const fark = Math.floor(g * pay / payda);
+      g = a.tip === 'artir' ? (g + fark) : Math.max(0, g - fark);
+      metinSatirlar.push({ ad: `${a.ad || (a.tip === 'artir' ? 'Artırım' : 'İndirim')} (${a.tip === 'artir' ? '+' : '-'}${pay}/${payda})`, deger: fmt(g), ref: '' });
+    }
+    metinSatirlar.push({ ad: 'Sonuç ceza', deger: fmt(g), ref: '', vurgu: true });
+    return { sonucGun: g, metinSatirlar, satirlar: [], not: 'TCK m.61 sırasına göre (artırımlar → indirimler → TCK m.62) uygulanır.' };
+  }
+
+  const API = { TARIFE, TL, aautNispi, vekalet, faiz, harc, smm, cmkMakbuz, infaz, ceza };
   if (typeof window !== 'undefined') window.HukukHesap = API;
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
 })();
