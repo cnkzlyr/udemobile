@@ -17,6 +17,12 @@ on:
   push:
     tags:
       - 'v*'
+    # Yalniz APK'yi yeniden derleyip mevcut release'e eklemek icin: .github/apk-yayinla dosyasina
+    # etiket adini yazip main'e gonderin (masaustu paketleri derlenmez).
+    branches:
+      - main
+    paths:
+      - '.github/apk-yayinla'
   workflow_dispatch:
     inputs:
       tag:
@@ -28,7 +34,7 @@ on:
         default: 'true'
 
 env:
-  TAG: ${{ github.event.inputs.tag || github.ref_name }}
+  TAG: ${{ github.event.inputs.tag || (github.ref_type == 'branch' && 'apk-yayinla') || github.ref_name }}
 
 jobs:
   build-android:
@@ -38,6 +44,14 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Etiketi tetikleyici dosyadan oku (yalniz APK yeniden yayini)
+        if: github.ref_type == 'branch'
+        run: |
+          T=$(tr -d ' \r\n' < .github/apk-yayinla)
+          [ -n "$T" ] || { echo "::error::.github/apk-yayinla bos"; exit 1; }
+          echo "TAG=$T" >> "$GITHUB_ENV"
+          echo "APK su release'e eklenecek: $T"
 
       - name: Setup Java 21 (jlink ile Android gömülü Java'sı hazırlanır)
         uses: actions/setup-java@v4
@@ -122,7 +136,7 @@ jobs:
   build-desktop:
     # Surumu Android isi olusturur (etiket yoksa github.sha uzerinde); masaustu ayni surume ekler.
     needs: build-android
-    if: ${{ always() && github.event.inputs.masaustu != 'false' }}
+    if: ${{ always() && github.event.inputs.masaustu != 'false' && github.ref_type != 'branch' }}
     permissions:
       contents: write
     env:
