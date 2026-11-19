@@ -10,7 +10,7 @@
 (function () {
   'use strict';
 
-  const VERSION = '4.2.0';
+  const VERSION = '4.3.0';
   const REPO = 'cnkzlyr/udemobile';
   const API = 'https://api.github.com/repos/' + REPO + '/releases/latest';
   const LS_LAST = 'caneditor_update_last_check';
@@ -19,6 +19,9 @@
   const CHECK_EVERY_MS = 12 * 3600 * 1000;
 
   window.CANEDITOR_VERSION = VERSION;
+  // Alt bilgi çubuğundaki sürüm etiketi tek kaynaktan (bu dosyadan) yazılır; HTML'e elle yazılan sürüm eskiyordu
+  const yazSurum = () => { const e = document.getElementById('footerVersion'); if (e) e.textContent = 'CanEditor v' + VERSION + ' (Birleşik Hukuk Platformu)'; };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', yazSurum); else yazSurum();
 
   const ls = {
     get: k => { try { return localStorage.getItem(k); } catch (e) { return null; } },

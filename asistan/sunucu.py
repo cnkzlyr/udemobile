@@ -61,7 +61,7 @@ if hasattr(sys.stderr, "reconfigure"):
         pass
 from pathlib import Path
 
-SURUM = "4.1.0"
+SURUM = "4.3.0"
 KOK = Path(__file__).resolve().parent
 if str(KOK) not in sys.path:
     sys.path.insert(0, str(KOK))
@@ -193,10 +193,20 @@ class _KapananConn(sqlite3.Connection):
 
 
 def _ro(db: Path) -> sqlite3.Connection | None:
+    """Salt okunur bağlantı. Katalog dosyası var ama henüz UYAP taraması yapılmamışsa (evrak/dosya tabloları yok:
+    süre/finans modülleri aynı dosyada yalnız kendi tablolarını açar) None döner; böylece yeni kurulumda tüm
+    sekmeler '500 no such table' yerine 'henüz tarama yapılmadı' mesajı gösterir."""
     if not db.is_file():
         return None
     c = sqlite3.connect(f"file:{urllib.parse.quote(str(db))}?mode=ro", uri=True, timeout=10, factory=_KapananConn)
     c.row_factory = sqlite3.Row
+    try:
+        if db.name == "uyap_katalog.db" and not (_tablo_var(c, "evrak") and _tablo_var(c, "dosya")):
+            c.close()
+            return None
+    except sqlite3.DatabaseError:
+        c.close()
+        return None
     return c
 
 
@@ -722,6 +732,43 @@ SUNUCU_BASLAMA = time.time()
 TOPLAM_ISTEK = 0
 KESINTI_SAYISI = 0
 SON_KESINTI = ""
+_SAYAC_KILIT = threading.Lock()
+_PING_ONBELLEK: dict = {"t": 0.0, "ms": None}
+
+
+def istek_say() -> None:
+    """Her yetkili /api isteğinde çağrılır (eskiden sayaç hiç artmıyordu, tanı ekranı hep 0 gösteriyordu)."""
+    global TOPLAM_ISTEK
+    with _SAYAC_KILIT:
+        TOPLAM_ISTEK += 1
+
+
+def kesinti_kaydet(oturum_simdi) -> None:
+    """UYAP oturumu açıktan kapalıya döndüğünde kesinti sayar ve zamanını tutar."""
+    global KESINTI_SAYISI, SON_KESINTI
+    onceki = getattr(kesinti_kaydet, "_onceki", None)
+    if onceki is True and oturum_simdi is False:
+        with _SAYAC_KILIT:
+            KESINTI_SAYISI += 1
+            SON_KESINTI = time.strftime("%Y-%m-%d %H:%M:%S")
+    if oturum_simdi is not None:
+        kesinti_kaydet._onceki = oturum_simdi
+
+
+def uyap_ping_ms() -> int | None:
+    """UYAP Avukat Portal'a gerçek TCP bağlantı süresi (60 sn önbellekli). Eskiden sabit 1 ms yazılıyordu."""
+    simdi = time.time()
+    if simdi - _PING_ONBELLEK["t"] < 60:
+        return _PING_ONBELLEK["ms"]
+    ms = None
+    try:
+        t0 = time.perf_counter()
+        with socket.create_connection(("avukat.uyap.gov.tr", 443), timeout=2.5):
+            ms = int((time.perf_counter() - t0) * 1000)
+    except OSError:
+        ms = None
+    _PING_ONBELLEK.update(t=simdi, ms=ms)
+    return ms
 
 
 def baglanti_istatistikleri() -> dict:
@@ -733,15 +780,17 @@ def baglanti_istatistikleri() -> dict:
     ayar = _drive_indeks.drive_ayar_oku(evrak_veri_dizini())
     webhook = ayar.get("google_drive_webhook", "")
 
+    oturum_durum = BAGLI_TUT.durum()
+    kesinti_kaydet(oturum_durum.get("oturum"))
     return {
         "calisma_suresi": f"{saat} sa {dakika} dk {saniye} sn",
         "toplam_istek": TOPLAM_ISTEK,
         "kesinti_sayisi": KESINTI_SAYISI,
         "son_kesinti": SON_KESINTI or "Kesinti yaşanmadı (kesintisiz aktif)",
-        "ping_ms": 1,
+        "ping_ms": uyap_ping_ms(),
         "drive_webhook_tanimli": bool(webhook),
         "drive_yerel_klasor": ayar.get("google_drive_dir") or "Klasör ayarlanmadı",
-        "uyap_oturum": BAGLI_TUT.durum(),
+        "uyap_oturum": oturum_durum,
         "sunucu_zamani": time.strftime("%Y-%m-%d %H:%M:%S")
     }
 
@@ -899,6 +948,18 @@ def gorev_ortami() -> dict:
         env["CANASISTAN_GORUNMEZ"] = "1"
     else:
         env.pop("CANASISTAN_GORUNMEZ", None)
+    # Görevler (nöbetçi, UETS) Telegram/Notion/TickTick anahtarlarını arayüzde kaydedilen .env'den alır
+    try:
+        _e = _entegrasyon.env_oku(AVUKAT_DIR)
+        for k_env, k_mod in (("TELEGRAM_BOT_TOKEN", "UYAP_TELEGRAM_TOKEN"), ("TELEGRAM_CHAT_ID", "UYAP_TELEGRAM_CHAT_ID")):
+            if _e.get(k_env):
+                env.setdefault(k_env, _e[k_env])
+                env.setdefault(k_mod, _e[k_env])
+        for k in ("NOTION_TOKEN", "NOTION_DB_DOSYALAR", "TICKTICK_TOKEN"):
+            if _e.get(k):
+                env.setdefault(k, _e[k])
+    except Exception:
+        pass
     jars = os.environ.get("CANASISTAN_UYAP_JARS")
     if jars and (Path(jars) / "editor_lib.jar").is_file() and not env.get("UYAP_JARS"):
         env["UYAP_JARS"] = jars
@@ -1084,7 +1145,15 @@ class BagliTutucu:
             if "oturum" in k and any(x in k for x in ("doğrulandı", "açıldı", "oturumu açık", "aktif")):
                 oturum = True
                 break
-        return {"etkin": ok, "neden": neden or g.kullanilamama_nedeni(), "calisiyor": g.calisiyor(),
+        # Son turdaki gerçek hata (ör. "Nöbetçi döngü hatası") rozette görünsün; eskiden yalnız ham günlükte kalıyordu
+        son_hata = ""
+        for satir in reversed(gunluk):
+            if "[ERROR]" in satir or "Traceback" in satir:
+                son_hata = satir.split("] ", 2)[-1].strip()[:300]
+                break
+            if "[✓] Bitti" in satir or "tamamlandı" in satir.lower():
+                break
+        return {"etkin": ok, "neden": neden or g.kullanilamama_nedeni(), "calisiyor": g.calisiyor(), "son_hata": son_hata,
                 "son_baslangic": g.baslangic, "son_bitis": g.bitis, "son_kod": g.kod, "oturum": oturum,
                 "sonraki": self.sonraki if ok else None, "gunluk": gunluk[-8:], "ayar": uyap_ayar_oku()}
 
@@ -1264,6 +1333,7 @@ class Isleyici(BaseHTTPRequestHandler):
         if not self._yetkili():
             self._json({"hata": "Anahtar gerekli", "ipucu": "Asistan → Bağlantı"}, 401)
             return None
+        istek_say()
         return u.path, {k: v[-1] for k, v in urllib.parse.parse_qs(u.query).items()}
 
     # --- yöntemler ---
@@ -1383,7 +1453,12 @@ class Isleyici(BaseHTTPRequestHandler):
             if yol == "/api/evrak/toplu_islem":
                 return self._json(evrak_toplu_islem(govde))
             if yol == "/api/drive/ayar":
-                return self._json(_drive_indeks.drive_ayar_yaz(evrak_veri_dizini(), govde))
+                sonuc = _drive_indeks.drive_ayar_yaz(evrak_veri_dizini(), govde)
+                # Telegram tek kaynak: Drive sekmesinden girilen bilgiler Notion/TT ayarlarına (.env) da yazılır
+                tg = {k2: govde[k1] for k1, k2 in (("telegram_token", "telegram_bot_token"), ("telegram_chat_id", "telegram_chat_id")) if govde.get(k1)}
+                if tg:
+                    _entegrasyon.ayar_kaydet(AVUKAT_DIR, tg)
+                return self._json(sonuc)
             if yol == "/api/drive/test_webhook":
                 url = str(govde.get("url") or "").strip()
                 if not url:
@@ -1472,7 +1547,17 @@ class Isleyici(BaseHTTPRequestHandler):
                     return self._json({"dosya_adi": ad, "mime": mime, "boyut": len(out), "icerik_b64": base64.b64encode(out).decode("ascii")})
                 return self._dosya_gonder(out, ad, mime)
             if yol == "/api/entegrasyon/ayar":
-                return self._json(_entegrasyon.ayar_kaydet(AVUKAT_DIR, govde))
+                sonuc = _entegrasyon.ayar_kaydet(AVUKAT_DIR, govde)
+                # ... ve tersi: nöbetçi (uyap_watcher) Telegram'ı watcher_config.json'dan okur
+                tg = {k2: str(govde[k1]).strip() for k1, k2 in (("telegram_bot_token", "telegram_token"), ("telegram_chat_id", "telegram_chat_id"))
+                      if str(govde.get(k1) or "").strip() and "••••" not in str(govde.get(k1))}
+                if tg:
+                    _drive_indeks.drive_ayar_yaz(evrak_veri_dizini(), tg)
+                return self._json(sonuc)
+            if yol == "/api/entegrasyon/test":
+                return self._json(_entegrasyon.baglanti_testi(AVUKAT_DIR))
+            if yol == "/api/telegram/test":
+                return self._json(_entegrasyon.telegram_gonder(AVUKAT_DIR, "🔔 <b>CanEditor test bildirimi</b>\nTelegram bağlantısı çalışıyor."))
             if yol == "/api/notion/not":
                 return self._json(_entegrasyon.notion_not_ekle(
                     AVUKAT_DIR, str(govde.get("page_id") or ""), str(govde.get("baslik") or "Not"),

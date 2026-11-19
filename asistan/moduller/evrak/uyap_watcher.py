@@ -144,8 +144,11 @@ def load_config() -> dict:
             cfg = json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
         except Exception:
             pass
-    cfg.setdefault("telegram_token", os.environ.get("UYAP_TELEGRAM_TOKEN", ""))
-    cfg.setdefault("telegram_chat_id", os.environ.get("UYAP_TELEGRAM_CHAT_ID", ""))
+    # Boş string kayıtlı olsa bile ortamdan (arayüzde kaydedilen .env) doldur; eskiden setdefault boşu ezmiyordu
+    if not str(cfg.get("telegram_token") or "").strip():
+        cfg["telegram_token"] = os.environ.get("UYAP_TELEGRAM_TOKEN") or os.environ.get("TELEGRAM_BOT_TOKEN", "")
+    if not str(cfg.get("telegram_chat_id") or "").strip():
+        cfg["telegram_chat_id"] = os.environ.get("UYAP_TELEGRAM_CHAT_ID") or os.environ.get("TELEGRAM_CHAT_ID", "")
     cfg.setdefault("interval_minutes", 15)
     cfg.setdefault("keepalive_minutes", 3)
     cfg.setdefault("google_drive_dir", "G:\\Drive'ım\\UYAP_Arsiv")
@@ -674,9 +677,11 @@ class UyapWatcher:
         sql = """
         SELECT e.id
         FROM evrak e
-        WHERE e.durum NOT IN ('indirildi', 'mukerrer')
+        WHERE e.durum NOT IN ('indirildi', 'mukerrer', 'yok')
           AND (e.pdf_path IS NULL OR e.pdf_path = '')
         ORDER BY 
+            -- Daha önce hata veren evraklar en sona: aynı bozuk 50 evrak sonsuza dek tekrar denenmesin
+            CASE WHEN e.durum = 'hata' THEN 1 ELSE 0 END ASC,
             CASE 
                 WHEN e.kategori IN ('karar') THEN 1
                 WHEN e.kategori IN ('durusma', 'tensip') THEN 2
@@ -754,7 +759,9 @@ class UyapWatcher:
         # Google Drive bulut eşitlemesi (Telefon / Termux / Webhook / Yerel Klasör)
         if self.cloud and self.cloud.is_configured:
             for eid in target_ids:
-                row_up = self.katalog.get(eid)
+                _r = self.katalog.get(eid)
+                # sqlite3.Row .get() desteklemez → dict'e çevir (v4.1 nöbetçi döngü çökmesi)
+                row_up = dict(_r) if _r is not None else None
                 if row_up and row_up.get("pdf_path"):
                     p = Path(row_up["pdf_path"])
                     if p.exists():
@@ -786,8 +793,10 @@ class UyapWatcher:
         except Exception as e:
             logger.warning("İstihbarat ve süre senkronizasyon hatası: %s", e)
 
-    def run_loop(self, once: bool = False) -> None:
-        """Sürekli arka plan nöbet döngüsü veya tek seferlik tarama (--once)."""
+    def run_loop(self, once: bool = False) -> int:
+        """Sürekli arka plan nöbet döngüsü veya tek seferlik tarama (--once).
+        Dönüş: 0 başarılı, 1 hata (--once modunda çıkış kodu olur; böylece arayüz hatayı 'başarılı' sanmaz)."""
+        hata_kodu = 0
         logger.info("=" * 65)
         logger.info("  UYAP Nöbetçi Bot Devrede")
         logger.info("  Döngü Aralığı: %d dakika", self.config.get("interval_minutes", 15))
@@ -808,6 +817,7 @@ class UyapWatcher:
                     if not self.connect_bridge():
                         logger.warning("UYAP bağlantısı kurulamadı. 60 sn sonra tekrar denenecek.")
                         if once:
+                            hata_kodu = 1
                             break
                         time.sleep(60)
                         continue
@@ -840,7 +850,7 @@ class UyapWatcher:
 
                 # Kalan arşiv evrak kontrolü
                 cur_rem = self.katalog.db.execute(
-                    "SELECT COUNT(*) FROM evrak WHERE durum NOT IN ('indirildi', 'mukerrer') AND (pdf_path IS NULL OR pdf_path = '')"
+                    "SELECT COUNT(*) FROM evrak WHERE durum NOT IN ('indirildi', 'mukerrer', 'yok', 'hata') AND (pdf_path IS NULL OR pdf_path = '')"
                 )
                 kalan_evrak = cur_rem.fetchone()[0]
 
@@ -855,10 +865,12 @@ class UyapWatcher:
                 logger.info("Nöbetçi kullanıcı tarafından durduruldu.")
                 break
             except Exception as e:
-                logger.error("Nöbetçi döngü hatası: %s", e)
+                logger.exception("Nöbetçi döngü hatası: %s", e)
                 if once:
+                    hata_kodu = 1
                     break
                 time.sleep(10)
+        return hata_kodu
 
 
 # ---------------------------------------------------------------------------
@@ -943,7 +955,7 @@ def main():
         return
 
     watcher = UyapWatcher(cfg)
-    watcher.run_loop(once=args.once)
+    sys.exit(watcher.run_loop(once=args.once))
 
 
 if __name__ == "__main__":

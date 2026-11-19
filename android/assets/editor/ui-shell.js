@@ -530,6 +530,14 @@
     }
   });
 
+  // Esc: açık pencere yoksa Anahat çekmecesini kapatır
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Escape' || e.defaultPrevented) return;
+    const drawer = document.getElementById('ce-outline-drawer');
+    const acikPencere = [...document.querySelectorAll('.modal-backdrop')].some(m => m.classList.contains('open') || m.style.display === 'flex');
+    if (drawer && drawer.style.display !== 'none' && !acikPencere) window.toggleOutlineDrawer(false);
+  });
+
   // Belge değişikliklerinde Anahat çekmecesi açıksa otomatik güncelle
   let outlineTimer = null;
   document.addEventListener('input', () => {

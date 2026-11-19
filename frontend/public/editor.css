@@ -3678,3 +3678,37 @@ body.ce-dark-paper .a4-sheet-page td,
 body.ce-dark-paper .a4-sheet-page th {
   color: #E2E8F0 !important;
 }
+
+/* ===================== v4.3 düzeltmeleri ===================== */
+/* Cetvel gizleme düğmesi mobilde de çalışsın (yukarıdaki !important kural onu eziyordu) */
+.ruler-container.hidden, #ruler-container.hidden { display: none !important; }
+
+/* Telefonda araç çubuğu yatay kaydırılabilir: sağ kenarda solma ile "devamı var" ipucu */
+@media (max-width: 720px) {
+  #toolbar-container .ce-toolbar-row {
+    -webkit-mask-image: linear-gradient(90deg, #000 88%, transparent);
+            mask-image: linear-gradient(90deg, #000 88%, transparent);
+    scroll-snap-type: x proximity;
+    scrollbar-width: none;
+  }
+  #toolbar-container .ce-toolbar-row::-webkit-scrollbar { display: none; }
+  #toolbar-container .ce-toolbar-row.sonda {
+    -webkit-mask-image: none; mask-image: none;
+  }
+  /* Dokunma hedefleri en az 40px */
+  #toolbar-container .ce-tb { min-width: 40px; min-height: 40px; }
+}
+
+/* Klavye ile gezinirken odak halkası görünür olsun (erişilebilirlik) */
+button:focus-visible, .ce-tb:focus-visible, select:focus-visible {
+  outline: 2px solid #2563eb !important;
+  outline-offset: 2px;
+}
+
+/* Açık pencerelerin arka planı tıklanınca kapanabildiğini belli et */
+.modal-backdrop.open { cursor: default; }
+.modal-backdrop.open > * { cursor: auto; }
+
+/* Anahat çekmecesi açıkken sol alttaki yakınlaştırma çubuğunu örtmesin: çubuk çekmecenin sağına kayar */
+body.ce-outline-open #floating-zoom-bar { left: 314px !important; transition: left .18s ease; }
+@media (max-width: 720px) { body.ce-outline-open #floating-zoom-bar { display: none !important; } }

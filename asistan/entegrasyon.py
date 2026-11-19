@@ -416,6 +416,51 @@ def ticktick_tamamla(avukat_dir: Path, project_id: str, task_id: str) -> dict:
 # OTOMATİK UYAP → NOTION + TICKTICK AKTARIMI
 # ---------------------------------------------------------------------------
 
+def telegram_gonder(avukat_dir: Path, metin: str) -> dict:
+    """Kayıtlı bot ile Telegram mesajı gönderir (HTML biçimli). Yanıt: {"ok": bool, "hata": str}."""
+    e = env_oku(avukat_dir)
+    tok, chat = e.get("TELEGRAM_BOT_TOKEN", ""), e.get("TELEGRAM_CHAT_ID", "")
+    if not (tok and chat):
+        return {"ok": False, "hata": "Telegram bot token ve chat ID girilmemiş."}
+    try:
+        r = _http_json("POST", f"https://api.telegram.org/bot{tok}/sendMessage", {"Content-Type": "application/json"},
+                       {"chat_id": chat, "text": metin[:4000], "parse_mode": "HTML", "disable_web_page_preview": True}, timeout=15)
+        if isinstance(r, dict) and r.get("ok"):
+            return {"ok": True, "hata": ""}
+        return {"ok": False, "hata": str((r or {}).get("description") if isinstance(r, dict) else r)[:300]}
+    except Exception as ex:  # noqa: BLE001
+        # Token URL içinde: hata mesajında sızmasın
+        return {"ok": False, "hata": str(ex).replace(tok, "••••")[:300]}
+
+
+def baglanti_testi(avukat_dir: Path) -> dict:
+    """Kayıtlı tüm servisleri gerçekten dener; her biri için {"durum": "ok"|"hata"|"yok", "mesaj": ...}."""
+    e = env_oku(avukat_dir)
+    sonuc: dict = {}
+    if e.get("NOTION_TOKEN"):
+        try:
+            r = notion_dosyalar(avukat_dir, limit=1, yenile=True)
+            sonuc["notion"] = {"durum": "ok", "mesaj": f"{r.get('toplam', len(r.get('dosyalar', [])))} kayıt erişilebilir"}
+        except Exception as ex:  # noqa: BLE001
+            sonuc["notion"] = {"durum": "hata", "mesaj": str(ex)[:200]}
+    else:
+        sonuc["notion"] = {"durum": "yok", "mesaj": "Token girilmemiş"}
+    if e.get("TICKTICK_TOKEN"):
+        try:
+            pr = ticktick_projeler(avukat_dir, yenile=True)
+            sonuc["ticktick"] = {"durum": "ok", "mesaj": f"{len(pr)} liste"}
+        except Exception as ex:  # noqa: BLE001
+            sonuc["ticktick"] = {"durum": "hata", "mesaj": str(ex)[:200]}
+    else:
+        sonuc["ticktick"] = {"durum": "yok", "mesaj": "Token girilmemiş"}
+    if e.get("TELEGRAM_BOT_TOKEN") and e.get("TELEGRAM_CHAT_ID"):
+        r = telegram_gonder(avukat_dir, "🔔 <b>CanEditor</b> bağlantı testi: Telegram bildirimleri çalışıyor.")
+        sonuc["telegram"] = {"durum": "ok" if r["ok"] else "hata", "mesaj": "Test mesajı gönderildi" if r["ok"] else r["hata"]}
+    else:
+        sonuc["telegram"] = {"durum": "yok", "mesaj": "Bot token / chat ID girilmemiş"}
+    return sonuc
+
+
 def _yasal_son_gun_iso(merci: str, teblig_mi: bool = False) -> str:
     mf = _fold(merci)
     gun = 7 if any(k in mf for k in ("icra", "ceza", "sorusturma", "savcilik", "kira")) else (
@@ -433,7 +478,7 @@ def _yasal_son_gun_iso(merci: str, teblig_mi: bool = False) -> str:
 def uyap_otomatik_aktar(avukat_dir: Path, birim: str, dosya_no: str, tur: str,
                         aciklama: str = "", tarih: str = "", muvekkil: str = "") -> dict:
     """Bir UYAP evrakını / tebligatını hem Notion dava sayfasına hem TickTick'e aktarır."""
-    sonuc = {"notion": None, "ticktick": None, "hatalar": []}
+    sonuc = {"notion": None, "ticktick": None, "telegram": None, "hatalar": []}
     e = env_oku(avukat_dir)
     teblig_mi = any(k in _fold(f"{tur} {aciklama}") for k in ("tebligat", "uets", "mazbata"))
     son_gun = _yasal_son_gun_iso(birim, teblig_mi=teblig_mi)
@@ -479,5 +524,13 @@ def uyap_otomatik_aktar(avukat_dir: Path, birim: str, dosya_no: str, tur: str,
             )
         except Exception as ex:
             sonuc["hatalar"].append(f"TickTick: {ex}")
+
+    # Belgede "Notion + TickTick + Telegram" yazıyordu ama Telegram'a hiç gönderilmiyordu
+    if e.get("TELEGRAM_BOT_TOKEN") and e.get("TELEGRAM_CHAT_ID"):
+        import html as _html
+        tg = telegram_gonder(avukat_dir, f"<b>{_html.escape(ozet_baslik)}</b>\n{_html.escape(detay)}")
+        sonuc["telegram"] = tg
+        if not tg.get("ok"):
+            sonuc["hatalar"].append(f"Telegram: {tg.get('hata')}")
 
     return sonuc

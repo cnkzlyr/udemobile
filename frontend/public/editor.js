@@ -1954,13 +1954,17 @@ function toggleFabView() {
     applyAutoFitZoom();
     return;
   }
+  // Masaüstü: düzenleme (%100) ↔ tam sayfa baskı görünümü. Eskiden "sığdır" geniş ekranda %120 verdiği için
+  // düğme hiçbir zaman baskı görünümüne geçmiyordu.
   if (currentZoom < 0.8) {
     isFitMode = false;
     setZoom(1.0, false);
     const editor = document.getElementById('editor-content');
     if (editor) editor.focus();
+  } else if (typeof fitToPage === 'function') {
+    fitToPage();
   } else {
-    applyAutoFitZoom();
+    setZoom(0.6, false);
   }
 }
 
@@ -2638,18 +2642,24 @@ function setupMarkerDragging(markerId, type, activeCm) {
   marker.addEventListener('touchstart', onStart, { passive: false });
 }
 
-function toggleRuler() {
+function toggleRuler(force) {
   const container = document.getElementById('ruler-container');
   const btn = document.getElementById('btn-toggle-ruler');
-  isRulerVisible = !isRulerVisible;
-  if (isRulerVisible) {
-    container.classList.remove('hidden');
-    btn.classList.add('active');
-  } else {
-    container.classList.add('hidden');
-    btn.classList.remove('active');
-  }
+  isRulerVisible = typeof force === 'boolean' ? force : !isRulerVisible;
+  if (container) container.classList.toggle('hidden', !isRulerVisible);
+  if (btn) btn.classList.toggle('active', isRulerVisible);
+  // Tercih hatırlansın (her açılışta yeniden gizlemek gerekmesin)
+  try { localStorage.setItem('caneditor_ruler_visible', isRulerVisible ? '1' : '0'); } catch (e) {}
 }
+document.addEventListener('DOMContentLoaded', () => {
+  try { if (localStorage.getItem('caneditor_ruler_visible') === '0') toggleRuler(false); } catch (e) {}
+  // Mobil araç çubuğu: sona kaydırınca solma maskesini kaldır
+  const row = document.querySelector('#toolbar-container .ce-toolbar-row');
+  if (row) {
+    const upd = () => row.classList.toggle('sonda', row.scrollLeft + row.clientWidth >= row.scrollWidth - 4);
+    row.addEventListener('scroll', upd, { passive: true }); window.addEventListener('resize', upd); upd();
+  }
+});
 
 function updateRulerFromActiveParagraph() {
   if (activeDragMarker || isUserTypingActive()) return;
@@ -3092,6 +3102,32 @@ function openModal(id) {
     el.style.display = 'flex';
   }
 }
+
+// Evrensel pencere kapatma: Esc tuşu en üstteki açık pencereyi, karartılmış arka plana tıklama o pencereyi kapatır.
+// (Eskiden yalnızca "Kapat" düğmesi çalışıyordu; açık kalan pencere tüm araç çubuğunu kilitliyordu.)
+// Universal modal dismiss: Escape closes the top-most open modal, backdrop click closes that modal.
+(function installModalDismiss() {
+  if (window.__ceModalDismiss) return;
+  window.__ceModalDismiss = true;
+  const openModals = () => [...document.querySelectorAll('.modal-backdrop')].filter(m => m.classList.contains('open') || m.style.display === 'flex');
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Escape' || e.defaultPrevented) return;
+    const list = openModals();
+    if (!list.length) return;
+    const top = list[list.length - 1];
+    if (top.dataset.noDismiss === '1') return; // kritik işlem (ör. imzalama sürüyor) sırasında kapatma
+    e.preventDefault();
+    closeModal(top.id);
+  });
+  let downOnBackdrop = null;
+  document.addEventListener('mousedown', e => { downOnBackdrop = (e.target && e.target.classList && e.target.classList.contains('modal-backdrop')) ? e.target : null; }, true);
+  document.addEventListener('click', e => {
+    const t = e.target;
+    // Yalnızca basma ve bırakma ikisi de arka plandaysa kapat (metin seçerken dışarı kayınca kapanmasın)
+    if (t && t === downOnBackdrop && t.classList.contains('modal-backdrop') && t.id && t.dataset.noDismiss !== '1') closeModal(t.id);
+    downOnBackdrop = null;
+  });
+})();
 
 function closeModal(id) {
   const el = document.getElementById(id);
@@ -3664,7 +3700,14 @@ function onBackgroundSignComplete(type, provider, signerName, hash) {
     closeModal('modal-smartcard-sign');
   }
 
-  insertSignatureSeal(sealHtml);
+  // İmza mührü belge gövdesine EKLENMEZ (imzalı içeriği değiştirip imzayı bozar); bilgi imza şeridinde gösterilir.
+  // Eskiden burada tanımsız insertSignatureSeal() çağrılıyordu → ReferenceError → Android'e "imzalandı" hiç bildirilmiyordu.
+  void sealHtml;
+  try {
+    const info = { hasSignature: true, isValid: true, signerName: signerName, issuer: provider, type: type, hash: hash };
+    if (typeof updateSignatureBanner === 'function') updateSignatureBanner(info);
+    if (typeof showEditorToast === 'function') showEditorToast('✓ Belge ' + (type === 'mobile' ? 'mobil imza' : 'e-imza') + ' ile imzalandı: ' + signerName);
+  } catch (e) {}
 
   if (window.AndroidBridge && window.AndroidBridge.onDocumentSigned) {
     window.AndroidBridge.onDocumentSigned(type, provider, hash);
@@ -4536,6 +4579,16 @@ function isDocumentModified() {
   return !!window.__userHasEditedDocument;
 }
 window.isDocumentModified = isDocumentModified;
+// Programatik değişiklikleri (tablo/görsel ekleme, biçim boyacısı vb.) "kaydedilmemiş" olarak işaretler.
+// Eskiden çağrılıyor ama hiç tanımlanmamıştı; bu yüzden bazı değişikliklerde kapatırken uyarı çıkmıyordu.
+function markDirty() {
+  window.__userHasEditedDocument = true;
+  if (window.AndroidBridge && window.AndroidBridge.setDocModified) {
+    try { window.AndroidBridge.setDocModified(true); } catch (e) {}
+  }
+  try { document.title = document.title.replace(/^• /, ''); document.title = '• ' + document.title; } catch (e) {}
+}
+window.markDirty = markDirty;
 
 // --- 30 Saniyede Bir Otomatik Taslak Kaydetme & Kurtarma ---
 const AUTOSAVE_STORAGE_KEY = 'caneditor_autosave_draft';
@@ -5381,11 +5434,13 @@ function updateSignatureBanner(data) {
     banner.className = 'signature-status-banner valid';
     iconEl.textContent = '🟢';
     if (data.signers && data.signers.length > 1) {
-      const names = data.signers.map(s => s.signerName).join(', ');
+      const _e = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+      const names = data.signers.map(s => _e(s.signerName)).join(', ');
       textEl.innerHTML = `<strong>${data.signers.length} Geçerli E-İmza:</strong> ${names}`;
     } else {
-      const signer = data.signerName || 'Elektronik İmza Sahibi';
-      const iss = data.issuer ? ` (${data.issuer})` : '';
+      const _e = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+      const signer = _e(data.signerName || 'Elektronik İmza Sahibi');
+      const iss = data.issuer ? ` (${_e(data.issuer)})` : '';
       textEl.innerHTML = `<strong>Geçerli E-İmza:</strong> ${signer}${iss}`;
     }
   } else {
