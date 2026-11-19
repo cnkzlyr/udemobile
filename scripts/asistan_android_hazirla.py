@@ -204,7 +204,12 @@ def qemu_dogrula(rt: Path) -> None:
                 return
             raise SystemExit("sunucu 120 sn içinde yanıt vermedi")
     finally:
+        # qemu altindaki sunucu SIGTERM'i yok sayarsa derleme asili kalmasin
         p.terminate()
+        try:
+            p.wait(timeout=15)
+        except subprocess.TimeoutExpired:
+            p.kill()
 
 
 def main() -> int:
