@@ -2369,12 +2369,11 @@ class UyapDownloaderApp:
         elif is_emir and f"islem_{is_emir}" in self.history:
             entry = self.history[f"islem_{is_emir}"]
         # 3. Geçmişteki is_emir_no alanları arasında ara (kısa birim evrak no'ları mahkemeler
-        #    arasında çakışabilir; yalnızca uzun, global işlem numaralarında güvenli)
+        #    arasında çakışabilir; yalnızca uzun, global işlem numaralarında güvenli).
+        #    Eskiden her evrak için tüm geçmiş baştan sona taranıyordu (binlerce evrakta dakikalar);
+        #    artık bir kez kurulan dizinle O(1).
         elif is_emir and len(is_emir) >= 8:
-            for h in self.history.values():
-                if str(h.get("is_emir_no") or "").strip() == is_emir:
-                    entry = h
-                    break
+            entry = self._gecmis_dizini()[0].get(is_emir)
 
         # 4. Alternatif eşleşme: Birim adı, dosya no, tarih ve evrak adı birebir aynı mı?
         b_adi = item.get("birim_adi") if item else None
@@ -2383,15 +2382,7 @@ class UyapDownloaderApp:
         tarih = item.get("tarih") if item else None
         # Boş alanlar (None == None) yanlış eşleşme üretmesin
         if not entry and item and b_adi and e_adi and tarih:
-            for h in self.history.values():
-                if (
-                    h.get("birim_adi") == b_adi
-                    and h.get("dosya_no") == d_no
-                    and h.get("evrak_turu") == e_adi
-                    and h.get("tarih") == tarih
-                ):
-                    entry = h
-                    break
+            entry = self._gecmis_dizini()[1].get((b_adi, d_no, e_adi, tarih))
 
         if entry:
             path_str = entry.get("path")
@@ -2423,6 +2414,34 @@ class UyapDownloaderApp:
             self._history_dirty = True
             return True
         return False
+
+    def _gecmis_dizini(self):
+        """Geçmiş (indirme_gecmisi.json) için arama dizinleri: (is_emir_no → kayıt, (birim, dosya, evrak, tarih) → kayıt,
+        sha256 → kayıt). Geçmiş büyüdükçe kendiliğinden yenilenir."""
+        anahtar = (id(self.history), len(self.history))
+        if getattr(self, "_gd_anahtar", None) != anahtar:
+            emir, icerik, sha = {}, {}, {}
+            for h in self.history.values():
+                if not isinstance(h, dict):
+                    continue
+                e = str(h.get("is_emir_no") or "").strip()
+                if e and e not in emir:
+                    emir[e] = h
+                k = (h.get("birim_adi"), h.get("dosya_no"), h.get("evrak_turu"), h.get("tarih"))
+                if k[0] and k[2] and k[3] and k not in icerik:
+                    icerik[k] = h
+                if h.get("sha256") and h.get("path") and h["sha256"] not in sha:
+                    sha[h["sha256"]] = h
+            self._gd = (emir, icerik, sha)
+            self._gd_anahtar = anahtar
+        return self._gd
+
+    def ayni_icerik_var(self, raw_bytes: bytes):
+        """İndirilen içerik (SHA-256) diskte zaten varsa o dosyanın yolunu döner: ikinci kopya yazılmaz."""
+        h = self._gecmis_dizini()[2].get(hashlib.sha256(raw_bytes).hexdigest())
+        if h and h.get("path") and Path(h["path"]).exists():
+            return Path(h["path"])
+        return None
 
     _DISK_ID_RX = re.compile(
         r"_(\d{6,})(?:_\d{1,3})?\.(?:udf|pdf|tif|tiff|jpe?g|png|gif|docx?|xlsx?|zip|rar|xml|html?|txt|eyp|p7s)$",
@@ -4117,6 +4136,18 @@ def run_cli_dosyalar_mode(args, bridge, app_helper, download_dir, tckn):
                 doc_num = sanitize_path_part(item.get("is_emir_no") or clean_ev_id[:8], max_len=20)
                 
                 target_folder = target_base / yargi_slug / b_slug / d_slug / alt_kat
+                ayni = app_helper.ayni_icerik_var(raw_bytes)
+                if ayni:
+                    # Aynı içerik başka bir evrak olarak zaten inmiş (ör. her dilekçeye eklenen vekaletname)
+                    app_helper.history[ukey] = {"path": str(ayni), "sha256": hashlib.sha256(raw_bytes).hexdigest(),
+                                                "downloaded_at": dt.datetime.now().isoformat(timespec="seconds"),
+                                                "size": len(raw_bytes), "tarih": item["tarih"], "birim_adi": item["birim_adi"],
+                                                "dosya_no": item["dosya_no"], "evrak_turu": item["evrak_adi"],
+                                                "is_emir_no": item.get("is_emir_no", ""), "mukerrer": True}
+                    app_helper._history_dirty = True
+                    print(f"[=] Mükerrer (aynı içerik zaten var, yazılmadı): {item['evrak_adi']} → {ayni.name}")
+                    success = True
+                    break
                 target_folder.mkdir(parents=True, exist_ok=True)
 
                 # Geçici dosyaya yazıp içeriği analiz et ve zenginleştir
@@ -4944,6 +4975,18 @@ def run_cli_mode(args):
                     cd_filename = m.group(1).strip()
 
                 ext = guess_extension(cd_filename, ct, raw_bytes)
+
+                ayni = app_helper.ayni_icerik_var(raw_bytes)
+                if ayni:
+                    app_helper.history[ukey] = {"path": str(ayni), "sha256": hashlib.sha256(raw_bytes).hexdigest(),
+                                                "downloaded_at": dt.datetime.now().isoformat(timespec="seconds"),
+                                                "size": len(raw_bytes), "tarih": item["tarih"], "birim_adi": item["birim_adi"],
+                                                "dosya_no": item["dosya_no"], "evrak_turu": item["evrak_turu"],
+                                                "is_emir_no": item.get("is_emir_no", ""), "mukerrer": True}
+                    app_helper._history_dirty = True
+                    print(f"[=] Mükerrer (aynı içerik zaten var, yazılmadı): {item['evrak_adi']} → {ayni.name}")
+                    success = True
+                    break
 
                 target_path = app_helper.build_target_filepath(item, ext, override_dir=download_dir)
                 target_path.parent.mkdir(parents=True, exist_ok=True)

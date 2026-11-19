@@ -7,6 +7,7 @@ doğrulama kodunu (.eml) otomatik yakalar/doldurur, gelen kutusundaki tebligatla
 ve son N adet tebligatın .eyp paketlerini kusursuz şekilde İndirilenler klasörüne indirir.
 """
 
+import json
 import os
 import sys
 import time
@@ -375,6 +376,43 @@ def wait_for_downloads(download_dir, timeout=60):
         time.sleep(1)
     return False
 
+def eyp_barkod_dizini(eyp_yollari, parse_eyp_file):
+    """barkod → EYP yolu. (yol, boyut, mtime) değişmeyen dosyalar yeniden açılmaz; dizin JSON'da kalıcıdır."""
+    dizin_dosyasi = os.path.join(os.path.dirname(os.path.abspath(__file__)), "eyp_barkod_dizini.json")
+    try:
+        with open(dizin_dosyasi, encoding="utf-8") as f:
+            eski = json.load(f)
+    except Exception:
+        eski = {}
+    yeni, sonuc, acilan = {}, {}, 0
+    for ep in eyp_yollari:
+        try:
+            st = os.stat(ep)
+        except OSError:
+            continue
+        imza = f"{st.st_size}:{int(st.st_mtime)}"
+        kayit = eski.get(ep)
+        if kayit and kayit.get("imza") == imza:
+            b = kayit.get("barkod")
+        else:
+            acilan += 1
+            try:
+                info = parse_eyp_file(ep, extract_files=False) or {}
+                b = info.get("barcode")
+            except Exception:
+                b = None
+        yeni[ep] = {"imza": imza, "barkod": b}
+        if b and b not in sonuc:
+            sonuc[b] = ep
+    try:
+        with open(dizin_dosyasi, "w", encoding="utf-8") as f:
+            json.dump(yeni, f, ensure_ascii=False)
+    except Exception:
+        pass
+    print(f"   💾 Yerel EYP dizini: {len(yeni)} paket ({acilan} yeni/değişmiş paket okundu, {len(sonuc)} barkod).")
+    return sonuc
+
+
 def check_missing_tebligatlar_in_ticktick(csv_items, limit=None):
     """
     İndirilen CSV'deki tebligatları TickTick (aktif, tamamlanmış, yapılmayacak) ile karşılaştırır.
@@ -387,7 +425,26 @@ def check_missing_tebligatlar_in_ticktick(csv_items, limit=None):
     items_to_check = csv_items[:limit] if (limit and limit > 0) else csv_items
     missing = []
 
-    print(f"\n🔍 [AKILLI KONTROL]: İndirilen CSV'deki {len(items_to_check)} adet tebligat TickTick ile doğrulanıyor...")
+    # TOPLU ÖN KONTROL: TickTick listeleri ve durum dosyası BİR KEZ okunur; eskiden her tebligat için durum dosyası
+    # yeniden okunuyor ve ayrı bir HTTP isteği atılıyordu (yüzlerce tebligatta dakikalar).
+    from state_manager import load_state
+    from ticktick_sync import get_completed_tasks_live, get_project_tasks_live
+    durum_barkod = (load_state() or {}).get("barcodes", {}) or {}
+    try:
+        tamamlanan_idler = {t.get("id") for t in (get_completed_tasks_live(force_refresh=True) or [])}
+    except Exception:
+        tamamlanan_idler = set()
+    aktif_idler: dict = {}
+
+    def _aktif(pid):
+        if pid not in aktif_idler:
+            try:
+                aktif_idler[pid] = {t.get("id") for t in (get_project_tasks_live(pid) or [])}
+            except Exception:
+                aktif_idler[pid] = None
+        return aktif_idler[pid]
+
+    print(f"\n🔍 [AKILLI KONTROL]: İndirilen CSV'deki {len(items_to_check)} adet tebligat TickTick ile toplu doğrulanıyor...")
     for idx, item in enumerate(items_to_check):
         barcode = item.get("barcode")
         court = item.get("court", "")
@@ -401,12 +458,18 @@ def check_missing_tebligatlar_in_ticktick(csv_items, limit=None):
             print(f"   🛡️ [{idx+1}/{len(items_to_check)}] {court} [{esas_no}] (Barkod: {barcode}) -> TickTick'te '{lbl}'.")
             continue
 
-        # 2. State cache kontrolü
-        b_state = get_barcode_state(barcode) if barcode else {}
+        # 2. State cache kontrolü (bellekteki toplu verilerle; tek tek HTTP yalnızca hiçbir listede görünmeyen görev için)
+        b_state = durum_barkod.get(str(barcode)) if barcode else {}
         if b_state and b_state.get("task_id"):
             tid = b_state["task_id"]
             pid = b_state.get("project_id", "inbox")
-            try:
+            if tid in tamamlanan_idler:
+                print(f"   🛡️ [{idx+1}/{len(items_to_check)}] {court} [{esas_no}] (Barkod: {barcode}) -> TickTick'te tamamlanmış (Cache).")
+                continue
+            aktifler = _aktif(pid)
+            bilinen = aktifler is not None and tid in aktifler
+            if not bilinen:
+              try:
                 r = requests.get(f"{CONFIG['TICKTICK_API_BASE']}/project/{pid}/task/{tid}", headers={"Authorization": f"Bearer {CONFIG['TICKTICK_TOKEN']}"}, timeout=4)
                 if r.status_code == 200:
                     t_obj = r.json()
@@ -414,7 +477,7 @@ def check_missing_tebligatlar_in_ticktick(csv_items, limit=None):
                         lbl = "Tamamlandı" if t_obj.get("status") == 2 else "Yapılmayacak"
                         print(f"   🛡️ [{idx+1}/{len(items_to_check)}] {court} [{esas_no}] (Barkod: {barcode}) -> TickTick'te '{lbl}' (Cache).")
                         continue
-            except Exception:
+              except Exception:
                 pass
 
         # 3. Aktif görevlerde var mı ve eki eklenmiş mi?
@@ -894,18 +957,15 @@ def login_and_download(headless=False, count=None, auto_sync=True, external_driv
                 print(f"\n📦 [ADIM 2]: Tespit edilen {len(missing_rows)} adet eksik tebligatın EYP paketi sırayla inceleniyor/indiriliyor...")
                 downloaded_eyp = 0
 
-                # Mevcut yerel EYP dosyalarını önbelleğe al
-                local_eyp_paths = scan_all_eyp_files()
-                local_eyp_cache = {}
-                for ep in local_eyp_paths:
-                    try:
-                        p_info = parse_eyp_file(ep, extract_files=False)
-                        if p_info:
-                            b = p_info.get("barcode")
-                            if b:
-                                local_eyp_cache[b] = ep
-                    except Exception:
-                        pass
+                # Mevcut yerel EYP dosyaları: kalıcı barkod dizini (eyp_barkod_dizini.json). Eskiden HER çalışmada
+                # bütün EYP paketleri tek tek açılıp okunuyordu; artık yalnız yeni/değişmiş dosyalar açılır.
+                local_eyp_cache = eyp_barkod_dizini(scan_all_eyp_files(), parse_eyp_file)
+                eksik_once = len(missing_rows)
+                missing_rows = [(i, it) for (i, it) in missing_rows
+                                if not (it.get("barcode") and it.get("barcode") in local_eyp_cache and os.path.exists(local_eyp_cache[it["barcode"]]))]
+                print(f"   📋 Plan: {eksik_once} eksik tebligattan {eksik_once - len(missing_rows)} tanesinin EYP'si diskte zaten var "
+                      f"(indirilmeyecek), {len(missing_rows)} EYP indirilecek.")
+                downloaded_eyp += eksik_once - len(missing_rows)
 
                 for m_pos, (target_idx, item) in enumerate(missing_rows):
                     b_code = item.get("barcode")

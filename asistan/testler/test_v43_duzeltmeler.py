@@ -236,3 +236,57 @@ class AndroidDnsYayilimTesti(unittest.TestCase):
         kod = "import socket, dns_cozucu; print(socket.getaddrinfo is dns_cozucu._guvenli_getaddrinfo)"
         r = subprocess.run([sys.executable, "-c", kod], env=env, capture_output=True, text=True, cwd=tempfile.gettempdir())
         self.assertEqual(r.stdout.strip(), "True", r.stderr)
+
+
+class MukerrerTahminTesti(unittest.TestCase):
+    """Aynı dosyada aynı gönderenden aynı adlı ek 2 kez aynı içerikle gelince, sonrakiler HİÇ indirilmeden ayıklanır."""
+
+    def test_ogrenme_ve_dogrulama(self):
+        import evrak_katalog as ek
+        with tempfile.TemporaryDirectory() as td:
+            td = Path(td)
+            kat = ek.Katalog(td / "k.db")
+            simdi = "2026-01-01T00:00:00"
+            with kat.db:
+                kat.db.execute("INSERT INTO dosya(dkey, birim, dosya_no) VALUES ('D1','Ankara 3. Asliye','2025/104')")
+                for i in range(1, 7):  # 6 dilekçe, her birinde "Vekaletname" eki
+                    kat.db.execute("INSERT INTO evrak(skey,dkey,is_ek,tur,gonderen,tarih,durum,ilk_gorulme,son_gorulme) "
+                                   "VALUES (?,?,1,'Vekaletname','Av. Can',?, 'yeni',?,?)", (f"K|{i}|1", "D1", f"2026-01-0{i}", simdi, simdi))
+                kat.db.execute("INSERT INTO evrak(skey,dkey,is_ek,tur,gonderen,tarih,durum,ilk_gorulme,son_gorulme) "
+                               "VALUES ('K|9|1','D1',1,'Bilirkişi Raporu','Mahkeme','2026-01-09','yeni',?,?)", (simdi, simdi))
+            m = ek.Motor(None, kat, td)
+            m.min_d = m.max_d = 0.0
+            m._sleep = lambda s: None
+            m._sync_to_drive = lambda p: None
+            m._queue_conversion = lambda f: None
+            m.oturum = "x"
+            cagrilan = []
+            icerik = {"Vekaletname": b"%PDF-vekalet", "Bilirkişi Raporu": b"%PDF-rapor"}
+
+            def sahte_fetch(eid, refreshed=None):
+                cagrilan.append(eid)
+                r = kat.get(eid)
+                return icerik[r["tur"]], {"contentType": "application/pdf"}, r, ""
+
+            m.fetch = sahte_fetch
+            ids = [r["id"] for r in kat.db.execute("SELECT id FROM evrak ORDER BY id")]
+            st = m.download(ids)
+            # İlk iki vekaletname indirilir (biri asıl, biri içerikten mükerrer) → kalıp öğrenilir → kalan 4'ü indirilmez
+            self.assertEqual(len(cagrilan), 3)  # 2 vekaletname + 1 rapor
+            self.assertEqual(st["indirildi"], 2)
+            self.assertEqual(st["tahmini_mukerrer"], 4)
+            self.assertEqual(kat.db.execute("SELECT COUNT(*) FROM evrak WHERE hata=?", (m.TAHMIN_ISARETI,)).fetchone()[0], 4)
+            # Sonraki çalışmada yeni gelen 7. vekaletname baştan (ön kontrolde) ayıklanır
+            with kat.db:
+                kat.db.execute("INSERT INTO evrak(skey,dkey,is_ek,tur,gonderen,tarih,durum,ilk_gorulme,son_gorulme) "
+                               "VALUES ('K|7|1','D1',1,'Vekaletname','Av. Can','2026-01-07','yeni',?,?)", (simdi, simdi))
+            yeni_id = kat.db.execute("SELECT id FROM evrak WHERE skey='K|7|1'").fetchone()[0]
+            cagrilan.clear()
+            kalan, plan = m.on_kontrol([yeni_id])
+            self.assertEqual((kalan, plan["tahmini_mukerrer"]), ([], 1))
+            # Boştaki doğrulama: biri aslında farklıysa indirilir ve kalıp artık kullanılmaz
+            icerik["Vekaletname"] = b"%PDF-YENI-vekalet"
+            d = m.tahminleri_dogrula(limit=1)
+            self.assertEqual(d["dogrulanan"], 1)
+            self.assertEqual(d["indirildi"], 1)
+            self.assertEqual(m._tahmin_haritasi(), {})

@@ -1392,14 +1392,107 @@ class Motor:
             threading.Thread(target=self._conv_worker, daemon=True, name="pdf-donusum").start()
         self._conv_q.put(str(folder))
 
+    # ------------------------------------------------------------------ toplu ön kontrol (mükerrer tahmini)
+    # İçerik mükerreri (aynı vekaletname/ek her dilekçeye eklenmiş gibi) ancak indirince SHA-256 ile anlaşılabiliyordu:
+    # her biri UYAP bekleme süresiyle tek tek indirilip atılıyordu. Artık geçmiş indirmelerden öğrenilir:
+    # aynı dosyada, aynı gönderenden, aynı adlı ek en az 2 kez indirilmiş ve HEPSİ aynı içerikse, sonrakiler
+    # indirilmeden "mükerrer (tahmini)" işaretlenir. Tahminler boşta (nöbetçi bekleme modunda) tek tek doğrulanır;
+    # içerik farklı çıkarsa evrak indirilir ve o kalıp bir daha tahmin için kullanılmaz.
+    TAHMIN_ISARETI = "tahmini mükerrer (indirilmedi, sonra doğrulanacak)"
+
+    @staticmethod
+    def _imza(row) -> tuple:
+        return (row["dkey"] or "", (row["tur"] or "").strip().lower(), (row["gonderen"] or "").strip().lower())
+
+    def _tahmin_haritasi(self) -> dict:
+        """imza → (asıl skey, asıl path): yalnız ekler için, geçmişte ≥2 kez aynı içerikle gelmiş kalıplar."""
+        if os.environ.get("UYAP_MUKERRER_TAHMIN", "1") == "0":
+            return {}
+        sorgu = """SELECT dkey, lower(trim(tur)) t, lower(trim(COALESCE(gonderen,''))) g,
+                          COUNT(*) n, COUNT(DISTINCT sha256) d,
+                          MIN(CASE WHEN durum='indirildi' THEN skey END) asil,
+                          MIN(CASE WHEN durum='indirildi' THEN path END) yol
+                   FROM evrak WHERE is_ek=1 AND sha256 IS NOT NULL AND durum IN ('indirildi','mukerrer')
+                   GROUP BY dkey, t, g HAVING n >= 2 AND d = 1 AND asil IS NOT NULL"""
+        harita = {}
+        for r in self.kat._execute_with_retry(lambda: self.kat.db.execute(sorgu).fetchall()):
+            if r["yol"] and os.path.exists(r["yol"]):
+                harita[(r["dkey"] or "", r["t"] or "", r["g"] or "")] = (r["asil"], r["yol"])
+        # Doğrulamada farklı çıkan kalıplar güvenilmez sayılır
+        for r in self.kat._execute_with_retry(lambda: self.kat.db.execute(
+                "SELECT DISTINCT dkey, lower(trim(tur)) t, lower(trim(COALESCE(gonderen,''))) g FROM evrak "
+                "WHERE is_ek=1 AND hata='tahmin yanlış çıktı'").fetchall()):
+            harita.pop((r["dkey"] or "", r["t"] or "", r["g"] or ""), None)
+        return harita
+
+    def on_kontrol(self, ids: list[int], tahmin: bool = True) -> tuple[list[int], dict]:
+        """İndirmeden ÖNCE tek seferde: zaten inmiş olanları ve tahmini mükerrerleri ayıklar, planı yazar."""
+        plan = {"istenen": len(ids), "zaten": 0, "tahmini_mukerrer": 0, "indirilecek": 0}
+        if not ids:
+            return [], plan
+        satirlar = {}
+        for i in range(0, len(ids), 900):
+            parca = ids[i:i + 900]
+            for r in self.kat._execute_with_retry(lambda p=parca: self.kat.db.execute(
+                    f"SELECT id, durum, is_ek, dkey, tur, gonderen FROM evrak WHERE id IN ({','.join('?' * len(p))})", p).fetchall()):
+                satirlar[r["id"]] = r
+        harita = self._tahmin_haritasi() if tahmin else {}
+        simdi = dt.datetime.now().isoformat(timespec="seconds")
+        kalan = []
+        for eid in ids:
+            r = satirlar.get(eid)
+            if not r or r["durum"] in ("indirildi", "mukerrer"):
+                plan["zaten"] += 1
+                continue
+            hedef = harita.get(self._imza(r)) if r["is_ek"] else None
+            if hedef:
+                self.kat.set_result(eid, durum="mukerrer", dup_of=hedef[0], path=hedef[1], indirildi=simdi,
+                                    hata=self.TAHMIN_ISARETI)
+                plan["tahmini_mukerrer"] += 1
+                continue
+            kalan.append(eid)
+        plan["indirilecek"] = len(kalan)
+        self.log(f"[plan] {plan['istenen']} evrak tek seferde kontrol edildi: {plan['zaten']} zaten var, "
+                 f"{plan['tahmini_mukerrer']} mükerrer olacağı bilindiği için indirilmeyecek, {plan['indirilecek']} indirilecek.")
+        return kalan, plan
+
+    def tahminleri_dogrula(self, limit: int = 10) -> dict:
+        """Boştayken: 'tahmini mükerrer' işaretlenenleri gerçekten indirip SHA-256 ile doğrular."""
+        rows = self.kat._execute_with_retry(lambda: self.kat.db.execute(
+            "SELECT id FROM evrak WHERE durum='mukerrer' AND hata=? ORDER BY tarih DESC LIMIT ?",
+            (self.TAHMIN_ISARETI, int(limit))).fetchall())
+        ids = [r["id"] for r in rows]
+        if not ids:
+            return {"dogrulanan": 0}
+        for eid in ids:
+            self.kat.set_result(eid, durum="yeni", dup_of=None, path=None, indirildi=None, hata="tahmin doğrulanıyor")
+        st = self.download(ids, tahmin=False)
+        # Mükerrer çıkmayıp indirilenler: tahmin yanlıştı → o kalıp artık kullanılmaz
+        with self.kat.db:
+            for eid in ids:
+                r = self.kat.get(eid)
+                if r and r["durum"] == "indirildi":
+                    self.kat.db.execute("UPDATE evrak SET hata='tahmin yanlış çıktı' WHERE id=?", (eid,))
+        return {"dogrulanan": len(ids), **st}
+
     # ------------------------------------------------------------------ indirme
-    def download(self, ids: list[int]) -> dict:
-        stats = {"indirildi": 0, "mukerrer": 0, "yok": 0, "hata": 0, "atlandi": 0, "onbellek": 0}
+    def download(self, ids: list[int], tahmin: bool = True) -> dict:
+        stats = {"indirildi": 0, "mukerrer": 0, "yok": 0, "hata": 0, "atlandi": 0, "onbellek": 0, "tahmini_mukerrer": 0}
         n_gone = self.kat.sync_disk()
         if n_gone:
             self.log(f"[i] Diskte bulunamayan {n_gone} evrak yeniden indirilecek olarak işaretlendi.")
         if not ids:
             return stats
+        istenen = len(ids)
+        ids, plan = self.on_kontrol(list(ids), tahmin=tahmin)
+        stats["atlandi"] += plan["zaten"]
+        stats["tahmini_mukerrer"] = plan["tahmini_mukerrer"]
+        stats["mukerrer"] += plan["tahmini_mukerrer"]
+        if not ids:
+            self.log(f"[✓] İndirilecek yeni evrak yok ({istenen} evrağın tamamı zaten var veya mükerrer).")
+            return stats
+        # Aynı çalışmada da öğren: bir kalıp ikinci kez aynı içerikle gelince kalanlar indirilmeden geçilir
+        canli_harita = self._tahmin_haritasi() if tahmin else {}
         if not self.oturum:
             self._new_session()
         total = len(ids)
@@ -1423,6 +1516,13 @@ class Motor:
                         self._queue_conversion(fo)
                     pending_folders.clear()
                 last_dkey = row["dkey"]
+                if tahmin and row["is_ek"] and self._imza(row) in canli_harita:
+                    hedef = canli_harita[self._imza(row)]
+                    self.kat.set_result(eid, durum="mukerrer", dup_of=hedef[0], path=hedef[1], hata=self.TAHMIN_ISARETI,
+                                        indirildi=dt.datetime.now().isoformat(timespec="seconds"))
+                    stats["mukerrer"] += 1
+                    stats["tahmini_mukerrer"] += 1
+                    continue
                 from_cache = bool(row["cache_path"] and os.path.exists(row["cache_path"]))
                 if from_cache:
                     raw, resp, why = Path(row["cache_path"]).read_bytes(), {}, ""
@@ -1452,6 +1552,8 @@ class Motor:
                         self.kat.set_result(eid, durum="mukerrer", dup_of=dup["skey"], sha256=sha, size=len(raw),
                                             path=dup["path"], indirildi=dt.datetime.now().isoformat(timespec="seconds"))
                         self.log(f"[=] Mükerrer (aynı içerik zaten var, kaydedilmedi): {row['tur']} → {Path(dup['path']).name}")
+                        if tahmin and row["is_ek"]:
+                            canli_harita = self._tahmin_haritasi()  # bu kalıp artık öğrenilmiş olabilir
                     else:
                         path = unique_path(target_path_for(row, self.base, ext))
                         path.parent.mkdir(parents=True, exist_ok=True)
@@ -1508,7 +1610,8 @@ class Motor:
             self.log("[*] Kalan UDF'ler PDF'e çevriliyor...")
             self._conv_q.join()
         self.log(f"[✓] Bitti ({_sure(time.time() - t_start)}): {stats['indirildi']} indirildi "
-                 f"({stats['onbellek']} önbellekten), {stats['mukerrer']} mükerrer (kaydedilmedi), "
+                 f"({stats['onbellek']} önbellekten), {stats['mukerrer']} mükerrer (kaydedilmedi; "
+                 f"{stats['tahmini_mukerrer']} tanesi hiç indirilmeden ayıklandı), "
                  f"{stats['yok']} UYAP'ta dosyası yok, {stats['hata']} hata, {stats['atlandi']} zaten vardı.")
         return stats
 

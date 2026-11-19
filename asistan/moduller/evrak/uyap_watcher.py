@@ -883,7 +883,18 @@ class UyapWatcher:
                     logger.info("⏳ UYAP Arşiv Eşitlemesi Devam Ediyor: Kalan %d evrak önem sırasıyla indiriliyor (Sonraki paket 3 sn)...", kalan_evrak)
                     time.sleep(3.0)
                 else:
+                    # Boştayken birkaç "tahmini mükerrer"i gerçekten indirip doğrula (yanlış tahmin kalmasın)
+                    if getattr(self, "motor", None) and hasattr(self.motor, "tahminleri_dogrula"):
+                        try:
+                            d = self.motor.tahminleri_dogrula(limit=5)
+                            if d.get("dogrulanan"):
+                                logger.info("🔎 %d tahmini mükerrer doğrulandı (%d gerçekten farklıydı ve indirildi).",
+                                            d["dogrulanan"], d.get("indirildi", 0))
+                        except Exception as e:  # noqa: BLE001
+                            logger.warning("Tahmin doğrulama atlandı: %s", e)
                     logger.info("✨ Tüm UYAP arşivi Google Drive ile %100 eşitlendi! Tam Nöbetçi Bekleme Modu (%d dakika)...", self.config.get("interval_minutes", 15))
+                    if once:
+                        break
                     time.sleep(interval_s)
 
             except KeyboardInterrupt:
