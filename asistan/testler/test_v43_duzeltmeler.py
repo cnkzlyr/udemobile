@@ -122,3 +122,51 @@ class SunucuTesti(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class DriveWebhookIndeksTesti(unittest.TestCase):
+    """Drive'ın tamamı Apps Script 'list' ile sayfa sayfa indekslenir (telefonda eskiden /sdcard/Download taranıyordu)."""
+
+    def test_sayfali_listeleme_ve_eski_kayitlarin_temizlenmesi(self):
+        import json as _json
+        import threading
+        from http.server import BaseHTTPRequestHandler, HTTPServer
+        import drive_indeks as di
+
+        sayfalar = {
+            None: {"status": "ok", "dosyalar": [{"id": f"a{i}", "ad": f"dilekce{i}.udf", "klasor": "Davalar/2025-104 E.", "boyut": 10, "mtime": 1700000000, "url": "https://drive/a"} for i in range(3)], "state": "S1"},
+            "S1": {"status": "ok", "dosyalar": [{"id": "b1", "ad": "Bilirkişi Raporu.pdf", "klasor": "", "boyut": 2048, "mtime": 1700000001, "url": "u"},
+                                                {"id": "g1", "ad": "Notlar", "klasor": "X", "boyut": 0, "mtime": 1, "url": "u", "mime": "application/vnd.google-apps.document"}], "state": None},
+        }
+
+        class H(BaseHTTPRequestHandler):
+            def do_POST(self):
+                g = _json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+                body = _json.dumps(sayfalar[g.get("state")]).encode()
+                self.send_response(200); self.send_header("Content-Type", "application/json"); self.end_headers(); self.wfile.write(body)
+
+            def log_message(self, *a):
+                pass
+
+        srv = HTTPServer(("127.0.0.1", 0), H)
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        try:
+            with tempfile.TemporaryDirectory() as td:
+                db = Path(td) / "drive_indeks.db"
+                # telefon klasöründen gelmiş eski kayıt (temizlenmeli)
+                with di._db_ac(db) as c:
+                    c.execute("INSERT INTO drive_dosya(rel_yol,ad) VALUES ('Download/eski.apk','eski.apk')")
+                r = di.indeksle_webhook(db, f"http://127.0.0.1:{srv.server_port}/exec")
+                self.assertEqual(r["toplam"], 5)
+                self.assertEqual(r["silinen"], 1)
+                a = di.ara(db, "bilirkisi")
+                self.assertEqual([x["ad"] for x in a["sonuclar"]], ["Bilirkişi Raporu.pdf"])
+                self.assertEqual(di.ara(db, "", uzanti="gdocument")["sonuclar"][0]["rel_yol"], "gdrive:g1")
+                self.assertEqual(di.ara(db, "2025/104")["toplam"], 5)
+                self.assertIn("Google Drive", di.indeks_ozeti(db)["kaynak"])
+        finally:
+            srv.shutdown()
+
+    def test_eski_betik_anlasilir_hata(self):
+        import drive_indeks as di
+        self.assertIn("eski sürüm", di._eski_betik_mesaji({"status": "error", "message": "Exception: Invalid argument: base64"}))

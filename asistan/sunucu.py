@@ -61,7 +61,7 @@ if hasattr(sys.stderr, "reconfigure"):
         pass
 from pathlib import Path
 
-SURUM = "4.3.0"
+SURUM = "4.3.1"
 KOK = Path(__file__).resolve().parent
 if str(KOK) not in sys.path:
     sys.path.insert(0, str(KOK))
@@ -1318,6 +1318,7 @@ class Isleyici(BaseHTTPRequestHandler):
         self._cors()
         self.send_header("Content-Type", mime)
         self.send_header("Content-Disposition", "inline; filename*=UTF-8''" + urllib.parse.quote(dosya_adi))
+        self.send_header("Access-Control-Expose-Headers", "Content-Disposition")
         self.send_header("Content-Length", str(len(veri)))
         self.end_headers()
         self.wfile.write(veri)
@@ -1378,6 +1379,16 @@ class Isleyici(BaseHTTPRequestHandler):
                 return self._json(drive_durumu())
             if yol == "/api/drive/ara":
                 return self._json(_drive_indeks.ara(drive_indeks_yolu(), q.get("q", ""), q.get("uzanti", ""), q.get("esas", ""), int(q.get("limit") or 120)))
+            if yol == "/api/drive/indeks_durum":
+                d = dict(_drive_indeks.WEBHOOK_ILERLEME)
+                d["gecen_sn"] = round(time.time() - d["basla"]) if d.get("basla") else 0
+                return self._json(d)
+            if yol == "/api/drive/dosya" and q.get("id"):
+                ayar = _drive_indeks.drive_ayar_oku(evrak_veri_dizini())
+                if not ayar.get("google_drive_webhook"):
+                    return self._json({"hata": "Webhook ayarlı değil"}, 400)
+                veri, ad = _drive_indeks.webhook_dosya_getir(ayar["google_drive_webhook"], q["id"])
+                return self._dosya_gonder(veri, ad)
             if yol == "/api/drive/dosya":
                 ayar = _drive_indeks.drive_ayar_oku(evrak_veri_dizini())
                 p = _drive_indeks.guvenli_drive_dosyasi(Path(ayar["google_drive_dir"]), q.get("rel", "")) if ayar.get("google_drive_dir") else None
@@ -1502,27 +1513,21 @@ class Isleyici(BaseHTTPRequestHandler):
             if yol == "/api/drive/indeksle":
                 ayar = _drive_indeks.drive_ayar_oku(evrak_veri_dizini())
                 dizin = str(govde.get("dizin") or ayar.get("google_drive_dir") or "").strip()
-                if not dizin or dizin.startswith("http://") or dizin.startswith("https://"):
-                    # Android / ayarlanmamış ortam için akıllı varsayılan
-                    varsayilanlar = [
-                        Path("/sdcard/Download/UYAP_Arsiv"),
-                        Path("/sdcard/Download"),
-                        evrak_veri_dizini() / "UYAP_Arsiv",
-                    ]
-                    dizin_secilen = None
-                    for vd in varsayilanlar:
-                        if vd.is_dir():
-                            dizin_secilen = vd
-                            break
-                    if not dizin_secilen:
-                        dizin_secilen = varsayilanlar[0]
-                        try:
-                            dizin_secilen.mkdir(parents=True, exist_ok=True)
-                        except OSError:
-                            dizin_secilen = evrak_veri_dizini() / "UYAP_Arsiv"
-                            dizin_secilen.mkdir(parents=True, exist_ok=True)
-                    dizin = str(dizin_secilen)
-                return self._json(_drive_indeks.indeksle(drive_indeks_yolu(), Path(dizin)))
+                webhook = str(govde.get("webhook") or ayar.get("google_drive_webhook") or "").strip()
+                if dizin.startswith(("http://", "https://")):
+                    webhook, dizin = webhook or dizin, ""
+                # 1) Bilgisayarda Google Drive klasörü bağlıysa: yerel tarama (hızlı)
+                if dizin and Path(dizin).is_dir() and not govde.get("bulut"):
+                    return self._json(_drive_indeks.indeksle(drive_indeks_yolu(), Path(dizin)))
+                # 2) Telefonda / klasör yoksa: Drive'ın TAMAMI Apps Script üzerinden (arka planda, sayfa sayfa).
+                #    Eskiden burada sessizce /sdcard/Download taranıyor ve Drive diye gösteriliyordu.
+                if webhook.startswith("https://"):
+                    if webhook != ayar.get("google_drive_webhook"):
+                        _drive_indeks.drive_ayar_yaz(evrak_veri_dizini(), {"google_drive_webhook": webhook})
+                    return self._json({"arkaplan": True, **_drive_indeks.indeksle_webhook_arkaplan(
+                        drive_indeks_yolu(), webhook, str(govde.get("kok") or "").strip())})
+                raise ValueError("Google Drive bağlı değil: bilgisayarda Drive klasörünü ya da telefonda Apps Script "
+                                 "Webhook (/exec) adresini girip kaydedin.")
             if yol == "/api/drive/esitle":
                 return self._json(_drive_indeks.esitle_eksikler(katalog_yolu(), evrak_veri_dizini(), int(govde.get("limit") or 100)))
             if yol == "/api/donustur":

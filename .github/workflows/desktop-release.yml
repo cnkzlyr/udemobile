@@ -41,17 +41,24 @@ jobs:
     runs-on: ubuntu-22.04
     permissions:
       contents: write
+    outputs:
+      tag: ${{ steps.tetik.outputs.tag }}
+      tam: ${{ steps.tetik.outputs.tam }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Etiketi tetikleyici dosyadan oku (yalniz APK yeniden yayini)
-        if: github.ref_type == 'branch'
+      # .github/apk-yayinla: ilk kelime etiket (or. v4.3.1); ikinci kelime "tam" ise masaustu paketleri de derlenir.
+      - name: Etiketi tetikleyici dosyadan oku
+        id: tetik
+        if: github.event_name == 'push' && github.ref_type == 'branch'
         run: |
-          T=$(tr -d ' \r\n' < .github/apk-yayinla)
+          read -r T MOD < .github/apk-yayinla || true
           [ -n "$T" ] || { echo "::error::.github/apk-yayinla bos"; exit 1; }
           echo "TAG=$T" >> "$GITHUB_ENV"
-          echo "APK su release'e eklenecek: $T"
+          echo "tag=$T" >> "$GITHUB_OUTPUT"
+          if [ "$MOD" = "tam" ]; then echo "tam=true" >> "$GITHUB_OUTPUT"; else echo "tam=false" >> "$GITHUB_OUTPUT"; fi
+          echo "Yayin: $T (mod: ${MOD:-yalniz-apk})"
 
       - name: Setup Java 21 (jlink ile Android gömülü Java'sı hazırlanır)
         uses: actions/setup-java@v4
@@ -136,7 +143,7 @@ jobs:
   build-desktop:
     # Surumu Android isi olusturur (etiket yoksa github.sha uzerinde); masaustu ayni surume ekler.
     needs: build-android
-    if: ${{ always() && github.event.inputs.masaustu != 'false' && github.ref_type != 'branch' }}
+    if: ${{ always() && ((!(github.event_name == 'push' && github.ref_type == 'branch') && github.event.inputs.masaustu != 'false') || needs.build-android.outputs.tam == 'true') }}
     permissions:
       contents: write
     env:
@@ -158,6 +165,11 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Etiketi Android isinden al (dosya tetiklemeli yayin)
+        if: github.event_name == 'push' && github.ref_type == 'branch'
+        shell: bash
+        run: echo "TAG=${{ needs.build-android.outputs.tag }}" >> "$GITHUB_ENV"
 
       - name: Setup Node.js
         uses: actions/setup-node@v4

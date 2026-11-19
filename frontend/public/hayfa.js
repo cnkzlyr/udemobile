@@ -16,12 +16,67 @@
 // Bu kodu Google Drive'ınızda "Yeni > Diğer > Google Apps Script" açıp yapıştırın.
 // Ardından "Dağıt (Deploy) > Yeni Dağıtım > Web Uygulaması" seçip URL'yi alın.
 // ===========================================================================
+// Sürüm 2 (CanEditor 4.3.1+): "list" ile Drive'ın tamamı sayfa sayfa indekslenir, "get" ile dosya açılır.
+// GÜNCELLEME: Bu kodu yapıştırdıktan sonra "Dağıt > Dağıtımları yönet > ✏️ > Sürüm: Yeni sürüm > Dağıt"
+// yapın; böylece Web Uygulaması adresi (URL) DEĞİŞMEZ.
+var BETIK_SURUM = 2;
+
+function _json(o) {
+  return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON);
+}
+
+// Drive'ı klasör klasör gezer; ~25 sn veya 2000 dosyada durup "state" döner (Apps Script 6 dk sınırı).
+// Walks the Drive tree breadth-first and returns a resumable state token.
+function _listele(data) {
+  var basla = Date.now();
+  var st = data.state ? JSON.parse(data.state) : null;
+  if (!st) {
+    var kok;
+    if (data.kok) {
+      var it0 = DriveApp.getFoldersByName(data.kok);
+      if (!it0.hasNext()) return { status: "error", message: "Klasör bulunamadı: " + data.kok };
+      kok = it0.next();
+    } else {
+      kok = DriveApp.getRootFolder();
+    }
+    st = { q: [[kok.getId(), ""]], cur: null, ft: null };
+  }
+  var dosyalar = [];
+  while (Date.now() - basla < 25000 && dosyalar.length < 2000) {
+    if (!st.cur) {
+      if (!st.q.length) { st = null; break; }
+      st.cur = st.q.shift();
+      st.ft = null;
+      var alt = DriveApp.getFolderById(st.cur[0]).getFolders();
+      while (alt.hasNext()) {
+        var f = alt.next();
+        st.q.push([f.getId(), (st.cur[1] ? st.cur[1] + "/" : "") + f.getName()]);
+      }
+    }
+    var it = st.ft ? DriveApp.continueFileIterator(st.ft) : DriveApp.getFolderById(st.cur[0]).getFiles();
+    var bitti = true;
+    while (it.hasNext()) {
+      if (Date.now() - basla > 25000 || dosyalar.length >= 2000) { bitti = false; break; }
+      var d = it.next();
+      dosyalar.push({ id: d.getId(), ad: d.getName(), klasor: st.cur[1], boyut: d.getSize(),
+        mtime: Math.floor(d.getLastUpdated().getTime() / 1000), url: d.getUrl(), mime: d.getMimeType() });
+    }
+    if (bitti) { st.cur = null; st.ft = null; } else { st.ft = it.getContinuationToken(); }
+  }
+  return { status: "ok", surum: BETIK_SURUM, dosyalar: dosyalar, state: st ? JSON.stringify(st) : null };
+}
+
 function doPost(e) {
   try {
     var data = JSON.parse(e.postData.contents);
     if (data.action === "ping" || data.test) {
-      return ContentService.createTextOutput(JSON.stringify({ status: "ok", message: "Bağlantı başarılı!" }))
-        .setMimeType(ContentService.MimeType.JSON);
+      return _json({ status: "ok", surum: BETIK_SURUM, message: "Bağlantı başarılı!" });
+    }
+    if (data.action === "list") return _json(_listele(data));
+    if (data.action === "get") {
+      var gf = DriveApp.getFileById(data.id);
+      var b = gf.getBlob();
+      return _json({ status: "ok", ad: gf.getName(), mime: b.getContentType(), content: Utilities.base64Encode(b.getBytes()) });
     }
     var rootFolderName = "UYAP_Arsiv";
     var rootFolders = DriveApp.getFoldersByName(rootFolderName);
@@ -739,9 +794,13 @@ function doGet(e) {
   // =========================================================================
   async function driveDosyaAc(rel, ctx) {
     try {
-      const r = await ctx.api('/api/drive/dosya?rel=' + encodeURIComponent(rel), { ham: true });
+      // "gdrive:<id>" kayıtları Google Drive'dan (Apps Script "get") indirilir; diğerleri yerel klasörden
+      const bulut = String(rel).startsWith('gdrive:');
+      const r = await ctx.api(bulut ? '/api/drive/dosya?id=' + encodeURIComponent(rel.slice(7)) : '/api/drive/dosya?rel=' + encodeURIComponent(rel), { ham: true });
       const buf = await r.arrayBuffer();
-      const ad = rel.split('/').pop() || 'DriveDosyasi';
+      const cd = r.headers && r.headers.get ? (r.headers.get('Content-Disposition') || '') : '';
+      const m = /filename\*?=(?:UTF-8'')?"?([^";]+)/i.exec(cd);
+      const ad = (m ? decodeURIComponent(m[1]) : '') || rel.split('/').pop() || 'DriveDosyasi';
       ctx.kapat();
       if (window.openDocumentFromBytes) await window.openDocumentFromBytes(buf, ad);
       else if (window.openPdfViewer) await window.openPdfViewer(buf, ad);
@@ -904,14 +963,35 @@ function doGet(e) {
       }
 
       ic.querySelector('#hf-drv-yenile').onclick = () => driveProSekmesi(ic, ctx);
+      // Drive indeksleme: bilgisayarda yerel klasör hemen taranır; telefonda Drive'ın tamamı Apps Script ile
+      // arka planda sayfa sayfa okunur (on binlerce dosya birkaç dakika sürebilir) ve ilerleme gösterilir.
+      const indeksSonucuYaz = r => {
+        islem.textContent = `✓ İndekslendi${r.kaynak ? ' (' + r.kaynak + ')' : ''}: ${r.toplam.toLocaleString('tr-TR')} dosya (${r.boyut_mb.toLocaleString('tr-TR')} MB) · +${r.yeni} yeni, ${r.guncellenen} güncellendi, ${r.silinen} silindi (${Math.round(r.sure_ms / 1000)} sn)`;
+      };
+      const indeksIzle = async () => {
+        for (;;) {
+          const d = await api('/api/drive/indeks_durum');
+          if (d.calisiyor) {
+            islem.textContent = `⏳ Google Drive okunuyor… ${d.okunan.toLocaleString('tr-TR')} dosya (${d.sayfa} sayfa, ${d.gecen_sn} sn). Paneli kapatabilirsiniz, arka planda sürer.`;
+            await new Promise(r => setTimeout(r, 2500));
+            if (!document.body.contains(islem)) return;
+            continue;
+          }
+          if (d.hata) { islem.innerHTML = `<span class="ca-hata">${esc(d.hata)}</span>`; return; }
+          if (d.sonuc) { indeksSonucuYaz(d.sonuc); driveAra(); }
+          return;
+        }
+      };
       ic.querySelector('#hf-drv-indeks').onclick = async () => {
-        islem.textContent = '⏳ Google Drive / yerel klasör taranıp SQLite veritabanına alınıyor…';
+        islem.textContent = '⏳ Google Drive taranıyor…';
         try {
-          const r = await api('/api/drive/indeksle', { method: 'POST', govde: {} });
-          islem.textContent = `✓ İndekslendi: ${r.toplam.toLocaleString('tr-TR')} dosya (${r.boyut_mb} MB) · +${r.yeni} yeni, ${r.guncellenen} güncellendi, ${r.silinen} silindi (${r.sure_ms} ms)`;
-          driveAra();
+          const wh = whInput ? whInput.value.trim() : '';
+          const r = await api('/api/drive/indeksle', { method: 'POST', govde: wh ? { webhook: wh } : {} });
+          if (r.arkaplan) { await indeksIzle(); } else { indeksSonucuYaz(r); driveAra(); }
         } catch (e) { islem.innerHTML = `<span class="ca-hata">${esc(e.message)}</span>`; }
       };
+      // Sekme açıldığında süren bir indeksleme varsa ilerlemesini göster
+      api('/api/drive/indeks_durum').then(d => { if (d && d.calisiyor) indeksIzle(); }).catch(() => {});
       ic.querySelector('#hf-drv-esitle').onclick = async () => {
         islem.textContent = '⏳ Yerel UYAP evrakları Google Drive ile eşitleniyor…';
         try {
@@ -955,6 +1035,7 @@ function doGet(e) {
               <td style="white-space:nowrap">${(f.boyut / 1024).toFixed(0)} KB</td>
               <td style="white-space:nowrap">
                 <button class="ca-btn kucuk ana" type="button" data-dac="${esc(f.rel_yol)}">Aç</button>
+                ${f.url ? `<a class="ca-btn kucuk" href="${esc(f.url)}" target="_blank" rel="noopener">Drive'da</a>` : ''}
                 ${f.uzanti === 'udf' ? `<button class="ca-btn kucuk" type="button" data-dpdf="${esc(f.rel_yol)}">JAR PDF</button>` : ''}
               </td></tr>`).join('')}</table>`;
           dson.querySelectorAll('[data-dac]').forEach(b => { b.onclick = () => driveDosyaAc(b.dataset.dac, ctx); });

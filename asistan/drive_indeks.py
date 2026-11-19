@@ -76,6 +76,9 @@ def _db_ac(db_yolu: Path):
     c.row_factory = sqlite3.Row
     try:
         c.executescript(SCHEMA)
+        # v4.3.1: Drive (webhook) kayıtları için web bağlantısı sütunu
+        if "url" not in {r[1] for r in c.execute("PRAGMA table_info(drive_dosya)")}:
+            c.execute("ALTER TABLE drive_dosya ADD COLUMN url TEXT NOT NULL DEFAULT ''")
         yield c
         c.commit()
     except Exception:
@@ -230,6 +233,107 @@ def indeksle(db_yolu: Path, drive_dizini: Path, max_dosya: int = 200_000) -> dic
     }
 
 
+# ---------------------------------------------------------------------------
+# Google Drive'ı webhook (Apps Script) üzerinden indeksleme.
+# Telefonda Drive bir klasör olarak bağlı olmadığı için eski yöntem (os.scandir) Drive yerine
+# /sdcard/Download'u tarıyordu. Bu yol Drive'ın TAMAMINI Apps Script "list" eylemiyle sayfa sayfa okur.
+# ---------------------------------------------------------------------------
+WEBHOOK_ILERLEME: dict = {"calisiyor": False, "okunan": 0, "sayfa": 0, "hata": "", "sonuc": None, "basla": 0.0}
+
+
+def _webhook_post(url: str, govde: dict, timeout: int = 90) -> dict:
+    import urllib.request
+    istek = urllib.request.Request(url, data=json.dumps(govde).encode("utf-8"),
+                                   headers={"Content-Type": "application/json", "User-Agent": "CanEditor/4.3"}, method="POST")
+    with urllib.request.urlopen(istek, timeout=timeout) as resp:
+        ham = resp.read().decode("utf-8", "replace")
+    try:
+        return json.loads(ham)
+    except ValueError:
+        raise ValueError("Apps Script JSON yerine HTML döndürdü. Web uygulamasında 'Erişimi olan: Herkes' seçili mi?")
+
+
+def webhook_dosya_getir(url: str, drive_id: str) -> tuple[bytes, str]:
+    import base64
+    r = _webhook_post(url, {"action": "get", "id": drive_id}, timeout=120)
+    if r.get("status") != "ok" or "content" not in r:
+        raise ValueError(_eski_betik_mesaji(r))
+    return base64.b64decode(r["content"]), str(r.get("ad") or "DriveDosyasi")
+
+
+def _eski_betik_mesaji(r: dict) -> str:
+    m = str(r.get("message") or r.get("hata") or r)
+    if "base64" in m.lower() or "content" in m.lower() or "undefined" in m.lower() or r.get("status") == "success":
+        return ("Google Apps Script betiğiniz eski sürüm: yalnızca yükleme yapabiliyor, Drive'ı listeleyemiyor. "
+                "Drive sekmesindeki '📋 Google Apps Script Kodunu Kopyala' ile yeni kodu yapıştırın ve "
+                "'Dağıt > Dağıtımları yönet > ✏️ > Yeni sürüm' ile yeniden dağıtın (URL değişmez).")
+    return f"Apps Script hatası: {m[:300]}"
+
+
+def indeksle_webhook(db_yolu: Path, url: str, kok: str = "") -> dict:
+    """Drive'ı Apps Script 'list' eylemiyle (devam belirteci ile) baştan sona okur ve tabloyu yeniler."""
+    t0 = time.monotonic()
+    simdi_iso = time.strftime("%Y-%m-%dT%H:%M:%S")
+    ilerleme = WEBHOOK_ILERLEME
+    ilerleme.update(okunan=0, sayfa=0, hata="", sonuc=None, basla=time.time())
+    state = None
+    satirlar: dict[str, tuple] = {}
+    while True:
+        r = _webhook_post(url, {"action": "list", "state": state, "kok": kok})
+        if r.get("status") != "ok" or "dosyalar" not in r:
+            raise ValueError(_eski_betik_mesaji(r))
+        for f in r["dosyalar"]:
+            klasor = str(f.get("klasor") or "")
+            ad = str(f.get("ad") or "")
+            yol = f"{klasor}/{ad}" if klasor else ad
+            esas = _esas_cikar(yol)
+            uz = Path(ad).suffix.lower().lstrip(".")
+            if not uz and str(f.get("mime", "")).startswith("application/vnd.google-apps."):
+                uz = "g" + str(f["mime"]).rsplit(".", 1)[-1]  # gdocument, gspreadsheet…
+            anahtar = "gdrive:" + str(f.get("id"))
+            satirlar[anahtar] = (anahtar, ad, klasor, uz, int(f.get("boyut") or 0), float(f.get("mtime") or 0),
+                                 esas, fold(f"{yol} {esas}"), simdi_iso, str(f.get("url") or ""))
+        ilerleme["okunan"] = len(satirlar)
+        ilerleme["sayfa"] += 1
+        state = r.get("state")
+        if not state:
+            break
+
+    with _db_ac(db_yolu) as c:
+        onceki = {r["rel_yol"]: (r["boyut"], r["mtime"]) for r in c.execute("SELECT rel_yol, boyut, mtime FROM drive_dosya")}
+        yeni = sum(1 for k in satirlar if k not in onceki)
+        guncel = sum(1 for k, v in satirlar.items() if k in onceki and (onceki[k][0] != v[4] or abs(onceki[k][1] - v[5]) >= 1))
+        silinen = sum(1 for k in onceki if k not in satirlar)
+        # Tam yenileme: telefon klasöründen gelmiş eski (Drive olmayan) kayıtlar da temizlenir
+        c.execute("DELETE FROM drive_dosya")
+        c.executemany("INSERT OR REPLACE INTO drive_dosya(rel_yol,ad,klasor,uzanti,boyut,mtime,esas_no,ara,indeks_zaman,url) "
+                      "VALUES (?,?,?,?,?,?,?,?,?,?)", list(satirlar.values()))
+        c.execute("INSERT OR REPLACE INTO drive_meta(anahtar, deger) VALUES ('son_indeks', ?)", (simdi_iso,))
+        c.execute("INSERT OR REPLACE INTO drive_meta(anahtar, deger) VALUES ('kok_dizin', ?)", ("Google Drive" + (f" / {kok}" if kok else " (tamamı)"),))
+        toplam_boyut = c.execute("SELECT COALESCE(SUM(boyut), 0) FROM drive_dosya").fetchone()[0]
+    return {"toplam": len(satirlar), "boyut_mb": round(toplam_boyut / 1_048_576, 1), "yeni": yeni, "guncellenen": guncel,
+            "silinen": silinen, "son_indeks": simdi_iso, "sure_ms": round((time.monotonic() - t0) * 1000), "kaynak": "Google Drive"}
+
+
+def indeksle_webhook_arkaplan(db_yolu: Path, url: str, kok: str = "") -> dict:
+    """Uzun sürebilir (on binlerce dosya = birkaç dakika): arka planda çalıştırır, ilerlemeyi WEBHOOK_ILERLEME'de tutar."""
+    import threading
+    if WEBHOOK_ILERLEME["calisiyor"]:
+        return {"basladi": False, "calisiyor": True, **{k: WEBHOOK_ILERLEME[k] for k in ("okunan", "sayfa")}}
+    WEBHOOK_ILERLEME.update(calisiyor=True, okunan=0, sayfa=0, hata="", sonuc=None, basla=time.time())
+
+    def _is():
+        try:
+            WEBHOOK_ILERLEME["sonuc"] = indeksle_webhook(db_yolu, url, kok)
+        except Exception as ex:  # noqa: BLE001
+            WEBHOOK_ILERLEME["hata"] = str(ex)[:500]
+        finally:
+            WEBHOOK_ILERLEME["calisiyor"] = False
+
+    threading.Thread(target=_is, name="drive-webhook-indeks", daemon=True).start()
+    return {"basladi": True, "calisiyor": True}
+
+
 def indeks_ozeti(db_yolu: Path) -> dict:
     if not db_yolu.is_file():
         return {"hazir": False, "toplam": 0, "boyut_mb": 0.0, "son_indeks": None, "uzantilar": []}
@@ -237,6 +341,7 @@ def indeks_ozeti(db_yolu: Path) -> dict:
         toplam = c.execute("SELECT COUNT(*) FROM drive_dosya").fetchone()[0]
         boyut = c.execute("SELECT COALESCE(SUM(boyut), 0) FROM drive_dosya").fetchone()[0]
         son = c.execute("SELECT deger FROM drive_meta WHERE anahtar='son_indeks'").fetchone()
+        kaynak = c.execute("SELECT deger FROM drive_meta WHERE anahtar='kok_dizin'").fetchone()
         uzlar = [dict(r) for r in c.execute(
             "SELECT uzanti, COUNT(*) AS sayi FROM drive_dosya GROUP BY uzanti ORDER BY sayi DESC LIMIT 8"
         ).fetchall()]
@@ -245,6 +350,7 @@ def indeks_ozeti(db_yolu: Path) -> dict:
         "toplam": toplam,
         "boyut_mb": round(boyut / 1_048_576, 1),
         "son_indeks": son["deger"] if son else None,
+        "kaynak": kaynak["deger"] if kaynak else "",
         "uzantilar": uzlar,
     }
 
@@ -270,7 +376,7 @@ def ara(db_yolu: Path, q: str = "", uzanti: str = "", esas: str = "", limit: int
     with _db_ac(db_yolu) as c:
         toplam = c.execute("SELECT COUNT(*) FROM drive_dosya").fetchone()[0]
         rows = [dict(r) for r in c.execute(
-            f"SELECT rel_yol, ad, klasor, uzanti, boyut, mtime, esas_no FROM drive_dosya {where} "
+            f"SELECT rel_yol, ad, klasor, uzanti, boyut, mtime, esas_no, url FROM drive_dosya {where} "
             "ORDER BY mtime DESC LIMIT ?",
             (*param, max(1, min(limit, 500))),
         ).fetchall()]
