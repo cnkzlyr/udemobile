@@ -65,7 +65,13 @@ jobs:
             echo "ANDROID_KEYSTORE=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
             echo "Imza anahtari yuklendi."
           else
-            echo "::warning::ANDROID_KEYSTORE_B64 gizlisi yok: APK imzalanamaz, yalnizca Portable Web zip yayimlanacak."
+            # Gizli yoksa APK yine de derlensin: bu calistirma icin yeni anahtar uretilir.
+            # Not: anahtar her calistirmada farkli olur; telefonda eski surumu kaldirip kurmak gerekir.
+            # Kalici anahtar icin ANDROID_KEYSTORE_B64 gizlisini ekleyin.
+            keytool -genkeypair -v -keystore "$RUNNER_TEMP/release.keystore" -storepass android -keypass android \
+              -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=CanEditor, O=CanEditor, C=TR"
+            echo "ANDROID_KEYSTORE=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
+            echo "::warning::ANDROID_KEYSTORE_B64 gizlisi yok: APK bu calistirmaya ozel YENI anahtarla imzalandi (eski kurulumun ustune guncellenmez)."
           fi
 
       - name: Build Portable zip + APK
