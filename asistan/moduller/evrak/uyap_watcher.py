@@ -28,6 +28,18 @@ Kullanım:
 
 from __future__ import annotations
 
+# Android (Termux'suz): gömülü glibc ad çözümleyemez → bağımsız DNS çözücüyü bu süreçte de kur
+# (sitecustomize'a güvenmeden; v4.4.0'da nöbetçi "Temporary failure in name resolution" veriyordu)
+if __import__("os").environ.get("CANASISTAN_ANDROID") == "1":
+    try:
+        import sys as _s, pathlib as _p
+        _s.path.insert(0, str(_p.Path(__file__).resolve().parents[2]))
+        import dns_cozucu as _dns
+        _dns.yama_kur()
+    except Exception:  # noqa: BLE001
+        pass
+
+
 import argparse
 import datetime as dt
 import json

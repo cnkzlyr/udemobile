@@ -61,7 +61,7 @@ if hasattr(sys.stderr, "reconfigure"):
         pass
 from pathlib import Path
 
-SURUM = "4.4.1"
+SURUM = "4.4.2"
 KOK = Path(__file__).resolve().parent
 if str(KOK) not in sys.path:
     sys.path.insert(0, str(KOK))
@@ -756,6 +756,42 @@ def kesinti_kaydet(oturum_simdi) -> None:
         kesinti_kaydet._onceki = oturum_simdi
 
 
+_DNS_TANI: dict = {"t": 0.0, "v": None}
+
+
+def dns_tanisi() -> dict:
+    """Tanı dosyası için: DNS hem bu süreçte hem de görev alt sürecinde (nöbetçi/UETS ile aynı ortam) çalışıyor mu?
+    5 dk önbellekli. v4.4.0 günlüğünde sunucu çözebilirken nöbetçi çözemiyordu; bu alan farkı doğrudan gösterir."""
+    if _DNS_TANI["v"] is not None and time.time() - _DNS_TANI["t"] < 300:
+        return _DNS_TANI["v"]
+    sonuc: dict = {}
+    try:
+        import dns_cozucu
+        sonuc["sunucu"] = dns_cozucu.tani()
+    except Exception as e:  # noqa: BLE001
+        sonuc["sunucu"] = {"hata": str(e)[:200]}
+    kod = ("import json,sys,os;sys.path.insert(0,os.environ.get('CANASISTAN_KOK',''));import socket;"
+           "import dns_cozucu as d;print(json.dumps(d.tani()))")
+    try:
+        env = gorev_ortami()
+        env["CANASISTAN_KOK"] = str(KOK)
+        # sitecustomize'ın alt süreçte yüklenip yüklenmediğini ayrıca ölç (import'tan ÖNCE)
+        on = ("import socket,json,sys;print(json.dumps({'sitecustomize_yama': getattr(socket.getaddrinfo,'__name__','')=="
+              "'_guvenli_getaddrinfo'}))")
+        r0 = subprocess.run([*PY, "-c", on], cwd=str(EVRAK_DIR), env=env, capture_output=True, text=True, timeout=20)
+        r = subprocess.run([*PY, "-c", kod], cwd=str(EVRAK_DIR), env=env, capture_output=True, text=True, timeout=30)
+        alt = json.loads((r.stdout or "{}").strip().splitlines()[-1]) if r.stdout.strip() else {"hata": (r.stderr or "")[-300:]}
+        try:
+            alt.update(json.loads(r0.stdout.strip().splitlines()[-1]))
+        except (ValueError, IndexError):
+            alt["sitecustomize_yama"] = f"ölçülemedi: {(r0.stderr or '')[-200:]}"
+        sonuc["gorev_sureci"] = alt
+    except Exception as e:  # noqa: BLE001
+        sonuc["gorev_sureci"] = {"hata": str(e)[:200]}
+    _DNS_TANI.update(t=time.time(), v=sonuc)
+    return sonuc
+
+
 def uyap_ping_ms() -> int | None:
     """UYAP Avukat Portal'a gerçek TCP bağlantı süresi (60 sn önbellekli). Eskiden sabit 1 ms yazılıyordu."""
     simdi = time.time()
@@ -789,6 +825,7 @@ def baglanti_istatistikleri() -> dict:
         "kesinti_sayisi": KESINTI_SAYISI,
         "son_kesinti": SON_KESINTI or "Kesinti yaşanmadı (kesintisiz aktif)",
         "ping_ms": uyap_ping_ms(),
+        "dns": dns_tanisi(),
         "drive_webhook_tanimli": bool(webhook),
         "drive_yerel_klasor": ayar.get("google_drive_dir") or "Klasör ayarlanmadı",
         "uyap_oturum": oturum_durum,

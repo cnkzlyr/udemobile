@@ -1252,6 +1252,9 @@ class Motor:
         if row["oturum"] != self.oturum:
             return None, {}, row, "UYAP listesinde artık yok"
         resp, reason = {}, ""
+        # Tek evrak dakikalarca takılmasın (v4.4.0 günlüğü: 8 dk 25 sn): UYAP aynı boş/çok küçük yanıtı 2 kez
+        # verirse ve oturum ayaktaysa evrak "UYAP'ta içerik yok" sayılır; yeniden giriş evrak başına en çok 1 kez.
+        kucuk_sayac, giris_sayac = 0, 0
         for attempt in range(1, 6):
             if self.stop_flag.is_set():
                 return None, resp, row, "durduruldu"
@@ -1265,11 +1268,18 @@ class Motor:
                      reason, resp.get("error") or resp.get("errorHeader"))
             if ok:
                 return raw, resp, row, ""
+            if not resp.get("timeout") and len(raw) < 128 and "html" not in (resp.get("contentType") or "").lower():
+                kucuk_sayac += 1
+                if kucuk_sayac >= 2 and not self._session_dead():
+                    return None, resp, row, "yok"
             if resp.get("timeout"):
                 self.log(f"[!] UYAP 40 sn içinde yanıt vermedi ({str(row['tur'])[:40]}); yeniden deneniyor ({attempt}/5)...")
                 self._sleep(3.0 * attempt)
                 continue
             if self._session_dead():
+                if giris_sayac >= 1:
+                    return None, resp, row, reason or "oturum tekrar koptu (evrak atlandı, sonraki turda denenecek)"
+                giris_sayac += 1
                 self.log("[!] Bağlantı/oturum koptu; yeniden giriş yapılıp aynı evrak tekrar denenecek.")
                 if not self._relogin():
                     self.stop_flag.set()
