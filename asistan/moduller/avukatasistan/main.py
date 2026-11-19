@@ -532,7 +532,13 @@ def _main(args):
         from uets_downloader import login_and_download
         print("🤖 [KURAL]: UETS portalına bağlanılıyor, en güncel taze CSV ve eksik EYP paketleri indiriliyor...")
         try:
-            dl_csv = login_and_download(headless=args.headless, count=args.count, auto_sync=False)
+            dis_surucu = None
+            if os.environ.get("CANASISTAN_ANDROID") == "1":
+                # Telefon (Termux'suz): Chrome yok → CanEditor'un gizli WebView'ı CDP ile Selenium gibi sürülür
+                from cdp_surucu import CdpSurucu
+                print("📱 Android: UETS, CanEditor'un gizli tarayıcısıyla açılıyor (Chrome gerekmez)...")
+                dis_surucu = CdpSurucu()
+            dl_csv = login_and_download(headless=args.headless, count=args.count, auto_sync=False, external_driver=dis_surucu)
             if dl_csv and isinstance(dl_csv, str) and os.path.exists(dl_csv):
                 active_csv = dl_csv
         except Exception as dl_err:

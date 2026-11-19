@@ -167,6 +167,25 @@ def fetch_otp_from_gmail(since_msg_id=0, max_age_seconds=120):
         pass
     return None
 
+def otp_dosyasi():
+    """Panelden elle girilen UETS giriş kodunun yazıldığı dosya (sunucu /api/uets/otp ile yazar)."""
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "uets_otp.txt")
+
+
+def _elle_girilen_otp(sonra: float):
+    """Telefonda gizli tarayıcıya kod yazılamadığı için kullanıcı kodu panelden girer; bir kez kullanılır."""
+    p = otp_dosyasi()
+    try:
+        if os.path.getmtime(p) >= sonra:
+            kod = re.sub(r"\D", "", open(p, encoding="utf-8").read())
+            os.remove(p)
+            if 4 <= len(kod) <= 8:
+                return kod
+    except OSError:
+        pass
+    return None
+
+
 def find_latest_otp_code(since_msg_id=0, wait_seconds=3, poll_timeout=50):
     """
     UETS Doğrulama Kodunu canlı olarak Gmail IMAP üzerinden yakalar;
@@ -176,10 +195,16 @@ def find_latest_otp_code(since_msg_id=0, wait_seconds=3, poll_timeout=50):
         print(f"⏳ Kodun Gmail'e ulaşması için {wait_seconds} sn bekleniyor...")
         time.sleep(wait_seconds)
 
-    print("📬 Gmail ('UETS Giriş Kodu' etiketi) taranıyor...")
+    print("📬 Gmail ('UETS Giriş Kodu' etiketi) taranıyor... (kodu CanEditor → Tebligatlar'dan elle de girebilirsiniz)")
     start_t = time.time()
-    while time.time() - start_t < poll_timeout:
-        res = fetch_otp_from_gmail(since_msg_id=since_msg_id, max_age_seconds=180)
+    # Gmail ayarlı değilse kullanıcıya kodu panelden yazması için daha uzun süre tanınır
+    gmail_var = bool(CONFIG.get("GMAIL_USER") and CONFIG.get("GMAIL_APP_PASS"))
+    sure = poll_timeout if gmail_var else max(poll_timeout, 170)
+    while time.time() - start_t < sure:
+        elle = _elle_girilen_otp(start_t - 5)
+        if elle:
+            return elle, "Elle girildi (CanEditor paneli)"
+        res = fetch_otp_from_gmail(since_msg_id=since_msg_id, max_age_seconds=180) if gmail_var else None
         if res:
             return res
         time.sleep(2.5)

@@ -31,8 +31,8 @@ import java.util.zip.ZipInputStream;
  *
  * Sunucu yalnızca 127.0.0.1:8765'e bağlanır; eşleştirme anahtarı uygulama verisinde üretilir ve editörün
  * JS köprüsüne (asistanBaglanti) verilir — kullanıcı bir şey girmez.
- * Android'de tarayıcı otomasyonu yoktur: UETS / UYAP indirme görevleri masaüstü uygulamasında çalışır
- * (sunucu bunları "kullanılamaz" olarak bildirir). Ajanda, evrak kataloğu, A4 ve defter burada çalışır.
+ * Tarayıcı gerektiren görevler (UYAP, UETS) uygulamanın gizli WebView'ını DevTools (CDP) üzerinden kullanır;
+ * Chrome/Termux gerekmez. Masaüstü pencereleri (Tk) yerine aynı işlevler asistan panelinde sunulur.
  */
 final class AsistanServisi {
     static final int PORT = 8765;
@@ -142,6 +142,11 @@ final class AsistanServisi {
         a.add(new File(r, "app/sunucu.py").getAbsolutePath());
         a.add("--port");
         a.add(String.valueOf(PORT));
+        // DNS: asistanın Termux glibc'si resolv.conf'u /data/data/com.termux/... yolunda arar; Termux'suz telefonda
+        // o dosya yok → Notion/TickTick/Telegram/UETS "ad çözülemedi". UYAP motorundaki yamanın aynısı burada da yapılır.
+        try { UyapMobil.agAyari(c); } catch (Throwable t) { Tani.hata("asistan", "DNS ayarı", t); }
+        try { UyapMobil.glibcYamala(new File(r, "glibc/libc.so.6"), c.getFilesDir()); }
+        catch (Exception e) { Tani.hata("asistan", "glibc DNS yaması", e); }
         ProcessBuilder pb = new ProcessBuilder(a);
         pb.directory(v);
         Map<String, String> env = pb.environment();
@@ -160,6 +165,7 @@ final class AsistanServisi {
         env.put("CANASISTAN_VERI", v.getAbsolutePath());
         env.put("CANASISTAN_ANAHTAR", anahtar);
         env.put("CANASISTAN_ANDROID", "1");
+        env.put("CANASISTAN_DNS", UyapMobil.dnsSunuculari(c));
         if (GizliTarayici.hazir()) env.put("CANASISTAN_WEBVIEW_SOKET", GizliTarayici.soketAdi());
         env.put("UYAP_VERI_DIZINI", new File(v, "uyap").getAbsolutePath());
         env.put("CANASISTAN_PYTHON_KOMUT", new JSONArray(pythonKomutu(c)).toString());

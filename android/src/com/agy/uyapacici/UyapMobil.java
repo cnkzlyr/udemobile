@@ -368,6 +368,22 @@ public final class UyapMobil {
             {"/data/data/com.termux/files/usr/glibc/etc/hosts", "h.conf"},
     };
 
+    /** Telefonun o anki ağının DNS sunucuları (yalnız IPv4, virgülle) — Python DNS yedeği için (CANASISTAN_DNS). */
+    static String dnsSunuculari(Context c) {
+        StringBuilder b = new StringBuilder();
+        try {
+            android.net.ConnectivityManager cm = (android.net.ConnectivityManager) c.getSystemService(Context.CONNECTIVITY_SERVICE);
+            if (cm != null && android.os.Build.VERSION.SDK_INT >= 23) {
+                android.net.Network n = cm.getActiveNetwork();
+                android.net.LinkProperties lp = n == null ? null : cm.getLinkProperties(n);
+                if (lp != null) for (java.net.InetAddress a : lp.getDnsServers()) {
+                    if (a instanceof java.net.Inet4Address) { if (b.length() > 0) b.append(','); b.append(a.getHostAddress()); }
+                }
+            }
+        } catch (Exception ignored) { }
+        return b.toString();
+    }
+
     static void agAyari(Context c) {
         File d = c.getFilesDir();
         try {

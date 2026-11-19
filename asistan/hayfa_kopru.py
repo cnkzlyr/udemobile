@@ -245,7 +245,45 @@ def resmi_gazete(veri_dizini: Path, tarih: str = "", yenile: bool = False) -> di
 # 3. YARGITAY İÇTİHAT / KARAR ARAMA
 # ---------------------------------------------------------------------------
 
+# Daire kodu → karar başlığında aranacak düzenli ifade. Sitenin "alan" süzgeci bir kodu tanımazsa (0 sonuç)
+# sonuçlar filtresiz alınıp başlık/özetteki daire adına göre burada süzülür; böylece listede olmayan
+# daireler de (ör. 15. Hukuk, 8. Ceza, Danıştay 6. Daire) aranabilir.
+def _daire_deseni(alan: str):
+    a = str(alan or "").strip()
+    m = re.fullmatch(r"(\d{1,2})(HD|CD)", a, re.I)
+    if m:
+        tur = "hukuk" if m.group(2).upper() == "HD" else "ceza"
+        return re.compile(rf"(?<!\d){int(m.group(1))}\s*\.?\s*{tur}\s+daire", re.I)
+    m = re.fullmatch(r"Danistay(\d{1,2})", a, re.I)
+    if m:
+        return re.compile(rf"dan[ıi]ştay\s+{int(m.group(1))}\s*\.?\s*daire", re.I)
+    sabit = {
+        "HGK": r"hukuk\s+genel\s+kurulu", "CGK": r"ceza\s+genel\s+kurulu", "BGK": r"b[üu]y[üu]k\s+genel\s+kurul",
+        "IBK": r"i[çc]tihad[ıi]\s*birle[şs]tirme", "Danistay": r"dan[ıi]ştay", "IDDK": r"idari\s+dava\s+daireleri",
+        "VDDK": r"vergi\s+dava\s+daireleri", "AYM": r"anayasa\s+mahkemesi", "BAM": r"b[öo]lge\s+adliye",
+        "BIM": r"b[öo]lge\s+idare", "UYM": r"uyu[şs]mazl[ıi]k\s+mahkemesi", "SAYISTAY": r"say[ıi]ştay",
+    }
+    return re.compile(sabit[a.upper()] if a.upper() in sabit else re.escape(a), re.I) if a else None
+
+
 def karar_ara(veri_dizini: Path, q: str, alan: str = "", sayfa: int = 1) -> dict:
+    sonuc = _karar_ara_ham(veri_dizini, q, alan, sayfa)
+    desen = _daire_deseni(alan)
+    if alan and not sonuc.get("hata") and not sonuc.get("kararlar") and desen is not None:
+        # Site bu daire kodunu tanımadı: filtresiz birkaç sayfa al, daire adına göre süz
+        bulunan: list[dict] = []
+        for s in range(1, 6):
+            ham = _karar_ara_ham(veri_dizini, q, "", (int(sayfa or 1) - 1) * 5 + s)
+            kararlar = ham.get("kararlar") or []
+            bulunan += [k for k in kararlar if desen.search(f"{k.get('baslik', '')} {k.get('ozet', '')} {' '.join(k.get('etiketler') or [])}")]
+            if not kararlar or len(bulunan) >= 20:
+                break
+        sonuc = {"toplam": str(len(bulunan)), "kararlar": bulunan, "sayfa": sayfa, "suzuldu": True,
+                 "url": SITE + "/karar-arama?" + urllib.parse.urlencode({"q": q})}
+    return sonuc
+
+
+def _karar_ara_ham(veri_dizini: Path, q: str, alan: str = "", sayfa: int = 1) -> dict:
     q = str(q or "").strip()
     if len(q) < 2:
         return {"toplam": "0", "kararlar": [], "mesaj": "Aramak için en az 2 karakter girin."}

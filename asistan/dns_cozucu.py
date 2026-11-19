@@ -39,7 +39,8 @@ _ORIJINAL_GETADDRINFO = socket.getaddrinfo
 def _coz_udp(host: str, sunucu: str, zaman_asimi: float = 2.0) -> str | None:
     """Doğrudan DNS sunucusuna UDP A-kaydı sorgusu gönderir."""
     try:
-        qid = 0x5a1f
+        import random
+        qid = random.randint(1, 0xFFFF)
         flags = 0x0100
         packet = struct.pack("!HHHHHH", qid, flags, 1, 0, 0, 0)
         for part in host.split("."):
@@ -50,10 +51,10 @@ def _coz_udp(host: str, sunucu: str, zaman_asimi: float = 2.0) -> str | None:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         s.settimeout(zaman_asimi)
         s.sendto(packet, (sunucu, 53))
-        yanit, _ = s.recvfrom(1024)
+        yanit, _ = s.recvfrom(4096)
         s.close()
 
-        if len(yanit) < 12:
+        if len(yanit) < 12 or struct.unpack("!H", yanit[:2])[0] != qid:
             return None
         ancount = struct.unpack("!H", yanit[6:8])[0]
         if ancount == 0:
@@ -123,7 +124,11 @@ def coz(host: str) -> str | None:
         if simdi < exp:
             return ip
 
-    for s in _DNS_SUNUCULARI:
+    # Telefonun kendi DNS sunucuları (Java AsistanServisi CANASISTAN_DNS ile verir) önce denenir:
+    # bazı operatör/kurum ağları 8.8.8.8'e UDP 53'ü engeller.
+    import os
+    yerel = [x.strip() for x in os.environ.get("CANASISTAN_DNS", "").split(",") if _IP_RX.match(x.strip())]
+    for s in (*yerel, *_DNS_SUNUCULARI):
         ip = _coz_udp(host, s)
         if ip:
             _CACHE[host] = (ip, simdi + 300)

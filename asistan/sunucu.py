@@ -61,7 +61,7 @@ if hasattr(sys.stderr, "reconfigure"):
         pass
 from pathlib import Path
 
-SURUM = "4.3.1"
+SURUM = "4.4.0"
 KOK = Path(__file__).resolve().parent
 if str(KOK) not in sys.path:
     sys.path.insert(0, str(KOK))
@@ -533,6 +533,7 @@ def drive_durumu() -> dict:
             sonuc["uyarilar"].append(f"Nöbetçi {yas_dk} dakikadır tarama yapmadı (aralık {aralik} dk): çalışıyor mu?")
     elif sonuc["yapilandirildi"]:
         sonuc["uyarilar"].append("Nöbetçi henüz hiç tur tamamlamadı.")
+    sonuc["yukleme"] = _drive_indeks.esitleme_ozeti(katalog_yolu(), vd)
     sonuc["ayar"] = _drive_indeks.drive_ayar_oku(vd)
     sonuc["indeks"] = _drive_indeks.indeks_ozeti(drive_indeks_yolu())
     return sonuc
@@ -927,6 +928,27 @@ GOREVLER: dict[str, dict] = {
 }
 
 
+def tebligat_panel(komut: str, barkod: str = "", zaman_asimi: int = 300) -> dict:
+    """Avukat Asistanı penceresinin (Tk) işlevlerini penceresiz çalıştırır (telefonda da): tebligat_panel.py."""
+    if komut not in ("liste", "zorla", "temizle", "excel"):
+        raise ValueError("Geçersiz komut")
+    cmd = [*PY, "tebligat_panel.py", komut] + (["--barkod", str(barkod)] if barkod else [])
+    try:
+        r = subprocess.run(cmd, cwd=str(AVUKAT_DIR), env=gorev_ortami(), capture_output=True, text=True,
+                           encoding="utf-8", errors="replace", timeout=zaman_asimi)
+    except subprocess.TimeoutExpired:
+        raise ValueError(f"İşlem {zaman_asimi} sn içinde bitmedi (internet yavaş olabilir).")
+    satirlar = (r.stdout or "").splitlines()
+    gunluk = [x for x in satirlar if not x.startswith("@@SONUC@@")][-60:]
+    for x in reversed(satirlar):
+        if x.startswith("@@SONUC@@"):
+            veri = json.loads(x[len("@@SONUC@@"):])
+            veri["gunluk"] = gunluk
+            return veri
+    hata = ((r.stderr or "").strip().splitlines() or ["bilinmeyen hata"])[-1]
+    raise ValueError(f"Tebligat işlemi başarısız: {hata[:300]}" + ("\n" + "\n".join(gunluk[-5:]) if gunluk else ""))
+
+
 def gorev_ortami() -> dict:
     """Görev alt süreçlerinin ortamı: gömülü Java ve indirilmiş resmî UYAP Editör jar'ları modüllere tanıtılır."""
     env = dict(os.environ, PYTHONIOENCODING="utf-8", PYTHONUNBUFFERED="1")
@@ -960,6 +982,10 @@ def gorev_ortami() -> dict:
                 env.setdefault(k, _e[k])
     except Exception:
         pass
+    # Android: alt görevler de DNS yedeğini (sitecustomize → dns_cozucu) yüklesin diye uygulama klasörü PYTHONPATH'e
+    if ANDROID:
+        yollar = [str(KOK)] + [p for p in env.get("PYTHONPATH", "").split(os.pathsep) if p and p != str(KOK)]
+        env["PYTHONPATH"] = os.pathsep.join(yollar)
     jars = os.environ.get("CANASISTAN_UYAP_JARS")
     if jars and (Path(jars) / "editor_lib.jar").is_file() and not env.get("UYAP_JARS"):
         env["UYAP_JARS"] = jars
@@ -987,10 +1013,11 @@ class Gorev:
         """Android'de tarayıcı otomasyonu ve masaüstü pencereleri yoktur; bu görevler masaüstünde çalışır."""
         if ANDROID and self.tanim.get("cdp") and not os.environ.get("CANASISTAN_WEBVIEW_SOKET"):
             return "Gizli UYAP tarayıcısı hazır değil; CanEditor uygulamasını yeniden açın."
-        if ANDROID and self.tanim.get("tarayici"):
-            return "Bu görev tarayıcı otomasyonu gerektirir; CanEditor masaüstü uygulamasında çalışır."
+        if ANDROID and self.tanim.get("tarayici") and not os.environ.get("CANASISTAN_WEBVIEW_SOKET"):
+            # UETS artık telefonda da çalışır (cdp_surucu: gizli WebView'ı Selenium gibi sürer)
+            return "Gizli tarayıcı hazır değil; CanEditor uygulamasını yeniden açın."
         if ANDROID and self.tanim.get("pencere"):
-            return "Bu pencere masaüstü uygulamasında açılır."
+            return "Telefonda bu pencerenin işlevleri asistan panelindedir."
         return ""
 
     def calisiyor(self) -> bool:
@@ -1181,6 +1208,56 @@ class BagliTutucu:
 
 
 BAGLI_TUT = BagliTutucu()
+
+
+class UetsZamanlayici:
+    """UETS'e arka planda düzenli girer (uets-senkron): taze CSV + eksik EYP → TickTick (eklerle) + Notion.
+    Aralık avukatasistan/.env içindeki UETS_OTOMATIK_DK (0 = kapalı). Telefonda gizli WebView ile çalışır."""
+
+    def __init__(self):
+        self.sonraki = 0.0
+
+    def ayar(self) -> dict:
+        e = _entegrasyon.env_oku(AVUKAT_DIR)
+        try:
+            dk = int(e.get("UETS_OTOMATIK_DK") or 0)
+        except ValueError:
+            dk = 0
+        return {"aralik_dk": dk, "hazir": bool(e.get("UETS_TCKN") and e.get("UETS_PASSWORD")),
+                "sonraki": self.sonraki if dk else None}
+
+    def ayar_yaz(self, dk: int) -> dict:
+        dk = max(0, min(int(dk), 24 * 60))
+        e = _entegrasyon.env_oku(AVUKAT_DIR)
+        e["UETS_OTOMATIK_DK"] = str(dk)
+        satirlar = ["# CanEditor Hukuk Asistanı gizli ayarları (git'e eklenmez, yerel cihazda saklanır)"]
+        satirlar += [f"{k}={v}" for k, v in sorted(e.items()) if v]
+        p = _entegrasyon.env_dosyasi(AVUKAT_DIR)
+        p.write_text("\n".join(satirlar) + "\n", encoding="utf-8")
+        self.sonraki = time.time() + 60 if dk else 0.0
+        return self.ayar()
+
+    def dongu(self):
+        while True:
+            time.sleep(30)
+            try:
+                a = self.ayar()
+                g = GOREV_DURUM["uets-senkron"]
+                if not a["aralik_dk"] or not a["hazir"] or g.calisiyor() or g.kullanilamama_nedeni():
+                    continue
+                if not self.sonraki:
+                    self.sonraki = time.time() + 120  # sunucu açılışından 2 dk sonra ilk tur
+                if time.time() >= self.sonraki:
+                    g.baslat()
+                    self.sonraki = time.time() + a["aralik_dk"] * 60
+            except Exception:  # noqa: BLE001 — döngü asla ölmesin
+                self.sonraki = time.time() + 300
+
+    def baslat(self):
+        threading.Thread(target=self.dongu, daemon=True, name="uets-zamanlayici").start()
+
+
+UETS_ZAMAN = UetsZamanlayici()
 
 
 def cdp_kopru_baslat(port: int = 9223) -> None:
@@ -1379,6 +1456,11 @@ class Isleyici(BaseHTTPRequestHandler):
                 return self._json(drive_durumu())
             if yol == "/api/drive/ara":
                 return self._json(_drive_indeks.ara(drive_indeks_yolu(), q.get("q", ""), q.get("uzanti", ""), q.get("esas", ""), int(q.get("limit") or 120)))
+            if yol == "/api/drive/esitle_durum":
+                d = {k: v for k, v in _drive_indeks.ESITLE_ILERLEME.items()}
+                d["gecen_sn"] = round((d["bitis"] or time.time()) - d["basla"]) if d.get("basla") else 0
+                d["ozet"] = _drive_indeks.esitleme_ozeti(katalog_yolu(), evrak_veri_dizini())
+                return self._json(d)
             if yol == "/api/drive/indeks_durum":
                 d = dict(_drive_indeks.WEBHOOK_ILERLEME)
                 d["gecen_sn"] = round(time.time() - d["basla"]) if d.get("basla") else 0
@@ -1429,6 +1511,8 @@ class Isleyici(BaseHTTPRequestHandler):
                 return self._json(BAGLI_TUT.durum())
             if yol == "/api/ajanda":
                 return self._json(ajanda(int(q.get("gun") or 60), q.get("baslangic", ""), q.get("bitis", "")))
+            if yol == "/api/uets/ayar":
+                return self._json(UETS_ZAMAN.ayar())
             if yol == "/api/gorevler":
                 return self._json({"gorevler": [g.ozet(int(q.get("satir") or 40)) for g in GOREV_DURUM.values()]})
             self._json({"hata": "Bulunamadı"}, 404)
@@ -1528,8 +1612,24 @@ class Isleyici(BaseHTTPRequestHandler):
                         drive_indeks_yolu(), webhook, str(govde.get("kok") or "").strip())})
                 raise ValueError("Google Drive bağlı değil: bilgisayarda Drive klasörünü ya da telefonda Apps Script "
                                  "Webhook (/exec) adresini girip kaydedin.")
+            if yol == "/api/uets/ayar":
+                return self._json(UETS_ZAMAN.ayar_yaz(int(govde.get("aralik_dk") or 0)))
+            if yol == "/api/uets/otp":
+                kod = re.sub(r"\D", "", str(govde.get("kod") or ""))
+                if not 4 <= len(kod) <= 8:
+                    raise ValueError("Geçersiz kod")
+                (AVUKAT_DIR / "uets_otp.txt").write_text(kod, encoding="utf-8")
+                return self._json({"ok": True})
+            if yol.startswith("/api/tebligat/"):
+                return self._json(tebligat_panel(yol.rsplit("/", 1)[-1], str(govde.get("barkod") or "")))
             if yol == "/api/drive/esitle":
-                return self._json(_drive_indeks.esitle_eksikler(katalog_yolu(), evrak_veri_dizini(), int(govde.get("limit") or 100)))
+                # Arka planda, ilerlemeli; tüm eksikler (limitsiz) — /api/drive/esitle_durum ile izlenir
+                return self._json(_drive_indeks.esitle_arkaplan(katalog_yolu(), evrak_veri_dizini(), int(govde.get("limit") or 100000)))
+            if yol == "/api/drive/kopya_temizle":
+                ayar = _drive_indeks.drive_ayar_oku(evrak_veri_dizini())
+                if not ayar.get("google_drive_webhook"):
+                    raise ValueError("Webhook ayarlı değil.")
+                return self._json(_drive_indeks.kopya_temizle(ayar["google_drive_webhook"]))
             if yol == "/api/donustur":
                 fmt = str(govde.get("format") or "pdf").lower()
                 if govde.get("skey"):
@@ -1630,6 +1730,7 @@ def main(argv=None):
     srv = sunucu_olustur(a.port, k)
     cdp_kopru_baslat()
     BAGLI_TUT.baslat()
+    UETS_ZAMAN.baslat()
     print(f"CanEditor Hukuk Asistanı {SURUM} — http://127.0.0.1:{a.port}", flush=True)
     print(f"Eşleştirme anahtarı: {k}", flush=True)
     print("CanEditor → Asistan → Bağlan penceresine bu anahtarı girin (masaüstü uygulamada otomatik).", flush=True)

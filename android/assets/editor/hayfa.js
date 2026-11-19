@@ -66,6 +66,38 @@ function _listele(data) {
   return { status: "ok", surum: BETIK_SURUM, dosyalar: dosyalar, state: st ? JSON.stringify(st) : null };
 }
 
+// UYAP_Arsiv altında aynı klasörde aynı ad + aynı boyuttaki kopyaları ÇÖP KUTUSUNA taşır (30 gün geri alınabilir);
+// en eski dosya kalır. Eski sürümlerin "Eksikleri Drive'a Eşitle" düğmesi her basışta yeniden yüklüyordu.
+function _kopyaTemizle(data) {
+  var basla = Date.now();
+  var st = data.state ? JSON.parse(data.state) : null;
+  if (!st) {
+    var it0 = DriveApp.getFoldersByName("UYAP_Arsiv");
+    if (!it0.hasNext()) return { status: "ok", tasinan: 0, state: null };
+    st = { q: [it0.next().getId()] };
+  }
+  var tasinan = 0;
+  while (st.q.length && Date.now() - basla < 25000) {
+    var f = DriveApp.getFolderById(st.q.shift());
+    var alt = f.getFolders();
+    while (alt.hasNext()) st.q.push(alt.next().getId());
+    var gruplar = {};
+    var it = f.getFiles();
+    while (it.hasNext()) {
+      var d = it.next();
+      var k = d.getName() + "|" + d.getSize();
+      (gruplar[k] = gruplar[k] || []).push(d);
+    }
+    for (var k in gruplar) {
+      var l = gruplar[k];
+      if (l.length < 2) continue;
+      l.sort(function (a, b) { return a.getDateCreated().getTime() - b.getDateCreated().getTime(); });
+      for (var i = 1; i < l.length; i++) { l[i].setTrashed(true); tasinan++; }
+    }
+  }
+  return { status: "ok", tasinan: tasinan, state: st.q.length ? JSON.stringify(st) : null };
+}
+
 function doPost(e) {
   try {
     var data = JSON.parse(e.postData.contents);
@@ -73,6 +105,7 @@ function doPost(e) {
       return _json({ status: "ok", surum: BETIK_SURUM, message: "Bağlantı başarılı!" });
     }
     if (data.action === "list") return _json(_listele(data));
+    if (data.action === "kopya_temizle") return _json(_kopyaTemizle(data));
     if (data.action === "get") {
       var gf = DriveApp.getFileById(data.id);
       var b = gf.getBlob();
@@ -94,9 +127,17 @@ function doPost(e) {
       }
     }
     
-    // Dosyayı oluştur
+    // Dosyayı oluştur — aynı klasörde aynı ad ve boyutta dosya varsa YENİDEN OLUŞTURMA (kopya birikmesin)
     var decoded = Utilities.base64Decode(data.content);
-    var blob = Utilities.newBlob(decoded, "application/pdf", data.filename || "evrak.pdf");
+    var ad = data.filename || "evrak.pdf";
+    var mevcut = folder.getFilesByName(ad);
+    while (mevcut.hasNext()) {
+      var mf = mevcut.next();
+      if (mf.getSize() === decoded.length) {
+        return _json({ status: "success", mevcut: true, filename: ad, fileId: mf.getId(), url: mf.getUrl() });
+      }
+    }
+    var blob = Utilities.newBlob(decoded, "application/pdf", ad);
     var file = folder.createFile(blob);
     
     return ContentService.createTextOutput(JSON.stringify({
@@ -825,6 +866,7 @@ function doGet(e) {
             <tr><th>Drive Veritabanı İndeksi</th><td>${idx.hazir ? `<b>${idx.toplam.toLocaleString('tr-TR')}</b> dosya (${idx.boyut_mb.toLocaleString('tr-TR')} MB) · son indeks: ${tarih(idx.son_indeks)}` : 'Henüz indekslenmedi'}</td></tr>
             <tr><th>Katalog Yedeği</th><td>${v.yedek ? tarih(v.yedek.zaman) + ' · ' + v.yedek.boyut_mb + ' MB' : '—'}</td></tr>
             ${k.indirilen !== undefined ? `<tr><th>UYAP Kataloğu</th><td>${k.indirilen.toLocaleString('tr-TR')} indirildi · ${k.indirilmeyi_bekleyen.toLocaleString('tr-TR')} bekliyor${k.driveda_olmayan != null ? ` · <b>${k.driveda_olmayan.toLocaleString('tr-TR')}</b> Drive'a aktarılacak` : ''}</td></tr>` : ''}
+            ${v.mod === 'webhook' && v.yukleme ? `<tr><th>Drive'a Yüklenen</th><td><b>${v.yukleme.drivede.toLocaleString('tr-TR')}</b> / ${v.yukleme.indirilen.toLocaleString('tr-TR')} evrak${v.yukleme.indirilen > v.yukleme.drivede ? ` · <b>${(v.yukleme.indirilen - v.yukleme.drivede).toLocaleString('tr-TR')}</b> yüklenecek` : ' ✓ tamamı Drive\'da'}${v.yukleme.son_yukleme ? ' · son: ' + tarih(v.yukleme.son_yukleme) : ''}</td></tr>` : ''}
             <tr><th>Nöbetçi Son Tur</th><td>${n ? `${tarih(n.son_tur)} (${n.dakika_once} dk önce) ${n.gecikti ? '🔴' : '🟢'}` : '—'}</td></tr>
           </table>
           ${(v.uyarilar || []).map(u => `<div class="ca-uyari">⚠️ ${esc(u)}</div>`).join('')}
@@ -832,6 +874,10 @@ function doGet(e) {
             <button class="ca-btn ana" type="button" id="hf-drv-esitle">☁️ Eksikleri Drive'a Eşitle</button>
             <button class="ca-btn altin" type="button" id="hf-drv-indeks">🗄️ Drive'ı Veritabanına İndeksle</button>
             <button class="ca-btn" type="button" id="hf-drv-yenile">↻ Yenile</button>
+            ${v.mod === 'webhook' ? '<button class="ca-btn" type="button" id="hf-drv-kopya" title="UYAP_Arsiv içinde aynı ad ve boyuttaki kopyaları çöp kutusuna taşır (30 gün geri alınabilir)">🧹 Drive\'daki kopyaları temizle</button>' : ''}
+          </div>
+          <div id="hf-drv-ilerleme" style="display:none;margin-top:10px">
+            <div style="height:10px;border-radius:6px;background:rgba(100,116,139,.18);overflow:hidden"><div id="hf-drv-bar" style="height:100%;width:0;background:var(--hf-gold,#c8a45a);transition:width .4s"></div></div>
           </div>
           <div id="hf-drv-islem" class="ca-soluk" style="margin-top:6px"></div>
         </div>
@@ -852,7 +898,7 @@ function doGet(e) {
               <label>Yerel Google Drive Klasörü</label>
               <input id="hf-cfg-dir" value="${esc(a.google_drive_dir || '')}" placeholder="Bilgisayarda G:\\Drive'ım\\UYAP_Arsiv (Telefonda boş bırakın)">
               <small class="ca-soluk" style="display:block;margin-top:3px;font-size:11px">
-                📱 <b>Telefonda boş bırakın:</b> Cihazda belgeler <code>/sdcard/Download/UYAP_Arsiv</code> yoluna otomatik yazılır. Link yapıştırmayınız.
+                📱 <b>Telefonda boş bırakın</b> ve aşağıya Apps Script Webhook (/exec) adresini girin: Drive'a yükleme ve Drive'ın tamamını indeksleme bu adres üzerinden yapılır.
               </small>
             </div>
             <div>
@@ -992,11 +1038,44 @@ function doGet(e) {
       };
       // Sekme açıldığında süren bir indeksleme varsa ilerlemesini göster
       api('/api/drive/indeks_durum').then(d => { if (d && d.calisiyor) indeksIzle(); }).catch(() => {});
+      // Drive eşitleme: arka planda, canlı ilerleme çubuğu ve dosya adıyla; panel kapansa da sürer.
+      const bar = ic.querySelector('#hf-drv-bar'), barKutu = ic.querySelector('#hf-drv-ilerleme');
+      const esitleIzle = async () => {
+        barKutu.style.display = 'block';
+        for (;;) {
+          let d;
+          try { d = await api('/api/drive/esitle_durum'); } catch (e) { islem.innerHTML = `<span class="ca-hata">${esc(e.message)}</span>`; return; }
+          const yuzde = d.toplam ? Math.round(100 * d.islenen / d.toplam) : (d.calisiyor ? 2 : 100);
+          bar.style.width = yuzde + '%';
+          const hataSatiri = (d.hatalar || []).length ? `<div class="ca-hata" style="margin-top:4px">${d.hatalar.map(esc).join('<br>')}</div>` : '';
+          if (d.calisiyor) {
+            islem.innerHTML = `⏳ Drive'a yükleniyor: <b>${d.islenen}</b> / ${d.toplam} (%${yuzde}) · ✓ ${d.aktarilan} yüklendi · ${d.atlanan} zaten vardı · ${d.hata} hata<br><span class="ca-soluk">${esc(d.son_dosya || '')} · ${d.gecen_sn} sn</span>${hataSatiri}`;
+            await new Promise(r => setTimeout(r, 2000));
+            if (!document.body.contains(islem)) return;
+            continue;
+          }
+          if (d.mesaj) { islem.innerHTML = `<span class="ca-hata">${esc(d.mesaj)}</span>`; return; }
+          const o = d.ozet || {};
+          islem.innerHTML = `✓ Eşitleme bitti (${d.gecen_sn} sn): <b>${d.aktarilan}</b> yeni yüklendi, ${d.atlanan} zaten Drive'daydı, ${d.hata} hata.`
+            + (o.indirilen ? ` Drive'da şu an <b>${(o.drivede || 0).toLocaleString('tr-TR')}</b> / ${o.indirilen.toLocaleString('tr-TR')} evrak.` : '') + hataSatiri;
+          return;
+        }
+      };
       ic.querySelector('#hf-drv-esitle').onclick = async () => {
-        islem.textContent = '⏳ Yerel UYAP evrakları Google Drive ile eşitleniyor…';
+        islem.textContent = '⏳ Eşitleme başlatılıyor…';
         try {
-          const r = await api('/api/drive/esitle', { method: 'POST', govde: { limit: 150 } });
-          islem.textContent = `✓ Eşitleme tamamlandı: ${r.aktarilan} aktarıldı, ${r.atlanan} zaten güncel, ${r.hata} hata.`;
+          await api('/api/drive/esitle', { method: 'POST', govde: {} });
+          await esitleIzle();
+        } catch (e) { islem.innerHTML = `<span class="ca-hata">${esc(e.message)}</span>`; }
+      };
+      api('/api/drive/esitle_durum').then(d => { if (d && d.calisiyor) esitleIzle(); }).catch(() => {});
+      const kopyaBtn = ic.querySelector('#hf-drv-kopya');
+      if (kopyaBtn) kopyaBtn.onclick = async () => {
+        if (!confirm("UYAP_Arsiv içindeki, aynı klasörde aynı ad ve boyuttaki kopya dosyalar Google Drive çöp kutusuna taşınacak (en eskisi kalır, 30 gün içinde geri alınabilir). Devam edilsin mi?")) return;
+        islem.textContent = '⏳ Drive\'daki kopyalar taranıyor… (büyük arşivlerde birkaç dakika sürebilir)';
+        try {
+          const r = await api('/api/drive/kopya_temizle', { method: 'POST', govde: {} });
+          islem.textContent = `✓ ${r.tasinan.toLocaleString('tr-TR')} kopya dosya çöp kutusuna taşındı.`;
         } catch (e) { islem.innerHTML = `<span class="ca-hata">${esc(e.message)}</span>`; }
       };
       ic.querySelector('#hf-cfg-kaydet').onclick = async () => {
@@ -1081,6 +1160,9 @@ function doGet(e) {
           <div><label>Telegram Chat ID</label><input id="hf-e-chat" value="${esc(ayar.telegram_chat_id || '')}"></div>
           <div><label>UETS T.C. Kimlik No</label><input id="hf-e-uets-tc" placeholder="${ayar.uets_bagli ? esc(ayar.uets_tckn) + ' (kayıtlı)' : 'isteğe bağlı'}"></div>
           <div><label>UETS Şifre</label><input id="hf-e-uets-pw" type="password" placeholder="${ayar.uets_bagli ? '•••• (kayıtlı)' : 'isteğe bağlı'}"></div>
+          <div><label>Gmail adresi (UETS giriş kodu buraya gelir)</label><input id="hf-e-gm-u" placeholder="${ayar.gmail_bagli ? esc(ayar.gmail_user) + ' (kayıtlı)' : 'ornek@gmail.com'}"></div>
+          <div><label>Gmail Uygulama Şifresi</label><input id="hf-e-gm-p" type="password" placeholder="${ayar.gmail_bagli ? '•••• (kayıtlı)' : '16 haneli uygulama şifresi'}">
+            <small class="ca-soluk" style="display:block;font-size:11px">Google Hesabı → Güvenlik → 2 Adımlı Doğrulama → Uygulama şifreleri. Girilmezse giriş kodunu Tebligatlar sekmesinden elle yazarsınız.</small></div>
         </div>
         <label style="display:flex;gap:8px;align-items:center;color:inherit;font-size:14px"><input type="checkbox" id="hf-e-oto" style="width:auto"${ayar.otomatik_senkron ? ' checked' : ''}> UYAP'a yeni evrak/tebligat düşünce Notion & TickTick'e otomatik aktar</label>
         <button class="ca-btn ana" type="button" id="hf-e-kaydet">💾 Kaydet</button>
@@ -1096,6 +1178,8 @@ function doGet(e) {
           telegram_chat_id: alan.querySelector('#hf-e-chat').value.trim(),
           uets_tckn: alan.querySelector('#hf-e-uets-tc').value.trim(),
           uets_password: alan.querySelector('#hf-e-uets-pw').value.trim(),
+          gmail_user: alan.querySelector('#hf-e-gm-u').value.trim(),
+          gmail_app_pass: alan.querySelector('#hf-e-gm-p').value.replace(/\s+/g, ''),
           otomatik_senkron: alan.querySelector('#hf-e-oto').checked
         };
         const msg = alan.querySelector('#hf-e-msg');
@@ -1301,18 +1385,92 @@ function doGet(e) {
           <div>
             <label>Yargı Yeri / Daire</label>
             <select id="hf-k-daire">
-              <option value="">Tüm Daireler / Yargıtay</option>
-              <option value="HGK">Hukuk Genel Kurulu</option>
-              <option value="CGK">Ceza Genel Kurulu</option>
-              <option value="1HD">1. Hukuk Dairesi (Tapu/Mülkiyet)</option>
-              <option value="2HD">2. Hukuk Dairesi (Aile/Boşanma)</option>
-              <option value="3HD">3. Hukuk Dairesi (Kira/Borçlar)</option>
-              <option value="4HD">4. Hukuk Dairesi (Tazminat/Haksız Fiil)</option>
-              <option value="9HD">9. Hukuk Dairesi (İş/Kıdem/İhbar)</option>
-              <option value="11HD">11. Hukuk Dairesi (Ticaret/Şirketler)</option>
-              <option value="12HD">12. Hukuk Dairesi (İcra/İflas)</option>
-              <option value="Danistay">Danıştay</option>
-              <option value="BAM">Bölge Adliye Mahkemesi</option>
+              <option value="">Tüm Yargı Yerleri</option>
+              <optgroup label="Yargıtay Kurulları">
+                <option value="HGK">Hukuk Genel Kurulu</option>
+                <option value="CGK">Ceza Genel Kurulu</option>
+                <option value="BGK">Büyük Genel Kurul</option>
+                <option value="IBK">İçtihadı Birleştirme Kararları</option>
+              </optgroup>
+              <optgroup label="Yargıtay Hukuk Daireleri">
+                <option value="1HD">1. Hukuk Dairesi (Tapu/Mülkiyet)</option>
+                <option value="2HD">2. Hukuk Dairesi (Aile/Boşanma)</option>
+                <option value="3HD">3. Hukuk Dairesi (Kira/Borçlar)</option>
+                <option value="4HD">4. Hukuk Dairesi (Tazminat/Haksız Fiil)</option>
+                <option value="5HD">5. Hukuk Dairesi</option>
+                <option value="6HD">6. Hukuk Dairesi</option>
+                <option value="7HD">7. Hukuk Dairesi</option>
+                <option value="8HD">8. Hukuk Dairesi</option>
+                <option value="9HD">9. Hukuk Dairesi (İş/Kıdem/İhbar)</option>
+                <option value="10HD">10. Hukuk Dairesi (Sosyal Güvenlik)</option>
+                <option value="11HD">11. Hukuk Dairesi (Ticaret/Şirketler)</option>
+                <option value="12HD">12. Hukuk Dairesi (İcra/İflas)</option>
+                <option value="13HD">13. Hukuk Dairesi</option>
+                <option value="14HD">14. Hukuk Dairesi</option>
+                <option value="15HD">15. Hukuk Dairesi</option>
+                <option value="16HD">16. Hukuk Dairesi</option>
+                <option value="17HD">17. Hukuk Dairesi</option>
+                <option value="18HD">18. Hukuk Dairesi</option>
+                <option value="19HD">19. Hukuk Dairesi</option>
+                <option value="20HD">20. Hukuk Dairesi</option>
+                <option value="21HD">21. Hukuk Dairesi</option>
+                <option value="22HD">22. Hukuk Dairesi</option>
+                <option value="23HD">23. Hukuk Dairesi</option>
+              </optgroup>
+              <optgroup label="Yargıtay Ceza Daireleri">
+                <option value="1CD">1. Ceza Dairesi</option>
+                <option value="2CD">2. Ceza Dairesi</option>
+                <option value="3CD">3. Ceza Dairesi</option>
+                <option value="4CD">4. Ceza Dairesi</option>
+                <option value="5CD">5. Ceza Dairesi</option>
+                <option value="6CD">6. Ceza Dairesi</option>
+                <option value="7CD">7. Ceza Dairesi</option>
+                <option value="8CD">8. Ceza Dairesi</option>
+                <option value="9CD">9. Ceza Dairesi</option>
+                <option value="10CD">10. Ceza Dairesi</option>
+                <option value="11CD">11. Ceza Dairesi</option>
+                <option value="12CD">12. Ceza Dairesi</option>
+                <option value="13CD">13. Ceza Dairesi</option>
+                <option value="14CD">14. Ceza Dairesi</option>
+                <option value="15CD">15. Ceza Dairesi</option>
+                <option value="16CD">16. Ceza Dairesi</option>
+                <option value="17CD">17. Ceza Dairesi</option>
+                <option value="18CD">18. Ceza Dairesi</option>
+                <option value="19CD">19. Ceza Dairesi</option>
+                <option value="20CD">20. Ceza Dairesi</option>
+                <option value="21CD">21. Ceza Dairesi</option>
+                <option value="22CD">22. Ceza Dairesi</option>
+                <option value="23CD">23. Ceza Dairesi</option>
+              </optgroup>
+              <optgroup label="Danıştay">
+                <option value="Danistay">Danıştay (tümü)</option>
+                <option value="IDDK">İdari Dava Daireleri Kurulu</option>
+                <option value="VDDK">Vergi Dava Daireleri Kurulu</option>
+                <option value="Danistay1">Danıştay 1. Daire</option>
+                <option value="Danistay2">Danıştay 2. Daire</option>
+                <option value="Danistay3">Danıştay 3. Daire</option>
+                <option value="Danistay4">Danıştay 4. Daire</option>
+                <option value="Danistay5">Danıştay 5. Daire</option>
+                <option value="Danistay6">Danıştay 6. Daire</option>
+                <option value="Danistay7">Danıştay 7. Daire</option>
+                <option value="Danistay8">Danıştay 8. Daire</option>
+                <option value="Danistay9">Danıştay 9. Daire</option>
+                <option value="Danistay10">Danıştay 10. Daire</option>
+                <option value="Danistay11">Danıştay 11. Daire</option>
+                <option value="Danistay12">Danıştay 12. Daire</option>
+                <option value="Danistay13">Danıştay 13. Daire</option>
+                <option value="Danistay14">Danıştay 14. Daire</option>
+                <option value="Danistay15">Danıştay 15. Daire</option>
+                <option value="Danistay16">Danıştay 16. Daire</option>
+                <option value="Danistay17">Danıştay 17. Daire</option>
+              </optgroup>
+              <optgroup label="Diğer">
+                <option value="AYM">Anayasa Mahkemesi</option>
+                <option value="BAM">Bölge Adliye Mahkemesi</option>
+                <option value="BIM">Bölge İdare Mahkemesi</option>
+                <option value="UYM">Uyuşmazlık Mahkemesi</option>
+                <option value="SAYISTAY">Sayıştay</option>
+              </optgroup>
             </select>
           </div>
           <div style="display:flex;align-items:flex-end">
@@ -1335,14 +1493,21 @@ function doGet(e) {
         <div id="hf-k-sonuc" style="margin-top:10px" class="ca-soluk">hayfahukuk.com Yargıtay karar veritabanında aramak için anahtar kelime girin. Kararlar tam metin korunur, asla anonimleştirilmez.</div>`;
 
       const kq = alan.querySelector('#hf-k-q'), kdaire = alan.querySelector('#hf-k-daire'), kson = alan.querySelector('#hf-k-sonuc');
-      const ara = async () => {
+      // Sonuçlar sayfa sayfa birikir ("Daha fazla karar"); eskiden yalnız ilk sayfa geliyordu
+      let kSayfa = 1, kBirikmis = [];
+      const ara = async (devam) => {
         const sorgu = kq.value.trim();
         if (sorgu.length < 2) { kson.textContent = 'En az 2 karakter girin.'; return; }
-        kson.innerHTML = '<span class="ca-soluk">İçtihat veritabanı taranıyor…</span>';
+        if (devam !== true) { kSayfa = 1; kBirikmis = []; kson.innerHTML = '<span class="ca-soluk">İçtihat veritabanı taranıyor…</span>'; }
         try {
-          const v = await api(`/api/hayfa/kararlar?q=${encodeURIComponent(sorgu)}&alan=${encodeURIComponent(kdaire.value)}`);
+          const v = await api(`/api/hayfa/kararlar?q=${encodeURIComponent(sorgu)}&alan=${encodeURIComponent(kdaire.value)}&sayfa=${kSayfa}`);
           if (v.hata) { kson.innerHTML = `<span class="ca-hata">${esc(v.hata)}</span>`; return; }
-          kson.innerHTML = `<div class="ca-soluk"><b>${esc(v.toplam)}</b> karar bulundu (Anonimleştirilmemiş tam metin)</div>
+          const gorulen = new Set(kBirikmis.map(k => k.id));
+          const yeniler = (v.kararlar || []).filter(k => !gorulen.has(k.id));
+          kBirikmis = kBirikmis.concat(yeniler);
+          const dahaVar = yeniler.length > 0;
+          v.kararlar = kBirikmis;
+          kson.innerHTML = `<div class="ca-soluk"><b>${esc(v.toplam)}</b> karar bulundu${v.suzuldu ? ' (daire adına göre süzüldü)' : ''} · ${kBirikmis.length} gösteriliyor (Anonimleştirilmemiş tam metin)</div>
             ${(v.kararlar || []).map(k => `<div class="ca-kart">
               <b>${esc(k.baslik)}</b>
               <div style="margin:4px 0">${(k.etiketler || []).map(t => `<span class="hf-etiket">${esc(t)}</span>`).join('')}</div>
@@ -1352,7 +1517,10 @@ function doGet(e) {
                 <button class="ca-btn kucuk altin" type="button" data-kekle="${esc(k.id)}">📝 Dilekçeye İçtihat Ekle</button>
                 <a class="ca-btn kucuk" href="${esc(k.url)}" target="_blank" rel="noopener">↗ hayfahukuk.com</a>
               </div>
-            </div>`).join('') || '<p class="ca-soluk">Karar bulunamadı.</p>'}`;
+            </div>`).join('') || '<p class="ca-soluk">Karar bulunamadı.</p>'}
+            ${dahaVar ? '<div style="text-align:center;margin:12px 0"><button class="ca-btn" type="button" id="hf-k-daha">⬇️ Daha fazla karar yükle</button></div>' : ''}`;
+          const dahaBtn = kson.querySelector('#hf-k-daha');
+          if (dahaBtn) dahaBtn.onclick = () => { dahaBtn.disabled = true; dahaBtn.textContent = 'Yükleniyor…'; kSayfa += 1; ara(true); };
 
           kson.querySelectorAll('[data-koku]').forEach(b => {
             b.onclick = async () => {
@@ -1370,7 +1538,7 @@ function doGet(e) {
                     <h3 style="margin-top:0">${esc(d.baslik)}</h3>
                     <pre style="max-height:550px;font-family:inherit;line-height:1.6;white-space:pre-wrap;overflow:auto">${esc(d.metin)}</pre>
                   </div>`;
-                kson.querySelector('#hf-k-geri').onclick = ara;
+                kson.querySelector('#hf-k-geri').onclick = () => ara();
                 kson.querySelector('#hf-k-yap').onclick = () => metinEkleBelgeye(`\n${d.baslik}\n${d.metin}\n`, kapat);
                 kson.querySelector('#hf-k-kopyala').onclick = () => kopyala(d.metin);
               } catch (e) { kson.innerHTML = `<span class="ca-hata">${esc(e.message)}</span>`; }
@@ -1388,7 +1556,7 @@ function doGet(e) {
         } catch (e) { sunucuHatasi(ic, e); }
       };
 
-      alan.querySelector('#hf-k-ara').onclick = ara;
+      alan.querySelector('#hf-k-ara').onclick = () => ara();
       kq.addEventListener('keydown', e => { if (e.key === 'Enter') ara(); });
       kdaire.onchange = () => { if (kq.value.trim().length >= 2) ara(); };
       alan.querySelectorAll('[data-k-hizli]').forEach(b => {

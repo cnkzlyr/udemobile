@@ -326,7 +326,7 @@
 
   // Sekmeler işlevine göre gruplanır (v4.3): masaüstünde solda gruplu kenar çubuğu, telefonda kaydırılabilir çipler.
   const SEKME_GRUPLARI = [
-    ['Takip', [['uyap', '🔐 UYAP Giriş'], ['yeni', '🔔 Yeni Evrak'], ['dosyalar', '📁 Dosyalar'], ['ajanda', '📅 Ajanda'], ['evrak', '🗂️ Evrak Ara']]],
+    ['Takip', [['uyap', '🔐 UYAP Giriş'], ['tebligat', '📨 Tebligatlar (UETS)'], ['yeni', '🔔 Yeni Evrak'], ['dosyalar', '📁 Dosyalar'], ['ajanda', '📅 Ajanda'], ['evrak', '🗂️ Evrak Ara']]],
     ['Süre & Hesap', [['sure', '⏱️ Süre'], ['hesap', '🧮 Hesapla'], ['hesaplar', '💰 Dosya Hesapları']]],
     ['Belge', [['a4', '📄 A4 PDF'], ['jar', '🔄 JAR Dönüştür'], ['hayfa', '📰 HAYFA']]],
     ['Bağlantılar', [['drive', '☁️ Drive'], ['entegrasyon', '📋 Notion / TickTick'], ['gorev', '⚙️ Görevler'], ['baglanti', '🔌 Bağlantı']]]
@@ -499,6 +499,7 @@
       ajanda: ajandaSekmesi,
       evrak: evrakSekmesi,
       gorev: gorevSekmesi,
+      tebligat: tebligatSekmesi,
       baglanti: baglantiSekmesi
     };
     // Sekme değişince içerik başa sarılır, yükleme göstergesi çıkar ve son sekme hatırlanır.
@@ -850,6 +851,95 @@
     "evrak-katalog": "İndirilen tüm evrakları yerel SQLite veritabanına indeksler ve A4 PDF dönüşüm kuyruğunu yönetir."
   };
 
+  // 📨 Tebligatlar: masaüstündeki "Avukat Asistanı penceresi"nin (Tk) telefonda da çalışan karşılığı.
+  // UETS'ten taze CSV + EYP indirme, TickTick'e eklerle aktarma, Notion eşleşmesi ve durum tablosu.
+  async function tebligatSekmesi(ic) {
+    const gunlukKutu = id => `<pre id="${id}" style="display:none;max-height:240px;overflow:auto;font-size:12px;background:#111827;color:#e5e7eb;padding:10px;border-radius:8px;white-space:pre-wrap"></pre>`;
+    ic.innerHTML = `<div class="ca-kart">
+        <b>📨 UETS Tebligatları → TickTick (EYP ekleriyle) + Notion</b>
+        <p class="ca-soluk" style="margin:6px 0">UETS'e arka planda (görünmez tarayıcıyla) girer, güncel CSV'yi ve eksik EYP paketlerini indirir; her tebligatı ilgili Notion dosyasıyla eşleştirip TickTick'e ekleriyle ekler.</p>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button class="ca-btn ana" type="button" id="tb-uets">🌐 UETS'ten İndir & Senkronize Et</button>
+          <button class="ca-btn" type="button" id="tb-yenile">🔄 Durumu Yenile</button>
+          <button class="ca-btn" type="button" id="tb-temizle">🧹 TickTick Mükerrer Temizle</button>
+          <button class="ca-btn" type="button" id="tb-excel">📑 UYAP Excel</button>
+        </div>
+        <div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><label style="margin:0">🔁 Arka planda otomatik:</label>
+          <select id="tb-oto" style="max-width:220px"><option value="0">Kapalı</option><option value="30">30 dakikada bir</option><option value="60">Saatte bir</option><option value="120">2 saatte bir</option><option value="240">4 saatte bir</option><option value="720">12 saatte bir</option></select>
+          <span id="tb-oto-bilgi" class="ca-soluk"></span></div>
+        <div id="tb-islem" class="ca-soluk" style="margin-top:8px"></div>
+        <div id="tb-otp" style="display:none;margin-top:8px" class="ca-uyari">📬 UETS giriş kodu bekleniyor. Gmail ayarlıysa otomatik okunur; değilse telefonunuza/e-postanıza gelen kodu yazın:
+          <div style="display:flex;gap:6px;margin-top:6px"><input id="tb-otp-kod" inputmode="numeric" autocomplete="one-time-code" placeholder="6 haneli kod" style="max-width:160px"><button class="ca-btn ana" type="button" id="tb-otp-gonder">Gönder</button></div></div>
+        ${gunlukKutu('tb-gunluk')}
+      </div>
+      <div class="ca-kart"><input id="tb-q" placeholder="Mahkeme, esas no, barkod, müvekkil ara…"><div id="tb-liste" style="margin-top:8px" class="ca-soluk">Tebligat durumu yükleniyor (TickTick ve Notion sorgulanıyor)…</div></div>`;
+    const islem = ic.querySelector('#tb-islem'), liste = ic.querySelector('#tb-liste'), gl = ic.querySelector('#tb-gunluk');
+    let veri = [];
+    const renk = { green: '#16a34a', blue: '#2563eb', orange: '#d97706', red: '#dc2626', gray: '#64748b' };
+    const ciz = () => {
+      const q = (ic.querySelector('#tb-q').value || '').toLocaleLowerCase('tr');
+      const l = veri.filter(d => !q || `${d.mahkeme} ${d.esas} ${d.barkod} ${d.muvekkil} ${d.durum}`.toLocaleLowerCase('tr').includes(q));
+      const say = k => veri.filter(d => (d.durum_kodu || '').includes(k)).length;
+      liste.innerHTML = `<div class="ca-soluk" style="margin-bottom:6px">${veri.length} tebligat · ✓ ${say('SYNCED') + say('COMPLETED')} TickTick'te · ⚠️ ${say('MISSING')} eksik · 📎 ${say('PENDING_ATTACHMENT')} ek bekliyor</div>
+        <table>${l.map(d => `<tr>
+          <td><b>${esc(d.mahkeme)}</b> <span class="ca-soluk">${esc(d.esas)}</span><div class="ca-soluk">Barkod ${esc(d.barkod)} · geliş ${esc((d.gelis || '').slice(0, 10))}${d.muvekkil ? ' · ' + esc(d.muvekkil) : ''}</div></td>
+          <td style="white-space:nowrap">${d.son_gun ? '⏰ ' + esc(d.son_gun) : '—'}</td>
+          <td><span style="color:${renk[d.renk] || '#64748b'};font-weight:600">${esc(d.durum)}</span><div class="ca-soluk">${d.eyp ? '📦 EYP var' : '❌ EYP yok'}</div></td>
+          <td style="white-space:nowrap"><button class="ca-btn kucuk ana" type="button" data-zorla="${esc(d.barkod)}">⚡ TickTick'e ekle</button>
+            ${d.notion_url ? `<a class="ca-btn kucuk" href="${esc(d.notion_url)}" target="_blank" rel="noopener">Notion</a>` : ''}</td></tr>`).join('') || '<tr><td>Kayıt yok. Önce "UETS\'ten İndir" çalıştırın.</td></tr>'}</table>`;
+      liste.querySelectorAll('[data-zorla]').forEach(b => { b.onclick = () => calistir('zorla', { barkod: b.dataset.zorla }, b); });
+    };
+    const yukle = async () => {
+      liste.innerHTML = '<span class="ca-soluk">⏳ Tebligatlar, TickTick ve Notion taranıyor…</span>';
+      try { const r = await api('/api/tebligat/liste', { method: 'POST', govde: {} }); veri = r.tebligatlar || []; ciz(); }
+      catch (e) { liste.innerHTML = `<span class="ca-hata">${esc(e.message)}</span>`; }
+    };
+    const calistir = async (komut, govde, btn) => {
+      if (btn) btn.disabled = true;
+      islem.textContent = '⏳ Çalışıyor…';
+      try {
+        const r = await api('/api/tebligat/' + komut, { method: 'POST', govde: govde || {} });
+        islem.innerHTML = `✓ ${esc(r.sonuc || 'Tamam')}`;
+        if (r.gunluk && r.gunluk.length) { gl.style.display = 'block'; gl.textContent = r.gunluk.join('\n'); }
+        yukle();
+      } catch (e) { islem.innerHTML = `<span class="ca-hata">${esc(e.message)}</span>`; }
+      finally { if (btn) btn.disabled = false; }
+    };
+    // UETS indirme uzun sürer: mevcut "uets-senkron" görevi başlatılır, günlüğü canlı izlenir
+    ic.querySelector('#tb-uets').onclick = async () => {
+      try { await api('/api/gorev/uets-senkron', { method: 'POST', govde: {} }); }
+      catch (e) { islem.innerHTML = `<span class="ca-hata">${esc(e.message)}</span>`; return; }
+      gl.style.display = 'block';
+      for (;;) {
+        let g;
+        try { g = (await api('/api/gorevler')).gorevler.find(x => x.kimlik === 'uets-senkron'); } catch (e) { break; }
+        if (!g) break;
+        gl.textContent = (g.gunluk || []).join('\n'); gl.scrollTop = gl.scrollHeight;
+        const kodBekliyor = g.calisiyor && (g.gunluk || []).slice(-6).some(x => /OTP|Doğrulama kodu|kod henüz gelmedi/i.test(x));
+        ic.querySelector('#tb-otp').style.display = kodBekliyor ? 'block' : 'none';
+        islem.textContent = g.calisiyor ? '⏳ UETS senkronizasyonu sürüyor (paneli kapatabilirsiniz)…' : (g.kod === 0 ? '✓ UETS senkronizasyonu tamamlandı' : `⚠️ UETS görevi ${g.kod} koduyla bitti`);
+        if (!g.calisiyor) { yukle(); break; }
+        await new Promise(r => setTimeout(r, 2500));
+        if (!document.body.contains(gl)) return;
+      }
+    };
+    ic.querySelector('#tb-otp-gonder').onclick = async () => {
+      const kod = ic.querySelector('#tb-otp-kod').value.replace(/\D/g, '');
+      try { await api('/api/uets/otp', { method: 'POST', govde: { kod } }); islem.textContent = '✓ Kod gönderildi, giriş yapılıyor…'; ic.querySelector('#tb-otp-kod').value = ''; }
+      catch (e) { islem.innerHTML = `<span class="ca-hata">${esc(e.message)}</span>`; }
+    };
+    const oto = ic.querySelector('#tb-oto'), otoBilgi = ic.querySelector('#tb-oto-bilgi');
+    const otoYaz = a => { oto.value = String(a.aralik_dk || 0); if (![...oto.options].some(o => o.value === oto.value)) oto.value = '60';
+      otoBilgi.textContent = !a.hazir ? '⚠️ Önce Notion/TickTick sekmesinde UETS TC ve şifresini girin' : (a.aralik_dk && a.sonraki ? 'sonraki: ' + new Date(a.sonraki * 1000).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }) : ''); };
+    api('/api/uets/ayar').then(otoYaz).catch(() => {});
+    oto.onchange = async () => { try { otoYaz(await api('/api/uets/ayar', { method: 'POST', govde: { aralik_dk: +oto.value } })); } catch (e) { otoBilgi.textContent = e.message; } };
+    ic.querySelector('#tb-yenile').onclick = yukle;
+    ic.querySelector('#tb-temizle').onclick = e => calistir('temizle', {}, e.currentTarget);
+    ic.querySelector('#tb-excel').onclick = e => calistir('excel', {}, e.currentTarget);
+    ic.querySelector('#tb-q').oninput = ciz;
+    yukle();
+  }
+
   async function gorevSekmesi(ic) {
     ic.innerHTML = '<p class="ca-soluk">Görevler ve servisler yükleniyor…</p>';
     const ciz = async () => {
@@ -874,7 +964,7 @@
                 <b style="font-size:14px;">${esc(g.ad)}</b> ${durumRozeti}
               </div>
               <div>
-                ${g.kullanilamaz ? `<span class="ca-soluk">🖥️ ${esc(g.kullanilamaz)}</span>` : (g.calisiyor ? `<button class="ca-btn kucuk" style="background:#D32F2F;color:#fff;" type="button" data-durdur="${g.kimlik}">⏹ Durdur</button>` : `<button class="ca-btn ana kucuk" type="button" data-baslat="${g.kimlik}">▶ ${g.pencere ? 'Pencereyi Aç' : 'Çalıştır'}</button>`)}
+                ${g.kullanilamaz && g.pencere ? `<button class="ca-btn ana kucuk" type="button" data-panel="${g.kimlik === 'evrak-katalog' ? 'evrak' : 'tebligat'}">▶ Panelde Aç</button>` : g.kullanilamaz ? `<span class="ca-soluk">🖥️ ${esc(g.kullanilamaz)}</span>` : (g.calisiyor ? `<button class="ca-btn kucuk" style="background:#D32F2F;color:#fff;" type="button" data-durdur="${g.kimlik}">⏹ Durdur</button>` : `<button class="ca-btn ana kucuk" type="button" data-baslat="${g.kimlik}">▶ ${g.pencere ? 'Pencereyi Aç' : 'Çalıştır'}</button>`)}
               </div>
             </div>
             <p style="font-size:12px;color:#455A64;margin:6px 0 8px 0;line-height:1.4;">${esc(aciklama)}</p>
@@ -882,6 +972,7 @@
           </div>`;
         }).join('')}`;
 
+      ic.querySelectorAll('[data-panel]').forEach(b => { b.onclick = () => sekmeAc(b.dataset.panel); });
       ic.querySelectorAll('[data-baslat]').forEach(b => {
         b.onclick = async () => {
           b.disabled = true;

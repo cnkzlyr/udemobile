@@ -44,13 +44,13 @@ PBS_SHA = "b6a41defec4975d94b4ff1950236e7383e5c02ba40ea48c9ec33c66087a35aab"
 PY_SURUM = "3.12"
 
 # Android'de kullanılacak bağımlılıklar (tarayıcı otomasyonu hariç)
-ANDROID_BAGIMLILIKLAR = ["requests>=2.28", "sqlalchemy>=2.0,<2.1", "openpyxl>=3.1", "pypdf>=3.0", "pillow>=10",
+ANDROID_BAGIMLILIKLAR = ["requests>=2.28", "selenium>=4.20", "sqlalchemy>=2.0,<2.1", "openpyxl>=3.1", "pypdf>=3.0", "pillow>=10",
                          "reportlab>=4.0", "websocket-client>=1.5"]
 GLIBC_PAKETLERI = ["glibc", "gcc-libs-glibc", "zlib-glibc"]
 # İçe aktarma duman testi (Android'de sunucu ve görevlerin kullandığı modüller)
 DUMAN_IMPORTLARI = ["ssl", "sqlite3", "zlib", "lzma", "bz2", "ctypes", "hashlib", "json", "email.mime.multipart",
                     "requests", "sqlalchemy", "openpyxl", "pypdf", "PIL.Image", "reportlab.pdfgen.canvas", "websocket",
-                    "certifi", "imaplib", "smtplib", "csv", "zipfile", "xml.etree.ElementTree"]
+                    "certifi", "imaplib", "smtplib", "selenium.webdriver.support.ui", "csv", "zipfile", "xml.etree.ElementTree"]
 
 
 def adim(m):

@@ -396,8 +396,60 @@ def guvenli_drive_dosyasi(drive_dizini: Path, rel_yol: str) -> Path | None:
     return hedef if hedef.is_file() else None
 
 
-def esitle_eksikler(katalog_db: Path, evrak_veri_dizini: Path, limit: int = 100) -> dict:
-    """Yerel indirilen ancak henüz Google Drive'a kopyalanmamış/yüklenmemiş evrakları eşitler."""
+ESITLE_ILERLEME: dict = {"calisiyor": False, "toplam": 0, "islenen": 0, "aktarilan": 0, "atlanan": 0, "hata": 0,
+                         "son_dosya": "", "hatalar": [], "basla": 0.0, "bitis": 0.0, "mesaj": ""}
+
+_YUKLEME_SEMA = """
+CREATE TABLE IF NOT EXISTS drive_yukleme (
+    evrak_id TEXT PRIMARY KEY,
+    boyut INTEGER NOT NULL DEFAULT 0,
+    hedef TEXT NOT NULL DEFAULT '',
+    drive_id TEXT NOT NULL DEFAULT '',
+    url TEXT NOT NULL DEFAULT '',
+    zaman TEXT NOT NULL DEFAULT ''
+);
+"""
+
+
+def _yukleme_db(evrak_veri_dizini: Path) -> sqlite3.Connection:
+    """Drive'a yüklenen evrakların defteri: bir evrak bir kez yüklenir (eskiden her basışta yeniden yükleniyordu)."""
+    p = Path(evrak_veri_dizini) / "drive_indeks.db"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    c = sqlite3.connect(str(p), timeout=15)
+    c.row_factory = sqlite3.Row
+    c.executescript(_YUKLEME_SEMA)
+    return c
+
+
+def esitleme_ozeti(katalog_db: Path, evrak_veri_dizini: Path) -> dict:
+    """Kaç evrak indirildi, kaçı Drive'a yüklendi (defterde) — arayüzde 'Drive'da X / Y' olarak gösterilir."""
+    ozet = {"indirilen": 0, "drivede": 0, "son_yukleme": None}
+    try:
+        if katalog_db.is_file():
+            k = sqlite3.connect(f"file:{katalog_db}?mode=ro", uri=True, timeout=10)
+            try:
+                ozet["indirilen"] = k.execute("SELECT COUNT(*) FROM evrak WHERE durum='indirildi'").fetchone()[0]
+            finally:
+                k.close()
+        c = _yukleme_db(evrak_veri_dizini)
+        try:
+            ozet["drivede"] = c.execute("SELECT COUNT(*) FROM drive_yukleme").fetchone()[0]
+            r = c.execute("SELECT MAX(zaman) FROM drive_yukleme").fetchone()
+            ozet["son_yukleme"] = r[0] if r else None
+        finally:
+            c.close()
+    except sqlite3.DatabaseError:
+        pass
+    return ozet
+
+
+def esitle_eksikler(katalog_db: Path, evrak_veri_dizini: Path, limit: int = 100, ilerleme: dict | None = None) -> dict:
+    """Yerel indirilen ancak henüz Google Drive'a kopyalanmamış/yüklenmemiş evrakları eşitler.
+
+    Webhook (telefon) modunda her yükleme drive_yukleme defterine yazılır; aynı evrak bir daha gönderilmez.
+    Apps Script yanıtı JSON olarak denetlenir (eskiden HTTP 200 her durumda 'başarılı' sayılıyordu).
+    """
+    ilerleme = ilerleme if ilerleme is not None else {}
     ayar = drive_ayar_oku(evrak_veri_dizini)
     dizin = Path(ayar["google_drive_dir"]) if ayar["google_drive_dir"] else None
     webhook = ayar["google_drive_webhook"]
@@ -406,12 +458,16 @@ def esitle_eksikler(katalog_db: Path, evrak_veri_dizini: Path, limit: int = 100)
     if not katalog_db.is_file():
         return {"aktarilan": 0, "atlanan": 0, "hata": 0, "mesaj": "UYAP evrak kataloğu henüz yok."}
 
+    yerel_mod = bool(dizin and dizin.is_dir())
     c = sqlite3.connect(str(katalog_db), timeout=15)
     c.row_factory = sqlite3.Row
+    defter = _yukleme_db(evrak_veri_dizini)
     aktarilan = atlanan = hata = 0
+    hatalar: list[str] = []
     try:
-        onek = str(dizin).rstrip("/\\") if (dizin and dizin.is_dir()) else ""
-        if onek:
+        yuklenmis = {r["evrak_id"]: r["boyut"] for r in defter.execute("SELECT evrak_id, boyut FROM drive_yukleme")}
+        if yerel_mod:
+            onek = str(dizin).rstrip("/\\")
             rows = c.execute(
                 """SELECT e.id, e.path, e.pdf_path, d.birim, d.dosya_no
                    FROM evrak e LEFT JOIN dosya d ON d.dkey = e.dkey
@@ -422,56 +478,70 @@ def esitle_eksikler(katalog_db: Path, evrak_veri_dizini: Path, limit: int = 100)
                 (onek + "%", onek + "%", limit),
             ).fetchall()
         else:
-            rows = c.execute(
+            # Defterde olmayanlar (henüz yüklenmemiş) — en yeniden eskiye
+            hepsi = c.execute(
                 """SELECT e.id, e.path, e.pdf_path, d.birim, d.dosya_no
                    FROM evrak e LEFT JOIN dosya d ON d.dkey = e.dkey
                    WHERE e.durum='indirildi' AND (e.pdf_path IS NOT NULL OR e.path IS NOT NULL)
-                   ORDER BY e.tarih DESC LIMIT ?""",
-                (limit,),
-            ).fetchall()
+                   ORDER BY e.tarih DESC""").fetchall()
+            rows = [r for r in hepsi if str(r["id"]) not in yuklenmis][:limit]
+        ilerleme.update(toplam=len(rows), islenen=0)
 
         for r in rows:
             kaynak = Path(r["pdf_path"] or r["path"])
             if not kaynak.is_absolute():
                 kaynak = katalog_db.parent / kaynak
+            ilerleme["son_dosya"] = kaynak.name
             if not kaynak.is_file():
                 atlanan += 1
+                ilerleme.update(islenen=ilerleme.get("islenen", 0) + 1, atlanan=atlanan)
                 continue
             birim = re.sub(r'[<>:"/\\|?*]', "_", str(r["birim"] or "Diger")).strip()[:60] or "Diger"
             dno = re.sub(r'[<>:"/\\|?*]', "_", str(r["dosya_no"] or "Genel")).strip()[:40] or "Genel"
             rel_klasor = f"DAVA_EVRAKLARI/{birim}/{dno}"
 
-            if dizin and dizin.is_dir():
+            if yerel_mod:
                 hedef = dizin / rel_klasor / kaynak.name
                 try:
                     if hedef.is_file() and hedef.stat().st_size == kaynak.stat().st_size:
                         atlanan += 1
-                        continue
-                    hedef.parent.mkdir(parents=True, exist_ok=True)
-                    shutil.copy2(kaynak, hedef)
-                    aktarilan += 1
-                except OSError:
+                    else:
+                        hedef.parent.mkdir(parents=True, exist_ok=True)
+                        shutil.copy2(kaynak, hedef)
+                        aktarilan += 1
+                except OSError as ex:
                     hata += 1
-            elif webhook:
+                    hatalar.append(f"{kaynak.name}: {ex}")
+            else:
                 try:
                     import base64
-                    import urllib.request
-                    govde = json.dumps({
+                    veri = kaynak.read_bytes()
+                    yanit = _webhook_post(webhook, {
                         "filename": kaynak.name,
                         "folder_path": rel_klasor,
-                        "content": base64.b64encode(kaynak.read_bytes()).decode("ascii"),
-                    }).encode("utf-8")
-                    istek = urllib.request.Request(webhook, data=govde, headers={"Content-Type": "application/json"}, method="POST")
-                    with urllib.request.urlopen(istek, timeout=60) as resp:
-                        if resp.status == 200:
-                            aktarilan += 1
+                        "content": base64.b64encode(veri).decode("ascii"),
+                    }, timeout=120)
+                    if yanit.get("status") == "success":
+                        if yanit.get("mevcut"):
+                            atlanan += 1
                         else:
-                            hata += 1
-                except Exception:
+                            aktarilan += 1
+                        defter.execute(
+                            "INSERT OR REPLACE INTO drive_yukleme(evrak_id,boyut,hedef,drive_id,url,zaman) VALUES (?,?,?,?,?,?)",
+                            (str(r["id"]), len(veri), f"{rel_klasor}/{kaynak.name}", str(yanit.get("fileId") or ""),
+                             str(yanit.get("url") or ""), time.strftime("%Y-%m-%dT%H:%M:%S")))
+                        defter.commit()
+                    else:
+                        hata += 1
+                        hatalar.append(f"{kaynak.name}: {yanit.get('message') or yanit}"[:200])
+                except Exception as ex:  # noqa: BLE001
                     hata += 1
+                    hatalar.append(f"{kaynak.name}: {ex}"[:200])
+            ilerleme.update(islenen=ilerleme.get("islenen", 0) + 1, aktarilan=aktarilan, atlanan=atlanan, hata=hata,
+                            hatalar=hatalar[-5:])
 
         # Katalog yedeğini de yerel Drive'a al
-        if dizin and dizin.is_dir():
+        if yerel_mod:
             try:
                 yedek = dizin / "uyap_katalog_yedek.db"
                 with sqlite3.connect(str(yedek)) as dst:
@@ -480,5 +550,43 @@ def esitle_eksikler(katalog_db: Path, evrak_veri_dizini: Path, limit: int = 100)
                 pass
     finally:
         c.close()
+        defter.close()
 
-    return {"aktarilan": aktarilan, "atlanan": atlanan, "hata": hata}
+    kalan = 0
+    if not yerel_mod:
+        kalan = max(0, esitleme_ozeti(katalog_db, evrak_veri_dizini)["indirilen"] - esitleme_ozeti(katalog_db, evrak_veri_dizini)["drivede"])
+    return {"aktarilan": aktarilan, "atlanan": atlanan, "hata": hata, "hatalar": hatalar[-5:], "kalan": kalan}
+
+
+def esitle_arkaplan(katalog_db: Path, evrak_veri_dizini: Path, limit: int = 100000) -> dict:
+    """Eşitlemeyi arka planda başlatır; ilerleme ESITLE_ILERLEME'de (arayüz 2-3 sn'de bir sorar)."""
+    import threading
+    if ESITLE_ILERLEME["calisiyor"]:
+        return {"basladi": False, "calisiyor": True}
+    ESITLE_ILERLEME.update(calisiyor=True, toplam=0, islenen=0, aktarilan=0, atlanan=0, hata=0, son_dosya="",
+                           hatalar=[], basla=time.time(), bitis=0.0, mesaj="", sonuc=None)
+
+    def _is():
+        try:
+            ESITLE_ILERLEME["sonuc"] = esitle_eksikler(katalog_db, evrak_veri_dizini, limit, ESITLE_ILERLEME)
+        except Exception as ex:  # noqa: BLE001
+            ESITLE_ILERLEME["mesaj"] = str(ex)[:400]
+        finally:
+            ESITLE_ILERLEME.update(calisiyor=False, bitis=time.time())
+
+    threading.Thread(target=_is, name="drive-esitle", daemon=True).start()
+    return {"basladi": True, "calisiyor": True}
+
+
+def kopya_temizle(url: str) -> dict:
+    """Apps Script ile UYAP_Arsiv'deki aynı ad+boyut kopyalarını çöp kutusuna taşır (en eskisi kalır)."""
+    state, toplam = None, 0
+    for _ in range(200):
+        r = _webhook_post(url, {"action": "kopya_temizle", "state": state})
+        if r.get("status") != "ok":
+            raise ValueError(_eski_betik_mesaji(r))
+        toplam += int(r.get("tasinan") or 0)
+        state = r.get("state")
+        if not state:
+            break
+    return {"tasinan": toplam}

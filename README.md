@@ -1,6 +1,6 @@
 # ⚖️ CanEditor (UdeMobile) — Birleşik Hukuk Platformu & Çapraz Platform UYAP Editörü
 
-[![Sürüm](https://img.shields.io/badge/Sürüm-v4.3.1-c8a45a.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v4.3.1)
+[![Sürüm](https://img.shields.io/badge/Sürüm-v4.4.0-c8a45a.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v4.4.0)
 [![Platformlar](https://img.shields.io/badge/Platformlar-Android%20%7C%20Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Web-0f2341.svg)](https://github.com/cnkzlyr/udemobile/releases)
 [![UYAP](https://img.shields.io/badge/Format-UYAP_UDF_v1.8-0D47A1.svg)](https://uyap.gov.tr)
 [![Word](https://img.shields.io/badge/Format-MS_DOCX_OpenXML-2B579A.svg?logo=microsoft-word&logoColor=white)](https://microsoft.com)
@@ -19,6 +19,27 @@
 - **`hayfahukuk.com` entegrasyonu** (Yargıtay İçtihat Arama, uygulama içi Mevzuat Okuyucusu, Hukuk Haberleri, günlük Resmî Gazete, **%100 çevrimdışı Adliye & IBAN Rehberi**, 7 hukuki hesaplayıcı)
 
 ---
+
+## 📨 v4.4.0: Telefonda UETS, TickTick/Notion/Telegram Gerçekten Çalışıyor
+
+**Telefonda internet "yok" sanılıyordu (asıl sorun)**
+- APK içindeki asistan, Termux'tan alınmış glibc ile çalışıyor ve DNS ayarını `/data/data/com.termux/…/resolv.conf` yolunda arıyordu. Termux kurulu olmayan telefonda bu dosya olmadığı için **Notion, TickTick, Telegram, UETS ve Gmail "internet yok / ad çözülemedi"** hatası veriyordu. Artık: (1) uygulama bu glibc'yi kendi resolv.conf'una yönlendirir ve telefonun DNS sunucularını kullanır, (2) yedek DNS çözücü yalnız sunucuda değil **bütün alt görevlerde** (UETS, TickTick, Notion, nöbetçi) devrededir.
+
+**UETS telefonda, arka planda**
+- UETS görevi telefonda "masaüstünde çalışır" diye kapalıydı. Yeni `cdp_surucu`, uygulamanın gizli tarayıcısını Selenium gibi sürer: UETS'e girer, güncel CSV'yi ve eksik EYP paketlerini indirir, TickTick'e **eklerle** gönderir, Notion dosyasıyla eşleştirir. Chrome/Termux gerekmez.
+- **Arka planda otomatik**: Tebligatlar sekmesinden 30 dk / 1 / 2 / 4 / 12 saatte bir.
+- UETS giriş kodu (OTP) Gmail'den otomatik okunur (Gmail adresi + uygulama şifresi alanları eklendi); Gmail yoksa kod panelden yazılır.
+
+**Masaüstüne özel pencereler telefonda**
+- Yeni **📨 Tebligatlar** sekmesi: Avukat Asistanı penceresinin tüm işlevleri (durum tablosu, tek tıkla TickTick'e ekle, mükerrer temizliği, UYAP Excel). Görevler sekmesindeki pencereler telefonda "Panelde Aç" ile açılır.
+
+**Google Drive**
+- "Eksikleri Drive'a Eşitle" telefonda **her basışta son 150 evrakı yeniden yüklüyordu** (Drive'da kopyalar birikiyordu) ve Apps Script hata verse bile "başarılı" sayıyordu. Artık her evrak bir kez yüklenir (yükleme defteri), Apps Script de aynı ad+boyuttaki dosyayı yeniden oluşturmaz; canlı ilerleme çubuğu, "Drive'da X / Y evrak" sayacı ve **🧹 kopyaları temizle** düğmesi (çöp kutusuna, 30 gün geri alınabilir).
+
+**İçtihat arama**
+- Yargıtay 1–23 Hukuk ve 1–23 Ceza daireleri, HGK/CGK/BGK/İBK, Danıştay 1–17. daireler ve kurullar, AYM, BAM, BİM, Uyuşmazlık, Sayıştay. Site bir daire kodunu tanımazsa sonuçlar daire adına göre süzülür. **Daha fazla karar yükle** ile sonraki sayfalar.
+
+> Telefonda Apps Script kodunu güncellemeyi unutmayın (Drive sekmesi → *📋 Google Apps Script Kodunu Kopyala* → script.google.com'a yapıştır → *Dağıt › Dağıtımları yönet › ✏️ › Yeni sürüm*).
 
 ## ☁️ v4.3.1: Google Drive'ın Tamamı Gerçekten İndeksleniyor
 
@@ -70,21 +91,21 @@ Ayrıntılı mimari: [`docs/BIRLESIK_MIMARI.md`](docs/BIRLESIK_MIMARI.md) · Han
 | **Bağlantı & Rolling Log** | Sistem sağlık paneli, kesintisiz Google Drive sync göstergesi, 2MB rotasyonlu otomatik loglama ve tek tıkla Log ZIP indirme |
 | **Android Başlatıcı & USF** | Ana ekrandan tek tıkla Hukuk Asistanı'nı açan buton, sistemde `.udf` ve `.usf` varsayılan açıcı ilişkilendirmesi |
 
-## 🚀 Hızlı İndirme (v4.3.1)
+## 🚀 Hızlı İndirme (v4.4.0)
 
 Kurulum paketleri **her şeyi içinde taşır**: Python, Java, görünmez Chrome ve sürücüsüz e-imza altyapısı. Ayrıca bir şey kurmanız gerekmez.
 
 | Platform | Paket Dosyası | Açıklama |
 | :--- | :--- | :--- |
-| **Windows 10 / 11 (64-bit)** | [**CanEditor_4.3.1_x64-setup.exe**](https://github.com/cnkzlyr/udemobile/releases/download/v4.3.1/CanEditor_4.3.1_x64-setup.exe) · [MSI](https://github.com/cnkzlyr/udemobile/releases/download/v4.3.1/CanEditor_4.3.1_x64_en-US.msi) | Standart kurulum (NSIS) · kurumsal MSI |
-| **macOS (Apple Silicon & Intel)** | [**CanEditor_4.3.1_universal.dmg**](https://github.com/cnkzlyr/udemobile/releases/download/v4.3.1/CanEditor_4.3.1_universal.dmg) | Universal (M1/M2/M3/M4 + Intel) — Applications'a sürükleyin |
-| **Linux Debian / Ubuntu / Pardus** | [**CanEditor_4.3.1_amd64.deb**](https://github.com/cnkzlyr/udemobile/releases/download/v4.3.1/CanEditor_4.3.1_amd64.deb) | `sudo apt install ./CanEditor_4.3.1_amd64.deb` (e-imza kart hizmeti otomatik kurulur) |
-| **Linux Fedora / RHEL / openSUSE** | [**CanEditor-4.3.1-1.x86_64.rpm**](https://github.com/cnkzlyr/udemobile/releases/download/v4.3.1/CanEditor-4.3.1-1.x86_64.rpm) | `sudo dnf install ./CanEditor-4.3.1-1.x86_64.rpm` |
-| **Linux (tüm dağıtımlar)** | [**CanEditor_4.3.1_amd64.AppImage**](https://github.com/cnkzlyr/udemobile/releases/download/v4.3.1/CanEditor_4.3.1_amd64.AppImage) | `chmod +x` ile çalıştırın (e-imza için bir kez `sudo apt install pcscd libccid`) |
-| **Android (Telefon & Tablet)** | [**CanEditor-v4.3.1.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v4.3.1/CanEditor-v4.3.1.apk) · [en son](https://github.com/cnkzlyr/udemobile/releases/download/v4.3.1/CanEditor-latest.apk) | Tek uygulama · Termux gerektirmez; gömülü Python asistan APK içinde |
-| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v4.3.1.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v4.3.1/CanEditor-Portable-Web-GUI-v4.3.1.zip) | **Kurulumsuz;** `index.html` ile her sistemde çalışır |
+| **Windows 10 / 11 (64-bit)** | [**CanEditor_4.4.0_x64-setup.exe**](https://github.com/cnkzlyr/udemobile/releases/download/v4.4.0/CanEditor_4.4.0_x64-setup.exe) · [MSI](https://github.com/cnkzlyr/udemobile/releases/download/v4.4.0/CanEditor_4.4.0_x64_en-US.msi) | Standart kurulum (NSIS) · kurumsal MSI |
+| **macOS (Apple Silicon & Intel)** | [**CanEditor_4.4.0_universal.dmg**](https://github.com/cnkzlyr/udemobile/releases/download/v4.4.0/CanEditor_4.4.0_universal.dmg) | Universal (M1/M2/M3/M4 + Intel) — Applications'a sürükleyin |
+| **Linux Debian / Ubuntu / Pardus** | [**CanEditor_4.4.0_amd64.deb**](https://github.com/cnkzlyr/udemobile/releases/download/v4.4.0/CanEditor_4.4.0_amd64.deb) | `sudo apt install ./CanEditor_4.4.0_amd64.deb` (e-imza kart hizmeti otomatik kurulur) |
+| **Linux Fedora / RHEL / openSUSE** | [**CanEditor-4.4.0-1.x86_64.rpm**](https://github.com/cnkzlyr/udemobile/releases/download/v4.4.0/CanEditor-4.4.0-1.x86_64.rpm) | `sudo dnf install ./CanEditor-4.4.0-1.x86_64.rpm` |
+| **Linux (tüm dağıtımlar)** | [**CanEditor_4.4.0_amd64.AppImage**](https://github.com/cnkzlyr/udemobile/releases/download/v4.4.0/CanEditor_4.4.0_amd64.AppImage) | `chmod +x` ile çalıştırın (e-imza için bir kez `sudo apt install pcscd libccid`) |
+| **Android (Telefon & Tablet)** | [**CanEditor-v4.4.0.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v4.4.0/CanEditor-v4.4.0.apk) · [en son](https://github.com/cnkzlyr/udemobile/releases/download/v4.4.0/CanEditor-latest.apk) | Tek uygulama · Termux gerektirmez; gömülü Python asistan APK içinde |
+| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v4.4.0.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v4.4.0/CanEditor-Portable-Web-GUI-v4.4.0.zip) | **Kurulumsuz;** `index.html` ile her sistemde çalışır |
 
-Tüm dosyalar ve sürümler: [GitHub Releases — v4.3.1](https://github.com/cnkzlyr/udemobile/releases/tag/v4.3.1) · [Tüm Sürümler](https://github.com/cnkzlyr/udemobile/releases)
+Tüm dosyalar ve sürümler: [GitHub Releases — v4.4.0](https://github.com/cnkzlyr/udemobile/releases/tag/v4.4.0) · [Tüm Sürümler](https://github.com/cnkzlyr/udemobile/releases)
 
 ---
 

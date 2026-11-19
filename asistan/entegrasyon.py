@@ -40,6 +40,8 @@ GIZLI_ALANLAR = (
     "UETS_TCKN",
     "UETS_PASSWORD",
     "TICKTICK_EMAIL",
+    "GMAIL_USER",
+    "GMAIL_APP_PASS",
 )
 
 # Önbellek (5 dk)
@@ -96,6 +98,8 @@ def ayar_ozeti(avukat_dir: Path) -> dict:
         "telegram_bagli": bool(e.get("TELEGRAM_BOT_TOKEN") and e.get("TELEGRAM_CHAT_ID")),
         "telegram_chat_id": e.get("TELEGRAM_CHAT_ID", ""),
         "uets_bagli": bool(e.get("UETS_TCKN") and e.get("UETS_PASSWORD")),
+        "gmail_bagli": bool(e.get("GMAIL_USER") and e.get("GMAIL_APP_PASS")),
+        "gmail_user": e.get("GMAIL_USER", ""),
         "uets_tckn": _maskele(e.get("UETS_TCKN", "")),
         "otomatik_senkron": e.get("UYAP_OTO_SENKRON", "1") != "0",
     }
@@ -113,6 +117,9 @@ def ayar_kaydet(avukat_dir: Path, girdi: dict) -> dict:
         "telegram_chat_id": "TELEGRAM_CHAT_ID",
         "uets_tckn": "UETS_TCKN",
         "uets_password": "UETS_PASSWORD",
+        # UETS giriş kodu (OTP) Gmail'den otomatik okunur (uets_downloader.find_latest_otp_code)
+        "gmail_user": "GMAIL_USER",
+        "gmail_app_pass": "GMAIL_APP_PASS",
     }
     for json_k, env_k in esleme.items():
         if json_k in girdi and str(girdi[json_k] or "").strip():

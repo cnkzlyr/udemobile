@@ -168,7 +168,8 @@ class SunucuTest(unittest.TestCase):
         try:
             k, v, _ = self.istek("/api/gorev/uets-senkron", "POST", govde={})
             self.assertEqual(k, 400)
-            self.assertIn("masaüstü", v["hata"])
+            # v4.3.2: UETS telefonda gizli WebView ile çalışır; soket yoksa "gizli tarayıcı hazır değil" der
+            self.assertIn("Gizli tarayıcı", v["hata"])
             g = {g["kimlik"]: g for g in self.istek("/api/gorevler")[1]["gorevler"]}
             self.assertTrue(g["evrak-islemlerim"]["kullanilamaz"])
             self.assertTrue(g["evrak-katalog"]["kullanilamaz"])          # masaüstü penceresi

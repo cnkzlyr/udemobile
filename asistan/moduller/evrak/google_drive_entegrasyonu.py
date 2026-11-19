@@ -69,8 +69,14 @@ class GoogleDriveCloudClient:
                 }
                 resp = requests.post(self.webhook_url, json=payload, timeout=60)
                 if resp.status_code == 200:
-                    data = resp.json()
-                    logger.info("[Drive Cloud] Dosya doğrudan Google Drive'a yüklendi: %s", p.name)
+                    try:
+                        data = resp.json()
+                    except ValueError:
+                        data = {"status": "error", "message": "Apps Script JSON döndürmedi (erişim 'Herkes' mi?)"}
+                    if data.get("status") == "success":
+                        logger.info("[Drive Cloud] %s: %s", "Zaten Drive'da" if data.get("mevcut") else "Drive'a yüklendi", p.name)
+                    else:
+                        logger.error("[Drive Cloud] Apps Script hatası: %s", data.get("message") or data)
                     return data
                 else:
                     logger.error("[Drive Cloud] Yükleme hatası (%d): %s", resp.status_code, resp.text)

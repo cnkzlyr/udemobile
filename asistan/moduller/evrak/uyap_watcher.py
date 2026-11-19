@@ -462,7 +462,7 @@ class UyapWatcher:
                                 pdf_path = Path(row_up["pdf_path"])
                                 if pdf_path.exists() and self.cloud and self.cloud.is_configured:
                                     rel_folder = f"DAVA_EVRAKLARI/{case['birim']}/{case['dosya_no']}"
-                                    self.cloud.upload_file(pdf_path, remote_folder_path=rel_folder)
+                                    self._drive_yukle(row["id"], pdf_path, rel_folder)
 
                         # Yasal süre hesabı
                         sure_bilgisi = calculate_legal_deadline(tur, acik)
@@ -766,7 +766,7 @@ class UyapWatcher:
                     p = Path(row_up["pdf_path"])
                     if p.exists():
                         rel_folder = f"DAVA_EVRAKLARI/{row_up.get('birim', 'Diger')}/{row_up.get('dosya_no', 'Genel')}"
-                        self.cloud.upload_file(p, remote_folder_path=rel_folder)
+                        self._drive_yukle(eid, p, rel_folder)
 
         logger.info("✅ Eksik Evrak Tamamlama Bitti: %d indirildi, %d mükerrer, %d hata.",
                     downloaded, mukerrer, stats.get("hata", 0))
@@ -792,6 +792,31 @@ class UyapWatcher:
                     logger.info("📢 Yaklaşan kritik süreler Telegram üzerinden iletildi.")
         except Exception as e:
             logger.warning("İstihbarat ve süre senkronizasyon hatası: %s", e)
+
+    def _drive_yukle(self, evrak_id, yol: Path, rel_folder: str) -> None:
+        """Evrakı Drive'a bir kez yükler: drive_indeks.db/drive_yukleme defterinde olanı atlar, başarılıyı yazar.
+        (Arayüzdeki 'Drive'a Yüklenen X / Y' sayacı ve 'Eksikleri Eşitle' aynı defteri kullanır.)"""
+        import sqlite3
+        defter = DATA_DIR / "drive_indeks.db"
+        try:
+            c = sqlite3.connect(str(defter), timeout=15)
+            c.execute("CREATE TABLE IF NOT EXISTS drive_yukleme (evrak_id TEXT PRIMARY KEY, boyut INTEGER NOT NULL DEFAULT 0,"
+                      " hedef TEXT NOT NULL DEFAULT '', drive_id TEXT NOT NULL DEFAULT '', url TEXT NOT NULL DEFAULT '',"
+                      " zaman TEXT NOT NULL DEFAULT '')")
+            if c.execute("SELECT 1 FROM drive_yukleme WHERE evrak_id=?", (str(evrak_id),)).fetchone():
+                c.close()
+                return
+        except sqlite3.DatabaseError as e:
+            logger.warning("Drive defteri açılamadı: %s", e)
+            c = None
+        sonuc = self.cloud.upload_file(yol, remote_folder_path=rel_folder) or {}
+        if c is not None and sonuc.get("status") == "success":
+            c.execute("INSERT OR REPLACE INTO drive_yukleme VALUES (?,?,?,?,?,?)",
+                      (str(evrak_id), Path(yol).stat().st_size, f"{rel_folder}/{Path(yol).name}", str(sonuc.get("fileId") or ""),
+                       str(sonuc.get("url") or sonuc.get("path") or ""), time.strftime("%Y-%m-%dT%H:%M:%S")))
+            c.commit()
+        if c is not None:
+            c.close()
 
     def run_loop(self, once: bool = False) -> int:
         """Sürekli arka plan nöbet döngüsü veya tek seferlik tarama (--once).

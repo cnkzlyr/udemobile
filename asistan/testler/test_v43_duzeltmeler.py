@@ -71,6 +71,7 @@ class NobetciTesti(unittest.TestCase):
         self.td.cleanup()
 
     def _w(self):
+        self.uw.DATA_DIR = Path(self.td.name)  # Drive yükleme defteri geçici dizine yazılsın
         w = self.uw.UyapWatcher.__new__(self.uw.UyapWatcher)
         w.katalog = SahteKatalog(self.db)
         w.bridge = object()
@@ -170,3 +171,68 @@ class DriveWebhookIndeksTesti(unittest.TestCase):
     def test_eski_betik_anlasilir_hata(self):
         import drive_indeks as di
         self.assertIn("eski sürüm", di._eski_betik_mesaji({"status": "error", "message": "Exception: Invalid argument: base64"}))
+
+
+class DriveEsitlemeDefteriTesti(unittest.TestCase):
+    """Webhook modunda bir evrak yalnızca bir kez yüklenir; Apps Script hatası 'başarılı' sayılmaz."""
+
+    def test_bir_kez_yukleme_ve_hata_sayimi(self):
+        import json as _json
+        import threading
+        from http.server import BaseHTTPRequestHandler, HTTPServer
+        import drive_indeks as di
+        gelen = []
+
+        class H(BaseHTTPRequestHandler):
+            def do_POST(self):
+                g = _json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+                gelen.append(g["filename"])
+                yanit = {"status": "error", "message": "kota"} if g["filename"] == "bozuk.pdf" else {"status": "success", "fileId": "F" + g["filename"], "url": "u"}
+                body = _json.dumps(yanit).encode()
+                self.send_response(200); self.send_header("Content-Type", "application/json"); self.end_headers(); self.wfile.write(body)
+
+            def log_message(self, *a):
+                pass
+
+        srv = HTTPServer(("127.0.0.1", 0), H)
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        try:
+            with tempfile.TemporaryDirectory() as td:
+                td = Path(td)
+                (td / "watcher_config.json").write_text(_json.dumps({"google_drive_webhook": f"http://127.0.0.1:{srv.server_port}/exec"}))
+                kat = td / "uyap_katalog.db"
+                c = sqlite3.connect(str(kat))
+                c.executescript("CREATE TABLE evrak(id INTEGER, path TEXT, pdf_path TEXT, durum TEXT, tarih TEXT, dkey TEXT);"
+                                "CREATE TABLE dosya(dkey TEXT, birim TEXT, dosya_no TEXT);"
+                                "INSERT INTO dosya VALUES ('d1','Ankara 3. Asliye','2025/104');")
+                for i, ad in enumerate(["a.pdf", "b.pdf", "bozuk.pdf"]):
+                    (td / ad).write_bytes(b"%PDF" + ad.encode())
+                    c.execute("INSERT INTO evrak VALUES (?,?,?,'indirildi',?, 'd1')", (i, None, str(td / ad), f"2025-01-0{i+1}"))
+                c.commit(); c.close()
+                r1 = di.esitle_eksikler(kat, td)
+                self.assertEqual((r1["aktarilan"], r1["hata"]), (2, 1))
+                r2 = di.esitle_eksikler(kat, td)   # ikinci basış: yalnız bozuk olan yeniden denenir
+                self.assertEqual((r2["aktarilan"], r2["hata"]), (0, 1))
+                self.assertEqual(gelen.count("a.pdf"), 1)
+                oz = di.esitleme_ozeti(kat, td)
+                self.assertEqual((oz["indirilen"], oz["drivede"]), (3, 2))
+        finally:
+            srv.shutdown()
+
+
+class DaireSuzgeciTesti(unittest.TestCase):
+    def test_daire_desenleri(self):
+        import hayfa_kopru as h
+        self.assertTrue(h._daire_deseni("15HD").search("YARGITAY 15. HUKUK DAİRESİ E. 2014/1"))
+        self.assertTrue(h._daire_deseni("8CD").search("Yargıtay 8.Ceza Dairesi"))
+        self.assertFalse(h._daire_deseni("1HD").search("Yargıtay 11. Hukuk Dairesi"))
+        self.assertTrue(h._daire_deseni("Danistay6").search("Danıştay 6. Daire"))
+
+
+class AndroidDnsYayilimTesti(unittest.TestCase):
+    def test_alt_surec_dns_yamasini_yukler(self):
+        import subprocess
+        env = dict(os.environ, CANASISTAN_ANDROID="1", PYTHONPATH=str(ASISTAN_DIR))
+        kod = "import socket, dns_cozucu; print(socket.getaddrinfo is dns_cozucu._guvenli_getaddrinfo)"
+        r = subprocess.run([sys.executable, "-c", kod], env=env, capture_output=True, text=True, cwd=tempfile.gettempdir())
+        self.assertEqual(r.stdout.strip(), "True", r.stderr)
