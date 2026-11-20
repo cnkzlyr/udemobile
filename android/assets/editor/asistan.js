@@ -1985,7 +1985,7 @@
     if (innerWidth < 700) p.classList.add('tam');
     return { el: p, ic: p.querySelector('.cw-ic'), kapat: kapatP, baslik: t => { p.querySelector('.cw-bas b').textContent = t; } };
   }
-  document.addEventListener('keydown', e => {
+  if (typeof document !== 'undefined') document.addEventListener('keydown', e => {
     if (e.key === 'Escape' && cwListe.length) { e.stopPropagation(); e.preventDefault(); cwListe[cwListe.length - 1].querySelector('[data-cw="kapat"]').click(); }
   }, true);
 
