@@ -61,7 +61,7 @@ if hasattr(sys.stderr, "reconfigure"):
         pass
 from pathlib import Path
 
-SURUM = "4.7.0"
+SURUM = "4.8.0"
 KOK = Path(__file__).resolve().parent
 if str(KOK) not in sys.path:
     sys.path.insert(0, str(KOK))
@@ -1782,6 +1782,113 @@ class BagliTutucu:
 BAGLI_TUT = BagliTutucu()
 
 
+class AyarYedekleyici:
+    """Anahtarları bir kez girin: her ayar değişikliğinden 15 sn sonra şifreli yedek kullanıcının Drive'ına
+    (Apps Script webhook) ve masaüstünde ~/CanEditor/ altına yazılır. Yeni kurulumda tek adımda geri yüklenir.
+    Yedek şifresi (AYAR_YEDEK_SIFRE) yalnızca bu cihazdaki .env'de durur, yedeğin içine girmez."""
+
+    def __init__(self):
+        self._zaman = None
+        self.son: dict = {}
+        self._kilit = threading.Lock()
+
+    def _yollar(self):
+        return _entegrasyon.env_dosyasi(AVUKAT_DIR), evrak_veri_dizini(), _uyap_cfg_yolu()
+
+    def sifre(self) -> str:
+        return _entegrasyon.env_oku(AVUKAT_DIR).get("AYAR_YEDEK_SIFRE", "")
+
+    def tetikle(self):
+        if not self.sifre():
+            return
+        if self._zaman:
+            self._zaman.cancel()
+        self._zaman = threading.Timer(15, self.yedekle)
+        self._zaman.daemon = True
+        self._zaman.start()
+
+    def yedekle(self, sifre: str = "") -> dict:
+        import ayar_yedek
+        sifre = sifre or self.sifre()
+        if not sifre:
+            raise ValueError("Önce bir yedek şifresi belirleyin.")
+        with self._kilit:
+            blob = ayar_yedek.sifrele(ayar_yedek.topla(*self._yollar()), sifre)
+            sonuc = {"zaman": time.strftime("%Y-%m-%d %H:%M:%S"), "bulut": None, "yerel": None, "hata": []}
+            yerel = ayar_yedek.yerel_yedek_yolu()
+            if yerel:
+                try:
+                    yerel.parent.mkdir(parents=True, exist_ok=True)
+                    yerel.write_bytes(blob)
+                    os.chmod(yerel, 0o600)
+                    sonuc["yerel"] = str(yerel)
+                except OSError as e:
+                    sonuc["hata"].append(f"Yerel yedek: {e}")
+            webhook = str(_drive_indeks.drive_ayar_oku(evrak_veri_dizini()).get("google_drive_webhook") or "")
+            if webhook:
+                try:
+                    sonuc["bulut"] = ayar_yedek.bulut_yedekle(webhook, blob)
+                except Exception as e:  # noqa: BLE001
+                    sonuc["hata"].append(f"Drive: {str(e)[:160]}")
+            self.son = sonuc
+            return sonuc
+
+    def durum(self) -> dict:
+        import ayar_yedek
+        e = _entegrasyon.env_oku(AVUKAT_DIR)
+        yerel = ayar_yedek.yerel_yedek_yolu()
+        return {"sifre_kayitli": bool(e.get("AYAR_YEDEK_SIFRE")),
+                "webhook_var": bool(_drive_indeks.drive_ayar_oku(evrak_veri_dizini()).get("google_drive_webhook")),
+                "yerel_yedek": str(yerel) if yerel and yerel.is_file() else "",
+                "yerel_zaman": time.strftime("%Y-%m-%d %H:%M", time.localtime(yerel.stat().st_mtime)) if yerel and yerel.is_file() else "",
+                "bos_kurulum": not any(e.get(k) for k in ("NOTION_TOKEN", "TICKTICK_TOKEN", "TELEGRAM_BOT_TOKEN", "GMAIL_APP_PASS", "UETS_PASSWORD")),
+                "son": self.son}
+
+    def geri_yukle(self, g: dict) -> dict:
+        """g: {sifre, kaynak: 'yerel' | 'bulut' | 'dosya', webhook?, icerik (base64)?, hatirla: bool}"""
+        import base64 as _b64
+        import ayar_yedek
+        sifre = str(g.get("sifre") or "")
+        kaynak = g.get("kaynak") or "dosya"
+        if kaynak == "yerel":
+            y = ayar_yedek.yerel_yedek_yolu()
+            if not y or not y.is_file():
+                raise ValueError("Bu cihazda yerel yedek yok.")
+            ham = y.read_bytes()
+        elif kaynak == "bulut":
+            webhook = str(g.get("webhook") or _drive_indeks.drive_ayar_oku(evrak_veri_dizini()).get("google_drive_webhook") or "").strip()
+            ham = ayar_yedek.bulut_son_yedek(webhook)
+        else:
+            ham = _b64.b64decode(str(g.get("icerik") or ""))
+        veri = ayar_yedek.coz(ham, sifre)
+        if kaynak == "bulut" and g.get("webhook"):
+            veri.setdefault("watcher_config", {}).setdefault("google_drive_webhook", str(g["webhook"]).strip())
+        sayi = ayar_yedek.uygula(veri, *self._yollar())
+        if g.get("hatirla", True):   # sonraki değişiklikler de otomatik yedeklensin
+            p = _entegrasyon.env_dosyasi(AVUKAT_DIR)
+            m = ayar_yedek._env_oku(p)
+            m["AYAR_YEDEK_SIFRE"] = sifre
+            p.write_text("\n".join(f"{k}={v}" for k, v in m.items()) + "\n", encoding="utf-8")
+            os.chmod(p, 0o600)
+        for k, v in (veri.get("env") or {}).items():
+            os.environ[k] = str(v)
+        BAGLI_TUT.uyandir()
+        _CANLI.update(t=0.0, v=None)
+        return {"ok": True, "sayi": sayi, "durum": self.durum()}
+
+    def sifre_kaydet(self, sifre: str) -> dict:
+        import ayar_yedek
+        if not sifre or len(sifre) < 6:
+            raise ValueError("Yedek şifresi en az 6 karakter olmalı.")
+        p = _entegrasyon.env_dosyasi(AVUKAT_DIR)
+        m = ayar_yedek._env_oku(p)
+        m["AYAR_YEDEK_SIFRE"] = sifre
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text("\n".join(f"{k}={v}" for k, v in m.items()) + "\n", encoding="utf-8")
+        os.chmod(p, 0o600)
+        return {"yedek": self.yedekle(sifre), "durum": self.durum()}
+
+
 class DriveIndeksZamanlayici:
     """Drive'daki UYAP arşivinin dosya sayısı her zaman görünsün: webhook tanımlıysa indeks boşken hemen,
     sonra 12 saatte bir arka planda yenilenir (elle 'İndeksle' basmak gerekmez)."""
@@ -1927,6 +2034,7 @@ class UetsZamanlayici:
 
 UETS_ZAMAN = UetsZamanlayici()
 DUZEN_ZAMAN = DuzenZamanlayici()
+AYAR_YEDEK = AyarYedekleyici()
 DRIVE_ZAMAN = DriveIndeksZamanlayici()
 
 
@@ -2250,6 +2358,8 @@ class Isleyici(BaseHTTPRequestHandler):
                 return self._json(dosya_hesaplari(q.get("q", ""), q.get("muvekkil", ""), q.get("dosya_tur", ""), q.get("durum", "")))
             if yol == "/api/hayfa/mevzuat/detay":
                 return self._json(_hayfa_kopru.mevzuat_detay(veri_dizini(), q.get("url", "")))
+            if yol == "/api/ayar/yedek":
+                return self._json(AYAR_YEDEK.durum())
             if yol == "/api/baglanti/canli":
                 return self._json(canli_panel(q.get("yenile") == "1"))
             if yol == "/api/baglanti/istatistik":
@@ -2292,7 +2402,20 @@ class Isleyici(BaseHTTPRequestHandler):
                     g.baslat()
                 return self._json(g.ozet())
             if yol == "/api/uyap/ayar":
-                return self._json(uyap_ayar_yaz(govde))
+                r = uyap_ayar_yaz(govde)
+                AYAR_YEDEK.tetikle()
+                return self._json(r)
+            if yol == "/api/ayar/yedek/sifre":
+                return self._json(AYAR_YEDEK.sifre_kaydet(str(govde.get("sifre") or "")))
+            if yol == "/api/ayar/yedek/simdi":
+                return self._json(AYAR_YEDEK.yedekle(str(govde.get("sifre") or "")))
+            if yol == "/api/ayar/yedek/geri":
+                return self._json(AYAR_YEDEK.geri_yukle(govde))
+            if yol == "/api/ayar/yedek/disa":
+                import ayar_yedek as _ay
+                sifre = str(govde.get("sifre") or "") or AYAR_YEDEK.sifre()
+                blob = _ay.sifrele(_ay.topla(*AYAR_YEDEK._yollar(), pin_dahil=bool(govde.get("pin"))), sifre)
+                return self._dosya_gonder(blob, f"CanEditor-ayar-yedegi-{time.strftime('%Y%m%d')}.cnayar")
             if yol == "/api/pano/senkron":
                 # Tek düğme: UYAP → Drive sürekli senkronu aç/kapat
                 ac = bool(govde.get("ac"))
@@ -2326,6 +2449,7 @@ class Isleyici(BaseHTTPRequestHandler):
                 return self._json(evrak_toplu_islem(govde))
             if yol == "/api/drive/ayar":
                 sonuc = _drive_indeks.drive_ayar_yaz(evrak_veri_dizini(), govde)
+                AYAR_YEDEK.tetikle()
                 # Telegram tek kaynak: Drive sekmesinden girilen bilgiler Notion/TT ayarlarına (.env) da yazılır
                 tg = {k2: govde[k1] for k1, k2 in (("telegram_token", "telegram_bot_token"), ("telegram_chat_id", "telegram_chat_id")) if govde.get(k1)}
                 if tg:
@@ -2430,6 +2554,7 @@ class Isleyici(BaseHTTPRequestHandler):
                 return self._dosya_gonder(out, ad, mime)
             if yol == "/api/entegrasyon/ayar":
                 sonuc = _entegrasyon.ayar_kaydet(AVUKAT_DIR, govde)
+                AYAR_YEDEK.tetikle()
                 # ... ve tersi: nöbetçi (uyap_watcher) Telegram'ı watcher_config.json'dan okur
                 tg = {k2: str(govde[k1]).strip() for k1, k2 in (("telegram_bot_token", "telegram_token"), ("telegram_chat_id", "telegram_chat_id"))
                       if str(govde.get(k1) or "").strip() and "••••" not in str(govde.get(k1))}

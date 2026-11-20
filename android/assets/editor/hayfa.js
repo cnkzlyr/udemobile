@@ -1150,6 +1150,85 @@ function doGet(e) {
   // 3. 📋 NOTION & TICKTICK CANLI ENTEGRASYON
   // =========================================================================
   let entAlt = null;
+  // AYAR YEDEĞİ: anahtarları bir kez girin. Yedek şifresi belirlendiyse her değişiklikten sonra şifreli yedek
+  // Drive'ınıza (Apps Script webhook) ve masaüstünde ~/CanEditor/ altına yazılır; yeni kurulumda tek adımda geri gelir.
+  async function ayarYedekKarti(kap, ctx) {
+    const api = ctx.api, esc = ctx.esc;
+    let v;
+    try { v = await api('/api/ayar/yedek'); } catch (e) { kap.innerHTML = `<div class="ca-kart ca-hata">${esc(e.message)}</div>`; return; }
+    const son = v.son || {};
+    const geriH = `<div class="ca-kart" style="border:2px solid #c8a45a">
+        <b>♻️ Ayarlarınızı geri yükleyin</b>
+        <p class="ca-soluk" style="margin:4px 0">Daha önce yedek aldıysanız tüm anahtarlar (Notion, TickTick, Telegram, Gmail, UETS, Drive, UYAP) tek adımda gelir.</p>
+        <div class="ca-satir">
+          <div><label>Yedek şifresi</label><input id="ay-g-sifre" type="password" placeholder="yedeği alırken belirlediğiniz şifre"></div>
+          <div><label>Drive webhook (Apps Script /exec) — buluttan alırken</label><input id="ay-g-webhook" placeholder="https://script.google.com/macros/s/…/exec"></div>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
+          ${v.yerel_yedek ? `<button class="ca-btn ana" type="button" data-g="yerel">💻 Bu cihazdaki yedekten (${esc(v.yerel_zaman)})</button>` : ''}
+          <button class="ca-btn${v.yerel_yedek ? '' : ' ana'}" type="button" data-g="bulut">☁️ Google Drive'dan</button>
+          <label class="ca-btn" style="cursor:pointer;margin:0">📁 Dosyadan (.cnayar)<input id="ay-g-dosya" type="file" accept=".cnayar,application/json" hidden></label>
+        </div><div id="ay-g-sonuc" style="margin-top:6px"></div></div>`;
+    const yedekH = `<div class="ca-kart">
+        <b>🔐 Ayar yedeği</b> ${v.sifre_kayitli ? '<span class="hf-etiket acik">Otomatik yedek açık</span>' : '<span class="hf-etiket kapali">Kapalı</span>'}
+        <p class="ca-soluk" style="margin:4px 0">${v.sifre_kayitli
+          ? `Her ayar değişikliğinden sonra şifreli yedek ${v.webhook_var ? 'Google Drive\'ınıza (UYAP_Arsiv/_CanEditor_Ayar)' : ''}${v.webhook_var && v.yerel_yedek !== null ? ' ve ' : ''}${v.yerel_yedek ? 'bu bilgisayarda ' + esc(v.yerel_yedek) : ''} yenilenir.${v.webhook_var ? '' : ' Drive webhook girilirse buluta da yedeklenir.'}`
+          : 'Bir yedek şifresi belirleyin: anahtarlar şifrelenip Drive\'ınıza ve bu bilgisayara yedeklenir; yeni kurulumda yalnızca bu şifreyle geri gelir.'}
+          ${son.zaman ? `<br>Son yedek: ${esc(son.zaman)}${son.bulut ? ' · ☁️ Drive' : ''}${son.yerel ? ' · 💻 yerel' : ''}${(son.hata || []).length ? ` · <span class="ca-hata">${esc(son.hata.join('; '))}</span>` : ''}` : ''}</p>
+        <div class="ca-satir"><div><label>${v.sifre_kayitli ? 'Yedek şifresini değiştir' : 'Yedek şifresi (en az 6 karakter)'}</label><input id="ay-sifre" type="password" placeholder="unutmayacağınız bir şifre"></div></div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
+          <button class="ca-btn ana" type="button" id="ay-kaydet">${v.sifre_kayitli ? '🔁 Şifreyi değiştir ve yedekle' : '✅ Otomatik yedeği aç'}</button>
+          ${v.sifre_kayitli ? '<button class="ca-btn" type="button" id="ay-simdi">☁️ Şimdi yedekle</button>' : ''}
+          <button class="ca-btn" type="button" id="ay-disa">💾 Yedeği dosyaya kaydet</button>
+          <label style="font-size:12.5px;display:flex;align-items:center;gap:4px"><input type="checkbox" id="ay-pin"> e-İmza PIN'i de dahil et</label>
+        </div><div id="ay-sonuc" style="margin-top:6px"></div></div>`;
+    kap.innerHTML = (v.bos_kurulum ? geriH + yedekH : yedekH + `<details><summary class="ca-soluk" style="cursor:pointer">♻️ Başka bir yedekten geri yükle</summary>${geriH}</details>`);
+    const yaz = (id, h) => { const el = kap.querySelector(id); if (el) el.innerHTML = h; };
+    const geri = async (kaynak, icerik) => {
+      const sifre = kap.querySelector('#ay-g-sifre').value;
+      if (!sifre) return yaz('#ay-g-sonuc', '<span class="ca-hata">Yedek şifresini girin.</span>');
+      yaz('#ay-g-sonuc', 'Geri yükleniyor…');
+      try {
+        const r = await api('/api/ayar/yedek/geri', { method: 'POST', govde: { kaynak, sifre, icerik, webhook: kap.querySelector('#ay-g-webhook').value.trim(), hatirla: true } });
+        yaz('#ay-g-sonuc', `<span style="color:#166534;font-weight:600">✓ Geri yüklendi: ${r.sayi.anahtar} anahtar, ${r.sayi.drive} Drive ayarı, ${r.sayi.uyap} UYAP ayarı${r.sayi.pin ? ', e-İmza PIN' : ''}. Otomatik yedek açık.</span>`);
+        setTimeout(() => ctx.yenile && ctx.yenile(), 1500);
+      } catch (e) { yaz('#ay-g-sonuc', `<span class="ca-hata">${esc(e.message)}</span>`); }
+    };
+    kap.querySelectorAll('[data-g]').forEach(b => { b.onclick = () => geri(b.dataset.g); });
+    const df = kap.querySelector('#ay-g-dosya');
+    if (df) df.onchange = async () => {
+      const f = df.files[0]; if (!f) return;
+      const u8 = new Uint8Array(await f.arrayBuffer());
+      let b = ''; for (let i = 0; i < u8.length; i += 0x8000) b += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000));
+      geri('dosya', btoa(b));
+    };
+    kap.querySelector('#ay-kaydet').onclick = async () => {
+      const sifre = kap.querySelector('#ay-sifre').value;
+      yaz('#ay-sonuc', 'Kaydediliyor ve yedekleniyor…');
+      try { const r = await api('/api/ayar/yedek/sifre', { method: 'POST', govde: { sifre } });
+        yaz('#ay-sonuc', `<span style="color:#166534;font-weight:600">✓ Otomatik yedek açık.${r.yedek.bulut ? ' Drive\'a yüklendi.' : ''}${r.yedek.yerel ? ' Yerel: ' + esc(r.yedek.yerel) : ''}</span>${(r.yedek.hata || []).length ? `<div class="ca-hata">${esc(r.yedek.hata.join('; '))}</div>` : ''}`);
+        setTimeout(() => ayarYedekKarti(kap, ctx), 2500);
+      } catch (e) { yaz('#ay-sonuc', `<span class="ca-hata">${esc(e.message)}</span>`); }
+    };
+    const sm = kap.querySelector('#ay-simdi');
+    if (sm) sm.onclick = async () => {
+      yaz('#ay-sonuc', 'Yedekleniyor…');
+      try { const r = await api('/api/ayar/yedek/simdi', { method: 'POST', govde: {} }); yaz('#ay-sonuc', `✓ ${esc(r.zaman)}${r.bulut ? ' · ☁️ Drive' : ''}${r.yerel ? ' · 💻 yerel' : ''}${(r.hata || []).length ? ` <span class="ca-hata">${esc(r.hata.join('; '))}</span>` : ''}`); }
+      catch (e) { yaz('#ay-sonuc', `<span class="ca-hata">${esc(e.message)}</span>`); }
+    };
+    kap.querySelector('#ay-disa').onclick = async () => {
+      try {
+        const r = await api('/api/ayar/yedek/disa', { method: 'POST', govde: { sifre: kap.querySelector('#ay-sifre').value, pin: kap.querySelector('#ay-pin').checked }, ham: true });
+        const buf = new Uint8Array(await r.arrayBuffer());
+        const ad = `CanEditor-ayar-yedegi-${new Date().toISOString().slice(0, 10)}.cnayar`;
+        if (window.saveBytesSmart) await window.saveBytesSmart(buf, ad, 'application/json');
+        else { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([buf])); a.download = ad; a.click(); }
+        yaz('#ay-sonuc', '✓ Yedek dosyası kaydedildi. Telefona/USB\'ye koyabilirsiniz; şifresiz açılamaz.');
+      } catch (e) { yaz('#ay-sonuc', `<span class="ca-hata">${esc(e.message === 'HTTP 400' ? 'Önce yedek şifresi belirleyin ya da kutuya yazın.' : e.message)}</span>`); }
+    };
+  }
+  window.CanAyarYedek = ayarYedekKarti;
+
   async function entegrasyonSekmesi(ic, ctx) {
     const { api, esc, sunucuHatasi } = ctx;
     ic.innerHTML = '<p class="ca-soluk">Entegrasyon durumu yükleniyor…</p>';
@@ -1208,7 +1287,7 @@ function doGet(e) {
     }
 
     if (entAlt === 'ayar') {
-      alan.innerHTML = `<div class="ca-kart">
+      alan.innerHTML = `<div id="ay-yedek"></div><div class="ca-kart">
         <b>🔐 Yerel API Yapılandırması (yalnızca bu cihazdaki .env dosyasına 0600 izniyle yazılır)</b>
         <div class="ca-satir">
           <div><label>Notion API Token</label><input id="hf-e-nt" type="password" placeholder="${ayar.notion_bagli ? esc(ayar.notion_token) + ' (kayıtlı)' : 'ntn_...'}"></div>
@@ -1233,6 +1312,7 @@ function doGet(e) {
         <button class="ca-btn" type="button" id="hf-e-test">🧪 Bağlantıları test et</button>
         <span id="hf-e-msg" class="ca-soluk"></span>
         <div id="hf-e-test-sonuc" style="margin-top:10px"></div></div>`;
+      ayarYedekKarti(alan.querySelector('#ay-yedek'), Object.assign({}, ctx, { yenile: () => entegrasyonSekmesi(ic, ctx) }));
       alan.querySelector('#hf-e-kaydet').onclick = async () => {
         const g = {
           notion_token: alan.querySelector('#hf-e-nt').value.trim(),

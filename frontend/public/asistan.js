@@ -521,6 +521,12 @@
       <div class="pn-kart" id="pn-duzen"><h3>🗂️ Notion &amp; TickTick Düzeni</h3><p class="pn-alt">UYAP dosyaları, tarafları ve konularıyla Notion'a; her dosyaya TickTick kartı; mükerrer ve eksik görev denetimi.</p><div class="ca-yukleniyor">Yükleniyor…</div></div>
       <div class="pn-kart" id="pn-ictihat"><h3>⚖️ İçtihat Veritabanı</h3><p class="pn-alt">hayfahukuk.com karar veritabanının canlı durumu.</p><div class="ca-yukleniyor">Ölçülüyor…</div></div>
     </div>`;
+    // Yeni kurulum (anahtar yok): ayar yedeğinden tek adımda geri yükleme kartı en üstte
+    api('/api/ayar/yedek').then(y => {
+      if (!y.bos_kurulum || !document.body.contains(ic) || !window.CanAyarYedek) return;
+      const d = document.createElement('div'); d.style.marginBottom = '12px'; ic.prepend(d);
+      window.CanAyarYedek(d, { api, esc, yenile: () => anaEkran(ic) });
+    }).catch(() => {});
     const ciz = async () => {
       let p;
       try { p = await api('/api/pano'); } catch (e) { ic.querySelector('#pn-senkron').innerHTML = `<h3>☁️ UYAP → Google Drive</h3><span class="ca-hata">${esc(e.message)}</span>`; return; }

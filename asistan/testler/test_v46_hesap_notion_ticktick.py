@@ -311,3 +311,43 @@ class GmailKodu(unittest.TestCase):
         import gmail_otp
         self.assertEqual(gmail_otp.kod_bul("<p>Sayın CAN,</p><b>482913</b> kodunu kullanınız"), "482913")
         self.assertEqual(gmail_otp._imap_klasor("UETS Giriş Kodu"), '"UETS Giri&AV8- Kodu"')
+
+
+class AyarYedegi(unittest.TestCase):
+    """v4.8.0: anahtarları bir kez gir — şifreli yedek, yanlış şifre reddi, yeni cihaza tek adımda geri yükleme."""
+
+    def test_sifrele_coz_ve_yanlis_sifre(self):
+        import ayar_yedek
+        blob = ayar_yedek.sifrele({"env": {"NOTION_TOKEN": "ntn_x"}}, "gizli-123")
+        self.assertNotIn(b"ntn_x", blob)
+        self.assertEqual(ayar_yedek.coz(blob, "gizli-123")["env"]["NOTION_TOKEN"], "ntn_x")
+        with self.assertRaises(ValueError):
+            ayar_yedek.coz(blob, "yanlis-123")
+        bozuk = blob.replace(b'"ct": "', b'"ct": "A')
+        with self.assertRaises(ValueError):
+            ayar_yedek.coz(bozuk, "gizli-123")
+
+    def test_eski_cihazdan_yeni_cihaza(self):
+        import ayar_yedek
+        with tempfile.TemporaryDirectory() as t:
+            t = Path(t)
+            eski, yeni = t / "eski", t / "yeni"
+            (eski / "av").mkdir(parents=True)
+            (eski / "av" / ".env").write_text("NOTION_TOKEN=ntn_a\nTICKTICK_TOKEN=tp_b\nAYAR_YEDEK_SIFRE=gizli-123\n")
+            (eski / "ev").mkdir()
+            (eski / "ev" / "watcher_config.json").write_text('{"google_drive_webhook": "https://script.google.com/x/exec"}')
+            (eski / "ev" / ".uyap_config.json").write_text('{"tc": "12345678901", "gsm": "5321234567"}')
+            (eski / "ev" / "pin.txt").write_text("123456")
+            veri = ayar_yedek.topla(eski / "av" / ".env", eski / "ev", eski / "ev" / ".uyap_config.json")
+            self.assertNotIn("AYAR_YEDEK_SIFRE", veri["env"])
+            self.assertNotIn("pin", veri)                       # PIN yalnız açıkça istenirse
+            blob = ayar_yedek.sifrele(veri, "gizli-123")
+            (yeni / "av").mkdir(parents=True)
+            (yeni / "av" / ".env").write_text("OZET_MODEL=x\n")
+            s = ayar_yedek.uygula(ayar_yedek.coz(blob, "gizli-123"), yeni / "av" / ".env", yeni / "ev", yeni / "ev" / ".uyap_config.json")
+            self.assertEqual(s["anahtar"], 2)
+            env = ayar_yedek._env_oku(yeni / "av" / ".env")
+            self.assertEqual(env["TICKTICK_TOKEN"], "tp_b")
+            self.assertEqual(env["OZET_MODEL"], "x")               # var olan ayar korunur
+            self.assertIn("script.google.com", (yeni / "ev" / "watcher_config.json").read_text())
+            self.assertIn("5321234567", (yeni / "ev" / ".uyap_config.json").read_text())

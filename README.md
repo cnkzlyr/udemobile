@@ -1,6 +1,6 @@
 # ⚖️ CanEditor (UdeMobile) — Birleşik Hukuk Platformu & Çapraz Platform UYAP Editörü
 
-[![Sürüm](https://img.shields.io/badge/Sürüm-v4.7.0-c8a45a.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v4.7.0)
+[![Sürüm](https://img.shields.io/badge/Sürüm-v4.8.0-c8a45a.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v4.8.0)
 [![Platformlar](https://img.shields.io/badge/Platformlar-Android%20%7C%20Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Web-0f2341.svg)](https://github.com/cnkzlyr/udemobile/releases)
 [![UYAP](https://img.shields.io/badge/Format-UYAP_UDF_v1.8-0D47A1.svg)](https://uyap.gov.tr)
 [![Word](https://img.shields.io/badge/Format-MS_DOCX_OpenXML-2B579A.svg?logo=microsoft-word&logoColor=white)](https://microsoft.com)
@@ -17,6 +17,16 @@
 - **Google Drive sürekli eşitleme & kesintisiz durum göstergesi** (Drive dosyalarında anlık arama ve doğrudan açma)
 - **Notion & TickTick canlı yönetimi + otomatik aktarım**
 - **`hayfahukuk.com` entegrasyonu** (Yargıtay İçtihat Arama, uygulama içi Mevzuat Okuyucusu, Hukuk Haberleri, günlük Resmî Gazete, **%100 çevrimdışı Adliye & IBAN Rehberi**, 7 hukuki hesaplayıcı)
+
+---
+
+## 🔐 v4.8.0: Anahtarları Bir Kez Girin — Şifreli Ayar Yedeği ve Tek Adımda Geri Yükleme
+
+- **Otomatik şifreli yedek:** Entegrasyonlar → API Anahtarları'nda bir yedek şifresi belirleyin. Sonrasında her ayar değişikliğinden 15 sn sonra tüm ayarlar yedeklenir: Notion, TickTick, Telegram, Gmail uygulama şifresi, UETS, yapay zekâ özeti, Drive webhook/klasör ve UYAP T.C./GSM. Yedek iki yere yazılır: Google Drive'ınıza (`UYAP_Arsiv/_CanEditor_Ayar`, mevcut Apps Script ile; betikte değişiklik gerekmez) ve masaüstünde `~/CanEditor/ayar-yedegi.cnayar` dosyasına (uygulama kaldırılsa da kalır).
+- **Tek adımda geri yükleme:** Yeni kurulumda Ana Ekran'da "Ayarlarınızı geri yükleyin" kartı çıkar. Kaynak seçenekleri: bu cihazdaki yedek, Google Drive (webhook + şifre) ya da `.cnayar` dosyası. Var olan ayarlar korunur.
+- **Dosyaya yedek:** `.cnayar` dosyası telefona, USB'ye ya da e-postaya konabilir. e-İmza PIN'i yalnızca kutucuk işaretlenirse eklenir.
+- **Güvenlik:** Yedek her zaman şifrelidir: PBKDF2-HMAC-SHA256 (300.000 tur) ve HMAC mühür; yalnızca standart kütüphane, tüm platformlarda aynı dosya açılır. Yanlış şifre ya da değiştirilmiş dosya reddedilir. Yedek şifresi yalnızca cihazdaki `.env` dosyasında durur, yedeğe girmez. Hiçbir anahtar uygulamanın içine ya da (herkese açık) depoya gömülmez.
+- **Android'de ayarların silinmemesi için:** Depoya kalıcı imza anahtarı gizlileri (`ANDROID_KEYSTORE_B64`, `ANDROID_KEYSTORE_PASS`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASS`) eklendiğinde her APK eskisinin üstüne güncellenir ve uygulama verisi (ayarlar dahil) korunur.
 
 ---
 
@@ -185,21 +195,21 @@ Ayrıntılı mimari: [`docs/BIRLESIK_MIMARI.md`](docs/BIRLESIK_MIMARI.md) · Han
 | **Bağlantı & Rolling Log** | Sistem sağlık paneli, kesintisiz Google Drive sync göstergesi, 2MB rotasyonlu otomatik loglama ve tek tıkla Log ZIP indirme |
 | **Android Başlatıcı & USF** | Ana ekrandan tek tıkla Hukuk Asistanı'nı açan buton, sistemde `.udf` ve `.usf` varsayılan açıcı ilişkilendirmesi |
 
-## 🚀 Hızlı İndirme (v4.7.0)
+## 🚀 Hızlı İndirme (v4.8.0)
 
 Kurulum paketleri **her şeyi içinde taşır**: Python, Java, görünmez Chrome ve sürücüsüz e-imza altyapısı. Ayrıca bir şey kurmanız gerekmez.
 
 | Platform | Paket Dosyası | Açıklama |
 | :--- | :--- | :--- |
-| **Windows 10 / 11 (64-bit)** | [**CanEditor_4.7.0_x64-setup.exe**](https://github.com/cnkzlyr/udemobile/releases/download/v4.7.0/CanEditor_4.7.0_x64-setup.exe) · [MSI](https://github.com/cnkzlyr/udemobile/releases/download/v4.7.0/CanEditor_4.7.0_x64_en-US.msi) | Standart kurulum (NSIS) · kurumsal MSI |
-| **macOS (Apple Silicon & Intel)** | [**CanEditor_4.7.0_universal.dmg**](https://github.com/cnkzlyr/udemobile/releases/download/v4.7.0/CanEditor_4.7.0_universal.dmg) | Universal (M1/M2/M3/M4 + Intel) — Applications'a sürükleyin |
-| **Linux Debian / Ubuntu / Pardus** | [**CanEditor_4.7.0_amd64.deb**](https://github.com/cnkzlyr/udemobile/releases/download/v4.7.0/CanEditor_4.7.0_amd64.deb) | `sudo apt install ./CanEditor_4.7.0_amd64.deb` (e-imza kart hizmeti otomatik kurulur) |
-| **Linux Fedora / RHEL / openSUSE** | [**CanEditor-4.7.0-1.x86_64.rpm**](https://github.com/cnkzlyr/udemobile/releases/download/v4.7.0/CanEditor-4.7.0-1.x86_64.rpm) | `sudo dnf install ./CanEditor-4.7.0-1.x86_64.rpm` |
-| **Linux (tüm dağıtımlar)** | [**CanEditor_4.7.0_amd64.AppImage**](https://github.com/cnkzlyr/udemobile/releases/download/v4.7.0/CanEditor_4.7.0_amd64.AppImage) | `chmod +x` ile çalıştırın (e-imza için bir kez `sudo apt install pcscd libccid`) |
-| **Android (Telefon & Tablet)** | [**CanEditor-v4.7.0.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v4.7.0/CanEditor-v4.7.0.apk) · [en son](https://github.com/cnkzlyr/udemobile/releases/download/v4.7.0/CanEditor-latest.apk) | Tek uygulama · Termux gerektirmez; gömülü Python asistan APK içinde |
-| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v4.7.0.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v4.7.0/CanEditor-Portable-Web-GUI-v4.7.0.zip) | **Kurulumsuz;** `index.html` ile her sistemde çalışır |
+| **Windows 10 / 11 (64-bit)** | [**CanEditor_4.8.0_x64-setup.exe**](https://github.com/cnkzlyr/udemobile/releases/download/v4.8.0/CanEditor_4.8.0_x64-setup.exe) · [MSI](https://github.com/cnkzlyr/udemobile/releases/download/v4.8.0/CanEditor_4.8.0_x64_en-US.msi) | Standart kurulum (NSIS) · kurumsal MSI |
+| **macOS (Apple Silicon & Intel)** | [**CanEditor_4.8.0_universal.dmg**](https://github.com/cnkzlyr/udemobile/releases/download/v4.8.0/CanEditor_4.8.0_universal.dmg) | Universal (M1/M2/M3/M4 + Intel) — Applications'a sürükleyin |
+| **Linux Debian / Ubuntu / Pardus** | [**CanEditor_4.8.0_amd64.deb**](https://github.com/cnkzlyr/udemobile/releases/download/v4.8.0/CanEditor_4.8.0_amd64.deb) | `sudo apt install ./CanEditor_4.8.0_amd64.deb` (e-imza kart hizmeti otomatik kurulur) |
+| **Linux Fedora / RHEL / openSUSE** | [**CanEditor-4.8.0-1.x86_64.rpm**](https://github.com/cnkzlyr/udemobile/releases/download/v4.8.0/CanEditor-4.8.0-1.x86_64.rpm) | `sudo dnf install ./CanEditor-4.8.0-1.x86_64.rpm` |
+| **Linux (tüm dağıtımlar)** | [**CanEditor_4.8.0_amd64.AppImage**](https://github.com/cnkzlyr/udemobile/releases/download/v4.8.0/CanEditor_4.8.0_amd64.AppImage) | `chmod +x` ile çalıştırın (e-imza için bir kez `sudo apt install pcscd libccid`) |
+| **Android (Telefon & Tablet)** | [**CanEditor-v4.8.0.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v4.8.0/CanEditor-v4.8.0.apk) · [en son](https://github.com/cnkzlyr/udemobile/releases/download/v4.8.0/CanEditor-latest.apk) | Tek uygulama · Termux gerektirmez; gömülü Python asistan APK içinde |
+| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v4.8.0.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v4.8.0/CanEditor-Portable-Web-GUI-v4.8.0.zip) | **Kurulumsuz;** `index.html` ile her sistemde çalışır |
 
-Tüm dosyalar ve sürümler: [GitHub Releases — v4.7.0](https://github.com/cnkzlyr/udemobile/releases/tag/v4.7.0) · [Tüm Sürümler](https://github.com/cnkzlyr/udemobile/releases)
+Tüm dosyalar ve sürümler: [GitHub Releases — v4.8.0](https://github.com/cnkzlyr/udemobile/releases/tag/v4.8.0) · [Tüm Sürümler](https://github.com/cnkzlyr/udemobile/releases)
 
 ---
 
