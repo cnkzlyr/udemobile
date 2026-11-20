@@ -243,3 +243,71 @@ class PaketliMasaustu(unittest.TestCase):
             (kaynak / "evrak" / "yeni.py").write_text("y")
             sunucu.moduller_hazirla(kaynak, hedef)   # ikinci eşitleme (sürüm yükseltme) de çökmemeli
             self.assertTrue((hedef / "evrak" / "yeni.py").is_file())
+
+
+class V47Testleri(unittest.TestCase):
+    """v4.7.0: icra kesinleşme/takipsizlik analizi, hızlı birleşik evrak arama, dosya bulma, Gmail kodu okuyucu."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.db = Path(self.tmp.name) / "uyap_katalog.db"
+        katalog_olustur(self.db)
+        fin.init_finans_tables(str(self.db))
+        c = sqlite3.connect(str(self.db))
+        c.executescript("""CREATE TABLE IF NOT EXISTS tebligat(id INTEGER PRIMARY KEY, barkod_delil TEXT UNIQUE, dkey TEXT, birim TEXT,
+            dosya_no TEXT, muvekkil TEXT, muhatap TEXT, tebligat_turu TEXT, gonderim_tarihi TEXT, teblig_tarihi TEXT, sonuc TEXT,
+            yasal_sure_notu TEXT, evrak_id TEXT, evrak_adi TEXT, eklenme TEXT);""")
+        c.execute("INSERT INTO evrak(id, skey, dkey, tur, aciklama, tarih) VALUES(10,'oe','ankara 5 icra dairesi|2024/99','Ödeme Emri','Örnek 7','2024-05-02')")
+        c.execute("INSERT INTO tebligat(barkod_delil, dkey, birim, dosya_no, muhatap, tebligat_turu, evrak_adi, teblig_tarihi, sonuc) VALUES "
+                  "('RR1','ankara 5 icra dairesi|2024/99','Ankara 5. İcra Dairesi','2024/99','MEHMET KAYA','Ödeme Emri','Ödeme emri','2024-05-10','Bizzat')")
+        c.commit()
+        c.close()
+        self._eski = sunucu.katalog_yolu
+        sunucu.katalog_yolu = lambda: self.db
+
+    def tearDown(self):
+        sunucu.katalog_yolu = self._eski
+        self.tmp.cleanup()
+
+    def test_kesinlestirilebilir_ve_takipsizlik(self):
+        import datetime as dt
+        import icra_analiz
+        c = sqlite3.connect(str(self.db))
+        a = icra_analiz.analiz(c, "ankara 5 icra dairesi|2024/99", bugun=dt.date(2025, 6, 1))
+        c.close()
+        self.assertEqual(a["kesinlesme"]["durum"], "kesinlestirilebilir")
+        self.assertIn("MEHMET KAYA", a["kesinlesme"]["aciklama"])
+        self.assertIn("17.05.2024", a["kesinlesme"]["aciklama"])   # 10.05 + 7 gün
+        self.assertEqual(a["takipsizlik"]["seviye"], "kirmizi")   # son işlem 2024-05: 1 yılı aştı
+
+    def test_itiraz_kesinlestirmeyi_engeller(self):
+        import datetime as dt
+        import icra_analiz
+        c = sqlite3.connect(str(self.db))
+        c.execute("INSERT INTO evrak(id, skey, dkey, tur, aciklama, tarih) VALUES(11,'it','ankara 5 icra dairesi|2024/99','Borçlu İtiraz Dilekçesi','','2024-05-14')")
+        a = icra_analiz.analiz(c, "ankara 5 icra dairesi|2024/99", bugun=dt.date(2024, 6, 1))
+        c.close()
+        self.assertEqual(a["kesinlesme"]["durum"], "itiraz")
+
+    def test_birlesik_arama_ve_dosya_bul(self):
+        v = sunucu.evrak_ara("yilmaz", drive_dahil=False)
+        self.assertTrue(v["hazir"])
+        self.assertGreaterEqual(len(v["sonuclar"]), 3)          # taraf adıyla dosyanın tüm evrakı bulunur
+        self.assertIn("drive", v["sonuclar"][0])
+        v2 = sunucu.evrak_ara("bilirkisi", drive_dahil=False)
+        self.assertEqual([r["tur"] for r in v2["sonuclar"]], ["Bilirkişi Raporu"])
+        self.assertEqual(sunucu.dosya_bul("Ankara 3. Asliye Hukuk Mahkemesi", "2025/10 Esas")["dkey"], "ankara 3 asliye hukuk|2025/10")
+        d = sunucu.dosya_detay("ankara 5 icra dairesi|2024/99")
+        self.assertEqual(d["icra"]["kesinlesme"]["durum"], "kesinlestirilebilir")
+
+    def test_icra_ozet_listesi(self):
+        r = sunucu.icra_analizi()
+        self.assertEqual(r["ozet"]["toplam"], 1)
+        self.assertEqual(r["ozet"]["kesinlestirilebilir"], 1)
+
+
+class GmailKodu(unittest.TestCase):
+    def test_html_govdeden_kod(self):
+        import gmail_otp
+        self.assertEqual(gmail_otp.kod_bul("<p>Sayın CAN,</p><b>482913</b> kodunu kullanınız"), "482913")
+        self.assertEqual(gmail_otp._imap_klasor("UETS Giriş Kodu"), '"UETS Giri&AV8- Kodu"')

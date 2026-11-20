@@ -1,6 +1,6 @@
 # ⚖️ CanEditor (UdeMobile) — Birleşik Hukuk Platformu & Çapraz Platform UYAP Editörü
 
-[![Sürüm](https://img.shields.io/badge/Sürüm-v4.6.1-c8a45a.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v4.6.1)
+[![Sürüm](https://img.shields.io/badge/Sürüm-v4.7.0-c8a45a.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v4.7.0)
 [![Platformlar](https://img.shields.io/badge/Platformlar-Android%20%7C%20Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Web-0f2341.svg)](https://github.com/cnkzlyr/udemobile/releases)
 [![UYAP](https://img.shields.io/badge/Format-UYAP_UDF_v1.8-0D47A1.svg)](https://uyap.gov.tr)
 [![Word](https://img.shields.io/badge/Format-MS_DOCX_OpenXML-2B579A.svg?logo=microsoft-word&logoColor=white)](https://microsoft.com)
@@ -17,6 +17,38 @@
 - **Google Drive sürekli eşitleme & kesintisiz durum göstergesi** (Drive dosyalarında anlık arama ve doğrudan açma)
 - **Notion & TickTick canlı yönetimi + otomatik aktarım**
 - **`hayfahukuk.com` entegrasyonu** (Yargıtay İçtihat Arama, uygulama içi Mevzuat Okuyucusu, Hukuk Haberleri, günlük Resmî Gazete, **%100 çevrimdışı Adliye & IBAN Rehberi**, 7 hukuki hesaplayıcı)
+
+---
+
+## 🔎 v4.7.0: Önizleme, Dosya Penceresi, Tüm Arşivde Arama, İcra Kesinleşme/Takipsizlik, Canlı Bağlantılar
+
+**Masaüstünde (Fedora/RPM, macOS) HTTPS düzeldi.** Paketli sunucu sistemin sertifika deposunu bulamadığı için Notion, TickTick, Telegram, Drive indeksi, İçtihat/Haber/Mevzuat/Resmî Gazete "CERTIFICATE_VERIFY_FAILED" ile düşüyordu. Artık sistem deposu (yoksa certifi) kullanılıyor.
+
+**UETS giriş kodu (OTP) yeniden bulunuyor (`gmail_otp.py`).** Kod; 'UETS Giriş Kodu' etiketinde, Tüm Postalar'da ve Gelen Kutusu'nda, giriş anından sonra gelen ve daha önce kullanılmamış iletiden, HTML temizlenerek okunuyor. Gmail girişi reddedilirse, IMAP kapalıysa ya da ağ/SSL sorunu varsa açık Türkçe uyarı veriliyor (eskiden hepsi "kod gelmedi" görünüyordu).
+
+**İndirmeden önizleme.** Her evrakta 👁 Önizle (PDF'e çevrilmiş hali) ve 🗂️ Orijinal (UDF / TIFF / PDF olduğu gibi) düğmeleri. Yerelde yoksa UYAP'tan önbelleğe alınır; UDF editörün kendi ayrıştırıcısıyla, TIFF sayfa sayfa, PDF tembel yüklemeyle çizilir. İndir ve Editörde aç da aynı pencerede.
+
+**Dosya penceresi.** "Dosyaya git / Dosyayı gör" artık ayrı, sürüklenebilir bir pencerede açılıyor; çalıştığınız sekme kapanmıyor. Sekmeler: Genel (konu, icra durumu, son evraklar), Evraklar (aranır/süzülür, önizlenir), Hesap (tahsilat, reddiyat, harç kalemleri), Safahat, Taraflar, Duruşma & Tebligat, Drive (eşitleme göstergesi), Notlar. Ajanda, Tebligatlar, Yenilikler, Evrak Ara ve Dosyalar'dan açılabiliyor.
+
+**Evrak Ara: UYAP arşivinin tamamı + Drive.** Nöbetçi her turda 60 dosyanın (kapalılar dahil) evrak listesini indirmeden kataloğa ekliyor; arama bütün UYAP evrakında ve Drive indeksinde birlikte yapılıyor. Arama sorgusu hızlandı (yüz binlerce evrakta donmuyor). Katalog, dosya ve Drive sayıları üstte gösteriliyor.
+
+**İcra: kesinleşme ve takipsizlik (`icra_analiz.py`).** Safahat, evraklar (tensip/karar/talep), tebligat mazbataları ve UYAP borçlu bilgisiyle her açık icra dosyası için:
+- "Kesinleştirilebilir": hangi tarihli ödeme/icra emrinin kime, ne zaman tebliğ edildiği ve itiraz süresinin (ilamsız 7 gün, kambiyo 5 gün, icra emri 7 gün) ne zaman dolduğu yazılı.
+- İtiraz, süre işliyor, tebliğ bekleniyor durumları.
+- Takipsizlik: son talep/işlemden bu yana geçen gün; 6 ay sarı, 9 ay turuncu, 1 yıl kırmızı uyarı.
+- Dosya Hesapları sekmesinde ve dosya penceresinde; safahat artık hesapla birlikte düzenli çekiliyor.
+
+**Süre ekranı.** Somut kanun yolu / işlem seçilerek hesap (HMK istinaf/temyiz/cevap/bilirkişi, İİK itiraz/şikâyet/istinaf, CMK, İYUK, işe iade, kesin süre) ve "Dosyalarımdaki işleyen süreler": tebligat son günleri, icra itiraz süreleri ve 1 yıllık işlemsizlik eşikleri tek listede, kalan güne göre.
+
+**İnfaz: suç tarihine göre.** Suç tarihi, suç türü, ceza türü (süreli / müebbet / ağırlaştırılmış), tekerrür, yaş, mahsup ve teslim tarihi girilir; uygulanacak oran ve denetimli serbestlik süresi 5275, 7242 (30.03.2020 eşiği) ve 7456 (31.07.2023 eşiği) düzenlemelerine göre gerekçesiyle gösterilir. Renkli çubukta mahsup, cezaevi, denetimli serbestlik ve koşullu salıverilme sonrası dönem; kanun zaman çizelgesinde bu suça etkili olanlar işaretli. Tahmini tarihler (DS'ye çıkış, koşullu salıverilme, cezanın bitişi).
+
+**Görevler sekmesi.** Otomatik çalışanlar üstte, elle araçlar katlanmış. Günlük artık yukarı zıplamıyor (yukarı kaydırdıysanız yerinde kalır). Linux'ta çalışmayan eski masaüstü pencereleri kaldırıldı.
+
+**Bağlantı sekmesi canlı.** UYAP (oturum, e-İmza/Mobil İmza), UETS, Gmail (UETS kodu), Google Drive, Notion, TickTick, Telegram gerçekten deneniyor (Telegram'a mesaj atılmadan). Drive'daki dosya sayısı, UYAP dosya/evrak, tebligat, 3 gün içinde dolan süre, 7 gün içinde duruşma, Yargıtay karar sayısı ve kopma/yeniden bağlanma kayıtları gösteriliyor.
+
+**Drive.** Webhook tanımlıysa Drive indeksi boşken hemen, sonra 12 saatte bir arka planda kendiliğinden yenileniyor; Drive'daki arşivin dosya sayısı her yerde görünüyor.
+
+**Notion & TickTick sekmesi.** Yeni "Düzen & Durum" ekranı: TickTick temizliği ve UYAP → Notion eşitleme tek tıkla, canlı günlük ve son sonuç sayılarıyla. Kapatılan her kopya günlükte tek tek yazıyor. TickTick okuma zaman aşımları uzatıldı.
 
 ---
 
@@ -153,21 +185,21 @@ Ayrıntılı mimari: [`docs/BIRLESIK_MIMARI.md`](docs/BIRLESIK_MIMARI.md) · Han
 | **Bağlantı & Rolling Log** | Sistem sağlık paneli, kesintisiz Google Drive sync göstergesi, 2MB rotasyonlu otomatik loglama ve tek tıkla Log ZIP indirme |
 | **Android Başlatıcı & USF** | Ana ekrandan tek tıkla Hukuk Asistanı'nı açan buton, sistemde `.udf` ve `.usf` varsayılan açıcı ilişkilendirmesi |
 
-## 🚀 Hızlı İndirme (v4.6.1)
+## 🚀 Hızlı İndirme (v4.7.0)
 
 Kurulum paketleri **her şeyi içinde taşır**: Python, Java, görünmez Chrome ve sürücüsüz e-imza altyapısı. Ayrıca bir şey kurmanız gerekmez.
 
 | Platform | Paket Dosyası | Açıklama |
 | :--- | :--- | :--- |
-| **Windows 10 / 11 (64-bit)** | [**CanEditor_4.6.1_x64-setup.exe**](https://github.com/cnkzlyr/udemobile/releases/download/v4.6.1/CanEditor_4.6.1_x64-setup.exe) · [MSI](https://github.com/cnkzlyr/udemobile/releases/download/v4.6.1/CanEditor_4.6.1_x64_en-US.msi) | Standart kurulum (NSIS) · kurumsal MSI |
-| **macOS (Apple Silicon & Intel)** | [**CanEditor_4.6.1_universal.dmg**](https://github.com/cnkzlyr/udemobile/releases/download/v4.6.1/CanEditor_4.6.1_universal.dmg) | Universal (M1/M2/M3/M4 + Intel) — Applications'a sürükleyin |
-| **Linux Debian / Ubuntu / Pardus** | [**CanEditor_4.6.1_amd64.deb**](https://github.com/cnkzlyr/udemobile/releases/download/v4.6.1/CanEditor_4.6.1_amd64.deb) | `sudo apt install ./CanEditor_4.6.1_amd64.deb` (e-imza kart hizmeti otomatik kurulur) |
-| **Linux Fedora / RHEL / openSUSE** | [**CanEditor-4.6.1-1.x86_64.rpm**](https://github.com/cnkzlyr/udemobile/releases/download/v4.6.1/CanEditor-4.6.1-1.x86_64.rpm) | `sudo dnf install ./CanEditor-4.6.1-1.x86_64.rpm` |
-| **Linux (tüm dağıtımlar)** | [**CanEditor_4.6.1_amd64.AppImage**](https://github.com/cnkzlyr/udemobile/releases/download/v4.6.1/CanEditor_4.6.1_amd64.AppImage) | `chmod +x` ile çalıştırın (e-imza için bir kez `sudo apt install pcscd libccid`) |
-| **Android (Telefon & Tablet)** | [**CanEditor-v4.6.1.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v4.6.1/CanEditor-v4.6.1.apk) · [en son](https://github.com/cnkzlyr/udemobile/releases/download/v4.6.1/CanEditor-latest.apk) | Tek uygulama · Termux gerektirmez; gömülü Python asistan APK içinde |
-| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v4.6.1.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v4.6.1/CanEditor-Portable-Web-GUI-v4.6.1.zip) | **Kurulumsuz;** `index.html` ile her sistemde çalışır |
+| **Windows 10 / 11 (64-bit)** | [**CanEditor_4.7.0_x64-setup.exe**](https://github.com/cnkzlyr/udemobile/releases/download/v4.7.0/CanEditor_4.7.0_x64-setup.exe) · [MSI](https://github.com/cnkzlyr/udemobile/releases/download/v4.7.0/CanEditor_4.7.0_x64_en-US.msi) | Standart kurulum (NSIS) · kurumsal MSI |
+| **macOS (Apple Silicon & Intel)** | [**CanEditor_4.7.0_universal.dmg**](https://github.com/cnkzlyr/udemobile/releases/download/v4.7.0/CanEditor_4.7.0_universal.dmg) | Universal (M1/M2/M3/M4 + Intel) — Applications'a sürükleyin |
+| **Linux Debian / Ubuntu / Pardus** | [**CanEditor_4.7.0_amd64.deb**](https://github.com/cnkzlyr/udemobile/releases/download/v4.7.0/CanEditor_4.7.0_amd64.deb) | `sudo apt install ./CanEditor_4.7.0_amd64.deb` (e-imza kart hizmeti otomatik kurulur) |
+| **Linux Fedora / RHEL / openSUSE** | [**CanEditor-4.7.0-1.x86_64.rpm**](https://github.com/cnkzlyr/udemobile/releases/download/v4.7.0/CanEditor-4.7.0-1.x86_64.rpm) | `sudo dnf install ./CanEditor-4.7.0-1.x86_64.rpm` |
+| **Linux (tüm dağıtımlar)** | [**CanEditor_4.7.0_amd64.AppImage**](https://github.com/cnkzlyr/udemobile/releases/download/v4.7.0/CanEditor_4.7.0_amd64.AppImage) | `chmod +x` ile çalıştırın (e-imza için bir kez `sudo apt install pcscd libccid`) |
+| **Android (Telefon & Tablet)** | [**CanEditor-v4.7.0.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v4.7.0/CanEditor-v4.7.0.apk) · [en son](https://github.com/cnkzlyr/udemobile/releases/download/v4.7.0/CanEditor-latest.apk) | Tek uygulama · Termux gerektirmez; gömülü Python asistan APK içinde |
+| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v4.7.0.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v4.7.0/CanEditor-Portable-Web-GUI-v4.7.0.zip) | **Kurulumsuz;** `index.html` ile her sistemde çalışır |
 
-Tüm dosyalar ve sürümler: [GitHub Releases — v4.6.1](https://github.com/cnkzlyr/udemobile/releases/tag/v4.6.1) · [Tüm Sürümler](https://github.com/cnkzlyr/udemobile/releases)
+Tüm dosyalar ve sürümler: [GitHub Releases — v4.7.0](https://github.com/cnkzlyr/udemobile/releases/tag/v4.7.0) · [Tüm Sürümler](https://github.com/cnkzlyr/udemobile/releases)
 
 ---
 

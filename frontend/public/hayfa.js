@@ -739,11 +739,38 @@ function doGet(e) {
             </div>`).join('') || '<p class="ca-soluk">Eşleşen dosya bulunamadı.</p>'}</div>`;
         }
 
-        govde.querySelectorAll('[data-dkey]').forEach(k => { k.onclick = () => detayAc(k.dataset.dkey); });
+        govde.querySelectorAll('[data-dkey]').forEach(k => { k.onclick = () => (window.CanPencere ? window.CanPencere.dosya(k.dataset.dkey) : detayAc(k.dataset.dkey)); });
       } catch (e) { sunucuHatasi(ic, e); }
     }
 
     const tl = n => (n === null || n === undefined) ? '—' : '₺' + Number(n || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+    // Kesinleşme (ödeme/icra emri tebliği + itiraz süresi, tensip/karar kayıtları) ve takipsizlik (son talep/işlem
+    // tarihi) analizi: icra_analiz.py. Kesinleştirilebilir dosyalar ve 1 yılı yaklaşan/aşan dosyalar en üstte.
+    async function icraAnalizCiz(kap) {
+      if (!kap) return;
+      try {
+        const a = await api('/api/icra/analiz');
+        const o = a.ozet || {};
+        const KC = { kesin: ['#dcfce7', '#166534', 'Kesinleşmiş'], kesinlestirilebilir: ['#ffedd5', '#9a3412', 'Kesinleştirilebilir'], sure_isliyor: ['#dbeafe', '#1e40af', 'Süre işliyor'],
+          itiraz: ['#fee2e2', '#991b1b', 'İtiraz'], teblig_bekleniyor: ['#fef9c3', '#854d0e', 'Tebliğ bekleniyor'], bilinmiyor: ['#f1f5f9', '#475569', 'Bilinmiyor'] };
+        const TC = { kirmizi: ['#fee2e2', '#991b1b'], turuncu: ['#ffedd5', '#9a3412'], sari: ['#fef9c3', '#854d0e'], yesil: ['#dcfce7', '#166534'], kapali: ['#f1f5f9', '#475569'], bilinmiyor: ['#f1f5f9', '#475569'] };
+        const cip = (r, y) => `<span style="background:${r[0]};color:${r[1]};padding:1px 8px;border-radius:999px;font-size:11.5px;font-weight:600;white-space:nowrap">${y}</span>`;
+        const l = a.dosyalar || [];
+        kap.innerHTML = `<b>⚖️ İcra takip uyarıları</b>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin:8px 0">
+            ${cip(KC.kesinlestirilebilir, `${o.kesinlestirilebilir || 0} kesinleştirilebilir`)} ${cip(TC.kirmizi, `${o.kirmizi || 0} dosya 1 yılı aştı`)}
+            ${cip(TC.turuncu, `${o.turuncu || 0} dosya 9-12 ay işlemsiz`)} ${cip(TC.sari, `${o.sari || 0} dosya 6-9 ay işlemsiz`)}
+            ${cip(KC.itiraz, `${o.itiraz || 0} itirazlı`)} ${cip(KC.kesin, `${o.kesin || 0} kesinleşmiş`)} <span class="ca-soluk">${o.toplam || 0} açık icra dosyası</span></div>
+          ${l.length ? `<div style="max-height:420px;overflow:auto"><table>${l.filter(x => x.kesinlesme.durum !== 'kesin' || ['kirmizi', 'turuncu', 'sari'].includes(x.takipsizlik.seviye)).slice(0, 200).map(x => `
+            <tr data-dkey="${esc(x.dkey)}" style="cursor:pointer"><td><b>${esc(x.birim)}</b><div style="font-weight:700">${esc(x.dosya_no)}</div><div class="ca-soluk">${esc((x.borclular || []).join(', '))}</div></td>
+            <td>${cip(KC[x.kesinlesme.durum] || KC.bilinmiyor, KC[x.kesinlesme.durum] ? KC[x.kesinlesme.durum][2] : x.kesinlesme.durum)}<div style="font-size:12.5px;margin-top:3px">${esc(x.kesinlesme.aciklama || x.kesinlesme.baslik)}</div></td>
+            <td>${cip(TC[x.takipsizlik.seviye] || TC.bilinmiyor, x.takipsizlik.gun != null ? x.takipsizlik.gun + ' gün' : '—')}<div class="ca-soluk" style="font-size:12px;margin-top:3px">${esc(x.takipsizlik.aciklama)}</div></td></tr>`).join('')}</table></div>`
+          : '<p class="ca-soluk">Açık icra dosyası bulunamadı (katalog taranınca görünür).</p>'}
+          <p class="ca-soluk" style="font-size:11.5px">Kaynak: UYAP safahatı, evraklar (tensip/karar/talep), tebligat mazbataları ve UYAP borçlu kesinleşme bilgisi. İtiraz süreleri: ilamsız 7 gün (İİK 62), kambiyo 5 gün (İİK 168/5), icra emri 7 gün. Somut dosyada mutlaka kontrol edin.</p>`;
+        kap.querySelectorAll('[data-dkey]').forEach(k => { k.onclick = () => window.CanPencere && window.CanPencere.dosya(k.dataset.dkey); });
+      } catch (e) { kap.innerHTML = `<b>⚖️ İcra takip uyarıları</b><div class="ca-hata">${esc(e.message)}</div>`; }
+    }
 
     async function listeleHesaplar() {
       govde.innerHTML = '<p class="ca-soluk">Dosya hesapları yükleniyor…</p>';
@@ -786,6 +813,7 @@ function doGet(e) {
             <button class="ca-btn kucuk" type="button" id="hf-fin-csv">📊 CSV indir</button>
             <span class="ca-soluk" id="hf-fin-durum">${st.hesabi_bekleyen ? `${st.hesabi_bekleyen} dosyanın hesabı henüz çekilmedi; Senkron açıkken boşta otomatik çekilir.` : 'Tüm dosyaların hesabı çekildi.'}</span>
           </div>
+          <div class="ca-kart" id="hf-icra-analiz"><b>⚖️ İcra takip uyarıları</b> <span class="ca-soluk">yükleniyor…</span></div>
           ${icra.length ? `<div class="ca-kart" style="overflow-x:auto"><b>📜 İcra dosyaları (${icra.length})</b><table>
             <thead><tr><th>Dosya / Borçlu</th><th>Asıl alacak</th><th>Faiz</th><th>Vekâlet</th><th>Masraf+harç</th><th>Toplam</th><th>Tahsilat</th><th>Bakiye</th><th>Durum</th></tr></thead>
             <tbody>${icra.map(satirIcra).join('')}</tbody></table></div>` : `<div class="ca-kart ca-soluk">Listede icra dosyası yok. Katalog icra dairelerini de tarar; Senkron'u bir tur çalıştırın.</div>`}
@@ -793,7 +821,8 @@ function doGet(e) {
             <thead><tr><th>Dosya</th><th>Yatırılan (tahsilat)</th><th>Kullanılan (reddiyat)</th><th>Harçlar</th><th>Artan avans</th></tr></thead>
             <tbody>${dava.map(satirDava).join('')}</tbody></table></div>` : ''}`;
 
-        govde.querySelectorAll('[data-dkey]').forEach(k => { k.onclick = () => detayAc(k.dataset.dkey); });
+        icraAnalizCiz(govde.querySelector('#hf-icra-analiz'));
+        govde.querySelectorAll('[data-dkey]').forEach(k => { k.onclick = () => (window.CanPencere ? window.CanPencere.dosya(k.dataset.dkey) : detayAc(k.dataset.dkey)); });
         govde.querySelector('#hf-fin-cek').onclick = async () => {
           const d = govde.querySelector('#hf-fin-durum');
           try { await api('/api/gorev/hesap-tara', { method: 'POST', govde: {} }); d.textContent = 'Hesaplar arka planda çekiliyor (gizli UYAP oturumuyla). Birkaç dakika sonra yenileyin.'; }
@@ -1127,10 +1156,11 @@ function doGet(e) {
     let ayar;
     try { ayar = await api('/api/entegrasyon/ayar'); } catch (e) { sunucuHatasi(ic, e); return; }
     // Hiçbir servis bağlı değilse doğrudan anahtar girme ekranı açılır (boş "anahtar girilmemiş" sayfası yerine)
-    if (!entAlt) entAlt = ayar.ticktick_bagli ? 'ticktick' : ayar.notion_bagli ? 'notion' : 'ayar';
+    if (!entAlt) entAlt = (ayar.ticktick_bagli || ayar.notion_bagli) ? 'duzen' : 'ayar';
 
     ic.innerHTML = `
       <div class="hf-alt-nav">
+        <button class="ca-btn${entAlt === 'duzen' ? ' ana' : ''}" type="button" data-ea="duzen">🧹 Düzen & Durum</button>
         <button class="ca-btn${entAlt === 'ticktick' ? ' ana' : ''}" type="button" data-ea="ticktick">✅ TickTick Görevleri ${ayar.ticktick_bagli ? '🟢' : '⚪'}</button>
         <button class="ca-btn${entAlt === 'notion' ? ' ana' : ''}" type="button" data-ea="notion">📓 Notion Dosyaları ${ayar.notion_bagli ? '🟢' : '⚪'}</button>
         <button class="ca-btn${entAlt === 'ayar' ? ' ana' : ''}" type="button" data-ea="ayar">🔑 API Anahtarları & Otomatik Senkron</button>
@@ -1138,6 +1168,44 @@ function doGet(e) {
       <div id="hf-ent-ic"></div>`;
     ic.querySelectorAll('[data-ea]').forEach(b => { b.onclick = () => { entAlt = b.dataset.ea; entegrasyonSekmesi(ic, ctx); }; });
     const alan = ic.querySelector('#hf-ent-ic');
+
+    if (entAlt === 'duzen') {
+      // Tek ekran: TickTick temizliği (mükerrer: aktif + tamamlanan + yapılmayacak; eksik tebligat; dosya kartları)
+      // ve UYAP → Notion eşitleme. Canlı günlük, son sonuç sayıları; ikisi de 6 saatte bir kendiliğinden çalışır.
+      const kartH = (k, baslik, aciklama) => `<div class="ca-kart" data-gk="${k}"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+          <b>${baslik}</b><span><span class="hf-d-r"></span> <button class="ca-btn ana kucuk" type="button" data-calistir="${k}">▶ Şimdi çalıştır</button></span></div>
+        <p class="ca-soluk" style="margin:4px 0">${aciklama}</p><div class="hf-d-sonuc"></div>
+        <pre class="hf-d-log" style="max-height:220px;overflow:auto;background:#0f172a;color:#e2e8f0;padding:8px;border-radius:6px;font-size:11px;white-space:pre-wrap;margin-top:6px"></pre></div>`;
+      alan.innerHTML = kartH('ticktick-duzen', '🧹 TickTick temizliği ve düzeni', 'Mükerrerleri aktif, tamamlanan ve <b>yapılmayacak</b> görevlerin tamamına bakarak kapatır (silmez; notlar ve alt görevler asıl göreve taşınır), eksik tebligatları işaretler, Notion\'daki her açık dosyaya kart açar ve dosya konusunu yazar.')
+        + kartH('notion-esitle', '📒 UYAP → Notion eşitleme', 'Eksik dosyaları açar; açılış tarihi, durum, müvekkil ve karşı taraf bağlarını, ikonları ve 5-10 cümlelik dosya konusunu yazar. Elle yazdığınız konu ezilmez.');
+      const sonucMetin = (k, r) => !r ? '' : k === 'ticktick-duzen'
+        ? `Son tur: <b>${r.kapatilan ?? 0}</b> kopya kapatıldı · <b>${r.yeni_kart ?? 0}</b> dosya kartı açıldı · <b>${r.eksik ?? 0}</b> eksik görev · ${r.kapali_sayisi ?? '?'} kapalı görev (${r.yapilmayacak_sayisi ?? '?'} yapılmayacak) denetlendi`
+        : `Son tur: <b>${r.yeni_dosya ?? 0}</b> yeni dosya · <b>${r.konu ?? 0}</b> konu · <b>${(r.muvekkil_bag ?? 0) + (r.karsi_bag ?? 0)}</b> taraf bağı · ${r.ikon ?? 0} ikon${r.engel ? ` · <span class="ca-hata">${esc(r.engel)}</span>` : ''}`;
+      const tazele = async () => {
+        if (!document.body.contains(alan)) return clearInterval(zz);
+        try {
+          const v = await api('/api/gorevler?satir=120');
+          for (const g of v.gorevler.filter(x => x.kimlik === 'ticktick-duzen' || x.kimlik === 'notion-esitle')) {
+            const el = alan.querySelector(`[data-gk="${g.kimlik}"]`); if (!el) continue;
+            el.querySelector('.hf-d-r').innerHTML = g.calisiyor ? '<span class="hf-etiket acik">● Çalışıyor</span>' : g.kod === 0 ? '<span class="hf-etiket">✓ Tamam</span>' : g.kod ? `<span class="hf-etiket kapali">Hata (${g.kod})</span>` : '';
+            const b = el.querySelector('[data-calistir]'); b.disabled = !!g.calisiyor;
+            const satirlar = (g.gunluk || []).filter(x => !x.includes('@@SONUC@@'));
+            const pre = el.querySelector('pre'); const altta = pre.scrollHeight - pre.scrollTop - pre.clientHeight < 24; const ust = pre.scrollTop;
+            const m = satirlar.join('\n'); if (pre.textContent !== m) { pre.textContent = m || 'Henüz çalışmadı.'; pre.scrollTop = altta ? pre.scrollHeight : ust; }
+            const sx = (g.gunluk || []).filter(x => x.includes('@@SONUC@@')).slice(-1)[0];
+            if (sx) { try { el.querySelector('.hf-d-sonuc').innerHTML = sonucMetin(g.kimlik, JSON.parse(sx.split('@@SONUC@@')[1])); } catch (e) { /* */ } }
+          }
+        } catch (e) { /* bağlantı anlık kopabilir */ }
+      };
+      alan.onclick = async e => {
+        const b = e.target.closest('[data-calistir]'); if (!b) return;
+        b.disabled = true;
+        try { await api('/api/gorev/' + b.dataset.calistir, { method: 'POST', govde: {} }); } catch (er) { alert(er.message); }
+        tazele();
+      };
+      const zz = setInterval(tazele, 3000); tazele();
+      return;
+    }
 
     if (entAlt === 'ayar') {
       alan.innerHTML = `<div class="ca-kart">

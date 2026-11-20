@@ -232,7 +232,7 @@
     const kalanKosullu = Math.max(0, kosulluGun - mahsup);
     const cezaevindeYatacak = Math.max(0, kalanKosullu - dsGun);
     const fmt = g => {
-      const y = Math.floor(g / 365), a = Math.floor((g % 365) / 30), gn = g % 30;
+      const y = Math.floor(g / 365), a = Math.floor((g % 365) / 30), gn = (g % 365) % 30;
       return [y ? y + ' yıl' : '', a ? a + ' ay' : '', (gn || (!y && !a)) ? gn + ' gün' : ''].filter(Boolean).join(' ') + ` (${g} gün)`;
     };
     return {
@@ -249,12 +249,109 @@
     };
   }
 
+  // -------------------------------------------------------------------------------------------------
+  // İNFAZ — SUÇ TARİHİNE GÖRE UYGULANACAK DÜZENLEME (bilgilendirme; infaz hâkimliği/savcılık hesabı esastır)
+  // Kanun değişiklikleri (yürürlük ve suç tarihi eşikleri):
+  //  * 5275 s.K. (01.06.2005): koşullu salıverilme kural olarak 1/2 (m.107/2); mükerrirlerde 2/3 (m.108);
+  //    terör suçlarında 3/4 (3713 m.17); müebbet 24 yıl, ağırlaştırılmış müebbet 30 yıl (terörde 30/36).
+  //  * 7242 s.K. (RG 15.04.2020): bazı suçlarda oran 2/3'e çıktı (kasten öldürme, cinsel dokunulmazlık, uyuşturucu
+  //    imal/ticareti, örgüt kurma/yönetme, devletin güvenliği vb.); geçici m.6: 30.03.2020'den ÖNCE işlenen suçlarda
+  //    denetimli serbestlik süresi 3 yıl (istisna suçlar hariç).
+  //  * 7456 s.K. (RG 15.11.2023) geçici madde: 31.07.2023'ten ÖNCE işlenen suçlarda denetimli serbestlik 3 yıl
+  //    (istisna suçlar hariç).
+  //  * Genel kural (m.105/A): koşullu salıverilmeye 1 yıl kalan hükümlü denetimli serbestlikle infaz edilebilir;
+  //    terör, örgüt, cinsel dokunulmazlık suçları ve kasten öldürme gibi istisnalarda uygulanmaz.
+  //  * 765 s. TCK / 647 s.K. dönemi (01.06.2005 öncesi): lehe kanun karşılaştırması gerekir.
+  const INFAZ_KANUNLAR = [
+    { tarih: '2005-06-01', ad: '5275 s. İnfaz Kanunu', ozet: 'Koşullu salıverilme 1/2; mükerrir 2/3; terör 3/4; müebbet 24 yıl, ağırlaştırılmış müebbet 30 yıl.' },
+    { tarih: '2020-04-15', ad: '7242 s.K. (infaz düzenlemesi)', ozet: 'Belirli suçlarda 2/3 oranı; 30.03.2020 öncesi suçlarda denetimli serbestlik 3 yıl (geçici m.6).', esik: '2020-03-30' },
+    { tarih: '2023-11-15', ad: '7456 s.K. (geçici madde)', ozet: '31.07.2023 öncesi suçlarda denetimli serbestlik 3 yıl (istisna suçlar hariç).', esik: '2023-07-31' },
+  ];
+  const INFAZ_TURLER = {
+    genel: { ad: 'Genel suçlar (hırsızlık, dolandırıcılık, yaralama vb.)', oran: '1/2', ds: true },
+    ikiucte: { ad: '7242 ile 2/3\'e çıkan suçlar (kasten öldürme, uyuşturucu ticareti, örgüt kurma/yönetme, devlet güvenliği)', oran7242: '2/3', oran: '1/2', ds: false },
+    cinsel: { ad: 'Cinsel dokunulmazlığa karşı suçlar / çocuğun cinsel istismarı', oran7242: '2/3', oran: '1/2', ds: false },
+    teror: { ad: 'Terör suçları / örgüt faaliyeti kapsamında suç', oran: '3/4', ds: false },
+  };
+  function infazDetay(f) {
+    const sucT = f.sucTarihi ? new Date(f.sucTarihi + 'T00:00:00') : null;
+    if (!sucT || isNaN(sucT)) return { hata: 'Suç tarihini girin: uygulanacak oran ve denetimli serbestlik süresi suç tarihine göre belirlenir.' };
+    const tur = INFAZ_TURLER[f.sucTuru] || INFAZ_TURLER.genel;
+    const iso = f.sucTarihi;
+    const muebbet = f.cezaTipi === 'muebbet' || f.cezaTipi === 'agir';
+    let toplamGun = (Math.max(0, +f.yil || 0) * 365) + (Math.max(0, +f.ay || 0) * 30) + Math.max(0, +f.gun || 0);
+    if (!muebbet && toplamGun <= 0) return { hata: 'Hükmedilen ceza süresini (yıl/ay/gün) girin.' };
+    const uyarilar = [], gerekce = [];
+    if (iso < '2005-06-01') uyarilar.push('Suç tarihi 01.06.2005 öncesi (765 s. TCK / 647 s.K. dönemi): lehe kanun karşılaştırması yapılmalı; aşağıdaki hesap 5275 s.K. kurallarıyla yapılmıştır.');
+    // ORAN
+    let oran = tur.oran;
+    if (tur.oran7242 && iso >= '2020-03-30') { oran = tur.oran7242; gerekce.push(`Suç tarihi (${iso.split('-').reverse().join('.')}) 7242 s.K. eşiği 30.03.2020'den sonra: bu suç türünde koşullu salıverilme oranı 2/3.`); }
+    else if (tur.oran7242) gerekce.push('Suç tarihi 30.03.2020 öncesi: 7242 s.K. ile getirilen 2/3 oranı uygulanmaz (lehe olan 1/2).');
+    if (f.sucTuru === 'teror') gerekce.push('Terör suçlarında koşullu salıverilme oranı 3/4 (3713 s.K. m.17).');
+    if (f.mukerrir === '1') { const sira = { '1/2': 0, '2/3': 1, '3/4': 2 }; if (sira[oran] < 1) oran = '2/3'; gerekce.push('Mükerrir: koşullu salıverilme oranı en az 2/3 (5275 s.K. m.108).'); }
+    if (f.mukerrir === '2') uyarilar.push('İkinci kez mükerrir hükümlü koşullu salıverilmez (5275 s.K. m.108/2); ceza tamamen infaz edilir.');
+    const carpan = { '1/2': 0.5, '2/3': 2 / 3, '3/4': 0.75 }[oran];
+    // KOŞULLU SALIVERİLME SÜRESİ
+    let kosulluGun;
+    if (muebbet) {
+      const yilK = f.cezaTipi === 'agir' ? (f.sucTuru === 'teror' ? 36 : 30) : (f.sucTuru === 'teror' ? 30 : 24);
+      kosulluGun = yilK * 365; toplamGun = kosulluGun;
+      gerekce.push(`${f.cezaTipi === 'agir' ? 'Ağırlaştırılmış müebbet' : 'Müebbet'} hapiste koşullu salıverilme için ${yilK} yıl (5275 s.K. m.107/2${f.sucTuru === 'teror' ? ', 3713 m.17' : ''}).`);
+    } else {
+      kosulluGun = f.mukerrir === '2' ? toplamGun : Math.ceil(toplamGun * carpan);
+    }
+    // ÇOCUK HÜKÜMLÜ: suç tarihinde 15 yaşını doldurmamış → 1 gün 3 gün; 15-18 → 1 gün 2 gün (5275 m.107/14, 7242 ile)
+    let yasCarpani = 1;
+    if (f.yas === '15alti') { yasCarpani = 3; gerekce.push('Suç tarihinde 15 yaşını doldurmamış: cezaevinde geçen 1 gün 3 gün sayılır (5275 s.K. m.107 — güncel metni kontrol edin).'); }
+    if (f.yas === '15-18') { yasCarpani = 2; gerekce.push('Suç tarihinde 15-18 yaş arası: cezaevinde geçen 1 gün 2 gün sayılır (5275 s.K. m.107 — güncel metni kontrol edin).'); }
+    const mahsup = Math.max(0, Math.floor(+f.mahsupGun || 0));
+    // DENETİMLİ SERBESTLİK
+    let dsYil = 1, dsGerekce = '5275 s.K. m.105/A: koşullu salıverilmeye 1 yıl kalan hükümlü';
+    if (!tur.ds || f.sucTuru === 'teror') { dsYil = 0; dsGerekce = 'Bu suç türünde denetimli serbestlik uygulanmaz (m.105/A istisnaları)'; }
+    else if (iso < '2020-03-30') { dsYil = 3; dsGerekce = '7242 s.K. geçici m.6: 30.03.2020 öncesi suç → 3 yıl'; }
+    else if (iso < '2023-07-31') { dsYil = 3; dsGerekce = '7456 s.K. geçici madde: 31.07.2023 öncesi suç → 3 yıl'; }
+    if (f.mukerrir === '2') { dsYil = 0; dsGerekce = 'İkinci kez mükerrir: koşullu salıverilme ve DS yok'; }
+    const dsGun = Math.round(dsYil * 365);
+    const kalanKosullu = Math.max(0, kosulluGun - mahsup * yasCarpani);
+    const dsKullanilan = Math.min(dsGun, kalanKosullu);
+    const cezaevindeGercek = Math.ceil(Math.max(0, kalanKosullu - dsKullanilan) / yasCarpani);
+    const fmt = g => { const y = Math.floor(g / 365), a = Math.floor((g % 365) / 30), gn = (g % 365) % 30; return [y ? y + ' yıl' : '', a ? a + ' ay' : '', (gn || (!y && !a)) ? gn + ' gün' : ''].filter(Boolean).join(' ') + ` (${g} gün)`; };
+    // TARİHLER
+    let tarihler = null;
+    if (f.baslangic) {
+      const b = new Date(f.baslangic + 'T00:00:00');
+      if (!isNaN(b)) {
+        const ekle = n => { const d = new Date(b.getTime()); d.setDate(d.getDate() + n); return d; };
+        const fm = d => d.toLocaleDateString('tr-TR');
+        const dsBas = ekle(cezaevindeGercek), ks = ekle(cezaevindeGercek + dsKullanilan), son = ekle(Math.ceil(Math.max(0, toplamGun - mahsup * yasCarpani) / 1));
+        tarihler = { dsBaslangic: fm(dsBas), kosullu: fm(ks), cezaSonu: muebbet ? 'Müebbet' : fm(son) };
+      }
+    }
+    const kanunlar = INFAZ_KANUNLAR.map(k => ({ ...k, uygulanir: iso >= k.tarih || (k.esik && iso < k.esik && iso >= '2005-06-01') }));
+    const metinSatirlar = [
+      { ad: 'Suç tarihi / suç türü', deger: `${iso.split('-').reverse().join('.')} · ${tur.ad.split(' (')[0]}`, ref: '' },
+      { ad: 'Hükmedilen ceza', deger: muebbet ? (f.cezaTipi === 'agir' ? 'Ağırlaştırılmış müebbet' : 'Müebbet') : fmt(toplamGun), ref: 'TCK m.49-50' },
+      { ad: `Koşullu salıverilme oranı`, deger: f.mukerrir === '2' ? 'Yok (2. kez mükerrir)' : (muebbet ? 'Sabit süre' : oran), ref: '5275 s.K. m.107-108' },
+      { ad: 'Koşullu salıverilme süresi', deger: fmt(kosulluGun), ref: '' },
+      ...(mahsup ? [{ ad: 'Tutukluluk / gözaltı mahsubu', deger: `-${fmt(mahsup)}${yasCarpani > 1 ? ` × ${yasCarpani}` : ''}`, ref: 'TCK m.63' }] : []),
+      { ad: `Denetimli serbestlik`, deger: dsKullanilan ? fmt(dsKullanilan) : 'Uygulanmaz', ref: dsGerekce },
+      { ad: 'Cezaevinde geçirilecek tahmini süre', deger: fmt(cezaevindeGercek), ref: yasCarpani > 1 ? `Gerçek gün (1 gün = ${yasCarpani} gün sayılır)` : '', vurgu: true },
+      ...(tarihler ? [{ ad: 'Denetimli serbestliğe çıkış (tahmini)', deger: tarihler.dsBaslangic, ref: '' }, { ad: 'Koşullu salıverilme tarihi (tahmini)', deger: tarihler.kosullu, ref: '' }, { ad: 'Cezanın tamamen bitişi', deger: tarihler.cezaSonu, ref: '' }] : []),
+    ];
+    return {
+      metinSatirlar, satirlar: [], gerekce, uyarilar, kanunlar,
+      gorsel: { cezaevi: cezaevindeGercek * yasCarpani, ds: dsKullanilan, mahsup: Math.min(mahsup * yasCarpani, kosulluGun), kosullu: kosulluGun,
+                sonrasi: muebbet ? 0 : Math.max(0, toplamGun - kosulluGun), toplam: muebbet ? kosulluGun : toplamGun },
+      not: 'Bilgilendirme amaçlıdır. İyi hal, disiplin cezaları, açık cezaevine ayrılma, sağlık/yaş durumları ve güncel kanun değişiklikleri infaz hâkimliği ve Cumhuriyet başsavcılığınca değerlendirilir; somut hesap için müddetnameyi esas alın.'
+    };
+  }
+
   /** Ceza artırım/indirim hesabı (TCK m.61 sırası): temel gün (yıl*365+ay*30+gun) üzerinde adımlar [{tip:'artir'|'indir', pay, payda, ad}]. */
   function ceza({ yil, ay, gun, adimlar }) {
     let g = (Math.max(0, +yil || 0) * 365) + (Math.max(0, +ay || 0) * 30) + Math.max(0, +gun || 0);
     if (g <= 0) return { hata: 'Temel ceza süresini girin.' };
     const fmt = n => {
-      const y = Math.floor(n / 365), a = Math.floor((n % 365) / 30), gn = n % 30;
+      const y = Math.floor(n / 365), a = Math.floor((n % 365) / 30), gn = (n % 365) % 30;
       return [y ? y + ' yıl' : '', a ? a + ' ay' : '', (gn || (!y && !a)) ? gn + ' gün' : ''].filter(Boolean).join(' ');
     };
     const metinSatirlar = [{ ad: 'Temel ceza', deger: fmt(g), ref: 'TCK m.61' }];
@@ -269,7 +366,7 @@
     return { sonucGun: g, metinSatirlar, satirlar: [], not: 'TCK m.61 sırasına göre (artırımlar → indirimler → TCK m.62) uygulanır.' };
   }
 
-  const API = { TARIFE, TL, aautNispi, vekalet, faiz, harc, smm, cmkMakbuz, infaz, ceza };
+  const API = { TARIFE, TL, aautNispi, vekalet, faiz, harc, smm, cmkMakbuz, infaz, infazDetay, INFAZ_TURLER, INFAZ_KANUNLAR, ceza };
   if (typeof window !== 'undefined') window.HukukHesap = API;
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
 })();

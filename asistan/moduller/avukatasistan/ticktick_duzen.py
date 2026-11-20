@@ -98,6 +98,8 @@ def _kullanici_notu(c):
 
 def _tamamla(t, not_metni, uygula, rapor, neden):
     rapor["kapatilan"].append(f"{(t.get('title') or '')[:70]} — {neden}")
+    if len(rapor["kapatilan"]) <= 80:
+        print(f"   ♻️ {'Kapatıldı' if uygula else 'Kapatılacak'}: {(t.get('title') or '')[:80]} ({neden})", flush=True)
     if not uygula:
         return
     pid = t.get("projectId") or t.get("_pid")

@@ -265,7 +265,10 @@
       throw e;
     }
     if (r.status === 401 && !_tekrar) { baglantiUnut(); return api(yol, secenek, true); }
-    if (secenek.ham) { if (!r.ok) throw new Error('HTTP ' + r.status); return r; }
+    if (secenek.ham) {
+      if (!r.ok) { const v = await r.json().catch(() => ({})); throw Object.assign(new Error(v.hata || ('HTTP ' + r.status)), { durum: r.status }); }
+      return r;
+    }
     const v = await r.json().catch(() => ({}));
     if (!r.ok) throw Object.assign(new Error(v.hata || ('HTTP ' + r.status)), { durum: r.status });
     return v;
@@ -372,6 +375,8 @@
   }
 
   function dosyaDetayAc(dkey) {
+    // Önceki çalışma yeri kapanmasın: dosya her zaman ayrı pencerede açılır
+    if (typeof dosyaPenceresi === 'function') return dosyaPenceresi(dkey);
     sekmeAc('dosyalar');
     const bekle = () => {
       if (window.CanHayfa && window.CanHayfa.detayAc) {
@@ -684,6 +689,60 @@
   }
 
   // --- Süre ---
+  // [ad, birim ('gun' | 'ay' | 'oto' | 'ozel'), miktar, dayanak]. Süreler tebliğden sonraki günden işler.
+  const SURE_TURLERI = [
+    ['Merciye göre otomatik (7 / 14 / 30 gün)', 'oto', 0, ''],
+    ['HMK — İstinaf başvurusu', 'gun', 14, 'HMK m.345: 2 hafta'],
+    ['HMK — Temyiz başvurusu', 'ay', 1, 'HMK m.361: 1 ay'],
+    ['HMK — Cevap dilekçesi', 'gun', 14, 'HMK m.127: 2 hafta'],
+    ['HMK — Bilirkişi raporuna itiraz', 'gun', 14, 'HMK m.281: 2 hafta'],
+    ['İİK — Ödeme emrine itiraz (ilamsız)', 'gun', 7, 'İİK m.62'],
+    ['İİK — Kambiyo ödeme emrine itiraz / şikâyet', 'gun', 5, 'İİK m.168/5'],
+    ['İİK — İcra memuru işlemine şikâyet', 'gun', 7, 'İİK m.16'],
+    ['İİK — İcra mahkemesi kararına istinaf', 'gun', 10, 'İİK m.363'],
+    ['İİK — İcra emrine itiraz / ödeme (ilamlı)', 'gun', 7, 'İİK m.33'],
+    ['CMK — İstinaf', 'gun', 14, 'CMK m.273: 2 hafta (7499 s.K. ile)'],
+    ['CMK — Temyiz', 'gun', 14, 'CMK m.291: 2 hafta (7499 s.K. ile)'],
+    ['CMK — Kararlara itiraz', 'gun', 7, 'CMK m.268 — güncel metni kontrol edin'],
+    ['İYUK — İptal / tam yargı davası açma', 'gun', 60, 'İYUK m.7 (vergi davalarında 30 gün)'],
+    ['İYUK — Vergi davası açma', 'gun', 30, 'İYUK m.7'],
+    ['İYUK — İstinaf', 'gun', 30, 'İYUK m.45'],
+    ['İYUK — Temyiz', 'gun', 30, 'İYUK m.46'],
+    ['İş — Arabuluculuk sonrası işe iade davası', 'gun', 14, 'İş K. m.20: son tutanaktan itibaren 2 hafta'],
+    ['Kesin süre (mahkemenin verdiği gün)', 'ozel', 0, 'HMK m.94'],
+  ];
+
+  // Somut dosyalar: UETS tebligat son günleri (Ajanda) + icra kesinleşme / itiraz son günleri ve 1 yıllık
+  // işlemsizlik eşiği (icra_analiz) tek listede, kalan güne göre sıralı. "📂" dosyayı ayrı pencerede açar.
+  async function dosyaSureleriCiz(kap) {
+    if (!kap) return;
+    try {
+      const [aj, ia] = await Promise.all([api('/api/ajanda?gun=60').catch(() => ({ olaylar: [] })), api('/api/icra/analiz').catch(() => ({ dosyalar: [] }))]);
+      const bugun = new Date(); bugun.setHours(0, 0, 0, 0);
+      const kalan = iso => Math.round((new Date(iso + 'T00:00:00') - bugun) / 86400000);
+      const l = [];
+      (aj.olaylar || []).filter(o => o.tur === 'sure').forEach(o => l.push({ tarih: o.tarih, kalan: o.kalan_gun ?? kalan(o.tarih), tur: 'Tebligat süresi', birim: o.birim, esas: o.esas, aciklama: o.baslik || '', kaynak: o.kaynak }));
+      (ia.dosyalar || []).forEach(a => {
+        if (a.kesinlesme && a.kesinlesme.son_gun) l.push({ tarih: a.kesinlesme.son_gun, kalan: kalan(a.kesinlesme.son_gun), tur: a.kesinlesme.durum === 'kesinlestirilebilir' ? 'İtiraz süresi doldu → kesinleştir' : 'İcra itiraz süresi', birim: a.birim, esas: a.dosya_no, dkey: a.dkey, aciklama: a.kesinlesme.aciklama });
+        if (a.takipsizlik && a.takipsizlik.son_islem_tarihi && ['sari', 'turuncu', 'kirmizi'].includes(a.takipsizlik.seviye)) {
+          const d = new Date(a.takipsizlik.son_islem_tarihi + 'T00:00:00'); d.setFullYear(d.getFullYear() + 1);
+          const iso = isoGun(d);
+          l.push({ tarih: iso, kalan: kalan(iso), tur: '1 yıllık işlemsizlik', birim: a.birim, esas: a.dosya_no, dkey: a.dkey, aciklama: a.takipsizlik.aciklama });
+        }
+      });
+      l.sort((a, b) => a.kalan - b.kalan);
+      const renk = k => k < 0 ? ['#fee2e2', '#991b1b'] : k <= 3 ? ['#ffedd5', '#9a3412'] : k <= 10 ? ['#fef9c3', '#854d0e'] : ['#dcfce7', '#166534'];
+      kap.innerHTML = `<b>📌 Dosyalarımdaki işleyen süreler</b> <span class="ca-soluk">${l.length} kayıt · tebligatlar (60 gün) ve icra dosyaları</span>
+        ${l.length ? `<div style="max-height:380px;overflow:auto;margin-top:6px"><table>${l.slice(0, 300).map(x => { const r = renk(x.kalan); return `<tr>
+          <td style="white-space:nowrap"><span style="background:${r[0]};color:${r[1]};padding:1px 8px;border-radius:999px;font-size:12px;font-weight:700">${x.kalan < 0 ? Math.abs(x.kalan) + ' gün geçti' : x.kalan === 0 ? 'BUGÜN' : x.kalan + ' gün'}</span><div class="ca-soluk">${esc((x.tarih || '').split('-').reverse().join('.'))}</div></td>
+          <td><b>${esc(x.tur)}</b><div class="ca-soluk" style="font-size:12px">${esc((x.aciklama || '').slice(0, 220))}</div></td>
+          <td><b>${esc(x.birim || '')}</b><div class="ca-soluk">${esc(x.esas || '')}</div></td>
+          <td>${x.dkey ? `<button class="cw-mini" type="button" data-dk="${esc(x.dkey)}">📂</button>` : x.esas ? `<button class="cw-mini" type="button" data-bb="${esc(x.birim || '')}" data-bn="${esc(x.esas)}">📂</button>` : ''}</td></tr>`; }).join('')}</table></div>`
+          : '<p class="ca-soluk">İşleyen süre yok (UETS ve icra verisi geldikçe burada listelenir).</p>'}`;
+      kap.onclick = e => { const b = e.target.closest('[data-dk],[data-bn]'); if (!b) return; if (b.dataset.dk) dosyaPenceresi(b.dataset.dk); else dosyaPenceresiBul(b.dataset.bb, b.dataset.bn); };
+    } catch (e) { kap.innerHTML = `<b>📌 Dosyalarımdaki işleyen süreler</b><div class="ca-soluk">${esc(e.message)}</div>`; }
+  }
+
   function sureSekmesi(ic) {
     const simdi = new Date(); simdi.setSeconds(0, 0);
     const yerel = new Date(simdi.getTime() - simdi.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
@@ -693,13 +752,27 @@
         <div><label for="ca-merci">Merci</label><input id="ca-merci" list="ca-merciler" placeholder="ör. İstanbul 3. Asliye Hukuk Mahkemesi"></div>
         <div><label for="ca-tur">Tebliğ şekli</label><select id="ca-tur"><option value="uets">Elektronik (UETS: 5. gün tebliğ)</option><option value="elden">Fiziki / tebliğ tarihi biliniyor</option></select></div>
       </div>
+      <div class="ca-satir" style="margin-top:6px">
+        <div><label for="ca-suretur">Süre türü (somut kanun yolu / işlem)</label><select id="ca-suretur">${SURE_TURLERI.map((t, i) => `<option value="${i}">${esc(t[0])}</option>`).join('')}</select></div>
+        <div><label for="ca-ozelgun">Mahkemenin verdiği kesin süre (gün)</label><input id="ca-ozelgun" type="number" min="1" placeholder="yalnız 'Kesin süre' seçiliyse"></div>
+      </div>
       <datalist id="ca-merciler"><option value="Asliye Hukuk Mahkemesi"><option value="Asliye Ticaret Mahkemesi"><option value="İş Mahkemesi"><option value="Aile Mahkemesi"><option value="Tüketici Mahkemesi"><option value="Sulh Hukuk Mahkemesi"><option value="İcra Hukuk Mahkemesi"><option value="İcra Dairesi"><option value="Asliye Ceza Mahkemesi"><option value="Ağır Ceza Mahkemesi"><option value="Cumhuriyet Başsavcılığı Soruşturma Bürosu"><option value="İdare Mahkemesi"><option value="Vergi Mahkemesi"><option value="Bölge Adliye Mahkemesi Hukuk Dairesi"><option value="Yargıtay Hukuk Dairesi"></datalist>
       <div id="ca-sure-sonuc"></div>
+      <div class="ca-kart" id="ca-dosya-sureleri"><b>📌 Dosyalarımdaki işleyen süreler</b> <span class="ca-soluk">yükleniyor…</span></div>
       <p class="ca-soluk">Kural: UETS'de tebliğ, gelişi izleyen 5. gün sayılır (Tebligat K. 7/a); süre tebliğden sonraki günden başlar, son gün hafta sonuna denk gelirse Pazartesi 17:00'ye uzar. Resmî/adli tatil tarihi ileri almaz, yalnızca uyarı olarak gösterilir. Bu bir yardımcı hesaptır; somut süreyi kanun metniyle doğrulayın.</p>`;
     const hesapla = () => {
       const v = ic.querySelector('#ca-gelis').value;
       if (!v) return;
       const s = sureHesapla(new Date(v), ic.querySelector('#ca-merci').value, { elden: ic.querySelector('#ca-tur').value === 'elden' });
+      const st = SURE_TURLERI[+ic.querySelector('#ca-suretur').value] || SURE_TURLERI[0];
+      if (st[1] !== 'oto') {
+        let n = st[2];
+        if (st[1] === 'ozel') n = Math.max(1, +ic.querySelector('#ca-ozelgun').value || 0);
+        if (st[1] === 'ay') { const d = new Date(s.teblig.getTime()); d.setMonth(d.getMonth() + n); s.hedef = sonGun(d, 0); }
+        else s.hedef = sonGun(s.teblig, n);
+        s.hedef_str = tarihStr(s.hedef); s.etiket = `${st[0]} — ${st[1] === 'ay' ? n + ' ay' : n + ' gün'}${st[3] ? ' (' + st[3] + ')' : ''}`;
+        s.uyarilar = tatilUyarilari(s.hedef, ic.querySelector('#ca-merci').value);
+      }
       const gunler = ['Pazar', 'Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi'];
       ic.querySelector('#ca-sure-sonuc').innerHTML = `<div class="ca-kart">
         <div class="ca-soluk">${esc(s.etiket)}</div>
@@ -716,6 +789,7 @@
     };
     ic.querySelectorAll('input,select').forEach(el => el.addEventListener('input', hesapla));
     hesapla();
+    dosyaSureleriCiz(ic.querySelector('#ca-dosya-sureleri'));
   }
 
   // --- A4 ---
@@ -919,7 +993,7 @@
                 <td>${rozet}</td>
                 <td style="white-space:nowrap;"><b>${esc((o.tarih || '').split('-').reverse().join('.'))}</b> <span class="ca-soluk">${esc(o.saat || '')}</span></td>
                 <td>${o.tur === 'sure' ? '⏱️ <span style="color:#C62828;font-weight:bold;">Süre Sonu</span>' : '🏛️ Duruşma'}</td>
-                <td><b>${esc(o.birim || '')}</b><div class="ca-soluk">${esc(o.esas || '')}</div></td>
+                <td><b>${esc(o.birim || '')}</b><div class="ca-soluk">${esc(o.esas || '')}</div>${o.esas ? `<button class="cw-mini" type="button" data-bul-birim="${esc(o.birim || '')}" data-bul-no="${esc(o.esas || '')}">📂 Dosyayı gör</button>` : ''}</td>
                 <td>${esc(o.baslik || '')}${o.yer ? `<div class="ca-soluk">📍 ${esc(o.yer)}</div>` : ''}<div class="ca-soluk">📌 Kaynak: ${esc(o.kaynak || '')}</div></td>
               </tr>`;
             }).join('')}
@@ -953,6 +1027,10 @@
     });
 
     ic.querySelector('#ca-aj-yenile').onclick = yukle;
+    listeEl.addEventListener('click', e => {
+      const b = e.target.closest('[data-bul-no]');
+      if (b) dosyaPenceresiBul(b.dataset.bulBirim, b.dataset.bulNo);
+    });
     turSel.onchange = cizTablo;
     araIn.oninput = cizTablo;
 
@@ -975,31 +1053,62 @@
     kap.querySelectorAll('button[data-skey]').forEach(b => { b.onclick = () => evrakAc(b.dataset.skey); });
   }
 
+  // EVRAK ARA: UYAP evrak kataloğunun TAMAMI (kapalı dosyalar dahil arşiv listesi) + Drive indeksi.
+  // Yazdıkça aranır (eski istek iptal edilir); sonuçlarda indirmeden Önizle / Orijinal / Drive / Dosyaya git (pencere).
   function evrakSekmesi(ic) {
-    ic.innerHTML = `<label for="ca-evrak-q">Ara (taraf, evrak türü, açıklama, dosya no — Türkçe harf duyarsız; hariç tutmak için -kelime)</label>
-      <input id="ca-evrak-q" placeholder='ör. bilirkişi -ek "ağır ceza"'><div id="ca-evrak-sonuc" class="ca-soluk" style="margin-top:12px">Aramak için yazın.</div>`;
-    const q = ic.querySelector('#ca-evrak-q'), sonuc = ic.querySelector('#ca-evrak-sonuc');
-    let zam = null, kontrol = null, sira = 0;
-    const ara = async () => {
-      // Önceki arama sürüyorsa iptal edilir; geç gelen eski sonuç yenisinin üstüne yazılmaz
+    ic.innerHTML = `<div class="cw-izgara" id="ca-ev-say" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px"></div>
+      <div style="display:grid;grid-template-columns:3fr 1fr 1fr;gap:8px;margin-top:8px">
+        <input id="ca-evrak-q" placeholder='Ara: taraf, evrak türü, mahkeme, esas no… (ör. bilirkişi -ek "ağır ceza")'>
+        <select id="ca-ev-d"><option value="">Tüm evrak</option><option value="indirildi">İndirilmiş</option><option value="indirilmedi">İndirilmemiş</option></select>
+        <select id="ca-ev-k"><option value="">Tüm kategoriler</option></select></div>
+      <div id="ca-evrak-sonuc" style="margin-top:10px"><span class="ca-soluk">Aramak için yazın; boş bırakırsanız en yeni evraklar listelenir.</span></div>`;
+    const q = ic.querySelector('#ca-evrak-q'), sonuc = ic.querySelector('#ca-evrak-sonuc'), dSel = ic.querySelector('#ca-ev-d'), kSel = ic.querySelector('#ca-ev-k');
+    const sayi = ic.querySelector('#ca-ev-say');
+    let zam = null, kontrol = null, sira = 0, offset = 0, birikim = [];
+    evrakDugmeBagla(sonuc);
+    const sayiCiz = v => {
+      if (!document.getElementById('cw-stil')) { const st = document.createElement('style'); st.id = 'cw-stil'; st.textContent = PENCERE_CSS; document.head.appendChild(st); }
+      sayi.innerHTML = `<div><span>UYAP evrakı (katalog)</span><b>${(v.toplam_evrak || 0).toLocaleString('tr-TR')}</b><span>${(v.indirilen || 0).toLocaleString('tr-TR')} indirildi</span></div>
+        <div><span>Dosya</span><b>${(v.dosya_sayisi || 0).toLocaleString('tr-TR')}</b><span>${(v.taranan_dosya || 0).toLocaleString('tr-TR')} dosyanın evrak listesi alındı</span></div>
+        <div><span>Drive indeksi</span><b>${v.drive && v.drive.toplam != null ? v.drive.toplam.toLocaleString('tr-TR') : '—'}</b><span>${v.drive ? 'dosya' : 'aramada gösterilir'}</span></div>`;
+      if (v.dosya_sayisi && v.taranan_dosya < v.dosya_sayisi) sayi.insertAdjacentHTML('beforeend', `<div style="grid-column:1/-1" class="ca-uyari">Arşivin tamamı henüz listelenmedi: ${v.dosya_sayisi - v.taranan_dosya} dosyanın evrak listesi Senkron açıkken arka planda alınıyor (her turda 60 dosya). Bitince tüm UYAP evrakı burada aranır.</div>`);
+    };
+    const ara = async (devam) => {
       if (kontrol) kontrol.abort();
       kontrol = new AbortController();
       const benim = ++sira;
       const metin = q.value.trim();
-      if (metin && metin.replace(/[-"\s]/g, '').length < 2) { sonuc.textContent = 'En az 2 harf yazın.'; return; }
-      sonuc.innerHTML = '<span class="ca-soluk">Aranıyor…</span>';
+      if (metin && metin.replace(/[-"\s]/g, '').length < 2) { sonuc.innerHTML = '<span class="ca-soluk">En az 2 harf yazın.</span>'; return; }
+      if (!devam) { offset = 0; birikim = []; sonuc.innerHTML = '<span class="ca-soluk">Aranıyor…</span>'; }
       try {
-        const v = await api('/api/evrak/ara?limit=150&q=' + encodeURIComponent(metin), { signal: kontrol.signal });
+        const v = await api(`/api/evrak/ara?limit=100&offset=${offset}&durum=${dSel.value}&kategori=${encodeURIComponent(kSel.value)}&drive=${offset ? 0 : 1}&q=${encodeURIComponent(metin)}`, { signal: kontrol.signal });
         if (benim !== sira) return;
-        if (!v.hazir) { sonuc.innerHTML = esc(v.mesaj); return; }
-        sonuc.innerHTML = `<div class="ca-soluk">${v.sonuclar.length} sonuç (katalogda ${v.toplam_evrak} evrak)</div><table>${v.sonuclar.map(r => `
-          <tr><td>${esc((r.tarih || '').slice(0, 10))}</td><td><b>${esc(r.tur || '')}</b><div class="ca-soluk">${esc(r.aciklama || '')}</div></td>
-          <td>${esc(r.birim || '')}<div class="ca-soluk">${esc(r.dosya_no || '')} ${r.muvekkil ? '· ' + esc(r.muvekkil) : ''}</div></td>
-          <td>${r.yerel ? `<button class="ca-btn" type="button" data-skey="${esc(r.skey)}">Aç</button>` : '<span class="ca-soluk">indirilmedi</span>'}</td></tr>`).join('')}</table>`;
-        evrakDugmeleri(sonuc);
-      } catch (e) { if (e.name !== 'AbortError' && benim === sira) sunucuHatasi(ic, e); }
+        if (!v.hazir) { sonuc.innerHTML = `<div class="cw-kart">${esc(v.mesaj)}</div>`; return; }
+        if (!offset) { sayiCiz(v); birikim = []; ic._drive = v.drive; }
+        birikim = birikim.concat(v.sonuclar);
+        offset += v.sonuclar.length;
+        const dr = ic._drive;
+        sonuc.innerHTML = `<div class="ca-soluk">${birikim.length}${v.sonuclar.length === 100 ? '+' : ''} UYAP evrakı${dr && dr.sonuclar ? ` · ${dr.sonuclar.length} Drive dosyası` : ''}</div>
+          <table class="cw-tablo">${birikim.map(r => `<tr>
+            <td style="white-space:nowrap">${esc(trT(r.tarih))}</td>
+            <td><b>${esc(r.tur || '')}</b><div class="ca-soluk">${esc(r.aciklama || '')}</div></td>
+            <td><a href="#" data-dosya-ac="${esc(r.dkey)}">${esc(r.birim || '')}</a><div class="ca-soluk">${esc(r.dosya_no || '')}${r.muvekkil ? ' · ' + esc(r.muvekkil) : ''}${r.dosya_durum && r.dosya_durum !== 'Açık' ? ' · kapalı' : ''}</div></td>
+            <td style="white-space:nowrap">${r.yerel ? '<span class="cw-cip yesil">indirildi</span>' : '<span class="cw-cip gri">UYAP\'ta</span>'} ${r.drive ? '<span class="cw-cip mavi">☁</span>' : ''}</td>
+            <td>${evrakDugme(r, r.drive_url)} <button class="cw-mini" type="button" data-dosya-ac="${esc(r.dkey)}">📂 Dosya</button></td></tr>`).join('')}</table>
+          ${v.sonuclar.length === 100 ? '<button class="ca-btn kucuk" type="button" id="ca-ev-daha">Daha fazla göster</button>' : ''}
+          ${dr && dr.sonuclar && dr.sonuclar.length ? `<h4 style="margin:14px 0 4px">☁️ Google Drive'da (${dr.toplam.toLocaleString('tr-TR')} dosyalık indekste)</h4><table class="cw-tablo">${dr.sonuclar.map(f => `<tr><td>${esc(f.ad)}</td><td class="ca-soluk">${esc(f.klasor || '')}</td><td>${f.url ? `<a class="cw-mini" href="${esc(f.url)}" target="_blank" rel="noopener">☁️ Aç</a>` : ''}</td></tr>`).join('')}</table>` : ''}`;
+        const daha = sonuc.querySelector('#ca-ev-daha');
+        if (daha) daha.onclick = () => ara(true);
+        if (!kSel.dataset.dolu) {
+          const katlar = [...new Set(birikim.map(r => r.kategori).filter(Boolean))].sort();
+          if (katlar.length) { kSel.insertAdjacentHTML('beforeend', katlar.map(k => `<option>${esc(k)}</option>`).join('')); kSel.dataset.dolu = '1'; }
+        }
+      } catch (e) { if (e.name !== 'AbortError' && benim === sira) sonuc.innerHTML = `<div class="cw-kart ca-hata">${esc(e.message)}</div>`; }
     };
-    q.addEventListener('input', () => { clearTimeout(zam); zam = setTimeout(ara, 350); });
+    sonuc.addEventListener('click', e => { if (e.target.closest('a[data-dosya-ac]')) e.preventDefault(); });
+    q.addEventListener('input', () => { clearTimeout(zam); zam = setTimeout(() => ara(false), 300); });
+    dSel.onchange = () => ara(false); kSel.onchange = () => ara(false);
+    ara(false);
     q.focus();
   }
 
@@ -1045,6 +1154,7 @@
       </div>
       <div class="ca-kart"><input id="tb-q" placeholder="Mahkeme, esas no, barkod, müvekkil ara…"><div id="tb-liste" style="margin-top:8px" class="ca-soluk">Tebligat durumu yükleniyor (TickTick ve Notion sorgulanıyor)…</div></div>`;
     const islem = ic.querySelector('#tb-islem'), liste = ic.querySelector('#tb-liste'), gl = ic.querySelector('#tb-gunluk');
+    liste.addEventListener('click', e => { const b = e.target.closest('[data-bul-no]'); if (b) dosyaPenceresiBul(b.dataset.bulBirim, b.dataset.bulNo); });
     let veri = [];
     const renk = { green: '#16a34a', blue: '#2563eb', orange: '#d97706', red: '#dc2626', gray: '#64748b' };
     const ciz = () => {
@@ -1057,7 +1167,8 @@
           <td style="white-space:nowrap">${d.son_gun ? '⏰ ' + esc(d.son_gun) : '—'}</td>
           <td><span style="color:${renk[d.renk] || '#64748b'};font-weight:600">${esc(d.durum)}</span><div class="ca-soluk">${d.eyp ? '📦 EYP var' : '❌ EYP yok'}</div></td>
           <td style="white-space:nowrap"><button class="ca-btn kucuk ana" type="button" data-zorla="${esc(d.barkod)}">⚡ TickTick'e ekle</button>
-            ${d.notion_url ? `<a class="ca-btn kucuk" href="${esc(d.notion_url)}" target="_blank" rel="noopener">Notion</a>` : ''}</td></tr>`).join('') || '<tr><td>Kayıt yok. Önce "UETS\'ten İndir" çalıştırın.</td></tr>'}</table>`;
+            ${d.notion_url ? `<a class="ca-btn kucuk" href="${esc(d.notion_url)}" target="_blank" rel="noopener">Notion</a>` : ''}
+            <button class="ca-btn kucuk" type="button" data-bul-birim="${esc(d.mahkeme || '')}" data-bul-no="${esc(d.esas || '')}">📂 Dosya</button></td></tr>`).join('') || '<tr><td>Kayıt yok. Önce "UETS\'ten İndir" çalıştırın.</td></tr>'}</table>`;
       liste.querySelectorAll('[data-zorla]').forEach(b => { b.onclick = () => calistir('zorla', { barkod: b.dataset.zorla }, b); });
     };
     const yukle = async () => {
@@ -1111,52 +1222,95 @@
     yukle();
   }
 
+  // Görevler: OTOMATİK çalışanlar üstte (durum + son satır), elle çalıştırılanlar altta. Sayfa her 3 sn'de
+  // YENİDEN ÇİZİLMEZ; yalnızca rozet, düğme ve günlük metni yerinde güncellenir. Günlükte yukarı kaydırdıysanız
+  // yerinde kalır (eskiden her yenilemede başa zıplıyordu); en alttaysanız yeni satırları izler.
+  const OTOMATIK_GOREVLER = ['evrak-akis', 'uets-senkron', 'hesap-tara', 'notion-esitle', 'ticktick-duzen'];
+  const GIZLI_GOREVLER = ['asistan-gui', 'evrak-katalog'];   // eski masaüstü pencereleri: yerlerini paneller aldı
   async function gorevSekmesi(ic) {
-    ic.innerHTML = '<p class="ca-soluk">Görevler ve servisler yükleniyor…</p>';
+    ic.innerHTML = '<p class="ca-soluk">Görevler yükleniyor…</p>';
+    let kurulu = false;
+    const rozet = g => g.calisiyor ? '<span class="gv-rozet calisiyor">● Çalışıyor</span>'
+      : g.kod === 0 ? '<span class="gv-rozet tamam">✓ Tamamlandı</span>'
+      : (g.kod !== null && g.kod !== undefined) ? `<span class="gv-rozet hata">✕ Hata (kod ${g.kod})</span>`
+      : '<span class="gv-rozet bos">Beklemede</span>';
+    const sonHata = g => {
+      if (g.calisiyor || !g.kod) return '';
+      const s = (g.gunluk || []).filter(x => /error|hata|exception|traceback|❌|\[!\]/i.test(x)).slice(-1)[0] || (g.gunluk || []).slice(-1)[0] || '';
+      return s.replace(/^.*?\] /, '').slice(0, 220);
+    };
+    const kart = g => `<div class="gv-kart" data-g="${g.kimlik}">
+        <div class="gv-ust"><div><b>${esc(g.ad)}</b> <span class="gv-r"></span></div><div class="gv-d"></div></div>
+        <p class="gv-acik">${esc(GOREV_ACIKLAMALARI[g.kimlik] || '')}</p>
+        <div class="gv-hata ca-hata" hidden></div>
+        <details class="gv-log"><summary>Günlük</summary><pre></pre></details>
+      </div>`;
+    const guncelle = (el, g) => {
+      el.querySelector('.gv-r').innerHTML = rozet(g);
+      const d = el.querySelector('.gv-d');
+      const dugme = g.kullanilamaz ? `<span class="ca-soluk">${esc(g.kullanilamaz)}</span>`
+        : g.calisiyor ? `<button class="ca-btn kucuk" style="background:#D32F2F;color:#fff" type="button" data-durdur="${g.kimlik}">⏹ Durdur</button>`
+        : `<button class="ca-btn ana kucuk" type="button" data-baslat="${g.kimlik}">▶ Çalıştır</button>`;
+      if (d.dataset.h !== dugme) { d.innerHTML = dugme; d.dataset.h = dugme; }
+      const h = el.querySelector('.gv-hata');
+      const sh = sonHata(g);
+      h.hidden = !sh; h.textContent = sh;
+      const pre = el.querySelector('pre');
+      const metin = (g.gunluk || []).join('\n');
+      if (pre.textContent !== metin) {
+        const altta = pre.scrollHeight - pre.scrollTop - pre.clientHeight < 24;
+        const ust = pre.scrollTop;
+        pre.textContent = metin;
+        pre.scrollTop = altta ? pre.scrollHeight : ust;
+      }
+      if (g.calisiyor && !el.dataset.acildi) { el.querySelector('details').open = true; el.dataset.acildi = '1'; }
+    };
     const ciz = async () => {
-      const v = await api('/api/gorevler?satir=20');
-      const acik = Array.from(ic.querySelectorAll('details[open]')).map(d => d.dataset.k);
-      ic.innerHTML = `
-        <div class="ca-kart" style="margin-bottom:12px;background:#E3F2FD;border:1px solid #90CAF9;">
-          <b>⚙️ CanEditor Otomasyon & Arka Plan Görev Yöneticisi</b>
-          <p class="ca-soluk" style="margin:4px 0 0 0;">Buradaki görevler UETS tebligat senkronizasyonunu, UYAP nöbetçi evrak takibini ve dosya indekslemeyi yürütür. İstediğiniz görevi tek tıkla başlatabilir veya durdurabilirsiniz.</p>
-        </div>
-        ${v.gorevler.map(g => {
-          const aciklama = GOREV_ACIKLAMALARI[g.kimlik] || 'Arka plan otomasyon görevi.';
-          let durumRozeti = '';
-          if (g.calisiyor) durumRozeti = '<span class="hf-etiket" style="background:#C8E6C9;color:#1B5E20;font-weight:bold;">🟢 ÇALIŞIYOR</span>';
-          else if (g.kod === 0) durumRozeti = '<span class="hf-etiket" style="background:#E8F5E9;color:#2E7D32;">✓ Tamamlandı</span>';
-          else if (g.kod !== null) durumRozeti = `<span class="hf-etiket" style="background:#FFEBEE;color:#C62828;">❌ Hata (Kod ${g.kod})</span>`;
-          else durumRozeti = '<span class="hf-etiket" style="background:#F5F5F5;color:#616161;">⚪ Beklemede</span>';
-
-          return `<div class="ca-kart" style="margin-bottom:10px;">
-            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">
-              <div>
-                <b style="font-size:14px;">${esc(g.ad)}</b> ${durumRozeti}
-              </div>
-              <div>
-                ${g.kullanilamaz && g.pencere ? `<button class="ca-btn ana kucuk" type="button" data-panel="${g.kimlik === 'evrak-katalog' ? 'evrak' : 'tebligat'}">▶ Panelde Aç</button>` : g.kullanilamaz ? `<span class="ca-soluk">🖥️ ${esc(g.kullanilamaz)}</span>` : (g.calisiyor ? `<button class="ca-btn kucuk" style="background:#D32F2F;color:#fff;" type="button" data-durdur="${g.kimlik}">⏹ Durdur</button>` : `<button class="ca-btn ana kucuk" type="button" data-baslat="${g.kimlik}">▶ ${g.pencere ? 'Pencereyi Aç' : 'Çalıştır'}</button>`)}
-              </div>
-            </div>
-            <p style="font-size:12px;color:#455A64;margin:6px 0 8px 0;line-height:1.4;">${esc(aciklama)}</p>
-            ${g.gunluk.length ? `<details data-k="${g.kimlik}" ${acik.includes(g.kimlik) || g.calisiyor ? 'open' : ''} style="margin-top:6px;"><summary class="ca-soluk" style="cursor:pointer;font-size:12px;">📄 Konsol Günlüğü (${g.gunluk.length} satır)</summary><pre style="max-height:180px;background:#263238;color:#ECEFF1;padding:8px;border-radius:4px;font-size:11px;overflow-x:auto;">${esc(g.gunluk.join('\n'))}</pre></details>` : ''}
-          </div>`;
-        }).join('')}`;
-
-      ic.querySelectorAll('[data-panel]').forEach(b => { b.onclick = () => sekmeAc(b.dataset.panel); });
-      ic.querySelectorAll('[data-baslat]').forEach(b => {
-        b.onclick = async () => {
+      const [v, p] = await Promise.all([api('/api/gorevler?satir=200'), api('/api/pano').catch(() => ({}))]);
+      const gs = v.gorevler.filter(g => !GIZLI_GOREVLER.includes(g.kimlik));
+      if (!kurulu) {
+        const oto = gs.filter(g => OTOMATIK_GOREVLER.includes(g.kimlik));
+        const elle = gs.filter(g => !OTOMATIK_GOREVLER.includes(g.kimlik));
+        ic.innerHTML = `<style>
+          .gv-kart{border:1px solid var(--ce-border,#e2e8f0);border-radius:10px;padding:10px 12px;margin-bottom:8px;background:var(--ce-surface,#fff)}
+          .gv-ust{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+          .gv-acik{font-size:12px;color:var(--ce-muted,#64748b);margin:4px 0}
+          .gv-rozet{font-size:11.5px;padding:2px 8px;border-radius:999px;font-weight:600}
+          .gv-rozet.calisiyor{background:#dcfce7;color:#166534}.gv-rozet.tamam{background:#eef2ff;color:#3730a3}
+          .gv-rozet.hata{background:#fee2e2;color:#991b1b}.gv-rozet.bos{background:#f1f5f9;color:#475569}
+          .gv-log summary{cursor:pointer;font-size:12px;color:var(--ce-muted,#64748b)}
+          .gv-log pre{max-height:260px;overflow:auto;background:#0f172a;color:#e2e8f0;padding:8px;border-radius:6px;font-size:11px;white-space:pre-wrap}
+          .gv-hata{font-size:12px;margin:2px 0 4px}
+          .gv-ozet{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px;margin-bottom:12px}
+          .gv-ozet div{border:1px solid var(--ce-border,#e2e8f0);border-radius:10px;padding:8px 10px}
+          .gv-ozet b{display:block;font-size:13px}.gv-ozet span{font-size:12px;color:var(--ce-muted,#64748b)}
+        </style>
+        <div class="gv-ozet" id="gv-ozet"></div>
+        <h3 style="margin:6px 0">⚙️ Otomatik çalışanlar</h3>
+        <p class="ca-soluk" style="margin-top:0">Bunlar kendiliğinden çalışır; burada yalnızca izlenir. Elle başlatmanız gerekmez.</p>
+        ${oto.map(kart).join('')}
+        <details style="margin-top:14px"><summary style="cursor:pointer;font-weight:600">🛠️ Elle çalıştırılan araçlar (${elle.length})</summary>
+          <div style="margin-top:8px">${elle.map(kart).join('')}</div></details>`;
+        ic.addEventListener('click', async e => {
+          const b = e.target.closest('[data-baslat],[data-durdur]');
+          if (!b) return;
           b.disabled = true;
-          try { await api('/api/gorev/' + b.dataset.baslat, { method: 'POST', govde: {} }); } catch (e) { alert(e.message); }
-          ciz();
-        };
-      });
-      ic.querySelectorAll('[data-durdur]').forEach(b => {
-        b.onclick = async () => {
-          await api('/api/gorev/' + b.dataset.durdur + '/durdur', { method: 'POST', govde: {} });
-          ciz();
-        };
-      });
+          try {
+            if (b.dataset.baslat) await api('/api/gorev/' + b.dataset.baslat, { method: 'POST', govde: {} });
+            else await api('/api/gorev/' + b.dataset.durdur + '/durdur', { method: 'POST', govde: {} });
+          } catch (er) { alert(er.message); }
+          ciz().catch(() => {});
+        });
+        kurulu = true;
+      }
+      gs.forEach(g => { const el = ic.querySelector(`.gv-kart[data-g="${g.kimlik}"]`); if (el) guncelle(el, g); });
+      const t = p.tebligat || {}, s = p.senkron || {}, z = p.duzen || {};
+      const oz = ic.querySelector('#gv-ozet');
+      if (oz) oz.innerHTML = `
+        <div><b>${s.acik ? '🟢' : '⚪'} UYAP → Drive</b><span>${s.acik ? 'Sürekli açık' : 'Kapalı (Ana Ekran\'dan başlatın)'}</span></div>
+        <div><b>${t.aralik_dk ? '🟢' : '⚪'} UETS tebligat</b><span>${t.aralik_dk ? t.aralik_dk + ' dk\'da bir' : 'Otomatik kapalı'}</span></div>
+        <div><b>${z.hazir ? '🟢' : '⚪'} Notion & TickTick</b><span>${z.hazir ? '6 saatte bir düzen' : 'Anahtarlar girilmemiş'}</span></div>
+        <div><b>🟢 Dosya hesapları</b><span>Senkron boştayken azar azar</span></div>`;
     };
     try { await ciz(); izleZam = setInterval(() => { ciz().catch(gorevIzleDurdur); }, 3000); } catch (e) { sunucuHatasi(ic, e); }
   }
@@ -1187,26 +1341,42 @@
     const saglikEl = ic.querySelector('#ca-bag-saglik');
     const sonuc = ic.querySelector('#ca-bag-sonuc');
 
-    const saglikYukle = async () => {
+    // CANLI: tüm servisler gerçekten denenir (UYAP oturumu + imza yöntemi, UETS, Gmail kodu, Drive, Notion,
+    // TickTick, Telegram), arşiv sayıları ve kopma/yeniden bağlanma kayıtları. 30 sn'de bir kendiliğinden tazelenir.
+    const RENK = { ok: ['#dcfce7', '#166534', '● Bağlı'], hata: ['#fee2e2', '#991b1b', '● Hata'], uyari: ['#fef9c3', '#854d0e', '● Bekliyor'], yok: ['#f1f5f9', '#475569', '○ Ayarlanmadı'] };
+    const sayiK = (a, x, alt) => `<div style="border:1px solid var(--ce-border,#e2e8f0);border-radius:10px;padding:8px 10px"><span style="font-size:12px;color:var(--ce-muted,#64748b)">${a}</span><b style="display:block;font-size:18px">${x == null ? '—' : Number(x).toLocaleString('tr-TR')}</b>${alt ? `<span style="font-size:11.5px;color:var(--ce-muted,#64748b)">${alt}</span>` : ''}</div>`;
+    const saglikYukle = async (zorla) => {
       try {
-        const s = await api('/api/baglanti/istatistik');
+        const v = await api('/api/baglanti/canli' + (zorla ? '?yenile=1' : ''));
+        const sy = v.sayilar || {};
+        const sa = Math.floor((v.calisma_sn || 0) / 3600), dk = Math.floor(((v.calisma_sn || 0) % 3600) / 60);
         saglikEl.innerHTML = `
-          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
-            <b>🔌 Canlı Bağlantı & Sistem Sağlık Durumu</b>
-            <span class="hf-etiket" style="background:#C8E6C9;color:#1B5E20;font-weight:bold;">🟢 KESİNTİSİZ AKTİF</span>
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+            <b>🔌 Canlı Bağlantılar</b><span class="ca-soluk">${esc(v.zaman)} · sunucu ${sa} sa ${dk} dk açık · v${esc(v.surum)}
+            <button class="ca-btn kucuk" type="button" id="ca-canli-yenile" style="margin:0 0 0 6px">↻ Şimdi ölç</button></span></div>
+          <table style="margin-top:8px">${(v.servisler || []).map(x => { const r = RENK[x.durum] || RENK.yok; return `<tr>
+            <td style="white-space:nowrap"><b>${esc(x.ad)}</b></td>
+            <td style="white-space:nowrap"><span style="background:${r[0]};color:${r[1]};padding:1px 8px;border-radius:999px;font-size:12px;font-weight:600">${r[2]}</span></td>
+            <td>${esc(x.mesaj || '')}</td><td class="ca-soluk" style="white-space:nowrap;text-align:right">${x.ms} ms</td></tr>`; }).join('')}</table>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-top:12px">
+            ${sayiK('Drive\'daki dosya (UYAP arşivi)', sy.drive_dosya, `${(sy.drive_yuklenen || 0).toLocaleString('tr-TR')} evrak bu cihazdan yüklendi`)}
+            ${sayiK('UYAP dosyası', sy.dosya, `${(sy.acik_dosya || 0).toLocaleString('tr-TR')} açık`)}
+            ${sayiK('UYAP evrakı (katalog)', sy.evrak, `${(sy.indirilen || 0).toLocaleString('tr-TR')} indirildi · son 7 gün ${(sy.son7_evrak || 0).toLocaleString('tr-TR')}`)}
+            ${sayiK('Tebligat (UETS)', sy.tebligat, `son 7 gün ${(sy.son7_tebligat || 0).toLocaleString('tr-TR')}`)}
+            ${sayiK('Süresi 3 gün içinde dolan', sy.sure_3gun, 'Ajanda\'da ayrıntı')}
+            ${sayiK('7 gün içinde duruşma', sy.durusma_7gun)}
+            ${sayiK('Yargıtay kararı (hayfahukuk)', sy.yargitay_karar, 'son karar no')}
           </div>
-          <table style="margin-top:8px;">
-            <tr><th>Kesintisiz Çalışma Süresi</th><td><b>${esc(s.calisma_suresi)}</b></td></tr>
-            <tr><th>İşlenen İstek Sayısı</th><td>${esc(s.toplam_istek)} istek</td></tr>
-            <tr><th>Ağ Gecikmesi (Ping)</th><td>${s.ping_ms == null ? "UYAP'a ulaşılamadı" : esc(s.ping_ms) + " ms (UYAP Avukat Portal)"}</td></tr>
-            <tr><th>Bağlantı Kesinti Kaydı</th><td>${esc(s.son_kesinti)} (${s.kesinti_sayisi} kesinti)</td></tr>
-            <tr><th>Google Drive Webhook</th><td>${s.drive_webhook_tanimli ? '🟢 Tanımlı ve Hazır' : '⚪ Webhook linki girilmedi (Drive sekmesinden ayarlayabilirsiniz)'}</td></tr>
-            <tr><th>Sunucu Saati</th><td>${esc(s.sunucu_zamani)}</td></tr>
-          </table>`;
+          <div style="margin-top:12px"><b>Kopma / yeniden bağlanma kayıtları</b>
+            ${(v.kesintiler || []).length ? `<table>${v.kesintiler.slice(0, 20).map(k => `<tr><td class="ca-soluk" style="white-space:nowrap">${esc(k.zaman)}</td><td><b>${esc(k.servis)}</b></td><td>${esc(k.olay)}</td><td class="ca-soluk">${esc(k.mesaj || '')}</td></tr>`).join('')}</table>` : '<div class="ca-soluk">Bu oturumda kopma olmadı.</div>'}
+            <div class="ca-soluk">UYAP oturum kesintisi: ${v.uyap_kesinti && v.uyap_kesinti.sayi ? v.uyap_kesinti.sayi + ' kez (son ' + esc(v.uyap_kesinti.son) + ')' : 'yok'} · HTTPS sertifikaları: ${esc(v.ssl_sertifika)}</div></div>`;
+        const yb = saglikEl.querySelector('#ca-canli-yenile');
+        if (yb) yb.onclick = () => { yb.disabled = true; yb.textContent = 'Ölçülüyor…'; saglikYukle(true); };
       } catch (e) {
-        saglikEl.innerHTML = `<b>🔌 Canlı Bağlantı Durumu</b><div class="ca-soluk">Bağlantı istatistikleri alınamadı: ${esc(e.message)}</div>`;
+        saglikEl.innerHTML = `<b>🔌 Canlı Bağlantılar</b><div class="ca-hata">Alınamadı: ${esc(e.message)}</div>`;
       }
     };
+    izleZam = setInterval(() => { if (document.body.contains(saglikEl)) saglikYukle(false); else gorevIzleDurdur(); }, 30000);
 
     const sina = async () => {
       sonuc.textContent = 'Sınanıyor…';
@@ -1669,12 +1839,16 @@
       cmk: `<div class="ca-satir"><div><label>Görevlendirme</label><select name="kalem">${secenek(H.TARIFE.cmk, 'agir')}</select></div>
         <div><label>Adet (tek makbuz)</label><input name="adet" type="number" min="1" value="1"></div></div>`,
       infaz: `<div class="ca-satir">
+        <div><label>Suç tarihi</label><input type="date" name="sucTarihi" value="2023-01-15"></div>
+        <div><label>Suç türü</label><select name="sucTuru">${Object.entries(H.INFAZ_TURLER || {}).map(([k, v]) => `<option value="${k}">${esc(v.ad)}</option>`).join('')}</select></div>
+        <div><label>Ceza türü</label><select name="cezaTipi"><option value="sureli">Süreli hapis</option><option value="muebbet">Müebbet</option><option value="agir">Ağırlaştırılmış müebbet</option></select></div>
         <div><label>Yıl</label><input name="yil" type="number" min="0" value="3"></div>
         <div><label>Ay</label><input name="ay" type="number" min="0" value="0"></div>
         <div><label>Gün</label><input name="gun" type="number" min="0" value="0"></div>
-        <div><label>Koşullu Salıverilme Oranı</label><select name="oran"><option value="1/2">1/2 (Genel)</option><option value="2/3">2/3 (İstisna / Mükerrir)</option><option value="3/4">3/4 (Ağır / Terör / Uyuşturucu)</option></select></div>
-        <div><label>Mahsup (Tutukluluk gün)</label><input name="mahsupGun" type="number" min="0" value="0"></div>
-        <div><label>Denetimli Serbestlik (yıl)</label><input name="denetimliYil" type="number" min="0" max="3" step="0.5" value="1"></div>
+        <div><label>Tutukluluk / gözaltı (gün)</label><input name="mahsupGun" type="number" min="0" value="0"></div>
+        <div><label>Tekerrür</label><select name="mukerrir"><option value="0">Mükerrir değil</option><option value="1">Mükerrir (1. kez)</option><option value="2">İkinci kez mükerrir</option></select></div>
+        <div><label>Suç tarihinde yaş</label><select name="yas"><option value="18ustu">18 ve üstü</option><option value="15-18">15-18</option><option value="15alti">15'ten küçük</option></select></div>
+        <div><label>İnfaza başlama (teslim) tarihi — isteğe bağlı</label><input type="date" name="baslangic"></div>
       </div>`,
       ceza: `<div class="ca-satir">
         <div><label>Temel Ceza — Yıl</label><input name="yil" type="number" min="0" value="2"></div>
@@ -1703,8 +1877,31 @@
         if (f.indir) { const [p, d] = f.indir.split('/'); f.adimlar.push({ tip: 'indir', pay: +p, payda: +d, ad: 'Kanuni indirim' }); }
         if (form.querySelector('[name=tck62]:checked')) f.adimlar.push({ tip: 'indir', pay: 1, payda: 6, ad: 'TCK m.62 takdiri indirim' });
       }
-      const r = H[{ vekalet: 'vekalet', faiz: 'faiz', harc: 'harc', smm: 'smm', cmk: 'cmkMakbuz', infaz: 'infaz', ceza: 'ceza' }[hesapTur]](f);
+      const r = H[{ vekalet: 'vekalet', faiz: 'faiz', harc: 'harc', smm: 'smm', cmk: 'cmkMakbuz', infaz: H.infazDetay ? 'infazDetay' : 'infaz', ceza: 'ceza' }[hesapTur]](f);
       if (r.hata) { kutu.innerHTML = `<p class="ca-soluk">${esc(r.hata)}</p>`; return; }
+      if (hesapTur === 'infaz' && r.gorsel) {
+        // Görsel: hükmedilen cezanın tamamı tek çubukta — mahsup, cezaevi, denetimli serbestlik, koşullu salıverilme sonrası
+        const g = r.gorsel, T = Math.max(1, g.toplam), yuz = n => Math.max(0, n / T * 100);
+        const parca = (n, renk, ad) => n > 0 ? `<div title="${ad}: ${n} gün" style="width:${yuz(n)}%;background:${renk};height:100%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;overflow:hidden;white-space:nowrap">${yuz(n) > 9 ? ad : ''}</div>` : '';
+        const cubuk = `<div style="display:flex;height:34px;border-radius:8px;overflow:hidden;border:1px solid var(--ce-border,#e2e8f0);margin:8px 0">
+            ${parca(g.mahsup, '#64748b', 'Mahsup')}${parca(g.cezaevi, '#b91c1c', 'Cezaevi')}${parca(g.ds, '#d97706', 'Denetimli serbestlik')}${parca(g.sonrasi, '#16a34a', 'Koşullu salıverilme sonrası')}</div>
+          <div style="display:flex;gap:12px;flex-wrap:wrap;font-size:12px">${[['#64748b', 'Mahsup', g.mahsup], ['#b91c1c', 'Cezaevi', g.cezaevi], ['#d97706', 'Denetimli serbestlik', g.ds], ['#16a34a', 'Koşullu salıverilme sonrası (denetim)', g.sonrasi]].map(([c, a, n]) => `<span><span style="display:inline-block;width:10px;height:10px;background:${c};border-radius:2px"></span> ${a}: <b>${n}</b> gün</span>`).join('')}</div>`;
+        const kanun = `<div style="margin-top:10px"><b>Suç tarihine göre uygulanan düzenlemeler</b>
+          <div style="position:relative;margin:10px 0 4px;padding-left:18px;border-left:3px solid #c8a45a">${(r.kanunlar || []).map(k => `
+            <div style="margin-bottom:8px;opacity:${k.uygulanir ? 1 : .55}"><span style="position:absolute;left:-8px;width:13px;height:13px;border-radius:50%;background:${k.uygulanir ? '#16a34a' : '#cbd5e1'};margin-top:4px"></span>
+              <b>${esc(k.tarih.split('-').reverse().join('.'))} · ${esc(k.ad)}</b> ${k.uygulanir ? '<span style="color:#166534;font-size:12px">✓ bu suça etkili</span>' : '<span class="ca-soluk" style="font-size:12px">etkisiz</span>'}<div class="ca-soluk" style="font-size:12.5px">${esc(k.ozet)}</div></div>`).join('')}</div></div>`;
+        const ger = (r.gerekce || []).map(x => `<div style="font-size:13px">• ${esc(x)}</div>`).join('');
+        const uy = (r.uyarilar || []).map(x => `<div class="ca-uyari">⚠️ ${esc(x)}</div>`).join('');
+        kutu.innerHTML = `<div class="ca-kart">${uy}${cubuk}<table style="margin-top:8px">${r.metinSatirlar.map(x => `<tr${x.vurgu ? ' style="font-weight:700"' : ''}><td>${esc(x.ad)}${x.ref ? `<div class="ca-soluk">${esc(x.ref)}</div>` : ''}</td><td style="text-align:right;white-space:nowrap">${x.vurgu ? '<span class="ca-hedef" style="font-size:16px">' : ''}${esc(x.deger)}${x.vurgu ? '</span>' : ''}</td></tr>`).join('')}</table>
+          ${ger ? `<div style="margin-top:8px"><b>Gerekçe</b>${ger}</div>` : ''}${kanun}
+          <p class="ca-soluk">${esc(r.not)}</p><button class="ca-btn" type="button" id="ca-hesap-ekle">📝 Belgeye ekle</button></div>`;
+        kutu.querySelector('#ca-hesap-ekle').onclick = () => {
+          const metin = r.metinSatirlar.map(x => `${x.ad}: ${x.deger}${x.ref ? ' (' + x.ref + ')' : ''}`).join('\n');
+          try { document.execCommand('insertText', false, metin); } catch (e) { navigator.clipboard && navigator.clipboard.writeText(metin); }
+          kapat();
+        };
+        return;
+      }
       const tablo = r.tablo ? `<table><tr><th>Dönem</th><th>Gün</th><th>Oran</th><th>Faiz</th></tr>${r.tablo.map(t =>
         `<tr><td>${t.bas.toLocaleDateString('tr-TR')} – ${t.bit.toLocaleDateString('tr-TR')}</td><td>${t.gun}</td><td>%${t.oran.toLocaleString('tr-TR')}</td><td>${H.TL(t.faiz)}</td></tr>`).join('')}</table>` : '';
       const satirHtml = (r.metinSatirlar && r.metinSatirlar.length)
@@ -1723,6 +1920,331 @@
     form.addEventListener('input', hesapla); form.addEventListener('change', hesapla);
     hesapla();
   }
+
+  // =========================================================================
+  // 5. PENCERELER: evrak önizleme ve "Dosya Görüntüle" — açık çalışmanızı kapatmadan üstte açılır
+  // =========================================================================
+  // Her pencere asistan panelinin üstünde ayrı, sürüklenebilir bir katmandır; altındaki sekme (arama sonuçları,
+  // ajanda, liste) olduğu gibi kalır. Birden çok pencere üst üste açılabilir; Esc en üsttekini kapatır.
+  const PENCERE_CSS = `
+  .cw-pencere{position:fixed;z-index:100010;display:flex;flex-direction:column;background:var(--ce-surface,#fff);color:var(--ce-text,#1f2937);
+    border-radius:12px;box-shadow:0 24px 60px rgba(0,0,0,.35);border:1px solid var(--ce-border,#e2e6ec);overflow:hidden;
+    width:min(1100px,calc(100vw - 24px));height:min(88vh,calc(100vh - 24px));font:14px/1.5 var(--ce-font-ui,system-ui,sans-serif)}
+  .cw-pencere.tam{inset:8px!important;width:auto!important;height:auto!important}
+  .cw-bas{display:flex;align-items:center;gap:8px;padding:8px 12px;background:#0f2341;color:#fff;cursor:move;user-select:none;flex-shrink:0}
+  .cw-bas b{flex:1;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .cw-bas button{border:0;background:rgba(255,255,255,.12);color:#fff;border-radius:6px;padding:3px 9px;cursor:pointer;font:inherit}
+  .cw-govde{flex:1;min-height:0;overflow:auto;padding:12px 14px}
+  .cw-arac{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:8px 12px;border-bottom:1px solid var(--ce-border,#e2e6ec);flex-shrink:0}
+  .cw-arac .ca-btn{margin:0}
+  .cw-sayfa{display:block;margin:0 auto 12px;max-width:100%;box-shadow:0 2px 10px rgba(0,0,0,.18);background:#fff}
+  .cw-udf{background:#fff;color:#111;max-width:820px;margin:0 auto;padding:48px 56px;box-shadow:0 2px 10px rgba(0,0,0,.18);font-family:'Times New Roman',serif;font-size:15px}
+  .cw-sekmeler{display:flex;gap:2px;padding:0 10px;border-bottom:1px solid var(--ce-border,#e2e6ec);overflow-x:auto;flex-shrink:0}
+  .cw-sekmeler button{border:0;background:none;padding:9px 12px;cursor:pointer;color:var(--ce-muted,#64748b);border-bottom:2px solid transparent;font:inherit;white-space:nowrap}
+  .cw-sekmeler button.secili{color:#0f2341;border-bottom-color:#c8a45a;font-weight:600}
+  .cw-izgara{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-bottom:10px}
+  .cw-izgara div{border:1px solid var(--ce-border,#e2e6ec);border-radius:10px;padding:8px 10px}
+  .cw-izgara b{display:block;font-size:17px}.cw-izgara span{font-size:12px;color:var(--ce-muted,#64748b)}
+  .cw-tablo{width:100%;border-collapse:collapse;font-size:13px}
+  .cw-tablo th,.cw-tablo td{padding:6px 8px;border-bottom:1px solid var(--ce-border,#eef0f3);text-align:left;vertical-align:top}
+  .cw-tablo tr:hover td{background:rgba(200,164,90,.07)}
+  .cw-mini{border:1px solid var(--ce-border,#d0d5dd);background:var(--ce-surface,#fff);border-radius:6px;padding:2px 7px;cursor:pointer;font-size:12px;margin:1px;color:inherit}
+  .cw-mini.ana{background:#0f2341;color:#fff;border-color:#0f2341}
+  .cw-cip{display:inline-block;font-size:11.5px;padding:1px 8px;border-radius:999px;font-weight:600;white-space:nowrap}
+  .cw-cip.yesil{background:#dcfce7;color:#166534}.cw-cip.sari{background:#fef9c3;color:#854d0e}.cw-cip.turuncu{background:#ffedd5;color:#9a3412}
+  .cw-cip.kirmizi{background:#fee2e2;color:#991b1b}.cw-cip.mavi{background:#dbeafe;color:#1e40af}.cw-cip.gri{background:#f1f5f9;color:#475569}
+  .cw-kart{border:1px solid var(--ce-border,#e2e6ec);border-radius:10px;padding:10px 12px;margin-bottom:10px}
+  `;
+  let cwZ = 100010, cwSayi = 0;
+  const cwListe = [];
+  function pencereAc(baslik) {
+    if (!document.getElementById('cw-stil')) { const st = document.createElement('style'); st.id = 'cw-stil'; st.textContent = PENCERE_CSS; document.head.appendChild(st); }
+    const kok = document.getElementById('ca-panel') || document.body;
+    const p = document.createElement('div');
+    p.className = 'cw-pencere';
+    const kay = (cwSayi++ % 6) * 22;
+    p.style.left = `calc(50vw - min(550px, 50vw - 12px) + ${kay}px)`;
+    p.style.top = `calc(6vh + ${kay}px)`;
+    p.style.zIndex = ++cwZ;
+    p.innerHTML = `<div class="cw-bas"><b></b><button type="button" data-cw="tam" title="Tam ekran">⤢</button><button type="button" data-cw="kapat" title="Kapat (Esc)">✕</button></div><div class="cw-ic" style="display:flex;flex-direction:column;flex:1;min-height:0"></div>`;
+    p.querySelector('.cw-bas b').textContent = baslik;
+    kok.appendChild(p);
+    cwListe.push(p);
+    const kapatP = () => { p.remove(); const i = cwListe.indexOf(p); if (i >= 0) cwListe.splice(i, 1); (p._temizle || []).forEach(f => { try { f(); } catch (e) { /* */ } }); };
+    p.querySelector('[data-cw="kapat"]').onclick = kapatP;
+    p.querySelector('[data-cw="tam"]').onclick = () => p.classList.toggle('tam');
+    p.addEventListener('mousedown', () => { p.style.zIndex = ++cwZ; });
+    const bas = p.querySelector('.cw-bas');
+    bas.addEventListener('pointerdown', e => {
+      if (e.target.closest('button') || p.classList.contains('tam')) return;
+      const r = p.getBoundingClientRect(), dx = e.clientX - r.left, dy = e.clientY - r.top;
+      const tasi = ev => { p.style.left = Math.max(0, Math.min(innerWidth - 80, ev.clientX - dx)) + 'px'; p.style.top = Math.max(0, Math.min(innerHeight - 40, ev.clientY - dy)) + 'px'; };
+      const birak = () => { removeEventListener('pointermove', tasi); removeEventListener('pointerup', birak); };
+      addEventListener('pointermove', tasi); addEventListener('pointerup', birak);
+    });
+    if (innerWidth < 700) p.classList.add('tam');
+    return { el: p, ic: p.querySelector('.cw-ic'), kapat: kapatP, baslik: t => { p.querySelector('.cw-bas b').textContent = t; } };
+  }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && cwListe.length) { e.stopPropagation(); e.preventDefault(); cwListe[cwListe.length - 1].querySelector('[data-cw="kapat"]').click(); }
+  }, true);
+
+  const evrakAdi = r => {
+    const cd = r.headers.get('Content-Disposition') || '';
+    return decodeURIComponent((cd.match(/filename\*=UTF-8''([^;]+)/) || [])[1] || 'Evrak');
+  };
+  const sihir = u8 => (u8[0] === 0x25 && u8[1] === 0x50) ? 'pdf' : ((u8[0] === 0x49 && u8[1] === 0x49) || (u8[0] === 0x4D && u8[1] === 0x4D)) ? 'tiff'
+    : (u8[0] === 0x50 && u8[1] === 0x4B) ? 'udf' : (u8[0] === 0xFF && u8[1] === 0xD8) ? 'jpg' : (u8[0] === 0x89 && u8[1] === 0x50) ? 'png' : 'diger';
+
+  /** Bayt dizisini pencere içinde çizer: PDF (pdf.js, sayfalar tembel), TIFF (UTIF), UDF (editörün kendi ayrıştırıcısı). */
+  async function bicimCiz(kap, buf, ad) {
+    const u8 = new Uint8Array(buf);
+    const tur = sihir(u8);
+    kap.innerHTML = '';
+    if (tur === 'pdf') {
+      const lib = window.pdfjsLib || window['pdfjs-dist/build/pdf'];
+      if (!lib) throw new Error('PDF görüntüleyici yüklenemedi');
+      if (lib.GlobalWorkerOptions && !lib.GlobalWorkerOptions.workerSrc) lib.GlobalWorkerOptions.workerSrc = 'pdf.worker.min.js';
+      const pdf = await lib.getDocument({ data: u8.slice() }).promise;
+      const bilgi = document.createElement('div'); bilgi.className = 'ca-soluk'; bilgi.style.marginBottom = '6px';
+      bilgi.textContent = `${pdf.numPages} sayfa · PDF`; kap.appendChild(bilgi);
+      const genis = Math.min(kap.clientWidth - 8 || 800, 1000);
+      const yuvalar = [];
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const c = document.createElement('canvas'); c.className = 'cw-sayfa'; c.dataset.s = i; c.style.width = genis + 'px'; c.style.height = Math.round(genis * 1.414) + 'px';
+        kap.appendChild(c); yuvalar.push(c);
+      }
+      const ciz = async c => {
+        if (c.dataset.cizildi) return; c.dataset.cizildi = '1';
+        const sayfa = await pdf.getPage(+c.dataset.s);
+        const v1 = sayfa.getViewport({ scale: 1 }), olcek = genis / v1.width * (window.devicePixelRatio || 1);
+        const vp = sayfa.getViewport({ scale: olcek });
+        c.width = vp.width; c.height = vp.height; c.style.height = Math.round(vp.height / (window.devicePixelRatio || 1)) + 'px';
+        await sayfa.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
+      };
+      if ('IntersectionObserver' in window) {
+        const io = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) ciz(e.target); }), { root: kap.closest('.cw-govde'), rootMargin: '600px' });
+        yuvalar.forEach(c => io.observe(c));
+      } else { for (const c of yuvalar.slice(0, 8)) await ciz(c); }
+      return 'pdf';
+    }
+    if (tur === 'tiff') {
+      if (!window.UTIF) throw new Error('TIFF görüntüleyici yüklenemedi');
+      const ifds = UTIF.decode(buf);
+      const bilgi = document.createElement('div'); bilgi.className = 'ca-soluk'; bilgi.textContent = `${ifds.length} sayfa · TIFF (orijinal)`; kap.appendChild(bilgi);
+      for (const ifd of ifds) {
+        UTIF.decodeImage(buf, ifd);
+        const rgba = UTIF.toRGBA8(ifd);
+        const c = document.createElement('canvas'); c.className = 'cw-sayfa'; c.width = ifd.width; c.height = ifd.height; c.style.width = Math.min(ifd.width, 1000) + 'px';
+        c.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(rgba.buffer), ifd.width, ifd.height), 0, 0);
+        kap.appendChild(c);
+      }
+      return 'tiff';
+    }
+    if (tur === 'udf' && typeof window.parseUdfArrayBuffer === 'function') {
+      const onceki = window.__udfSource;   // editörde açık belgenin UDF kaynağı bozulmasın
+      let r;
+      try { r = await window.parseUdfArrayBuffer(buf.slice(0)); } finally { window.__udfSource = onceki; }
+      const d = document.createElement('div'); d.className = 'cw-udf'; d.innerHTML = (r && r.html) || '<p>(boş belge)</p>';
+      const bilgi = document.createElement('div'); bilgi.className = 'ca-soluk'; bilgi.style.marginBottom = '6px'; bilgi.textContent = 'UDF (orijinal)' + (r && r.signature && r.signature.hasSignature ? ' · e-imzalı' : '');
+      kap.appendChild(bilgi); kap.appendChild(d);
+      return 'udf';
+    }
+    if (tur === 'jpg' || tur === 'png') {
+      const img = document.createElement('img'); img.className = 'cw-sayfa'; img.src = URL.createObjectURL(new Blob([buf])); kap.appendChild(img);
+      return tur;
+    }
+    kap.innerHTML = `<div class="cw-kart">Bu biçim (${esc(ad)}) burada önizlenemiyor. İndirip açabilirsiniz.</div>`;
+    return 'diger';
+  }
+
+  /** İndirmeden önizleme: önce PDF'e çevrilmiş hali; "Orijinali göster" UDF/TIFF'i olduğu gibi (önbelleğe alınır). */
+  function evrakOnizle(skey, baslik, bicim) {
+    const w = pencereAc('👁 ' + (baslik || 'Evrak önizleme'));
+    w.ic.innerHTML = `<div class="cw-arac">
+        <button class="ca-btn ana kucuk" type="button" data-b="pdf">📄 PDF önizleme</button>
+        <button class="ca-btn kucuk" type="button" data-b="orijinal">🗂️ Orijinali göster (UDF/TIFF)</button>
+        <button class="ca-btn kucuk" type="button" data-b="indir">⬇ İndir</button>
+        <button class="ca-btn kucuk" type="button" data-b="editor">✏️ Editörde aç</button>
+        <span class="ca-soluk cw-durum" style="margin-left:auto"></span></div>
+      <div class="cw-govde"><div class="cw-alan"><p class="ca-soluk">Hazırlanıyor… (yerelde yoksa UYAP'tan önbelleğe alınıyor)</p></div></div>`;
+    const alan = w.ic.querySelector('.cw-alan'), durum = w.ic.querySelector('.cw-durum');
+    let son = null;
+    const yukle = async b => {
+      w.ic.querySelectorAll('[data-b="pdf"],[data-b="orijinal"]').forEach(x => x.classList.toggle('ana', x.dataset.b === b));
+      alan.innerHTML = `<p class="ca-soluk">${b === 'pdf' ? 'PDF hazırlanıyor…' : 'Orijinal alınıyor…'} (yerelde yoksa UYAP'tan önbelleğe alınır, ilk açılış birkaç saniye sürebilir)</p>`;
+      const t0 = Date.now();
+      try {
+        const r = await api(`/api/evrak/onizle?skey=${encodeURIComponent(skey)}&bicim=${b}`, { ham: true });
+        const buf = await r.arrayBuffer();
+        son = { buf, ad: evrakAdi(r) };
+        const tur = await bicimCiz(alan, buf, son.ad);
+        durum.textContent = `${tur.toUpperCase()} · ${(buf.byteLength / 1024).toFixed(0)} KB · ${((Date.now() - t0) / 1000).toFixed(1)} sn`;
+      } catch (e) {
+        alan.innerHTML = `<div class="cw-kart ca-hata">Önizleme alınamadı: ${esc(e.message)}</div>`;
+      }
+    };
+    w.ic.querySelector('[data-b="pdf"]').onclick = () => yukle('pdf');
+    w.ic.querySelector('[data-b="orijinal"]').onclick = () => yukle('orijinal');
+    w.ic.querySelector('[data-b="indir"]').onclick = async () => {
+      try {
+        if (!son) { const r = await api(`/api/evrak/onizle?skey=${encodeURIComponent(skey)}&bicim=orijinal`, { ham: true }); son = { buf: await r.arrayBuffer(), ad: evrakAdi(r) }; }
+        if (window.saveBytesSmart) await window.saveBytesSmart(new Uint8Array(son.buf), son.ad, 'application/octet-stream');
+        else { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([son.buf])); a.download = son.ad; a.click(); }
+      } catch (e) { alert('İndirilemedi: ' + e.message); }
+    };
+    w.ic.querySelector('[data-b="editor"]').onclick = async () => {
+      try {
+        const r = await api(`/api/evrak/onizle?skey=${encodeURIComponent(skey)}&bicim=orijinal`, { ham: true });
+        const buf = await r.arrayBuffer();
+        kapat();
+        if (window.openDocumentFromBytes) await window.openDocumentFromBytes(buf, evrakAdi(r));
+      } catch (e) { alert('Açılamadı: ' + e.message); }
+    };
+    yukle(bicim || 'pdf');
+    return w;
+  }
+
+  const TLc = n => (n === null || n === undefined || n === '') ? '—' : '₺' + Number(n || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const trT = s => { const m = String(s || '').match(/(\d{4})-(\d{2})-(\d{2})/); return m ? `${m[3]}.${m[2]}.${m[1]}` : String(s || '').slice(0, 10); };
+  const KES_CIP = { kesin: ['yesil', 'Kesinleşmiş'], kesinlestirilebilir: ['turuncu', 'Kesinleştirilebilir'], sure_isliyor: ['mavi', 'Süre işliyor'],
+    itiraz: ['kirmizi', 'İtiraz'], teblig_bekleniyor: ['sari', 'Tebliğ bekleniyor'], bilinmiyor: ['gri', 'Bilinmiyor'] };
+  const TK_CIP = { kirmizi: 'kirmizi', turuncu: 'turuncu', sari: 'sari', yesil: 'yesil', kapali: 'gri', bilinmiyor: 'gri' };
+
+  /** Evrak satırı düğmeleri (önizle / orijinal / indir / Drive) — tüm listelerde aynı. */
+  function evrakDugme(e, driveUrl) {
+    return `<span style="white-space:nowrap">
+      <button class="cw-mini ana" type="button" data-onizle="${esc(e.skey)}" data-ad="${esc(e.tur || 'Evrak')}">👁 Önizle</button>
+      <button class="cw-mini" type="button" data-orijinal="${esc(e.skey)}" data-ad="${esc(e.tur || 'Evrak')}">🗂️ Orijinal</button>
+      ${driveUrl ? `<a class="cw-mini" href="${esc(driveUrl)}" target="_blank" rel="noopener" title="Drive'da aç">☁️ Drive</a>` : ''}
+      </span>`;
+  }
+  function evrakDugmeBagla(kap) {
+    kap.addEventListener('click', e => {
+      const b = e.target.closest('[data-onizle],[data-orijinal],[data-dosya-ac]');
+      if (!b) return;
+      if (b.dataset.onizle) evrakOnizle(b.dataset.onizle, b.dataset.ad, 'pdf');
+      else if (b.dataset.orijinal) evrakOnizle(b.dataset.orijinal, b.dataset.ad, 'orijinal');
+      else if (b.dataset.dosyaAc) dosyaPenceresi(b.dataset.dosyaAc);
+    });
+  }
+
+  /** DOSYA GÖRÜNTÜLE: Notion sayfası gibi tek pencerede her şey — konu, taraflar, hesap, tahsilat/reddiyat,
+   *  safahat, tüm evraklar (aranır/süzülür, önizlenir), duruşma/tebligat, Drive eşitleme, icra analizi, notlar. */
+  async function dosyaPenceresi(dkey, ipucu) {
+    const w = pencereAc('📂 ' + (ipucu || 'Dosya'));
+    w.ic.innerHTML = '<div class="cw-govde"><p class="ca-soluk">Dosya yükleniyor…</p></div>';
+    let v;
+    try { v = await api('/api/dosya/detay?dkey=' + encodeURIComponent(dkey)); }
+    catch (e) { w.ic.innerHTML = `<div class="cw-govde"><div class="cw-kart ca-hata">${esc(e.message)}</div></div>`; return w; }
+    const d = v.dosya || {}, h = v.hesap || {}, ev = v.evraklar || [], defter = v.drive_defter || {};
+    w.baslik(`📂 ${d.birim || ''} · ${d.dosya_no || ''}`);
+    const drivede = ev.filter(e => defter[String(e.id)]).length;
+    const indirilen = ev.filter(e => e.yerel).length;
+    const sekmeler = [['genel', '📌 Genel'], ['evrak', `📄 Evraklar (${ev.length})`], ['hesap', '💰 Hesap'], ['safahat', `🧭 Safahat (${(v.safahat || []).length})`],
+      ['taraf', `👥 Taraflar (${(v.taraf_listesi || []).length})`], ['durusma', '📅 Duruşma & Tebligat'], ['drive', `☁️ Drive (${drivede}/${ev.length})`], ['not', '📝 Notlar']];
+    w.ic.innerHTML = `<div class="cw-sekmeler">${sekmeler.map(([k, a], i) => `<button type="button" data-s="${k}" class="${i ? '' : 'secili'}">${a}</button>`).join('')}</div><div class="cw-govde"></div>`;
+    const govde = w.ic.querySelector('.cw-govde');
+    evrakDugmeBagla(govde);
+    const ia = v.icra;
+    const genel = () => `
+      <div class="cw-izgara">
+        <div><span>Durum</span><b>${esc(d.durum || '—')}</b></div>
+        <div><span>Açılış</span><b>${esc(trT(d.acilis))}</b></div>
+        <div><span>Evrak</span><b>${ev.length}</b><span>${indirilen} indirildi · ${drivede} Drive'da</span></div>
+        <div><span>${h.is_icra ? 'Kalan bakiye' : 'Artan avans'}</span><b>${h.cekildi ? TLc(h.is_icra ? h.kalan_borc : h.artan_avans) : '—'}</b><span>${h.cekildi ? 'UYAP: ' + esc((h.son_guncelleme || '').slice(0, 16)) : 'hesap çekilmedi'}</span></div>
+      </div>
+      ${v.konu && v.konu.metin ? `<div class="cw-kart"><b>📌 Dosya konusu</b> <span class="ca-soluk">(${esc(v.konu.kaynak || '')})</span>${v.konu.url ? ` · <a href="${esc(v.konu.url)}" target="_blank" rel="noopener">Notion sayfası</a>` : ''}<div style="margin-top:4px;line-height:1.5">${esc(v.konu.metin)}</div></div>` : ''}
+      ${ia ? `<div class="cw-kart"><b>⚖️ İcra takibi</b> <span class="cw-cip ${KES_CIP[ia.kesinlesme.durum][0]}">${KES_CIP[ia.kesinlesme.durum][1]}</span>
+          <span class="cw-cip ${TK_CIP[ia.takipsizlik.seviye] || 'gri'}">${ia.takipsizlik.gun != null ? ia.takipsizlik.gun + ' gün işlemsiz' : 'işlem bilgisi yok'}</span>
+          <div style="margin-top:6px"><b>${esc(ia.kesinlesme.baslik)}</b><div>${esc(ia.kesinlesme.aciklama || '')}</div></div>
+          <div style="margin-top:6px" class="ca-soluk">${esc(ia.takipsizlik.aciklama || '')} · Takip türü: ${esc(ia.kesinlesme.takip_turu)} (itiraz süresi ${ia.kesinlesme.itiraz_suresi} gün)</div></div>` : ''}
+      <div class="cw-kart"><b>Son evraklar</b><table class="cw-tablo">${ev.slice(0, 8).map(e => `<tr><td>${esc(trT(e.tarih))}</td><td><b>${esc(e.tur || '')}</b><div class="ca-soluk">${esc(e.aciklama || '')}</div></td><td>${evrakDugme(e, (defter[String(e.id)] || {}).url)}</td></tr>`).join('')}</table></div>`;
+    const evrakSekme = () => {
+      const katlar = [...new Set(ev.map(e => e.kategori).filter(Boolean))].sort();
+      setTimeout(() => {
+        const q = govde.querySelector('#cw-eq'), ks = govde.querySelector('#cw-ek'), ds = govde.querySelector('#cw-ed'), tb = govde.querySelector('#cw-et');
+        const fold = s => String(s || '').toLocaleLowerCase('tr').replace(/[ıi̇]/g, 'i').replace(/ş/g, 's').replace(/ğ/g, 'g').replace(/ü/g, 'u').replace(/ö/g, 'o').replace(/ç/g, 'c');
+        const ciz = () => {
+          const t = fold(q.value.trim()).split(/\s+/).filter(Boolean);
+          const l = ev.filter(e => (!ks.value || e.kategori === ks.value)
+            && (!ds.value || (ds.value === 'indi' ? e.yerel : ds.value === 'indirilmedi' ? !e.yerel : ds.value === 'drive' ? defter[String(e.id)] : !defter[String(e.id)]))
+            && t.every(x => fold(`${e.tur} ${e.aciklama} ${e.tarih} ${e.kategori}`).includes(x)));
+          tb.innerHTML = `<tr><th>Tarih</th><th>Evrak</th><th>Durum</th><th></th></tr>` + l.slice(0, 1500).map(e => {
+            const dr = defter[String(e.id)];
+            return `<tr><td style="white-space:nowrap">${esc(trT(e.tarih))}</td><td>${e.is_ek ? '↳ ' : ''}<b>${esc(e.tur || '')}</b><div class="ca-soluk">${esc(e.aciklama || '')}${e.kategori ? ' · ' + esc(e.kategori) : ''}</div></td>
+              <td>${e.yerel ? '<span class="cw-cip yesil">indirildi</span>' : '<span class="cw-cip gri">UYAP\'ta</span>'} ${dr ? '<span class="cw-cip mavi">☁ Drive</span>' : ''}</td><td>${evrakDugme(e, dr && dr.url)}</td></tr>`;
+          }).join('') + (l.length > 1500 ? `<tr><td colspan="4" class="ca-soluk">… ${l.length - 1500} evrak daha (aramayı daraltın)</td></tr>` : '');
+          govde.querySelector('#cw-esay').textContent = `${l.length} / ${ev.length} evrak`;
+        };
+        [q, ks, ds].forEach(x => x.addEventListener('input', ciz)); ciz();
+      });
+      return `<div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:8px;margin-bottom:8px">
+        <input id="cw-eq" placeholder="Evraklarda ara (tür, açıklama, tarih)…"><select id="cw-ek"><option value="">Tüm kategoriler</option>${katlar.map(k => `<option>${esc(k)}</option>`).join('')}</select>
+        <select id="cw-ed"><option value="">Tümü</option><option value="indi">İndirilmiş</option><option value="indirilmedi">İndirilmemiş</option><option value="drive">Drive'da</option><option value="drivesiz">Drive'da olmayan</option></select></div>
+        <div class="ca-soluk" id="cw-esay"></div><table class="cw-tablo" id="cw-et"></table>`;
+    };
+    const kalemTablo = (l, bas) => !l.length ? `<p class="ca-soluk">${bas} kaydı yok.</p>` : `<table class="cw-tablo"><tr><th>Tarih</th><th>Tür / açıklama</th><th>Kişi</th><th style="text-align:right">Tutar</th></tr>${l.map(x => `<tr>
+        <td>${esc(trT(x.tahsilatTarihi || x.reddiyatTarihi || x.tarih || x.islemTarihi || ''))}</td>
+        <td>${esc(x.tahsilatTuru || x.reddiyatTuru || x.harcMasrafAdi || x.aciklama || x.turu || '')}</td>
+        <td>${esc(x.odeyenAdi || x.alanAdi || x.adSoyad || x.kisiAdi || '')}</td>
+        <td style="text-align:right;white-space:nowrap">${TLc(x.miktar ?? x.tutar ?? x.tahsilatTutari ?? x.reddiyatTutari)}</td></tr>`).join('')}</table>`;
+    const hesapSekme = () => `
+      <div class="cw-kart">${h.cekildi ? `<div class="cw-izgara">${(h.is_icra ? [['Asıl alacak', h.asil_alacak], ['Faiz', h.islemis_faiz], ['Vekâlet', h.vekalet_ucreti], ['Masraf+harç', h.masraf_harc], ['Toplam', h.toplam_borc], ['Tahsilat', h.tahsilat], ['Reddiyat', h.reddiyat], ['Kasada', h.kasada_bekleyen], ['Bakiye', h.kalan_borc]]
+        : [['Yatırılan', h.tahsilat], ['Kullanılan', h.reddiyat], ['Harçlar', h.masraf_harc], ['Artan avans', h.artan_avans]]).map(([a, x]) => `<div><span>${a}</span><b>${TLc(x)}</b></div>`).join('')}</div>
+        ${(h.harc_kalemleri || []).length ? `<b>Harç kalemleri</b><table class="cw-tablo">${h.harc_kalemleri.map(k => `<tr><td>${esc(k.ad)}</td><td style="text-align:right">${TLc(k.tutar)}</td></tr>`).join('')}</table>` : ''}`
+        : '<p class="ca-soluk">Bu dosyanın hesabı henüz UYAP\'tan çekilmedi.</p>'}
+        <button class="ca-btn kucuk" type="button" id="cw-hesap-yenile">🔄 UYAP'tan yenile</button> <span class="ca-soluk" id="cw-hesap-d"></span></div>
+      <div class="cw-kart"><b>💵 Tahsilatlar</b>${kalemTablo(v.tahsilat || [], 'Tahsilat')}</div>
+      <div class="cw-kart"><b>📤 Reddiyatlar</b>${kalemTablo(v.reddiyat || [], 'Reddiyat')}</div>`;
+    const safahatSekme = () => (v.safahat || []).length ? `<input id="cw-sq" placeholder="Safahatta ara…" style="margin-bottom:8px"><table class="cw-tablo" id="cw-st">${(v.safahat || []).map(s => `<tr data-m="${esc((s.tur + ' ' + s.aciklama).toLocaleLowerCase('tr'))}"><td style="white-space:nowrap">${esc(s.tarih || '')}</td><td><b>${esc(s.tur || '')}</b><div class="ca-soluk">${esc(s.aciklama || '')}</div></td><td class="ca-soluk">${esc(s.birim || '')}</td></tr>`).join('')}</table>`
+      : '<p class="ca-soluk">Safahat henüz çekilmedi (Senkron açıkken icra dosyalarında hesapla birlikte, diğerlerinde yeni evrakla gelir). "Hesap" sekmesinden "UYAP\'tan yenile" de safahatı çeker.</p>';
+    const tarafSekme = () => `<table class="cw-tablo"><tr><th>Ad</th><th>Rol</th><th>Vekil</th></tr>${(v.taraf_listesi || []).map(t => `<tr><td>${t.muvekkil ? '<span class="cw-cip yesil">Müvekkil</span> ' : ''}<b>${esc(t.ad)}</b></td><td>${esc(t.rol)}</td><td class="ca-soluk">${esc(t.vekil)}</td></tr>`).join('')}</table>`;
+    const durusmaSekme = () => `<div class="cw-kart"><b>📅 Duruşmalar</b>${(v.durusmalar || []).length ? `<table class="cw-tablo">${v.durusmalar.map(x => `<tr><td>${esc(trT(x.tarih))} ${esc(x.saat || '')}</td><td>${esc(x.yer || '')}</td><td>${esc(x.aciklama || '')}</td><td>${esc(x.durum || '')}</td></tr>`).join('')}</table>` : '<p class="ca-soluk">Kayıt yok.</p>'}</div>
+      <div class="cw-kart"><b>📨 Tebligatlar</b>${(v.tebligatlar || []).length ? `<table class="cw-tablo">${v.tebligatlar.map(x => `<tr><td>${esc(trT(x.eklenme))}</td><td>${esc(x.tebligat_turu || '')}</td><td>${esc(x.evrak_adi || '')}</td></tr>`).join('')}</table>` : '<p class="ca-soluk">Kayıt yok.</p>'}</div>
+      ${ia ? `<div class="cw-kart"><b>🧭 İcra zaman çizelgesi</b><table class="cw-tablo">${(ia.zaman_cizelgesi || []).slice().reverse().map(o => `<tr><td>${esc(trT(o.tarih))}</td><td><span class="cw-cip gri">${esc(o.kaynak)}</span></td><td>${esc(o.metin)}</td></tr>`).join('')}</table></div>` : ''}`;
+    const driveSekme = () => `<div class="cw-izgara"><div><span>Drive'a yüklenen</span><b>${drivede} / ${ev.length}</b></div><div><span>İndirilen</span><b>${indirilen}</b></div><div><span>Drive'daki dosyalar (esas no)</span><b>${(v.drive_dosyalar || []).length}</b></div></div>
+      <div style="height:8px;border-radius:6px;background:#e5e7eb;overflow:hidden;margin-bottom:10px"><div style="height:100%;width:${ev.length ? Math.round(drivede / ev.length * 100) : 0}%;background:#16a34a"></div></div>
+      <table class="cw-tablo">${(v.drive_dosyalar || []).map(f => `<tr><td>${esc(f.ad)}</td><td class="ca-soluk">${esc(f.klasor || '')}</td><td>${f.url ? `<a class="cw-mini" href="${esc(f.url)}" target="_blank" rel="noopener">☁️ Aç</a>` : ''}</td></tr>`).join('') || '<tr><td class="ca-soluk">Drive indeksinde bu esas numarasına ait dosya yok (Drive Ayarları → İndeksle).</td></tr>'}</table>`;
+    const notSekme = () => `${(v.notlar || []).map(n => `<div class="cw-kart"><b>${esc(n.baslik)}</b> <span class="ca-soluk">${esc(n.zaman)}</span><div style="white-space:pre-wrap">${esc(n.metin)}</div></div>`).join('') || '<p class="ca-soluk">Not yok.</p>'}
+      <input id="cw-nb" placeholder="Başlık" style="margin-top:8px"><textarea id="cw-nm" rows="4" style="width:100%;margin-top:6px;box-sizing:border-box" placeholder="Not"></textarea>
+      <button class="ca-btn ana kucuk" type="button" id="cw-nk">💾 Notu kaydet</button>`;
+    const SEK = { genel, evrak: evrakSekme, hesap: hesapSekme, safahat: safahatSekme, taraf: tarafSekme, durusma: durusmaSekme, drive: driveSekme, not: notSekme };
+    const goster = k => {
+      w.ic.querySelectorAll('.cw-sekmeler button').forEach(b => b.classList.toggle('secili', b.dataset.s === k));
+      govde.innerHTML = SEK[k]();
+      govde.scrollTop = 0;
+      const hy = govde.querySelector('#cw-hesap-yenile');
+      if (hy) hy.onclick = async () => {
+        hy.disabled = true; govde.querySelector('#cw-hesap-d').textContent = 'UYAP\'tan çekiliyor…';
+        try { await api('/api/dosya/hesap_yenile', { method: 'POST', govde: { dkey } }); w.kapat(); dosyaPenceresi(dkey, ipucu); }
+        catch (e) { govde.querySelector('#cw-hesap-d').textContent = e.message; hy.disabled = false; }
+      };
+      const sq = govde.querySelector('#cw-sq');
+      if (sq) sq.oninput = () => { const t = sq.value.toLocaleLowerCase('tr'); govde.querySelectorAll('#cw-st tr').forEach(tr => { tr.style.display = !t || tr.dataset.m.includes(t) ? '' : 'none'; }); };
+      const nk = govde.querySelector('#cw-nk');
+      if (nk) nk.onclick = async () => {
+        const metin = govde.querySelector('#cw-nm').value.trim(); if (!metin) return;
+        try { await api('/api/dosya/not', { method: 'POST', govde: { dkey, esas_no: d.dosya_no, birim: d.birim, baslik: govde.querySelector('#cw-nb').value.trim() || 'Dosya Notu', metin } });
+          v.notlar = [{ baslik: govde.querySelector('#cw-nb').value.trim() || 'Dosya Notu', metin, zaman: new Date().toLocaleString('tr-TR') }, ...(v.notlar || [])]; goster('not'); }
+        catch (e) { alert(e.message); }
+      };
+    };
+    w.ic.querySelector('.cw-sekmeler').onclick = e => { const b = e.target.closest('[data-s]'); if (b) goster(b.dataset.s); };
+    goster('genel');
+    return w;
+  }
+
+  /** birim + esas no ile (ajanda, tebligat, yenilikler satırları) dosya penceresi. */
+  async function dosyaPenceresiBul(birim, dosyaNo) {
+    try {
+      const r = await api(`/api/dosya/bul?birim=${encodeURIComponent(birim || '')}&dosya_no=${encodeURIComponent(dosyaNo || '')}`);
+      if (r.dkey) return dosyaPenceresi(r.dkey, `${birim} · ${dosyaNo}`);
+      alert('Bu dosya UYAP kataloğunda henüz yok (Senkron açıkken kataloğa eklenir).');
+    } catch (e) { alert(e.message); }
+  }
+  window.CanPencere = { ac: pencereAc, evrakOnizle, dosya: dosyaPenceresi, dosyaBul: dosyaPenceresiBul, evrakDugme, evrakDugmeBagla };
+
 
   window.CanAsistan = { yenilikDenetle, ac, kapat, sureHesapla, uygulanacakGun, tatilUyarilari, a4Yerlesim, a4PdfOlustur, api };
   window.openHukukAsistani = ac;

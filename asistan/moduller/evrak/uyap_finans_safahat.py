@@ -578,6 +578,12 @@ class UyapFinansSafahatManager:
             try:
                 if ic:
                     self.fetch_icra_hesap(r["dosya_id"], r["dkey"], r["birim"], r["dosya_no"])
+                    # Safahat: ödeme/icra emri tebliğleri, itirazlar, haciz ve sorgu işlemleri burada görünür;
+                    # kesinleşme ve takipsizlik analizi (icra_analiz) buna dayanır.
+                    try:
+                        self.fetch_safahat(r["dosya_id"], r["dkey"], r["birim"], r["dosya_no"])
+                    except Exception as e:  # noqa: BLE001
+                        logger.warning("[%s] Safahat alınamadı: %s", r["dkey"], e)
                     sonuc["icra"] += 1
                 else:
                     self.fetch_finans(r["dosya_id"], r["dkey"], r["birim"], r["dosya_no"], is_icra=False)

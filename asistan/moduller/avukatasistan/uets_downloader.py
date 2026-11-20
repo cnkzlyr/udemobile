@@ -73,101 +73,20 @@ def get_target_download_dir():
     return fallback
 
 def get_latest_gmail_msg_id():
-    """Giriş yapılmadan önce mevcut son e-posta ID'sini tespit eder."""
-    gmail_user = CONFIG.get("GMAIL_USER")
-    gmail_pass = CONFIG.get("GMAIL_APP_PASS")
-    if not gmail_user or not gmail_pass:
-        return 0
-    clean_pass = str(gmail_pass).replace(" ", "").strip()
-    label_name = CONFIG.get("GMAIL_UETS_LABEL", '"UETS Giris&Ayc- Kodu"')
-    try:
-        mail = imaplib.IMAP4_SSL("imap.gmail.com", timeout=10)
-        mail.login(gmail_user, clean_pass)
-        status, _ = mail.select(label_name)
-        if status != "OK":
-            mail.select("INBOX")
-        _, data = mail.search(None, "ALL")
-        mail.logout()
-        ids = data[0].split()
-        return int(ids[-1]) if ids else 0
-    except Exception:
-        return 0
+    """Geriye uyumluluk: artık ileti numarası değil, GİRİŞ ANI kullanılır (gmail_otp zamana göre seçer)."""
+    global _GIRIS_ANI
+    _GIRIS_ANI = time.time()
+    return 0
 
-def fetch_otp_from_gmail(since_msg_id=0, max_age_seconds=120):
-    """
-    Gmail IMAP üzerinden 'UETS Giriş Kodu' etiketindeki veya gelen kutusundaki
-    yeni UETS doğrulama e-postasını okuyup 6 haneli kodu çeker.
-    Eğer since_msg_id verilmişse, sadece bu ID'den daha sonra gelen e-postaları kabul eder.
-    """
-    gmail_user = CONFIG.get("GMAIL_USER")
-    gmail_pass = CONFIG.get("GMAIL_APP_PASS")
-    if not gmail_user or not gmail_pass:
-        return None
-    
-    clean_pass = str(gmail_pass).replace(" ", "").strip()
-    label_name = CONFIG.get("GMAIL_UETS_LABEL", '"UETS Giris&Ayc- Kodu"')
 
-    try:
-        mail = imaplib.IMAP4_SSL("imap.gmail.com", timeout=12)
-        mail.login(gmail_user, clean_pass)
-        
-        status, _ = mail.select(label_name)
-        if status != "OK":
-            status, _ = mail.select("INBOX")
-        
-        if status != "OK":
-            mail.logout()
-            return None
+_GIRIS_ANI = 0.0
 
-        status, data = mail.search(None, "ALL")
-        if status != "OK" or not data[0]:
-            mail.logout()
-            return None
 
-        msg_ids = data[0].split()
-        if not msg_ids:
-            mail.logout()
-            return None
-
-        # En son e-postalardan geriye doğru tara
-        for msg_id in reversed(msg_ids[-5:]):
-            mid_int = int(msg_id)
-            if since_msg_id > 0 and mid_int <= since_msg_id:
-                continue
-
-            res, msg_data = mail.fetch(msg_id, "(RFC822)")
-            if res != "OK" or not msg_data:
-                continue
-            
-            raw_email = msg_data[0][1]
-            msg = email.message_from_bytes(raw_email, policy=policy.default)
-            
-            # Tarih tazelik kontrolü
-            try:
-                date_str = msg.get("date")
-                if date_str:
-                    msg_dt = email.utils.parsedate_to_datetime(date_str)
-                    now_utc = datetime.datetime.now(datetime.timezone.utc)
-                    age = (now_utc - msg_dt.astimezone(datetime.timezone.utc)).total_seconds()
-                    if age > max_age_seconds:
-                        continue
-            except Exception:
-                pass
-
-            body = msg.get_body(preferencelist=("plain", "html"))
-            if body:
-                content = body.get_content()
-                m = re.search(r"Sayin [^,]+,\s*(\d{6})\s*kodunu", content, re.IGNORECASE) or \
-                    re.search(r"\b(\d{6})\b\s*kodunu", content, re.IGNORECASE) or \
-                    re.search(r"(?:Doğrulama Kodu)[^\d]*(\d{6})", content, re.IGNORECASE)
-                if m:
-                    code = m.group(1)
-                    mail.logout()
-                    return code, f"Gmail ('{label_name.strip('\"')}') - {msg.get('date', '')}"
-        mail.logout()
-    except Exception:
-        pass
-    return None
+def fetch_otp_from_gmail(since_msg_id=0, max_age_seconds=240):
+    """Gmail'den UETS kodu (gmail_otp: etiket + Tüm Postalar + Gelen Kutusu, zamana göre, hatalar açıkça yazılır)."""
+    import gmail_otp
+    return gmail_otp.otp_oku(_GIRIS_ANI or (time.time() - max_age_seconds), CONFIG.get("GMAIL_USER"),
+                             CONFIG.get("GMAIL_APP_PASS"), en_fazla_yas_sn=max_age_seconds)
 
 def otp_dosyasi():
     """Panelden elle girilen UETS giriş kodunun yazıldığı dosya (sunucu /api/uets/otp ile yazar)."""
@@ -188,7 +107,7 @@ def _elle_girilen_otp(sonra: float):
     return None
 
 
-def find_latest_otp_code(since_msg_id=0, wait_seconds=3, poll_timeout=50):
+def find_latest_otp_code(since_msg_id=0, wait_seconds=3, poll_timeout=90):
     """
     UETS Doğrulama Kodunu canlı olarak Gmail IMAP üzerinden yakalar;
     bulamazsa İndirilenler klasöründeki yeni .eml dosyalarını kontrol eder.
@@ -197,7 +116,7 @@ def find_latest_otp_code(since_msg_id=0, wait_seconds=3, poll_timeout=50):
         print(f"⏳ Kodun Gmail'e ulaşması için {wait_seconds} sn bekleniyor...")
         time.sleep(wait_seconds)
 
-    print("📬 Gmail ('UETS Giriş Kodu' etiketi) taranıyor... (kodu CanEditor → Tebligatlar'dan elle de girebilirsiniz)")
+    print("📬 Gmail taranıyor ('UETS Giriş Kodu' etiketi, Tüm Postalar, Gelen Kutusu)... (kodu CanEditor → Tebligatlar'dan elle de girebilirsiniz)")
     start_t = time.time()
     # Gmail ayarlı değilse kullanıcıya kodu panelden yazması için daha uzun süre tanınır
     gmail_var = bool(CONFIG.get("GMAIL_USER") and CONFIG.get("GMAIL_APP_PASS"))
@@ -206,8 +125,14 @@ def find_latest_otp_code(since_msg_id=0, wait_seconds=3, poll_timeout=50):
         elle = _elle_girilen_otp(start_t - 5)
         if elle:
             return elle, "Elle girildi (CanEditor paneli)"
-        res = fetch_otp_from_gmail(since_msg_id=since_msg_id, max_age_seconds=180) if gmail_var else None
+        res = fetch_otp_from_gmail(since_msg_id=since_msg_id, max_age_seconds=240) if gmail_var else None
         if res:
+            try:
+                import gmail_otp
+                gmail_otp.kullanildi_isaretle(res[0])
+            except Exception:
+                pass
+            print(f"✅ UETS kodu bulundu: {res[1]}")
             return res
         time.sleep(2.5)
 
@@ -771,7 +696,7 @@ def login_and_download(headless=False, count=None, auto_sync=True, external_driv
                     print("\n📬 Doğrulama kodu (OTP) ekranı algılandı!")
                     tani.adim(driver, "otp-ekrani")
                     print("⏳ UETS güvenlik kodu e-postadan (Gmail) alınıyor...")
-                    otp_info = find_latest_otp_code(since_msg_id=baseline_msg_id, wait_seconds=3, poll_timeout=50)
+                    otp_info = find_latest_otp_code(since_msg_id=baseline_msg_id, wait_seconds=3, poll_timeout=90)
                     if otp_info:
                         code, source = otp_info
                         tani.gizle(code)

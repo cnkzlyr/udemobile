@@ -833,6 +833,37 @@ class UyapWatcher:
         if c is not None:
             c.close()
 
+    def _arsiv_katalogla(self, adet: int = 60) -> None:
+        try:
+            if getattr(self, "motor", None) is None or getattr(self, "bridge", None) is None:
+                return
+            cases = self.bridge.query_tum_dosyalar(include_closed=True) or []
+            if not cases:
+                return
+            bilinen = {r[0]: (r[1] or "", r[2] or "") for r in self.katalog.db.execute(
+                "SELECT dkey, tarama, taranma FROM dosya").fetchall()}
+            esik = (dt.datetime.now() - dt.timedelta(days=14)).strftime("%Y-%m-%d")
+            adaylar = []
+            for c in cases:
+                dkey = self.motor._case_dkey(c)
+                tarama, taranma = bilinen.get(dkey, ("", ""))
+                if dkey not in bilinen or tarama != "tamam" or (taranma and taranma[:10] < esik):
+                    adaylar.append(dkey)
+            if not adaylar:
+                return
+            secilen = set(adaylar[:adet])
+            logger.info("🗂️ Arşiv kataloğu: %d dosyanın evrak listesi alınıyor (kalan %d / toplam %d dosya)...",
+                        len(secilen), len(adaylar), len(cases))
+            self.motor.scan(include_closed=True, only_dkeys=secilen)
+            try:
+                self.katalog.db.execute("UPDATE dosya SET taranma=? WHERE dkey IN (%s) AND tarama='tamam'"
+                                        % ",".join("?" * len(secilen)), (dt.datetime.now().strftime("%Y-%m-%d %H:%M"), *secilen))
+                self.katalog.db.commit()
+            except Exception:  # noqa: BLE001
+                pass
+        except Exception as e:  # noqa: BLE001
+            logger.warning("Arşiv kataloğu atlandı: %s", e)
+
     def _hesap_tazele(self) -> None:
         """Boşta: hesabı hiç çekilmemiş / 24 saatten eski dosyaların UYAP hesaplarını (icra kapak hesabı, tahsilat,
         reddiyat, harçlar, artan avans) azar azar tazeler. Böylece Dosya Hesapları ekranı hep gerçek veriyi gösterir."""
@@ -890,6 +921,12 @@ class UyapWatcher:
                     yeni_sayisi = stats.get("new_downloaded", 0) if isinstance(stats, dict) else stats
                     if yeni_sayisi > 0:
                         logger.info("🔔 V.I.P. Nöbetçi: %d adet taze evrak yakalandı ve Google Drive'a yüklendi!", yeni_sayisi)
+
+                # 2b. TÜM ARŞİVİN KATALOĞU: kapalı dosyalar dahil her dosyanın evrak LİSTESİ (indirmeden) kataloğa
+                # işlenir; Evrak Ara bütün UYAP evrakında arar, arşiv eşitleme şeridi de bütün arşivi görür.
+                # Her turda en çok 60 dosya (UYAP'ı yormadan); 731 dosya ~3 saatte tamamlanır, sonra 14 günde bir tazelenir.
+                if tam_tur:
+                    self._arsiv_katalogla(adet=60)
 
                 # 3. Duruşma kontrolü (Önümüzdeki 7 gün)
                 if tam_tur:

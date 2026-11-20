@@ -43,7 +43,7 @@ def _yeniden_deneme_beklemeleri():
     return baglanti.kisa_beklemeler()
 
 
-def tt_oku(url, what="görevler", method="GET", json_body=None, timeout=15):
+def tt_oku(url, what="görevler", method="GET", json_body=None, timeout=40):
     """TickTick'ten OKUMA: kısa yeniden denemeler, sonra internet gelene kadar bekleyip AYNI yerden devam.
     200 ya da 404 yanıtını döndürür; başaramazsa TickTickOkumaHatasi (asla sessizce boş liste döndürmez)."""
     return baglanti.oku(method, url, get_ticktick_headers(), json_body=json_body, timeout=timeout,
@@ -319,7 +319,7 @@ def _filtre_istek(govde):
     """POST /task/filter (TickTick Open API): status 2 = tamamlandı, -1 = yapılmayacak. Desteklenmiyorsa []."""
     try:
         r = tt_oku(f"{CONFIG['TICKTICK_API_BASE']}/task/filter", what="kapalı görevler (filtre)", method="POST",
-                   json_body=govde, timeout=25)
+                   json_body=govde, timeout=60)
         if r.status_code == 200 and r.content:
             v = r.json()
             return v if isinstance(v, list) else (v.get("tasks") or v.get("result") or [])
