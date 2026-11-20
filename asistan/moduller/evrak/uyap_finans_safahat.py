@@ -13,6 +13,7 @@ Bu modül:
 """
 
 import os
+import re
 import sys
 import json
 import time
@@ -27,7 +28,105 @@ if not logger.handlers:
     logger.addHandler(_handler)
     logger.setLevel(logging.INFO)
 
-DB_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "uyap_katalog.db"))
+# Katalogla AYNI veritabanı: paketli uygulamada UYAP_VERI_DIZINI (eskiden modül klasörüne yazılıyor, sunucu
+# kataloğu başka yerde okuduğunda hesaplar hiç görünmüyordu).
+DB_PATH = os.path.join(os.environ.get("UYAP_VERI_DIZINI") or os.path.dirname(os.path.abspath(__file__)), "uyap_katalog.db")
+
+
+def _fold(s) -> str:
+    s = str(s or "").translate(str.maketrans("İIıŞşĞğÜüÖöÇçÂâÎîÛû", "iiissgguuooccaaiiuu"))
+    return re.sub(r"[^a-z0-9]+", " ", s.lower()).strip()
+
+
+def _sayi(v) -> float:
+    """UYAP tutarları sayı, '1.234,56' ya da '1234.56 TL' olabilir."""
+    if v is None or v == "":
+        return 0.0
+    if isinstance(v, (int, float)):
+        return float(v)
+    t = re.sub(r"[^0-9,.\-]", "", str(v))
+    if "," in t and "." in t:
+        t = t.replace(".", "").replace(",", ".")
+    elif "," in t:
+        t = t.replace(",", ".")
+    try:
+        return float(t)
+    except ValueError:
+        return 0.0
+
+
+# Kapak hesabı satırları UYAP'ta bazen Türkçe karakterli, bazen ASCII gelir ("Masraf Miktari"): katlanmış
+# anahtar sözcüklerle eşlenir. Sıra önemli: ilk eşleşen alan kazanır.
+_KAPAK_ALANLARI = [
+    ("takip_kesinlesen_miktar", ("takipte kesinlesen", "takip miktari", "asil alacak")),
+    ("toplam_faiz", ("faiz",)),
+    ("vekalet_ucreti", ("vekalet",)),
+    ("tahsil_harci", ("tahsil harci", "cezaevi harci")),
+    ("masraf_miktari", ("masraf",)),
+    ("yatan_para", ("yatan para", "tahsil edilen", "odenen")),
+    ("bakiye_borc", ("bakiye", "kalan borc")),
+    ("toplam_alacak", ("toplam alacak", "toplam borc", "genel toplam")),
+]
+
+
+def kapak_hesabi_coz(kalemler) -> dict:
+    """dosya_hesap_bilgileri.ajx yanıtını alanlara ayırır (saf fonksiyon, test edilir)."""
+    out = {k: 0.0 for k, _ in _KAPAK_ALANLARI}
+    for item in kalemler if isinstance(kalemler, list) else []:
+        if not isinstance(item, dict):
+            continue
+        ad = _fold(item.get("textAlan"))
+        if not ad:
+            continue
+        for alan, anahtarlar in _KAPAK_ALANLARI:
+            if any(a in ad for a in anahtarlar):
+                if not out[alan]:
+                    out[alan] = _sayi(item.get("degerAlan"))
+                break
+    if not out["toplam_alacak"]:
+        out["toplam_alacak"] = round(sum(out[k] for k in ("takip_kesinlesen_miktar", "toplam_faiz", "vekalet_ucreti",
+                                                          "masraf_miktari", "tahsil_harci")), 2)
+    if not out["bakiye_borc"] and out["toplam_alacak"]:
+        out["bakiye_borc"] = round(max(0.0, out["toplam_alacak"] - out["yatan_para"]), 2)
+    return out
+
+
+def _liste_tutar(item: dict) -> float:
+    for k in ("miktar", "tutar", "tahsilatTutari", "reddiyatTutari", "harcTutari", "odenenMiktar", "toplamTutar", "net"):
+        if isinstance(item, dict) and item.get(k) not in (None, ""):
+            return _sayi(item.get(k))
+    return 0.0
+
+
+def _liste_ad(item: dict) -> str:
+    for k in ("harcMasrafAdi", "tahsilatTuru", "reddiyatTuru", "harcTuru", "aciklama", "turu", "tur", "kalemAdi"):
+        if isinstance(item, dict) and item.get(k):
+            return str(item.get(k))
+    return "Kalem"
+
+
+def tahsilat_reddiyat_coz(res: dict) -> dict:
+    """dosya_tahsilat_reddiyat_bilgileri_brd.ajx yanıtı -> toplamlar + kalem listeleri (saf fonksiyon).
+    Dava dosyasında 'toplamKalan' kasada kalan (kullanılmamış) gider avansıdır = ARTAN AVANS."""
+    res = res if isinstance(res, dict) else {}
+    tl = res.get("tahsilatList") or []
+    rl = res.get("reddiyatList") or []
+    hl = res.get("harcList") or []
+    tahsilat = _sayi(res.get("toplamTahsilat")) or round(sum(_liste_tutar(x) for x in tl), 2)
+    reddiyat = _sayi(res.get("toplamreddiyat") or res.get("toplamReddiyat")) or round(sum(_liste_tutar(x) for x in rl), 2)
+    harc = _sayi(res.get("toplamTahsilHarci")) or round(sum(_liste_tutar(x) for x in hl), 2)
+    kalan = res.get("toplamKalan")
+    kalan = _sayi(kalan) if kalan not in (None, "") else round(max(0.0, tahsilat - reddiyat - harc), 2)
+    harclar: dict = {}
+    for x in hl:
+        ad = _liste_ad(x)
+        harclar[ad] = round(harclar.get(ad, 0.0) + _liste_tutar(x), 2)
+    return {
+        "toplam_tahsilat": round(tahsilat, 2), "toplam_reddiyat": round(reddiyat, 2), "toplam_harc": round(harc, 2),
+        "kalan_bakiye": round(kalan, 2), "haricen": _sayi(res.get("haricen")), "teminat": _sayi(res.get("toplamTeminat")),
+        "is_icra": bool(res.get("isIcraMi")), "harc_kalemleri": [{"ad": k, "tutar": v} for k, v in harclar.items()],
+        "tahsilat_list": tl, "reddiyat_list": rl, "harc_list": hl,
+    }
 
 
 def get_db_connection(db_path: str = DB_PATH, timeout: float = 60.0) -> sqlite3.Connection:
@@ -128,8 +227,46 @@ def init_finans_tables(db_path: str = DB_PATH):
     cur.execute("CREATE INDEX IF NOT EXISTS idx_islem_tarih ON portal_islemlerim(is_emir_tarihi)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_islem_durum ON portal_islemlerim(isin_durumu)")
 
+    # Sonradan eklenen sütunlar (eski veritabanlarında yoksa eklenir)
+    for tablo, sutun, tip in (("dosya_finans", "is_icra", "INTEGER DEFAULT 0"), ("dosya_finans", "teminat", "REAL DEFAULT 0"),
+                              ("dosya_finans", "harc_kalemleri_json", "TEXT"), ("dosya_finans", "hata", "TEXT"),
+                              ("icra_hesap", "hata", "TEXT")):
+        try:
+            cur.execute(f"ALTER TABLE {tablo} ADD COLUMN {sutun} {tip}")
+        except sqlite3.OperationalError:
+            pass
+
     conn.commit()
     conn.close()
+
+
+def _post_js(url: str, govde: dict) -> str:
+    """UYAP'a sayfa içinden POST: oturum düşükse (HTML) {oturum:false}, UYAP hatasıysa {hata:...} döner."""
+    return f"""
+        (async () => {{
+            try {{
+                const resp = await fetch({json.dumps(url)}, {{
+                    method: 'POST', headers: {{'Content-Type': 'application/json', 'Cache-Control': 'no-cache'}},
+                    body: JSON.stringify({json.dumps(govde)})
+                }});
+                const txt = await resp.text();
+                if (!resp.ok || /^\\s*</.test(txt)) return {{oturum: false, http: resp.status}};
+                const d = JSON.parse(txt);
+                if (d && !Array.isArray(d) && d.errorCode) return {{hata: String(d.error || d.errorCode)}};
+                return d;
+            }} catch(e) {{
+                return {{hata: String(e)}};
+            }}
+        }})()
+        """
+
+
+def icra_mi(birim: str = "", dosya_tur: str = "") -> bool:
+    """İcra DAİRESİ dosyası mı (İcra Hukuk Mahkemesi bir mahkemedir, kapak hesabı yoktur)."""
+    b, t = _fold(birim), _fold(dosya_tur)
+    if "icra dairesi" in b or "icra mudurlugu" in b or "iflas" in b:
+        return True
+    return "icra" in t and "mahkeme" not in b and "dava" not in t
 
 
 class UyapFinansSafahatManager:
@@ -219,95 +356,51 @@ class UyapFinansSafahatManager:
         logger.info(f"[{dkey}] {saved} safahat kaydı kaydedildi.")
         return safahatlar
 
-    def fetch_finans(self, dosya_id: str, dkey: str, birim: str = "", dosya_no: str = "") -> dict:
-        """Dava dosyasının tahsilat, reddiyat, harç ve masraf hesaplarını çeker."""
-        bridge = self._ensure_bridge()
+    def _istek(self, url: str, govde: dict):
+        res = self._ensure_bridge().eval_js(_post_js(url, govde), timeout=45.0)
+        if isinstance(res, dict) and res.get("oturum") is False:
+            raise RuntimeError("UYAP oturumu kapalı")
+        return res
+
+    def fetch_finans(self, dosya_id: str, dkey: str, birim: str = "", dosya_no: str = "", is_icra: bool | None = None) -> dict:
+        """Dosyanın tahsilat, reddiyat, harç kalemleri ve kasada kalan (artan) avansını UYAP'tan çeker."""
         clean_id = dosya_id.strip('"\'')
-
-        # 1. Tahsilat / Reddiyat / Harç Listeleri
-        js_tr = f"""
-        (async () => {{
-            try {{
-                const resp = await fetch('/dosya_tahsilat_reddiyat_bilgileri_brd.ajx', {{
-                    method: 'POST',
-                    headers: {{'Content-Type': 'application/json'}},
-                    body: JSON.stringify({{dosyaId: {json.dumps(clean_id)}}})
-                }});
-                return await resp.json();
-            }} catch(e) {{
-                return {{error: String(e)}};
-            }}
-        }})()
-        """
-        res_tr = bridge.eval_js(js_tr)
-        if not isinstance(res_tr, dict):
-            res_tr = {}
-
-        # 2. Dosya Harç Masraf Hesabı (Ayrıntılı masraf kalemleri)
-        js_hm = f"""
-        (async () => {{
-            try {{
-                const resp = await fetch('/dosya_harc_masraf_hesabi.ajx', {{
-                    method: 'POST',
-                    headers: {{'Content-Type': 'application/json'}},
-                    body: JSON.stringify({{dosyaId: {json.dumps(clean_id)}}})
-                }});
-                return await resp.json();
-            }} catch(e) {{
-                return {{error: String(e)}};
-            }}
-        }})()
-        """
-        res_hm = bridge.eval_js(js_hm)
-        if not isinstance(res_hm, dict):
+        res_tr = self._istek('/dosya_tahsilat_reddiyat_bilgileri_brd.ajx', {"dosyaId": clean_id})
+        if isinstance(res_tr, dict) and res_tr.get("hata"):
+            # Bazı dosya türlerinde dosyaTurKod zorunlu: icra 35 (İcra Dosyası), diğerleri 1 ile yeniden dene
+            res_tr = self._istek('/dosya_tahsilat_reddiyat_bilgileri_brd.ajx',
+                                 {"dosyaId": clean_id, "dosyaTurKod": 35 if is_icra else 1})
+        hata = res_tr.get("hata") if isinstance(res_tr, dict) and res_tr.get("hata") else None
+        res_hm = self._istek('/dosya_harc_masraf_hesabi.ajx', {"dosyaId": clean_id})
+        if not isinstance(res_hm, dict) or res_hm.get("hata"):
             res_hm = {}
-
-        toplam_tahsilat = float(res_tr.get("toplamTahsilat") or 0)
-        toplam_reddiyat = float(res_tr.get("toplamreddiyat") or 0)
-        kalan_bakiye = float(res_tr.get("toplamKalan") or 0)
-        toplam_harc = float(res_tr.get("toplamTahsilHarci") or 0)
-        haricen = float(res_tr.get("haricen") or 0)
-
-        tahsilat_list = res_tr.get("tahsilatList") or []
-        reddiyat_list = res_tr.get("reddiyatList") or []
-        harc_list = res_tr.get("harcList") or []
-        masraf_satirlar = res_hm.get("tahsilatSatirDVOList") or []
-
-        # Harç toplamı yoksa harcList üzerinden topla
-        if toplam_harc == 0 and harc_list:
-            toplam_harc = sum(float(item.get("miktar") or 0) for item in harc_list)
-
+        coz = tahsilat_reddiyat_coz(res_tr if not hata else {})
+        if is_icra is None:
+            is_icra = coz["is_icra"]
+        masraf_satirlar = res_hm.get("tahsilatSatirDVOList") or res_hm.get("masrafList") or []
         now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
         conn = get_db_connection(self.db_path)
-        cur = conn.cursor()
-        cur.execute("""
+        conn.execute("""
         INSERT OR REPLACE INTO dosya_finans
         (dkey, birim, dosya_no, toplam_tahsilat, toplam_reddiyat, toplam_harc, kalan_bakiye, gider_avansi, haricen,
-         tahsilat_list_json, reddiyat_list_json, harc_list_json, masraf_hesabi_json, son_guncelleme)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         tahsilat_list_json, reddiyat_list_json, harc_list_json, masraf_hesabi_json, son_guncelleme,
+         is_icra, teminat, harc_kalemleri_json, hata)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
-            dkey, birim, dosya_no,
-            toplam_tahsilat, toplam_reddiyat, toplam_harc, kalan_bakiye, kalan_bakiye, haricen,
-            json.dumps(tahsilat_list, ensure_ascii=False),
-            json.dumps(reddiyat_list, ensure_ascii=False),
-            json.dumps(harc_list, ensure_ascii=False),
-            json.dumps(masraf_satirlar, ensure_ascii=False),
-            now_str
+            dkey, birim, dosya_no, coz["toplam_tahsilat"], coz["toplam_reddiyat"], coz["toplam_harc"],
+            coz["kalan_bakiye"], 0.0 if is_icra else coz["kalan_bakiye"], coz["haricen"],
+            json.dumps(coz["tahsilat_list"], ensure_ascii=False), json.dumps(coz["reddiyat_list"], ensure_ascii=False),
+            json.dumps(coz["harc_list"], ensure_ascii=False), json.dumps(masraf_satirlar, ensure_ascii=False),
+            now_str, 1 if is_icra else 0, coz["teminat"], json.dumps(coz["harc_kalemleri"], ensure_ascii=False), hata,
         ))
         conn.commit()
         conn.close()
-
-        logger.info(f"[{dkey}] Finans güncellendi: Tahsilat={toplam_tahsilat:.2f} TL, Reddiyat={toplam_reddiyat:.2f} TL, Kalan={kalan_bakiye:.2f} TL")
+        logger.info(f"[{dkey}] Finans güncellendi: Tahsilat={coz['toplam_tahsilat']:.2f} TL, Reddiyat={coz['toplam_reddiyat']:.2f} TL, Kalan={coz['kalan_bakiye']:.2f} TL")
         return {
-            "toplamTahsilat": toplam_tahsilat,
-            "toplamReddiyat": toplam_reddiyat,
-            "toplamHarc": toplam_harc,
-            "kalanBakiye": kalan_bakiye,
-            "tahsilatList": tahsilat_list,
-            "reddiyatList": reddiyat_list,
-            "harcList": harc_list,
-            "masrafSatirlar": masraf_satirlar
+            "toplamTahsilat": coz["toplam_tahsilat"], "toplamReddiyat": coz["toplam_reddiyat"],
+            "toplamHarc": coz["toplam_harc"], "kalanBakiye": coz["kalan_bakiye"],
+            "tahsilatList": coz["tahsilat_list"], "reddiyatList": coz["reddiyat_list"], "harcList": coz["harc_list"],
+            "harcKalemleri": coz["harc_kalemleri"], "masrafSatirlar": masraf_satirlar, "hata": hata,
         }
 
     def fetch_icra_hesap(self, dosya_id: str, dkey: str, birim: str = "", dosya_no: str = "") -> dict:
@@ -316,38 +409,17 @@ class UyapFinansSafahatManager:
         clean_id = dosya_id.strip('"\'')
 
         # 1. Dosya Kapak Hesabı (/dosya_hesap_bilgileri.ajx)
-        js_dh = f"""
-        (async () => {{
-            try {{
-                const resp = await fetch('/dosya_hesap_bilgileri.ajx', {{
-                    method: 'POST',
-                    headers: {{'Content-Type': 'application/json'}},
-                    body: JSON.stringify({{dosyaId: {json.dumps(clean_id)}}})
-                }});
-                return await resp.json();
-            }} catch(e) {{
-                return {{error: String(e)}};
-            }}
-        }})()
-        """
-        res_dh = bridge.eval_js(js_dh)
+        res_dh = self._istek('/dosya_hesap_bilgileri.ajx', {"dosyaId": clean_id})
         hesap_kalemleri = res_dh if isinstance(res_dh, list) else []
-
-        # Parse hesap kalemleri
-        hesap_map = {}
-        for item in hesap_kalemleri:
-            txt = (item.get("textAlan") or "").strip()
-            deg = float(item.get("degerAlan") or 0)
-            hesap_map[txt] = deg
-
-        takip_kesinlesen = hesap_map.get("Takipte Kesinlesen Miktar", 0.0)
-        toplam_faiz = hesap_map.get("Toplam Faiz Miktari", 0.0)
-        vekalet_ucreti = hesap_map.get("Vekalet Ücreti", 0.0)
-        masraf_miktari = hesap_map.get("Masraf Miktari", 0.0)
-        tahsil_harci = hesap_map.get("Tahsil Harcı", 0.0)
-        toplam_alacak = hesap_map.get("Toplam Alacak", 0.0)
-        yatan_para = hesap_map.get("Yatan Para", 0.0)
-        bakiye_borc = hesap_map.get("Bakiye Borç Miktari", 0.0)
+        k = kapak_hesabi_coz(hesap_kalemleri)
+        takip_kesinlesen = k["takip_kesinlesen_miktar"]
+        toplam_faiz = k["toplam_faiz"]
+        vekalet_ucreti = k["vekalet_ucreti"]
+        masraf_miktari = k["masraf_miktari"]
+        tahsil_harci = k["tahsil_harci"]
+        toplam_alacak = k["toplam_alacak"]
+        yatan_para = k["yatan_para"]
+        bakiye_borc = k["bakiye_borc"]
 
         # 2. Borçlular Listesi (/dosya_borclu_list.ajx)
         js_bl = f"""
@@ -405,7 +477,10 @@ class UyapFinansSafahatManager:
                     kesinlesme_str = "Kesinleşmedi"
 
         # 4. Tahsilat / Reddiyat dökümü
-        fin = self.fetch_finans(dosya_id, dkey, birim, dosya_no)
+        fin = self.fetch_finans(dosya_id, dkey, birim, dosya_no, is_icra=True)
+        if not yatan_para and fin.get("toplamTahsilat"):
+            yatan_para = fin["toplamTahsilat"]
+            bakiye_borc = round(max(0.0, toplam_alacak - yatan_para), 2)
 
         # 5. Malvarlığı / Ücretsiz Sorgu Kontrolü
         # KULLANICI ŞARTI: Sorgu sınırlarına dikkat et, ücretsiz sorgu kullan sadece, olmuyorsa zorlama!
@@ -468,6 +543,56 @@ class UyapFinansSafahatManager:
             "malvarligiDurumu": malvarligi_durumu,
             "ozetMetin": ozet_metin
         }
+
+    def hesaplari_tazele(self, limit: int = 10, en_eski_saat: float = 24.0, dkeyler: list | None = None,
+                         durdur=None, ilerleme=None) -> dict:
+        """Hesabı hiç çekilmemiş ya da en_eski_saat'ten eski dosyaların hesaplarını UYAP'tan çeker.
+        Açık dosyalar ve icra dosyaları önce. Oturum düşerse durur (sonraki turda kaldığı yerden)."""
+        conn = get_db_connection(self.db_path)
+        try:
+            esik = (datetime.now() - timedelta(hours=en_eski_saat)).strftime("%Y-%m-%d %H:%M:%S")
+            if dkeyler:
+                ph = ",".join("?" * len(dkeyler))
+                rows = conn.execute(f"SELECT dkey, birim, dosya_no, dosya_tur, dosya_id, durum FROM dosya WHERE dkey IN ({ph})",
+                                    list(dkeyler)).fetchall()
+            else:
+                rows = conn.execute("""
+                    SELECT d.dkey, d.birim, d.dosya_no, d.dosya_tur, d.dosya_id, d.durum FROM dosya d
+                    LEFT JOIN dosya_finans f ON f.dkey = d.dkey
+                    WHERE COALESCE(d.dosya_id,'') != '' AND (f.son_guncelleme IS NULL OR f.son_guncelleme < ?)
+                    ORDER BY CASE WHEN d.durum='Açık' THEN 0 ELSE 1 END,
+                             CASE WHEN d.birim LIKE '%İcra%' OR d.birim LIKE '%icra%' THEN 0 ELSE 1 END,
+                             CASE WHEN f.son_guncelleme IS NULL THEN 0 ELSE 1 END, f.son_guncelleme
+                    LIMIT ?""", (esik, max(1, int(limit)))).fetchall()
+        except sqlite3.OperationalError:
+            rows = []
+        finally:
+            conn.close()
+        sonuc = {"denenen": len(rows), "basarili": 0, "hata": 0, "icra": 0}
+        for i, r in enumerate(rows):
+            if durdur and durdur():
+                break
+            if not r["dosya_id"]:
+                continue
+            ic = icra_mi(r["birim"], r["dosya_tur"])
+            try:
+                if ic:
+                    self.fetch_icra_hesap(r["dosya_id"], r["dkey"], r["birim"], r["dosya_no"])
+                    sonuc["icra"] += 1
+                else:
+                    self.fetch_finans(r["dosya_id"], r["dkey"], r["birim"], r["dosya_no"], is_icra=False)
+                sonuc["basarili"] += 1
+            except RuntimeError as e:
+                logger.warning("Hesap çekme durdu: %s", e)
+                sonuc["hata"] += 1
+                sonuc["oturum"] = False
+                break
+            except Exception as e:  # noqa: BLE001
+                sonuc["hata"] += 1
+                logger.warning("[%s] Hesap çekilemedi: %s", r["dkey"], e)
+            if ilerleme:
+                ilerleme(i + 1, len(rows))
+        return sonuc
 
     def fetch_portal_islemlerim(self, days_back: int = 30) -> list:
         """Avukatın portal üzerindeki son işlemlerini çeker ve veritabanına kaydeder."""
@@ -541,6 +666,40 @@ class UyapFinansSafahatManager:
         return res
 
 
+
+
+def _cli() -> int:
+    """asistan görevi 'hesap-tara': UYAP hesaplarını (icra kapak, tahsilat/reddiyat, harç, artan avans) çeker.
+    Görünür tarayıcı AÇMAZ: CanEditor'un gizli UYAP oturumunu (CDP 9223) kullanır."""
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--dkey", action="append", default=[])
+    ap.add_argument("--limit", type=int, default=100000)
+    ap.add_argument("--saat", type=float, default=0.0, help="Bu kadar saatten yeni hesapları atla (0: hepsini tazele)")
+    a = ap.parse_args()
+    os.environ.setdefault("CANASISTAN_GORUNMEZ", "1")
+    import uyap_indirici as ui
+    from uyap_watcher import _kayitli_pin
+    bridge = ui.UyapBrowserBridge(port=ui.CDP_PORT)
+    ok, msg = bridge.ensure_ready("uyap")
+    if not ok:
+        print(f"[!] UYAP tarayıcısına bağlanılamadı: {msg}", flush=True)
+        return 2
+    if not bridge.is_logged_in():
+        print("[i] UYAP oturumu kapalı; arka planda giriş yapılıyor (e-İmza takılıysa e-İmza, değilse Mobil İmza)...", flush=True)
+        ok, msg = bridge.akilli_oturum_ac(pin=_kayitli_pin(ui), status_cb=lambda m: print(m, flush=True), sure_siniri_s=900)
+        if not ok:
+            print(f"[!] UYAP oturumu açılamadı: {msg}", flush=True)
+            return 3
+    m = UyapFinansSafahatManager(bridge=bridge)
+    d = m.hesaplari_tazele(limit=a.limit, en_eski_saat=a.saat, dkeyler=a.dkey or None,
+                           ilerleme=lambda i, n: print(f"  ↳ {i}/{n} dosya", flush=True))
+    print(f"[✓] {d['basarili']}/{d['denenen']} dosyanın hesabı çekildi ({d['icra']} icra, {d['hata']} hata).", flush=True)
+    return 3 if d.get("oturum") is False else 0
+
+
 if __name__ == "__main__":
+    if len(sys.argv) > 1:
+        sys.exit(_cli())
     init_finans_tables()
     print("UYAP Finans, Safahat, İcra Hesap tabloları başarıyla hazırlandı.")

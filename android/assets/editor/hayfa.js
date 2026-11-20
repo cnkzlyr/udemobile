@@ -491,6 +491,27 @@ function doGet(e) {
       };
     });
 
+    function hesapKarti(h) {
+      const yenile = `<button class="ca-btn kucuk" type="button" id="hf-d-hesap-yenile" style="float:right">🔄 UYAP'tan yenile</button>`;
+      if (!h || !h.cekildi) {
+        return `${yenile}<b>💰 Hesap</b><div class="ca-soluk" style="margin-top:6px">Bu dosyanın hesabı henüz UYAP'tan çekilmedi${h && h.hata ? ' (' + esc(h.hata) + ')' : ''}.</div>`;
+      }
+      const satir = (ad, deger, renk) => `<tr><td>${ad}</td><td style="text-align:right;white-space:nowrap;${renk ? 'color:' + renk + ';font-weight:700' : ''}">${tl(deger)}</td></tr>`;
+      const govdeH = h.is_icra
+        ? satir('Asıl alacak (takipte kesinleşen)', h.asil_alacak) + satir('İşlemiş faiz', h.islemis_faiz) + satir('Vekâlet ücreti', h.vekalet_ucreti)
+          + satir('Masraf + tahsil harcı', h.masraf_harc) + satir('Toplam alacak', h.toplam_borc, 'var(--hf-navy,#1e3a5f)')
+          + satir('Tahsil edilen', h.tahsilat, '#16a34a') + satir('Reddiyat (ödenen)', h.reddiyat) + satir('Kasada bekleyen', h.kasada_bekleyen, '#0284c7')
+          + satir('Kalan bakiye', h.kalan_borc, '#dc2626')
+        : satir('Yatırılan (tahsilat)', h.tahsilat) + satir('Kullanılan (reddiyat)', h.reddiyat) + satir('Ödenen harçlar', h.masraf_harc)
+          + satir('Artan avans (kasada)', h.artan_avans, '#0284c7');
+      const kalem = (h.harc_kalemleri || []).length ? `<details style="margin-top:6px"><summary class="ca-soluk">Harç kalemleri (${h.harc_kalemleri.length})</summary><table>${h.harc_kalemleri.map(k => satir(esc(k.ad), k.tutar)).join('')}</table></details>` : '';
+      return `${yenile}<b>💰 ${h.is_icra ? 'İcra kapak hesabı' : 'Dosya hesabı'}</b>
+        ${h.is_icra && h.kesinlesme ? `<span class="hf-etiket">${esc(h.kesinlesme)}</span>` : ''}
+        <table style="margin-top:6px">${govdeH}</table>${kalem}
+        ${h.is_icra && (h.borclular || []).length ? `<div class="ca-soluk" style="margin-top:4px">Borçlu: ${esc(h.borclular.join(', '))}</div>` : ''}
+        <div class="ca-soluk" style="font-size:11.5px;margin-top:4px">UYAP'tan: ${esc((h.son_guncelleme || '').slice(0, 16))}</div>`;
+    }
+
     async function detayAc(dkey) {
       govde.innerHTML = '<p class="ca-soluk">Dosya ayrıntıları yükleniyor…</p>';
       try {
@@ -510,8 +531,19 @@ function doGet(e) {
                 <button class="ca-btn altin kucuk" type="button" id="hf-d-aktar">📋 Notion + TickTick'e Aktar</button>
               </div>
             </div>
-            ${d.taraflar ? `<p class="ca-soluk" style="margin-top:8px"><b>Taraflar:</b> ${esc(d.taraflar)}</p>` : ''}
+            ${v.konu && v.konu.metin ? `<div style="margin-top:8px;padding:8px 10px;border-left:3px solid var(--hf-navy,#1e3a5f);background:rgba(30,58,95,.05)"><b>📌 Dosya konusu</b> <span class="ca-soluk">(${esc(v.konu.kaynak || '')})</span><div style="margin-top:4px;line-height:1.45">${esc(v.konu.metin)}</div></div>` : ''}
             <div id="hf-d-aktar-sonuc" class="ca-soluk"></div>
+          </div>
+
+          <div class="hf-detay-iki" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:10px">
+            <div class="ca-kart" style="margin:0">
+              <b>👥 Taraflar (${(v.taraf_listesi || []).length})</b>
+              ${(v.taraf_listesi || []).length ? `<table style="margin-top:6px">${v.taraf_listesi.map(t => `<tr>
+                <td>${t.muvekkil ? '<span class="hf-etiket acik">Müvekkil</span> ' : ''}<b>${esc(t.ad)}</b></td>
+                <td class="ca-soluk">${esc(t.rol || '')}</td><td class="ca-soluk" style="font-size:12px">${esc(t.vekil || '')}</td></tr>`).join('')}</table>`
+                : `<div class="ca-soluk">${esc(d.taraflar || 'Taraf bilgisi henüz çekilmedi.')}</div>`}
+            </div>
+            <div class="ca-kart" style="margin:0" id="hf-d-hesap">${hesapKarti(v.hesap)}</div>
           </div>
 
           <div class="ca-kart">
@@ -546,6 +578,19 @@ function doGet(e) {
         `;
 
         govde.querySelector('#hf-dosya-geri').onclick = listele;
+        const hesapBagla = () => {
+          const b = govde.querySelector('#hf-d-hesap-yenile');
+          if (!b) return;
+          b.onclick = async () => {
+            b.disabled = true; b.textContent = 'UYAP\'tan çekiliyor…';
+            try {
+              const r = await api('/api/dosya/hesap_yenile', { method: 'POST', govde: { dkey } });
+              govde.querySelector('#hf-d-hesap').innerHTML = hesapKarti(r.hesap);
+            } catch (e) { govde.querySelector('#hf-d-hesap').insertAdjacentHTML('beforeend', `<div class="ca-hata">${esc(e.message)}</div>`); }
+            hesapBagla();
+          };
+        };
+        hesapBagla();
         govde.querySelector('#hf-d-aktar').onclick = async () => {
           const s = govde.querySelector('#hf-d-aktar-sonuc');
           s.textContent = 'Notion ve TickTick güncelleniyor…';
@@ -698,128 +743,73 @@ function doGet(e) {
       } catch (e) { sunucuHatasi(ic, e); }
     }
 
-    async function listeleHesaplar() {
-      govde.innerHTML = '<p class="ca-soluk">Dosya finansal hesapları ve icra bakiyeleri hesaplanıyor…</p>';
-      try {
-        const v = await api(`/api/dosya/hesaplar?q=${encodeURIComponent(qIn.value.trim())}&dosya_tur=${encodeURIComponent(turSel.value)}`);
-        const st = v.istatistik || {};
-        const tl = n => '₺' + Number(n || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const tl = n => (n === null || n === undefined) ? '—' : '₺' + Number(n || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+    async function listeleHesaplar() {
+      govde.innerHTML = '<p class="ca-soluk">Dosya hesapları yükleniyor…</p>';
+      try {
+        const v = await api(`/api/dosya/hesaplar?q=${encodeURIComponent(qIn.value.trim())}&dosya_tur=${encodeURIComponent(turSel.value)}&durum=${encodeURIComponent(dSel.value)}`);
+        if (!v.hazir) { govde.innerHTML = `<div class="ca-kart">${esc(v.mesaj || 'Katalog hazır değil.')}</div>`; return; }
+        const st = v.istatistik || {};
+        const hs = v.hesaplar || [];
+        const icra = hs.filter(h => h.is_icra);
+        const dava = hs.filter(h => !h.is_icra);
+        const satirIcra = h => `<tr data-dkey="${esc(h.dkey)}" style="cursor:pointer">
+            <td><b>${esc(h.birim || '')}</b><div style="font-weight:700;color:var(--hf-navy)">${esc(h.dosya_no || '')}</div>
+              <div class="ca-soluk">${esc((h.borclular || []).join(', ') || h.muvekkil || '')}</div></td>
+            ${h.cekildi ? `<td>${tl(h.asil_alacak)}</td><td>${tl(h.islemis_faiz)}</td><td>${tl(h.vekalet_ucreti)}</td><td>${tl(h.masraf_harc)}</td>
+            <td style="font-weight:700">${tl(h.toplam_borc)}</td><td style="color:#16a34a">${tl(h.tahsilat)}</td>
+            <td style="font-weight:700;color:#dc2626">${tl(h.kalan_borc)}</td><td class="ca-soluk">${esc(h.kesinlesme || '')}</td>`
+            : `<td colspan="8" class="ca-soluk">Hesap henüz UYAP'tan çekilmedi${h.hata ? ' · ' + esc(h.hata) : ''}</td>`}
+          </tr>`;
+        const satirDava = h => `<tr data-dkey="${esc(h.dkey)}" style="cursor:pointer">
+            <td><span class="hf-etiket ${h.durum === 'Açık' ? 'acik' : 'kapali'}">${esc(h.durum || '—')}</span> <b>${esc(h.birim || '')}</b>
+              <div style="font-weight:700;color:var(--hf-navy)">${esc(h.dosya_no || '')}</div><div class="ca-soluk">${esc(h.muvekkil || '')}</div></td>
+            ${h.cekildi ? `<td>${tl(h.tahsilat)}</td><td>${tl(h.reddiyat)}</td><td>${tl(h.masraf_harc)}
+              ${(h.harc_kalemleri || []).length ? `<div class="ca-soluk" style="font-size:11.5px">${h.harc_kalemleri.slice(0, 4).map(k => esc(k.ad) + ': ' + tl(k.tutar)).join('<br>')}</div>` : ''}</td>
+              <td style="font-weight:700;color:#0284c7">${tl(h.artan_avans)}</td>`
+            : `<td colspan="4" class="ca-soluk">Hesap henüz UYAP'tan çekilmedi${h.hata ? ' · ' + esc(h.hata) : ''}</td>`}
+          </tr>`;
         govde.innerHTML = `
           <div class="hf-finans-grid">
-            <div class="hf-finans-kart">
-              <span class="hf-finans-etiket">💳 Toplam Takip &amp; Alacak</span>
-              <span class="hf-finans-deger">${tl(st.toplam_alacak)}</span>
-              <span class="ca-soluk">${st.toplam_dosya || 0} dosya analiz edildi</span>
-            </div>
-            <div class="hf-finans-kart">
-              <span class="hf-finans-etiket">💰 Tahsil Edilen Tutar</span>
-              <span class="hf-finans-deger" style="color:#16a34a">${tl(st.toplam_tahsilat)}</span>
-              <span class="ca-soluk">Tahsilat oranı: <b>%${st.tahsilat_yuzdesi || 0}</b></span>
-            </div>
-            <div class="hf-finans-kart">
-              <span class="hf-finans-etiket">⏳ Tahsil Edilmemiş Bakiye</span>
-              <span class="hf-finans-deger" style="color:#dc2626">${tl(st.kalan_alacak)}</span>
-              <span class="ca-soluk">Açık takip &amp; dava alacakları</span>
-            </div>
-            <div class="hf-finans-kart">
-              <span class="hf-finans-etiket">🏦 Mahkemede Artan Gider Avansı</span>
-              <span class="hf-finans-deger" style="color:#0284c7">${tl(st.toplam_avans)}</span>
-              <span class="ca-soluk">İade alınabilecek harç / avans</span>
-            </div>
+            <div class="hf-finans-kart"><span class="hf-finans-etiket">📜 İcra: toplam alacak</span>
+              <span class="hf-finans-deger">${tl(st.toplam_alacak)}</span><span class="ca-soluk">${st.icra_dosya || 0} icra dosyası</span></div>
+            <div class="hf-finans-kart"><span class="hf-finans-etiket">💰 İcra: tahsil edilen</span>
+              <span class="hf-finans-deger" style="color:#16a34a">${tl(st.toplam_tahsilat)}</span><span class="ca-soluk">Oran: <b>%${st.tahsilat_yuzdesi || 0}</b> · Kalan ${tl(st.kalan_alacak)}</span></div>
+            <div class="hf-finans-kart"><span class="hf-finans-etiket">🏦 Davalarda artan avans</span>
+              <span class="hf-finans-deger" style="color:#0284c7">${tl(st.toplam_avans)}</span><span class="ca-soluk">${st.avansli_dosya || 0} dosyada kasada para var</span></div>
+            <div class="hf-finans-kart"><span class="hf-finans-etiket">🧾 Ödenen harçlar</span>
+              <span class="hf-finans-deger">${tl(st.toplam_harc)}</span><span class="ca-soluk">Hesabı çekilen: ${st.hesabi_cekilen || 0}/${st.toplam_dosya || 0}</span></div>
           </div>
-
-          <div style="display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 6px">
-            <button class="ca-btn kucuk altin" type="button" id="hf-fin-csv">📊 Excel / CSV Tablosunu İndir</button>
-            <button class="ca-btn kucuk" type="button" id="hf-fin-adres">📬 Toplu Mernis/Adres Sorgu Raporu</button>
-            <button class="ca-btn kucuk" type="button" id="hf-fin-reddiyat">💸 Toplu Reddiyat &amp; Tahsilat Özeti</button>
-            <button class="ca-btn kucuk" type="button" id="hf-fin-avans">⚖️ Artan Avans &amp; Harç İade Listesi</button>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 6px;align-items:center">
+            <button class="ca-btn kucuk altin" type="button" id="hf-fin-cek">🔄 Hesapları UYAP'tan çek</button>
+            <button class="ca-btn kucuk" type="button" id="hf-fin-csv">📊 CSV indir</button>
+            <span class="ca-soluk" id="hf-fin-durum">${st.hesabi_bekleyen ? `${st.hesabi_bekleyen} dosyanın hesabı henüz çekilmedi; Senkron açıkken boşta otomatik çekilir.` : 'Tüm dosyaların hesabı çekildi.'}</span>
           </div>
-
-          <div class="ca-kart" style="overflow-x:auto;margin-top:8px">
-            <table>
-              <thead>
-                <tr>
-                  <th>Dosya &amp; Birim</th>
-                  <th>Müvekkil</th>
-                  <th>Asıl Alacak</th>
-                  <th>İşlemiş Faiz</th>
-                  <th>Vekâlet Ücreti</th>
-                  <th>Masraf / Harç</th>
-                  <th>Toplam Borç</th>
-                  <th>Tahsilat</th>
-                  <th>Kalan Borç</th>
-                  <th>Artan Avans</th>
-                  <th>İşlem</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${(v.hesaplar || []).map(h => `
-                  <tr>
-                    <td>
-                      <span class="hf-etiket ${h.is_icra ? 'acik' : ''}">${h.is_icra ? 'İcra' : 'Dava'}</span>
-                      <b>${esc(h.birim || '')}</b>
-                      <div style="font-weight:700;color:var(--hf-navy)">${esc(h.dosya_no || '')}</div>
-                    </td>
-                    <td>${esc(h.muvekkil || '—')}</td>
-                    <td style="white-space:nowrap">${tl(h.asil_alacak)}</td>
-                    <td style="white-space:nowrap">${tl(h.islemis_faiz)}</td>
-                    <td style="white-space:nowrap">${tl(h.vekalet_ucreti)}</td>
-                    <td style="white-space:nowrap">${tl(h.masraf_harc)}</td>
-                    <td style="white-space:nowrap;font-weight:700">${tl(h.toplam_borc)}</td>
-                    <td style="white-space:nowrap;color:#16a34a">${tl(h.tahsilat)}</td>
-                    <td style="white-space:nowrap;font-weight:700;color:#dc2626">${tl(h.kalan_borc)}</td>
-                    <td style="white-space:nowrap;color:#0284c7">${tl(h.artan_avans)}</td>
-                    <td><button class="ca-btn kucuk ana" type="button" data-dkey="${esc(h.dkey)}">Aç</button></td>
-                  </tr>
-                `).join('') || '<tr><td colspan="11" class="ca-soluk">Hesaplanacak dosya bulunamadı.</td></tr>'}
-              </tbody>
-            </table>
-          </div>
-        `;
+          ${icra.length ? `<div class="ca-kart" style="overflow-x:auto"><b>📜 İcra dosyaları (${icra.length})</b><table>
+            <thead><tr><th>Dosya / Borçlu</th><th>Asıl alacak</th><th>Faiz</th><th>Vekâlet</th><th>Masraf+harç</th><th>Toplam</th><th>Tahsilat</th><th>Bakiye</th><th>Durum</th></tr></thead>
+            <tbody>${icra.map(satirIcra).join('')}</tbody></table></div>` : `<div class="ca-kart ca-soluk">Listede icra dosyası yok. Katalog icra dairelerini de tarar; Senkron'u bir tur çalıştırın.</div>`}
+          ${dava.length ? `<div class="ca-kart" style="overflow-x:auto"><b>⚖️ Dava dosyaları (${dava.length})</b><table>
+            <thead><tr><th>Dosya</th><th>Yatırılan (tahsilat)</th><th>Kullanılan (reddiyat)</th><th>Harçlar</th><th>Artan avans</th></tr></thead>
+            <tbody>${dava.map(satirDava).join('')}</tbody></table></div>` : ''}`;
 
         govde.querySelectorAll('[data-dkey]').forEach(k => { k.onclick = () => detayAc(k.dataset.dkey); });
-
-        const csvBtn = govde.querySelector('#hf-fin-csv');
-        if (csvBtn) {
-          csvBtn.onclick = () => {
-            const basliklar = ['Birim', 'Dosya No', 'Müvekkil', 'Asıl Alacak', 'İşlemiş Faiz', 'Vekalet Ücreti', 'Masraf Harç', 'Toplam Borç', 'Tahsilat', 'Kalan Borç', 'Artan Avans'];
-            const satirlar = (v.hesaplar || []).map(h => [
-              `"${(h.birim || '').replace(/"/g, '""')}"`,
-              `"${(h.dosya_no || '').replace(/"/g, '""')}"`,
-              `"${(h.muvekkil || '').replace(/"/g, '""')}"`,
-              h.asil_alacak, h.islemis_faiz, h.vekalet_ucreti, h.masraf_harc, h.toplam_borc, h.tahsilat, h.kalan_borc, h.artan_avans
-            ].join(';'));
-            const csvIcerik = '\uFEFF' + [basliklar.join(';'), ...satirlar].join('\r\n');
-            const blob = new Blob([csvIcerik], { type: 'text/csv;charset=utf-8;' });
-            const link = document.createElement('a');
-            link.href = URL.createObjectURL(blob);
-            link.download = `Dosya_Hesaplari_${new Date().toISOString().slice(0, 10)}.csv`;
-            link.click();
-          };
-        }
-
-        const adresBtn = govde.querySelector('#hf-fin-adres');
-        if (adresBtn) {
-          adresBtn.onclick = () => {
-            alert(`📬 Toplu Adres ve Mernis Sorgu Raporu:\nListelenen ${v.hesaplar.length} dosya için tüm borçlu/davalı MERNİS adres sorguları yapılmış ve dosyaya işlenmiştir.`);
-          };
-        }
-
-        const redBtn = govde.querySelector('#hf-fin-reddiyat');
-        if (redBtn) {
-          redBtn.onclick = () => {
-            alert(`💸 Toplu Reddiyat Raporu:\nToplam tahsil edilen ${tl(st.toplam_tahsilat)} tutarından müvekkil hesaplarına reddiyat aktarımı yapılmaya hazırdır.`);
-          };
-        }
-
-        const avansBtn = govde.querySelector('#hf-fin-avans');
-        if (avansBtn) {
-          avansBtn.onclick = () => {
-            alert(`⚖️ Artan Gider Avansı & Harç İadesi:\nKesinleşen dosyalarda mahkeme veznesinde kalan toplam ${tl(st.toplam_avans)} artan avans için iade müzekkeresi talep edebilirsiniz.`);
-          };
-        }
-
+        govde.querySelector('#hf-fin-cek').onclick = async () => {
+          const d = govde.querySelector('#hf-fin-durum');
+          try { await api('/api/gorev/hesap-tara', { method: 'POST', govde: {} }); d.textContent = 'Hesaplar arka planda çekiliyor (gizli UYAP oturumuyla). Birkaç dakika sonra yenileyin.'; }
+          catch (e) { d.innerHTML = `<span class="ca-hata">${esc(e.message)}</span>`; }
+        };
+        govde.querySelector('#hf-fin-csv').onclick = () => {
+          const q = x => `"${String(x ?? '').replace(/"/g, '""')}"`;
+          const n = x => (x === null || x === undefined) ? '' : String(x).replace('.', ',');
+          const bas = ['Tür', 'Birim', 'Dosya No', 'Müvekkil', 'Durum', 'Asıl Alacak', 'Faiz', 'Vekalet', 'Masraf+Harç', 'Toplam', 'Tahsilat', 'Reddiyat', 'Bakiye', 'Artan Avans', 'Son Güncelleme'];
+          const sat = hs.map(h => [h.is_icra ? 'İcra' : 'Dava', q(h.birim), q(h.dosya_no), q(h.muvekkil), q(h.durum), n(h.asil_alacak), n(h.islemis_faiz), n(h.vekalet_ucreti), n(h.masraf_harc), n(h.toplam_borc), n(h.tahsilat), n(h.reddiyat), n(h.kalan_borc), n(h.artan_avans), q(h.son_guncelleme)].join(';'));
+          const blob = new Blob(['﻿' + [bas.join(';'), ...sat].join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+          const link = document.createElement('a');
+          link.href = URL.createObjectURL(blob);
+          link.download = `Dosya_Hesaplari_${new Date().toISOString().slice(0, 10)}.csv`;
+          link.click();
+        };
       } catch (e) { sunucuHatasi(ic, e); }
     }
 
@@ -1163,6 +1153,12 @@ function doGet(e) {
           <div><label>Gmail adresi (UETS giriş kodu buraya gelir)</label><input id="hf-e-gm-u" placeholder="${ayar.gmail_bagli ? esc(ayar.gmail_user) + ' (kayıtlı)' : 'ornek@gmail.com'}"></div>
           <div><label>Gmail Uygulama Şifresi</label><input id="hf-e-gm-p" type="password" placeholder="${ayar.gmail_bagli ? '•••• (kayıtlı)' : '16 haneli uygulama şifresi'}">
             <small class="ca-soluk" style="display:block;font-size:11px">Google Hesabı → Güvenlik → 2 Adımlı Doğrulama → Uygulama şifreleri. Girilmezse giriş kodunu Tebligatlar sekmesinden elle yazarsınız.</small></div>
+          <div><label>Dosya özeti için yapay zekâ anahtarı (isteğe bağlı)</label><input id="hf-e-oz-k" type="password" placeholder="${ayar.ozet_bagli ? esc(ayar.ozet_api_key) + ' (kayıtlı)' : 'boş bırakılırsa özet evraklardan çıkarılır'}">
+            <small class="ca-soluk" style="display:block;font-size:11px">Her dosyanın 5-10 cümlelik konusu Notion "DOSYA KONUSU" sütununa ve TickTick dosya kartına yazılır. Elle yazdığınız konu asla ezilmez.</small></div>
+          <div><label>Yapay zekâ sağlayıcısı / model</label><div style="display:flex;gap:6px"><select id="hf-e-oz-s" style="flex:1">
+            <option value="anthropic"${ayar.ozet_saglayici !== 'openai' ? ' selected' : ''}>Claude (Anthropic)</option>
+            <option value="openai"${ayar.ozet_saglayici === 'openai' ? ' selected' : ''}>OpenAI</option></select>
+            <input id="hf-e-oz-m" style="flex:1" placeholder="model (varsayılan)" value="${esc(ayar.ozet_model || '')}"></div></div>
         </div>
         <label style="display:flex;gap:8px;align-items:center;color:inherit;font-size:14px"><input type="checkbox" id="hf-e-oto" style="width:auto"${ayar.otomatik_senkron ? ' checked' : ''}> UYAP'a yeni evrak/tebligat düşünce Notion & TickTick'e otomatik aktar</label>
         <button class="ca-btn ana" type="button" id="hf-e-kaydet">💾 Kaydet</button>
@@ -1180,6 +1176,9 @@ function doGet(e) {
           uets_password: alan.querySelector('#hf-e-uets-pw').value.trim(),
           gmail_user: alan.querySelector('#hf-e-gm-u').value.trim(),
           gmail_app_pass: alan.querySelector('#hf-e-gm-p').value.replace(/\s+/g, ''),
+          ozet_api_key: alan.querySelector('#hf-e-oz-k').value.trim(),
+          ozet_saglayici: alan.querySelector('#hf-e-oz-s').value,
+          ozet_model: alan.querySelector('#hf-e-oz-m').value.trim(),
           otomatik_senkron: alan.querySelector('#hf-e-oto').checked
         };
         const msg = alan.querySelector('#hf-e-msg');

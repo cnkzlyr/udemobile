@@ -1,6 +1,6 @@
 # ⚖️ CanEditor (UdeMobile) — Birleşik Hukuk Platformu & Çapraz Platform UYAP Editörü
 
-[![Sürüm](https://img.shields.io/badge/Sürüm-v4.5.0-c8a45a.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v4.5.0)
+[![Sürüm](https://img.shields.io/badge/Sürüm-v4.6.0-c8a45a.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v4.6.0)
 [![Platformlar](https://img.shields.io/badge/Platformlar-Android%20%7C%20Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Web-0f2341.svg)](https://github.com/cnkzlyr/udemobile/releases)
 [![UYAP](https://img.shields.io/badge/Format-UYAP_UDF_v1.8-0D47A1.svg)](https://uyap.gov.tr)
 [![Word](https://img.shields.io/badge/Format-MS_DOCX_OpenXML-2B579A.svg?logo=microsoft-word&logoColor=white)](https://microsoft.com)
@@ -17,6 +17,37 @@
 - **Google Drive sürekli eşitleme & kesintisiz durum göstergesi** (Drive dosyalarında anlık arama ve doğrudan açma)
 - **Notion & TickTick canlı yönetimi + otomatik aktarım**
 - **`hayfahukuk.com` entegrasyonu** (Yargıtay İçtihat Arama, uygulama içi Mevzuat Okuyucusu, Hukuk Haberleri, günlük Resmî Gazete, **%100 çevrimdışı Adliye & IBAN Rehberi**, 7 hukuki hesaplayıcı)
+
+---
+
+## 🗂️ v4.6.0: Gerçek Dosya Hesapları, UYAP → Notion Eşitleme, Dosya Konuları, Temiz TickTick
+
+**Dosya hesapları artık UYAP'tan gelen gerçek rakamlar.** Önceki "Dosya Hesapları" ekranı UYAP'a hiç sormadan uydurma tutarlar gösteriyordu; icra dosyaları hiç çıkmıyor, artan avans ve harçlar yanlıştı.
+
+- **İcra kapak hesabı:** asıl alacak (takipte kesinleşen), işlemiş faiz, vekâlet ücreti, masraf + tahsil harcı, toplam alacak, tahsil edilen, kasada bekleyen ve kalan bakiye; kesinleşme durumu ve borçlular (`dosya_hesap_bilgileri`, `dosya_tahsilat_reddiyat_bilgileri`, `dosya_borclu_list`).
+- **Dava dosyaları:** yatırılan (tahsilat), kullanılan (reddiyat), ödenen harçlar kalem kalem ve **artan avans** (kasada kalan para).
+- **İcra dosyaları listede:** dosya taraması avukatın yetkili olduğu tüm birim türlerini UYAP'tan dinamik alıyor (icra daireleri dahil); açık/kapalı ayrımı UYAP'ın kendi `dosyaDurum` alanından.
+- Hesabı henüz çekilmemiş dosyada rakam gösterilmez ("UYAP'tan çekilmedi"). Senkron açıkken boşta her turda 10 dosyanın hesabı tazelenir; "🔄 Hesapları UYAP'tan çek" tümünü gizli oturumla çeker.
+- **Dosyaya tıklayınca tek ekranda:** dosya konusu, taraflar (müvekkil işaretli, rol ve vekil), hesap kartı ("UYAP'tan yenile" düğmesiyle), evraklar, duruşmalar ve Drive dosyaları.
+
+**UYAP → Notion sürekli eşitleme (`notion_uyap.py`).**
+- Katalogdaki her dosya Notion "Tüm Dosyalar"a işlenir: eksik sayfa açılır, boş açılış tarihi doldurulur, durum Açık↔Kapalı eşitlenir.
+- Taraflar: müvekkiller **Müvekkiller**'e, karşı taraflar **Diğer Taraflar**'a eklenir ve dosyaya bağlanır (var olan ilişki asla silinmez).
+- **Aynı ikonlar:** üç veritabanında her sayfanın ikonu kendi veritabanının ikonu yapılır (📁 / 👨🏻 / 🧟‍♂️).
+- Güvenlik: Notion okunamazsa hiçbir şey yazılmaz; olağandışı çok yeni dosya varsa onaysız açılmaz.
+
+**Dosya konusu (5-10 cümle).**
+- Her dosya için konu özeti Notion "DOSYA KONUSU" sütununa ve TickTick dosya kartının "📌 Dosya konusu" bölümüne yazılır.
+- Entegrasyonlar'a **isteğe bağlı yapay zekâ anahtarı** (Claude ya da OpenAI) girilirse özet evrak metinlerinden yazdırılır. Anahtar yoksa dosya türü, taraflar, dava dilekçesi/iddianamedeki "KONU", önemli aşamalar ve son durumdan çıkarımsal özet kurulur; uydurma bilgi yok.
+- **Elle yazdığınız konu asla ezilmez.**
+
+**TickTick: mükerrer yok, eksik görev yok, her dosyaya kart (`ticktick_duzen.py`).**
+- Mükerrer kontrolü artık **aktif + tamamlanan + YAPILMAYACAK** görevlerin tamamına bakıyor (yapılmayacaklar TickTick filtre ucundan okunur). Kapatılmış bir işin kopyası hangi yoldan gelirse gelsin açılmıyor.
+- Yeni mükerrerlerin kaynağı kapatıldı: UYAP'a düşen her evrak kimliksiz "📄 ..." görevi açıyordu. Artık dosya kartının alt görevi olarak, kimlik satırıyla ve bir kez açılıyor. Eski kopyalar birleştirilip kapatılıyor (silinmiyor; notlar ve alt görevler asıl göreve taşınıyor).
+- **Standart biçim:** tebligat, duruşma ve dosya kartının zorunlu öğeleri tanımlı. Eksik görev "⚠️ EKSİK: ..." satırı ve `eksik` etiketi alıyor; tamamlanınca kalkıyor.
+- Üstyazısı ya da eki olmayan tebligatlar bir sonraki UETS turunda yeniden indirilip tamamlanıyor.
+- Notion'da açık her dosyanın TickTick dosya kartı var; yoksa açılıyor. Bilgi notları da "📝 Bilgi Notu" kartı ve konusunu alıyor.
+- Ana ekrana **🗂️ Notion & TickTick Düzeni** kartı eklendi: 6 saatte bir otomatik çalışıyor, "Şimdi düzenle" ile hemen çalıştırılabiliyor.
 
 ---
 
@@ -111,21 +142,21 @@ Ayrıntılı mimari: [`docs/BIRLESIK_MIMARI.md`](docs/BIRLESIK_MIMARI.md) · Han
 | **Bağlantı & Rolling Log** | Sistem sağlık paneli, kesintisiz Google Drive sync göstergesi, 2MB rotasyonlu otomatik loglama ve tek tıkla Log ZIP indirme |
 | **Android Başlatıcı & USF** | Ana ekrandan tek tıkla Hukuk Asistanı'nı açan buton, sistemde `.udf` ve `.usf` varsayılan açıcı ilişkilendirmesi |
 
-## 🚀 Hızlı İndirme (v4.5.0)
+## 🚀 Hızlı İndirme (v4.6.0)
 
 Kurulum paketleri **her şeyi içinde taşır**: Python, Java, görünmez Chrome ve sürücüsüz e-imza altyapısı. Ayrıca bir şey kurmanız gerekmez.
 
 | Platform | Paket Dosyası | Açıklama |
 | :--- | :--- | :--- |
-| **Windows 10 / 11 (64-bit)** | [**CanEditor_4.5.0_x64-setup.exe**](https://github.com/cnkzlyr/udemobile/releases/download/v4.5.0/CanEditor_4.5.0_x64-setup.exe) · [MSI](https://github.com/cnkzlyr/udemobile/releases/download/v4.5.0/CanEditor_4.5.0_x64_en-US.msi) | Standart kurulum (NSIS) · kurumsal MSI |
-| **macOS (Apple Silicon & Intel)** | [**CanEditor_4.5.0_universal.dmg**](https://github.com/cnkzlyr/udemobile/releases/download/v4.5.0/CanEditor_4.5.0_universal.dmg) | Universal (M1/M2/M3/M4 + Intel) — Applications'a sürükleyin |
-| **Linux Debian / Ubuntu / Pardus** | [**CanEditor_4.5.0_amd64.deb**](https://github.com/cnkzlyr/udemobile/releases/download/v4.5.0/CanEditor_4.5.0_amd64.deb) | `sudo apt install ./CanEditor_4.5.0_amd64.deb` (e-imza kart hizmeti otomatik kurulur) |
-| **Linux Fedora / RHEL / openSUSE** | [**CanEditor-4.5.0-1.x86_64.rpm**](https://github.com/cnkzlyr/udemobile/releases/download/v4.5.0/CanEditor-4.5.0-1.x86_64.rpm) | `sudo dnf install ./CanEditor-4.5.0-1.x86_64.rpm` |
-| **Linux (tüm dağıtımlar)** | [**CanEditor_4.5.0_amd64.AppImage**](https://github.com/cnkzlyr/udemobile/releases/download/v4.5.0/CanEditor_4.5.0_amd64.AppImage) | `chmod +x` ile çalıştırın (e-imza için bir kez `sudo apt install pcscd libccid`) |
-| **Android (Telefon & Tablet)** | [**CanEditor-v4.5.0.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v4.5.0/CanEditor-v4.5.0.apk) · [en son](https://github.com/cnkzlyr/udemobile/releases/download/v4.5.0/CanEditor-latest.apk) | Tek uygulama · Termux gerektirmez; gömülü Python asistan APK içinde |
-| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v4.5.0.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v4.5.0/CanEditor-Portable-Web-GUI-v4.5.0.zip) | **Kurulumsuz;** `index.html` ile her sistemde çalışır |
+| **Windows 10 / 11 (64-bit)** | [**CanEditor_4.6.0_x64-setup.exe**](https://github.com/cnkzlyr/udemobile/releases/download/v4.6.0/CanEditor_4.6.0_x64-setup.exe) · [MSI](https://github.com/cnkzlyr/udemobile/releases/download/v4.6.0/CanEditor_4.6.0_x64_en-US.msi) | Standart kurulum (NSIS) · kurumsal MSI |
+| **macOS (Apple Silicon & Intel)** | [**CanEditor_4.6.0_universal.dmg**](https://github.com/cnkzlyr/udemobile/releases/download/v4.6.0/CanEditor_4.6.0_universal.dmg) | Universal (M1/M2/M3/M4 + Intel) — Applications'a sürükleyin |
+| **Linux Debian / Ubuntu / Pardus** | [**CanEditor_4.6.0_amd64.deb**](https://github.com/cnkzlyr/udemobile/releases/download/v4.6.0/CanEditor_4.6.0_amd64.deb) | `sudo apt install ./CanEditor_4.6.0_amd64.deb` (e-imza kart hizmeti otomatik kurulur) |
+| **Linux Fedora / RHEL / openSUSE** | [**CanEditor-4.6.0-1.x86_64.rpm**](https://github.com/cnkzlyr/udemobile/releases/download/v4.6.0/CanEditor-4.6.0-1.x86_64.rpm) | `sudo dnf install ./CanEditor-4.6.0-1.x86_64.rpm` |
+| **Linux (tüm dağıtımlar)** | [**CanEditor_4.6.0_amd64.AppImage**](https://github.com/cnkzlyr/udemobile/releases/download/v4.6.0/CanEditor_4.6.0_amd64.AppImage) | `chmod +x` ile çalıştırın (e-imza için bir kez `sudo apt install pcscd libccid`) |
+| **Android (Telefon & Tablet)** | [**CanEditor-v4.6.0.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v4.6.0/CanEditor-v4.6.0.apk) · [en son](https://github.com/cnkzlyr/udemobile/releases/download/v4.6.0/CanEditor-latest.apk) | Tek uygulama · Termux gerektirmez; gömülü Python asistan APK içinde |
+| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v4.6.0.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v4.6.0/CanEditor-Portable-Web-GUI-v4.6.0.zip) | **Kurulumsuz;** `index.html` ile her sistemde çalışır |
 
-Tüm dosyalar ve sürümler: [GitHub Releases — v4.5.0](https://github.com/cnkzlyr/udemobile/releases/tag/v4.5.0) · [Tüm Sürümler](https://github.com/cnkzlyr/udemobile/releases)
+Tüm dosyalar ve sürümler: [GitHub Releases — v4.6.0](https://github.com/cnkzlyr/udemobile/releases/tag/v4.6.0) · [Tüm Sürümler](https://github.com/cnkzlyr/udemobile/releases)
 
 ---
 

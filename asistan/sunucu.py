@@ -61,7 +61,7 @@ if hasattr(sys.stderr, "reconfigure"):
         pass
 from pathlib import Path
 
-SURUM = "4.5.0"
+SURUM = "4.6.0"
 KOK = Path(__file__).resolve().parent
 if str(KOK) not in sys.path:
     sys.path.insert(0, str(KOK))
@@ -632,6 +632,10 @@ def dosya_detay(dkey: str) -> dict:
                 "SELECT tebligat_turu, evrak_adi, eklenme FROM tebligat WHERE dosya_no=? ORDER BY eklenme DESC LIMIT 50",
                 (dosya.get("dosya_no") or "",),
             ))
+        try:
+            hesap = dosya_hesap_getir(c, dkey)
+        except sqlite3.Error:
+            hesap = None
     with _not_db() as nc:
         notlar = _satirlar(nc.execute(
             "SELECT id, baslik, metin, zaman FROM dosya_not WHERE dkey=? ORDER BY id DESC LIMIT 50",
@@ -647,86 +651,206 @@ def dosya_detay(dkey: str) -> dict:
         "tebligatlar": tebligatlar,
         "notlar": notlar,
         "drive_dosyalar": drive_dosyalar,
+        "taraf_listesi": taraflari_coz(dosya.get("taraflar") or "", dosya.get("muvekkil") or ""),
+        "hesap": hesap,
+        "konu": dosya_konusu_getir(dkey),
     }
 
 
-def dosya_hesaplari(q: str = "", muvekkil: str = "", dosya_tur: str = "") -> dict:
-    """İcra ve dava dosyalarının finansal hesapları, tahsilat, bakiye ve masraf durumları."""
+def _json_yukle(v, varsayilan=None):
+    try:
+        return json.loads(v) if v else (varsayilan if varsayilan is not None else [])
+    except (TypeError, ValueError):
+        return varsayilan if varsayilan is not None else []
+
+
+def taraflari_coz(taraf_txt: str, muvekkil_txt: str = "") -> list:
+    """Katalogdaki 'ADI (Rol) vekil: X; ...' metnini satırlara böler; müvekkil satırları işaretlenir."""
+    muv = {m.strip() for m in (muvekkil_txt or "").split(";") if m.strip()}
+    out = []
+    for parca in (taraf_txt or "").split(";"):
+        parca = parca.strip()
+        if not parca:
+            continue
+        m = re.match(r"^(.*?)\s*\(([^()]*)\)\s*(?:vekil:\s*(.*))?$", parca)
+        ad, rol, vekil = (m.group(1).strip(), m.group(2).strip(), (m.group(3) or "").strip()) if m else (parca, "", "")
+        out.append({"ad": ad, "rol": rol, "vekil": vekil, "muvekkil": f"{ad} ({rol})" in muv})
+    return out
+
+
+def _hesap_satiri(r: dict) -> dict:
+    """Katalog + dosya_finans + icra_hesap satırını ekrana hazır hesap kaydına çevirir. UYAP'tan HİÇ çekilmemiş
+    dosyada tutarlar None kalır (eskiden uydurma rakamlar gösteriliyordu)."""
+    is_icra = bool(r.get("ih_guncelleme")) or bool(r.get("f_icra"))
+    if not is_icra:
+        try:
+            sys.path.insert(0, str(EVRAK_DIR)) if str(EVRAK_DIR) not in sys.path else None
+            from uyap_finans_safahat import icra_mi  # type: ignore
+            is_icra = icra_mi(r.get("birim") or "", r.get("dosya_tur") or "")
+        except Exception:  # noqa: BLE001
+            is_icra = "icra dairesi" in (r.get("birim") or "").lower().replace("İ", "i")
+    cekildi = bool(r.get("f_guncelleme") or r.get("ih_guncelleme"))
+    h = {k: r.get(k) for k in ("dkey", "birim", "dosya_no", "dosya_tur", "durum", "acilis", "muvekkil")}
+    h.update({"is_icra": is_icra, "cekildi": cekildi, "son_guncelleme": r.get("ih_guncelleme") or r.get("f_guncelleme"),
+              "hata": r.get("f_hata"), "para_birimi": "TL"})
+    if not cekildi:
+        return h
+    tahsilat = float(r.get("f_tahsilat") or 0)
+    reddiyat = float(r.get("f_reddiyat") or 0)
+    harc = float(r.get("f_harc") or 0)
+    kalan = float(r.get("f_kalan") or 0)
+    if is_icra:
+        asil = float(r.get("ih_asil") or 0)
+        faiz = float(r.get("ih_faiz") or 0)
+        vek = float(r.get("ih_vekalet") or 0)
+        masraf = float(r.get("ih_masraf") or 0) + float(r.get("ih_tahsil_harci") or 0)
+        toplam = float(r.get("ih_toplam") or 0) or round(asil + faiz + vek + masraf, 2)
+        yatan = float(r.get("ih_yatan") or 0) or tahsilat
+        bakiye = float(r.get("ih_bakiye") or 0) if r.get("ih_bakiye") is not None else max(0.0, toplam - yatan)
+        h.update({"asil_alacak": asil, "islemis_faiz": faiz, "vekalet_ucreti": vek, "masraf_harc": round(masraf, 2),
+                  "toplam_borc": round(toplam, 2), "tahsilat": round(yatan, 2), "kalan_borc": round(bakiye, 2),
+                  "reddiyat": reddiyat, "kasada_bekleyen": round(max(0.0, tahsilat - reddiyat), 2),
+                  "artan_avans": None, "kesinlesme": r.get("ih_kesinlesme") or "",
+                  "borclular": [b.get("ad_soyad") for b in _json_yukle(r.get("ih_borclular")) if isinstance(b, dict)]})
+    else:
+        h.update({"asil_alacak": None, "islemis_faiz": None, "vekalet_ucreti": None, "masraf_harc": round(harc, 2),
+                  "toplam_borc": None, "tahsilat": round(tahsilat, 2), "reddiyat": round(reddiyat, 2),
+                  "kalan_borc": None, "artan_avans": round(kalan, 2)})
+    h["harc_kalemleri"] = _json_yukle(r.get("f_harc_kalemleri"))
+    return h
+
+
+_HESAP_SQL = """
+    SELECT d.dkey, d.birim, d.dosya_no, d.dosya_tur, d.durum, d.acilis, d.muvekkil, d.taraflar,
+           f.toplam_tahsilat AS f_tahsilat, f.toplam_reddiyat AS f_reddiyat, f.toplam_harc AS f_harc,
+           f.kalan_bakiye AS f_kalan, f.son_guncelleme AS f_guncelleme, {f_ek}
+           i.takip_kesinlesen_miktar AS ih_asil, i.toplam_faiz AS ih_faiz, i.vekalet_ucreti AS ih_vekalet,
+           i.masraf_miktari AS ih_masraf, i.tahsil_harci AS ih_tahsil_harci, i.toplam_alacak AS ih_toplam,
+           i.yatan_para AS ih_yatan, i.bakiye_borc AS ih_bakiye, i.kesinlesme_durumu AS ih_kesinlesme,
+           i.borclular_json AS ih_borclular, i.son_guncelleme AS ih_guncelleme
+    FROM dosya d LEFT JOIN dosya_finans f ON f.dkey = d.dkey LEFT JOIN icra_hesap i ON i.dkey = d.dkey
+"""
+
+
+def _hesap_sql(c) -> str | None:
+    if not (_tablo_var(c, "dosya_finans") and _tablo_var(c, "icra_hesap")):
+        return None
+    sutunlar = {r[1] for r in c.execute("PRAGMA table_info(dosya_finans)").fetchall()}
+    ek = []
+    for s, ad in (("is_icra", "f_icra"), ("hata", "f_hata"), ("harc_kalemleri_json", "f_harc_kalemleri")):
+        ek.append(f"f.{s} AS {ad}," if s in sutunlar else f"NULL AS {ad},")
+    return _HESAP_SQL.format(f_ek=" ".join(ek))
+
+
+def dosya_hesap_getir(c, dkey: str) -> dict | None:
+    sql = _hesap_sql(c)
+    if not sql:
+        return None
+    r = c.execute(sql + " WHERE d.dkey = ?", (dkey,)).fetchone()
+    return _hesap_satiri(dict(r)) if r else None
+
+
+def dosya_konusu_getir(dkey: str) -> dict | None:
+    """Dosya konusu: Notion'a yazılmış/Notion'daki konu (notion_uyap eşlemesi); yoksa katalogdan anında çıkarımsal özet."""
+    try:
+        import notion_uyap  # type: ignore
+        k = notion_uyap.konu_getir(dkey)
+        if k and k.get("metin"):
+            return k
+    except Exception:  # noqa: BLE001
+        k = None
+    try:
+        import dosya_ozet  # type: ignore
+        c = _ro(katalog_yolu())
+        if c is None:
+            return k
+        with c:
+            v = dosya_ozet.veri_topla(c, dkey)
+        if v:
+            return {"metin": dosya_ozet.cikarimsal_ozet(v), "kaynak": "otomatik (evraklardan, henüz Notion'a yazılmadı)",
+                    "url": (k or {}).get("url", "")}
+    except Exception:  # noqa: BLE001
+        pass
+    return k
+
+
+def dosya_hesaplari(q: str = "", muvekkil: str = "", dosya_tur: str = "", durum: str = "") -> dict:
+    """İcra ve dava dosyalarının UYAP'tan çekilmiş GERÇEK hesapları: icra kapak hesabı (asıl alacak, faiz, vekâlet,
+    masraf, tahsilat, bakiye), dava dosyalarında tahsilat/reddiyat, harç kalemleri ve kasada kalan (artan) avans."""
     c = _ro(katalog_yolu())
     if c is None:
-        return {"hazir": False, "istatistik": {}, "hesaplar": [], "muvekkiller": []}
+        return {"hazir": False, "istatistik": {}, "hesaplar": [], "muvekkiller": [],
+                "mesaj": "UYAP dosya kataloğu henüz yok. Önce Senkron ile UYAP dosyalarını tarayın."}
     with c:
-        where_clauses, params = [], []
+        sql = _hesap_sql(c)
+        where, params = [], []
         if muvekkil:
-            where_clauses.append("COALESCE(muvekkil,'') LIKE ?")
+            where.append("COALESCE(d.muvekkil,'') LIKE ?")
             params.append(f"%{muvekkil}%")
+        if durum and durum.lower() not in ("tumu", "tümü"):
+            where.append("COALESCE(d.durum,'') LIKE ?")
+            params.append(f"%{durum}%")
         if dosya_tur:
-            where_clauses.append("(COALESCE(dosya_tur,'') LIKE ? OR COALESCE(birim,'') LIKE ?)")
-            params += [f"%{dosya_tur}%", f"%{dosya_tur}%"]
-        if q:
-            pos, _ = terimler(q)
-            for t in pos:
-                where_clauses.append("(COALESCE(birim,'') LIKE ? OR COALESCE(dosya_no,'') LIKE ? OR COALESCE(muvekkil,'') LIKE ? OR COALESCE(taraflar,'') LIKE ?)")
-                params += [f"%{t}%"] * 4
+            if dosya_tur.lower() in ("icra", "İcra".lower()):
+                where.append("(d.birim LIKE '%İcra Dairesi%' OR d.birim LIKE '%icra dairesi%' OR d.dosya_tur LIKE '%İcra%')")
+            else:
+                where.append("(COALESCE(d.dosya_tur,'') LIKE ? OR COALESCE(d.birim,'') LIKE ?)")
+                params += [f"%{dosya_tur}%", f"%{dosya_tur}%"]
+        for t in terimler(q)[0]:
+            where.append("(COALESCE(d.birim,'') LIKE ? OR COALESCE(d.dosya_no,'') LIKE ? OR COALESCE(d.muvekkil,'') LIKE ? OR COALESCE(d.taraflar,'') LIKE ?)")
+            params += [f"%{t}%"] * 4
+        w = (" WHERE " + " AND ".join(where)) if where else ""
+        if sql:
+            rows = [dict(r) for r in c.execute(
+                sql + w + " ORDER BY CASE WHEN COALESCE(i.son_guncelleme, f.son_guncelleme) IS NULL THEN 1 ELSE 0 END, "
+                "CASE WHEN d.birim LIKE '%İcra Dairesi%' THEN 0 ELSE 1 END, d.durum='Açık' DESC, d.acilis DESC LIMIT 500",
+                params).fetchall()]
+        else:
+            rows = [dict(r) for r in c.execute(
+                "SELECT d.dkey, d.birim, d.dosya_no, d.dosya_tur, d.durum, d.acilis, d.muvekkil, d.taraflar FROM dosya d"
+                + w + " ORDER BY d.durum='Açık' DESC, d.acilis DESC LIMIT 500", params).fetchall()]
+        hesaplar = [_hesap_satiri(r) for r in rows]
+        muvekkiller = [r[0] for r in c.execute(
+            "SELECT DISTINCT muvekkil FROM dosya WHERE COALESCE(muvekkil,'') != '' ORDER BY muvekkil").fetchall()]
+        toplam_dosya = c.execute("SELECT COUNT(*) FROM dosya").fetchone()[0]
+        icra_toplam = c.execute("SELECT COUNT(*) FROM dosya WHERE birim LIKE '%İcra Dairesi%' OR dosya_tur LIKE '%İcra%'").fetchone()[0]
+        cekilen = c.execute("SELECT COUNT(*) FROM dosya_finans").fetchone()[0] if sql else 0
+    cek = [h for h in hesaplar if h.get("cekildi")]
+    icra = [h for h in cek if h["is_icra"]]
+    dava = [h for h in cek if not h["is_icra"]]
+    alacak = sum(h.get("toplam_borc") or 0 for h in icra)
+    tahsil = sum(h.get("tahsilat") or 0 for h in icra)
+    istatistik = {
+        "toplam_dosya": toplam_dosya, "listelenen": len(hesaplar), "hesabi_cekilen": cekilen,
+        "hesabi_bekleyen": max(0, toplam_dosya - cekilen), "icra_dosya": icra_toplam,
+        "toplam_alacak": round(alacak, 2), "toplam_tahsilat": round(tahsil, 2),
+        "kalan_alacak": round(sum(h.get("kalan_borc") or 0 for h in icra), 2),
+        "toplam_avans": round(sum(h.get("artan_avans") or 0 for h in dava), 2),
+        "avansli_dosya": sum(1 for h in dava if (h.get("artan_avans") or 0) > 0),
+        "toplam_harc": round(sum(h.get("masraf_harc") or 0 for h in dava), 2),
+        "tahsilat_yuzdesi": round(tahsil / alacak * 100, 1) if alacak else 0.0,
+    }
+    return {"hazir": True, "istatistik": istatistik, "hesaplar": hesaplar, "muvekkiller": muvekkiller}
 
-        where_str = ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
-        sql = f"SELECT dkey, birim, dosya_no, dosya_tur, durum, acilis, muvekkil, taraflar, evrak_sayisi FROM dosya {where_str} ORDER BY CASE WHEN birim LIKE '%İcra%' THEN 0 ELSE 1 END, acilis DESC LIMIT 300"
-        rows = _satirlar(c.execute(sql, params))
 
-        muvekkiller_rows = c.execute("SELECT DISTINCT muvekkil FROM dosya WHERE muvekkil IS NOT NULL AND muvekkil != '' ORDER BY muvekkil ASC").fetchall()
-        muvekkiller = [r[0] for r in muvekkiller_rows if r[0]]
-
-        toplam_asil = 0.0
-        toplam_tahsilat = 0.0
-        toplam_bakiye = 0.0
-        toplam_avans = 0.0
-
-        hesap_listesi = []
-        import hashlib
-        for r in rows:
-            h_int = int(hashlib.md5((r.get("dkey") or "").encode()).hexdigest()[:6], 16)
-            is_icra = "İcra" in (r.get("birim") or "") or "İcra" in (r.get("dosya_tur") or "")
-
-            asil = round(7500.0 + (h_int % 95000), 2)
-            faiz = round(asil * 0.18, 2)
-            vekalet = round(max(3400.0, asil * 0.16), 2)
-            masraf = round(450.0 + (h_int % 1800), 2)
-            toplam_borc = round(asil + faiz + vekalet + masraf, 2)
-
-            tahsilat_oran = ((h_int % 100) / 100.0) if r.get("durum") == "Kapalı" else ((h_int % 60) / 100.0)
-            tahsilat = round(toplam_borc * tahsilat_oran, 2)
-            kalan_borc = max(0.0, round(toplam_borc - tahsilat, 2))
-            artan_avans = round(300.0 + (h_int % 1200), 2) if not is_icra else 0.0
-
-            toplam_asil += asil
-            toplam_tahsilat += tahsilat
-            toplam_bakiye += kalan_borc
-            toplam_avans += artan_avans
-
-            item = dict(r)
-            item.update({
-                "is_icra": is_icra,
-                "asil_alacak": asil,
-                "islemis_faiz": faiz,
-                "vekalet_ucreti": vekalet,
-                "masraf_harc": masraf,
-                "toplam_borc": toplam_borc,
-                "tahsilat": tahsilat,
-                "kalan_borc": kalan_borc,
-                "artan_avans": artan_avans,
-                "para_birimi": "TL"
-            })
-            hesap_listesi.append(item)
-
-        istatistik = {
-            "toplam_dosya": len(rows),
-            "toplam_alacak": round(toplam_asil, 2),
-            "toplam_tahsilat": round(toplam_tahsilat, 2),
-            "kalan_alacak": round(toplam_bakiye, 2),
-            "toplam_avans": round(toplam_avans, 2),
-            "tahsilat_yuzdesi": round((toplam_tahsilat / max(1.0, toplam_tahsilat + toplam_bakiye)) * 100, 1)
-        }
-    return {"hazir": True, "istatistik": istatistik, "hesaplar": hesap_listesi, "muvekkiller": muvekkiller}
+def hesap_yenile(dkey: str) -> dict:
+    """Tek dosyanın hesabını UYAP'tan şimdi çeker (gizli oturumla; görünür tarayıcı açılmaz)."""
+    if not dkey:
+        raise ValueError("dkey gerekli")
+    try:
+        r = subprocess.run([*PY, "uyap_finans_safahat.py", "--dkey", dkey, "--saat", "0"], cwd=str(EVRAK_DIR),
+                           env=gorev_ortami(), capture_output=True, text=True, encoding="utf-8", errors="replace",
+                           timeout=240)
+    except subprocess.TimeoutExpired:
+        raise ValueError("UYAP 4 dakikada yanıt vermedi; oturum açılıyor olabilir, biraz sonra yeniden deneyin.")
+    if r.returncode != 0:
+        satir = [x for x in (r.stdout or "").splitlines() + (r.stderr or "").splitlines() if x.strip()]
+        raise ValueError((satir[-1] if satir else "Hesap çekilemedi")[:300])
+    c = _ro(katalog_yolu())
+    if c is None:
+        raise ValueError("Katalog yok")
+    with c:
+        return {"hesap": dosya_hesap_getir(c, dkey)}
 
 
 SUNUCU_BASLAMA = time.time()
@@ -858,6 +982,7 @@ def pano() -> dict:
                     "son_hata": b.get("son_hata"), "simdi": son_satir(akis), "baslangic": akis.baslangic},
         "katalog": _katalog_ozet(),
         "drive": drive,
+        "duzen": DUZEN_ZAMAN.durum(),
         "tebligat": {**UETS_ZAMAN.ayar(), "calisiyor": uets.calisiyor(), "son_bitis": uets.bitis, "son_kod": uets.kod,
                      "simdi": son_satir(uets), "kullanilamaz": uets.kullanilamama_nedeni()},
         "zaman": time.strftime("%Y-%m-%d %H:%M:%S"),
@@ -1020,6 +1145,11 @@ GOREVLER: dict[str, dict] = {
     "evrak-nobetci":    {"ad": "UYAP nöbetçi: tek tarama turu", "cwd": EVRAK_DIR, "cmd": [*PY, "uyap_watcher.py", "--once"], "cdp": True},
     # Sürekli UYAP → Google Drive akışı (Senkron düğmesi): arşiv durmadan iner, açık dosyalar aralıkla taranır
     "evrak-akis":       {"ad": "UYAP → Drive sürekli senkronizasyon", "cwd": EVRAK_DIR, "cmd": [*PY, "uyap_watcher.py"], "cdp": True},
+    # Tüm dosyaların GERÇEK UYAP hesapları (icra kapak hesabı, tahsilat/reddiyat, harçlar, artan avans)
+    "hesap-tara":       {"ad": "UYAP dosya hesaplarını çek (icra, avans, harç)", "cwd": EVRAK_DIR, "cmd": [*PY, "uyap_finans_safahat.py", "--saat", "12"], "cdp": True},
+    # UYAP kataloğu → Notion (Dosyalar, Müvekkiller, Diğer Taraflar), dosya konuları; ardından TickTick düzeni
+    "notion-esitle":    {"ad": "UYAP → Notion eşitle (taraflar, birim, açılış, konu)", "cwd": KOK, "cmd": [*PY, "notion_uyap.py", "--uygula"]},
+    "ticktick-duzen":   {"ad": "TickTick düzeni: mükerrer, eksik tebligat, dosya kartları", "cwd": AVUKAT_DIR, "cmd": [*PY, "ticktick_duzen.py", "--uygula"]},
 }
 
 
@@ -1311,6 +1441,78 @@ class BagliTutucu:
 BAGLI_TUT = BagliTutucu()
 
 
+class DuzenZamanlayici:
+    """Sürekli düzen: Notion ve TickTick anahtarları girilmişse her DUZEN_ARALIK_SAAT (varsayılan 6) saatte bir
+    sırayla 'notion-esitle' (UYAP kataloğu → Notion: taraflar, birim, açılış, konu, ikonlar) ve 'ticktick-duzen'
+    (mükerrer, eksik tebligat, her Notion dosyasına kart) çalıştırır. İkisi de kendi güvenlik sınırlarıyla yazar."""
+
+    def __init__(self):
+        self.sonraki = 0.0
+        self.son: dict = {}
+
+    def dongu(self):
+        while True:
+            time.sleep(60)
+            try:
+                e = _entegrasyon.env_oku(AVUKAT_DIR)
+                if not (e.get("NOTION_TOKEN") and e.get("TICKTICK_TOKEN")) or e.get("DUZEN_KAPALI") == "1":
+                    continue
+                try:
+                    saat = float(e.get("DUZEN_ARALIK_SAAT") or 6)
+                except ValueError:
+                    saat = 6.0
+                if not self.sonraki:
+                    self.sonraki = time.time() + 600  # açılıştan 10 dk sonra ilk tur
+                if time.time() < self.sonraki:
+                    continue
+                self.sonraki = time.time() + max(1.0, saat) * 3600
+                self.tur()
+            except Exception:  # noqa: BLE001 — döngü asla ölmesin
+                self.sonraki = time.time() + 1800
+
+    def tur(self):
+        """Bir düzen turu: önce Notion eşitleme (bitmesini bekler), sonra TickTick düzeni."""
+        gn, gt = GOREV_DURUM["notion-esitle"], GOREV_DURUM["ticktick-duzen"]
+        if gn.calisiyor() or gt.calisiyor():
+            return False
+        gn.baslat()
+        bas = time.time()
+        while gn.calisiyor() and time.time() - bas < 3 * 3600:
+            time.sleep(10)
+        gt.baslat()
+        self.son = {"zaman": time.strftime("%Y-%m-%d %H:%M:%S")}
+        return True
+
+    def simdi(self):
+        threading.Thread(target=self.tur, daemon=True, name="duzen-simdi").start()
+
+    def durum(self) -> dict:
+        e = _entegrasyon.env_oku(AVUKAT_DIR)
+
+        def g(k):
+            gr = GOREV_DURUM[k]
+            sonuc = None
+            for x in reversed(list(gr.gunluk)):
+                if "@@SONUC@@" in x:
+                    try:
+                        sonuc = json.loads(x.split("@@SONUC@@", 1)[1])
+                    except ValueError:
+                        pass
+                    break
+            son = ""
+            for x in reversed(list(gr.gunluk)):
+                x = x.split("] ", 2)[-1].strip() if "] " in x else x.strip()
+                if x and "@@SONUC@@" not in x and not x.startswith("="):
+                    son = x[:200]
+                    break
+            return {"calisiyor": gr.calisiyor(), "son_bitis": gr.bitis, "son_kod": gr.kod, "simdi": son, "sonuc": sonuc}
+        return {"hazir": bool(e.get("NOTION_TOKEN") and e.get("TICKTICK_TOKEN")), "kapali": e.get("DUZEN_KAPALI") == "1",
+                "sonraki": self.sonraki or None, "notion": g("notion-esitle"), "ticktick": g("ticktick-duzen")}
+
+    def baslat(self):
+        threading.Thread(target=self.dongu, daemon=True, name="duzen-zamanlayici").start()
+
+
 class UetsZamanlayici:
     """UETS'e arka planda düzenli girer (uets-senkron): taze CSV + eksik EYP → TickTick (eklerle) + Notion.
     Aralık avukatasistan/.env içindeki UETS_OTOMATIK_DK (0 = kapalı). Telefonda gizli WebView ile çalışır."""
@@ -1359,6 +1561,7 @@ class UetsZamanlayici:
 
 
 UETS_ZAMAN = UetsZamanlayici()
+DUZEN_ZAMAN = DuzenZamanlayici()
 
 
 class OturumNabzi:
@@ -1669,7 +1872,7 @@ class Isleyici(BaseHTTPRequestHandler):
             if yol == "/api/hayfa/adliyeler":
                 return self._json(_hayfa_kopru.adliye_ara(q.get("q", ""), q.get("il", ""), q.get("tur", ""), int(q.get("limit") or 80)))
             if yol == "/api/dosya/hesaplar":
-                return self._json(dosya_hesaplari(q.get("q", ""), q.get("muvekkil", ""), q.get("dosya_tur", "")))
+                return self._json(dosya_hesaplari(q.get("q", ""), q.get("muvekkil", ""), q.get("dosya_tur", ""), q.get("durum", "")))
             if yol == "/api/hayfa/mevzuat/detay":
                 return self._json(_hayfa_kopru.mevzuat_detay(veri_dizini(), q.get("url", "")))
             if yol == "/api/baglanti/istatistik":
@@ -1736,6 +1939,12 @@ class Isleyici(BaseHTTPRequestHandler):
                 return self._json(BAGLI_TUT.durum())
             if yol == "/api/dosya/not":
                 return self._json(dosya_not_ekle(govde))
+            if yol == "/api/pano/duzen":
+                DUZEN_ZAMAN.simdi()
+                time.sleep(0.5)
+                return self._json(pano())
+            if yol == "/api/dosya/hesap_yenile":
+                return self._json(hesap_yenile(str(govde.get("dkey") or "")))
             if yol == "/api/evrak/toplu_islem":
                 return self._json(evrak_toplu_islem(govde))
             if yol == "/api/drive/ayar":
@@ -1922,6 +2131,7 @@ def main(argv=None):
     cdp_kopru_baslat()
     BAGLI_TUT.baslat()
     UETS_ZAMAN.baslat()
+    DUZEN_ZAMAN.baslat()
     NABIZ.baslat()
     print(f"CanEditor Hukuk Asistanı {SURUM} — http://127.0.0.1:{a.port}", flush=True)
     print(f"Eşleştirme anahtarı: {k}", flush=True)

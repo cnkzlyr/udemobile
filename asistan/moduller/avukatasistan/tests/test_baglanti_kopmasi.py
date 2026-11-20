@@ -56,6 +56,8 @@ class _Sunucu(BaseHTTPRequestHandler):
         S = type(self)
         n = int(self.headers.get("Content-Length") or 0)
         govde = json.loads(self.rfile.read(n) or b"{}")
+        if self.path.endswith("/task/completed") or self.path.endswith("/task/filter"):
+            return self._yanit(200, [])            # okuma uçları (kapalı görevler): yazma sayılmaz
         S.postlar.append(govde)
         if self.path.endswith("/task"):
             yeni = dict(govde, id=f"g{len(S.postlar)}", status=0)
@@ -90,6 +92,7 @@ class BaglantiKopmasiTest(unittest.TestCase):
         _Sunucu.postlar, _Sunucu.silinenler, _Sunucu.gorevler = [], [], [dict(KART)]
         tts._PROJECT_TASKS_CACHE.clear()
         tts._TUM_GOREVLER = None
+        tts._COMPLETED_TASKS_CACHE, tts._KAPALI_FILTRE = None, None
         config.CONFIG["TICKTICK_API_BASE"] = f"http://127.0.0.1:{self.srv.server_port}/open/v1"
         self.eski = (baglanti.kisa_beklemeler, baglanti._uyu, baglanti.uzun_bekleme_sn, baglanti.internet_var)
         baglanti._uyu = lambda s: None

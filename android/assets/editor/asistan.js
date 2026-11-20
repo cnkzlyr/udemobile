@@ -513,6 +513,7 @@
     ic.innerHTML = `<div class="pn-izgara">
       <div class="pn-kart" id="pn-senkron"><h3>☁️ UYAP → Google Drive</h3><p class="pn-alt">Tüm UYAP evrakları PDF'e dönüştürülüp, mükerrerler ayıklanarak, düzenli adlarla Drive'a sürekli aktarılır.</p><div class="ca-yukleniyor">Yükleniyor…</div></div>
       <div class="pn-kart" id="pn-tebligat"><h3>📨 Tebligat İzleyici</h3><p class="pn-alt">UETS'e arka planda girer; tebligatları EYP ekleri, üst yazısı ve etiketleriyle TickTick'e, ilgili dosyaya Notion'a işler.</p><div class="ca-yukleniyor">Yükleniyor…</div></div>
+      <div class="pn-kart" id="pn-duzen"><h3>🗂️ Notion &amp; TickTick Düzeni</h3><p class="pn-alt">UYAP dosyaları, tarafları ve konularıyla Notion'a; her dosyaya TickTick kartı; mükerrer ve eksik görev denetimi.</p><div class="ca-yukleniyor">Yükleniyor…</div></div>
       <div class="pn-kart" id="pn-ictihat"><h3>⚖️ İçtihat Veritabanı</h3><p class="pn-alt">hayfahukuk.com karar veritabanının canlı durumu.</p><div class="ca-yukleniyor">Ölçülüyor…</div></div>
     </div>`;
     const ciz = async () => {
@@ -521,6 +522,34 @@
       if (!document.body.contains(ic)) return;
       senkronCiz(ic.querySelector('#pn-senkron'), p);
       tebligatCiz(ic.querySelector('#pn-tebligat'), p);
+      duzenCiz(ic.querySelector('#pn-duzen'), p);
+    };
+    const duzenCiz = (el, p) => {
+      const z = p.duzen || {}, n = z.notion || {}, t = z.ticktick || {};
+      const calisiyor = n.calisiyor || t.calisiyor;
+      const ns = n.sonuc || {}, ts = t.sonuc || {};
+      const nokta = !z.hazir ? '' : calisiyor ? 'yesil' : 'sari';
+      el.innerHTML = `<h3>🗂️ Notion &amp; TickTick Düzeni <span class="pn-nokta ${nokta}"></span><span style="font-size:13px;font-weight:500;color:var(--ce-muted,#64748b)">${!z.hazir ? 'Bağlı değil' : calisiyor ? 'Çalışıyor' : 'Otomatik (6 saatte bir)'}</span></h3>
+        <p class="pn-alt">UYAP dosyaları, tarafları ve konularıyla Notion'a; her dosyaya TickTick kartı; mükerrer ve eksik görev denetimi.</p>
+        <button class="pn-dugme kapali" type="button" id="pn-d-dugme" ${z.hazir && !calisiyor ? '' : 'disabled'}>${calisiyor ? '🔄 Düzenleniyor…' : '▶ Şimdi düzenle'}</button>
+        ${!z.hazir ? '<div class="pn-uyari">⚠️ Notion ve TickTick anahtarları girilmemiş. <a href="#" data-git="entegrasyon">Bilgileri girin</a></div>' : ''}
+        <div class="pn-sayilar">
+          <div class="pn-sayi"><b>${ns.yeni_dosya ?? '—'}</b><span>Notion'a yeni dosya</span></div>
+          <div class="pn-sayi"><b>${ns.konu ?? '—'}</b><span>konu özeti yazıldı</span></div>
+          <div class="pn-sayi"><b>${ns.muvekkil_bag != null ? (ns.muvekkil_bag + ns.karsi_bag) : '—'}</b><span>taraf bağlandı</span></div>
+          <div class="pn-sayi"><b>${ts.kapatilan ?? '—'}</b><span>mükerrer kapatıldı</span></div>
+          <div class="pn-sayi"><b>${ts.yeni_kart ?? '—'}</b><span>dosya kartı açıldı</span></div>
+          <div class="pn-sayi"><b style="${ts.eksik ? 'color:#dc2626' : ''}">${ts.eksik ?? '—'}</b><span>eksik görev</span></div>
+        </div>
+        ${ns.engel ? `<div class="pn-uyari">⚠️ ${esc(ns.engel)}</div>` : ''}
+        <div class="pn-simdi">${calisiyor ? '🔄 ' + esc((n.calisiyor ? n.simdi : t.simdi) || '') : (t.son_bitis ? 'Son düzen: ' + saatOnce(new Date(t.son_bitis * 1000).toISOString()) : '')}${!calisiyor && z.sonraki ? ' · Sonraki: ' + new Date(z.sonraki * 1000).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }) : ''}</div>`;
+      const b = el.querySelector('#pn-d-dugme');
+      if (b) b.onclick = async e => {
+        e.currentTarget.disabled = true;
+        try { const r = await api('/api/pano/duzen', { method: 'POST', govde: {} }); duzenCiz(el, r); }
+        catch (er) { el.querySelector('.pn-simdi').innerHTML = `<span class="ca-hata">${esc(er.message)}</span>`; }
+      };
+      el.querySelectorAll('[data-git]').forEach(a => { a.onclick = ev => { ev.preventDefault(); sekmeAc(a.dataset.git); }; });
     };
     const senkronCiz = (el, p) => {
       const s = p.senkron, k = p.katalog || {}, d = p.drive || {};
@@ -978,6 +1007,9 @@
   function gorevIzleDurdur() { if (izleZam) { clearInterval(izleZam); izleZam = null; } }
 
   const GOREV_ACIKLAMALARI = {
+    "hesap-tara": "UYAP'tan tüm dosyaların gerçek hesaplarını çeker: icra kapak hesabı, tahsilat/reddiyat, harç kalemleri ve davalarda artan avans. Gizli oturumla çalışır, tarayıcı açmaz.",
+    "notion-esitle": "UYAP kataloğundaki dosyaları Notion'a işler: eksik dosyalar, açılış tarihi, durum, müvekkil ve karşı taraf bağlantıları, aynı ikonlar ve 5-10 cümlelik dosya konusu. Elle yazılmış konu ezilmez.",
+    "ticktick-duzen": "TickTick'i düzenler: aktif, tamamlanan ve yapılmayacak görevlerle mükerrer kontrolü; eksik tebligat (üstyazı/ek/bilgi) işaretleme; Notion'daki her açık dosyaya kart ve dosya konusu.",
     "uets-senkron": "Ulusal Elektronik Tebligat Sistemi'ne (UETS) bağlanarak yeni tebligatları indirir, PTT delil kayıtlarını doğrular ve HMK/CMK yasal sürelerini otomatik hesaplar.",
     "uets-cevrimdisi": "İnternet veya portal bağlantısı olmadan, daha önce indirilmiş yerel CSV ve tebligat kayıtları üzerinden süre defterini günceller.",
     "uets-otokontrol": "Tebligat sürelerinde çakışma, kaçırılma riski veya eksik evrak olup olmadığını denetleyen güvenlik raporu üretir.",

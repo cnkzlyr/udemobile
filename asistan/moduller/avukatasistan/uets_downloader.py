@@ -8,6 +8,7 @@ ve son N adet tebligatın .eyp paketlerini kusursuz şekilde İndirilenler klas�
 """
 
 import json
+from pathlib import Path
 import os
 import sys
 import time
@@ -435,6 +436,12 @@ def check_missing_tebligatlar_in_ticktick(csv_items, limit=None):
     except Exception:
         tamamlanan_idler = set()
     aktif_idler: dict = {}
+    # TickTick düzeni (ticktick_duzen.py) eki/üstyazısı/bilgisi eksik bulduğu tebligatları buraya yazar
+    try:
+        eksik_isaretli = set(json.loads((Path(__file__).resolve().parent / "eksik_tebligatlar.json")
+                                        .read_text(encoding="utf-8")).get("barkodlar") or [])
+    except Exception:
+        eksik_isaretli = set()
 
     def _aktif(pid):
         if pid not in aktif_idler:
@@ -487,6 +494,10 @@ def check_missing_tebligatlar_in_ticktick(csv_items, limit=None):
         if act:
             from ticktick_sync import gercek_ek_var
             has_att = gercek_ek_var(act, barcode)
+            if has_att and str(barcode) in eksik_isaretli:
+                print(f"   🧾 [{idx+1}/{len(items_to_check)}] {court} [{esas_no}] (Barkod: {barcode}) -> denetimde EKSİK işaretli (üstyazı/bilgi). Yeniden işlenecek.")
+                missing.append((idx, item))
+                continue
             if has_att:
                 print(f"   🛡️ [{idx+1}/{len(items_to_check)}] {court} [{esas_no}] (Barkod: {barcode}) -> TickTick'te mevcut ve eki tam.")
                 continue

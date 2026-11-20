@@ -74,6 +74,14 @@ def tt_post(url, payload, what="görev", timeout=12):
     # Bağlantı koparsa bekleyip devam eder. OLUŞTURMA isteğinin yanıtı kaybolursa önce "oluşmuş mu?" bakılır:
     # oluşmuşsa o görev döner (kopya açılmaz). Güncelleme (url'de görev kimliği var) güvenle tekrar gönderilir.
     olusturma = url.rstrip("/").endswith("/task") and not payload.get("id")
+    if olusturma:
+        # SON SAVUNMA HATTI: aynı kimlikli görev daha önce tamamlanmış ya da "yapılmayacak" yapılmışsa YENİDEN AÇILMAZ
+        # (hangi yoldan gelirse gelsin: UETS, UYAP listesi, duruşma, elle aktarma).
+        kapali = kapali_kopya_bul(payload)
+        if kapali:
+            lbl = "yapılmayacak" if kapali.get("status") == -1 else "tamamlanmış"
+            print(f"   🛡️ Aynı görev daha önce {lbl} olarak kapatılmış; kopyası açılmadı: {(payload.get('title') or '')[:70]}")
+            return kapali
     resp, var = baglanti.yaz("POST", url, get_ticktick_headers(), json_body=payload, timeout=timeout, ne=f"TickTick {what}",
                              olusturma=olusturma, dogrula=(lambda: _olusturulmus_gorev(payload)) if olusturma else None,
                              anahtar=(payload.get("title") or payload.get("id") or "")[:120])
@@ -303,6 +311,134 @@ def get_project_tasks_live(project_id, force_refresh=False):
     _PROJECT_TASKS_CACHE[project_id] = tasks
     return tasks
 
+_KAPALI_FILTRE = None
+_KAPALI_FILTRE_ZAMAN = 0
+
+
+def _filtre_istek(govde):
+    """POST /task/filter (TickTick Open API): status 2 = tamamlandı, -1 = yapılmayacak. Desteklenmiyorsa []."""
+    try:
+        r = tt_oku(f"{CONFIG['TICKTICK_API_BASE']}/task/filter", what="kapalı görevler (filtre)", method="POST",
+                   json_body=govde, timeout=25)
+        if r.status_code == 200 and r.content:
+            v = r.json()
+            return v if isinstance(v, list) else (v.get("tasks") or v.get("result") or [])
+    except Exception as e:  # noqa: BLE001  — filtre uç noktası yoksa eski davranış (yalnız /task/completed)
+        print(f"   ⚠️ TickTick kapalı görev filtresi okunamadı: {str(e)[:120]}")
+    return []
+
+
+def kapali_gorevler_filtre(force=False):
+    """Tamamlanan ve YAPILMAYACAK görevlerin tamamı (tüm listeler). Yanıt 200 kayıtla sınırlıysa liste liste,
+    gerekirse yıl yıl bölünerek çekilir. 10 dk önbellek."""
+    global _KAPALI_FILTRE, _KAPALI_FILTRE_ZAMAN
+    if not force and _KAPALI_FILTRE is not None and time.time() - _KAPALI_FILTRE_ZAMAN < 600:
+        return _KAPALI_FILTRE
+    sonuc, gorulen = [], set()
+
+    def ekle(lst):
+        for t in lst or []:
+            if t.get("id") and t["id"] not in gorulen and t.get("status") in (2, -1):
+                gorulen.add(t["id"])
+                sonuc.append(t)
+
+    ilk = _filtre_istek({"status": [2, -1]})
+    ekle(ilk)
+    if len(ilk) >= 190:
+        pids = []
+        try:
+            r = tt_oku(f"{CONFIG['TICKTICK_API_BASE']}/project", what="liste adları", timeout=20)
+            pids = [p["id"] for p in (r.json() or []) if r.status_code == 200]
+        except Exception:  # noqa: BLE001
+            pass
+        for pid in pids + ["inbox"]:
+            for durum in (2, -1):
+                lst = _filtre_istek({"projectIds": [pid], "status": [durum]})
+                ekle(lst)
+                if len(lst) >= 190:
+                    yil = datetime.now().year
+                    for y in range(yil, yil - 8, -1):
+                        ekle(_filtre_istek({"projectIds": [pid], "status": [durum],
+                                            "startDate": f"{y}-01-01T00:00:00.000+0000",
+                                            "endDate": f"{y + 1}-01-01T00:00:00.000+0000"}))
+    _KAPALI_FILTRE, _KAPALI_FILTRE_ZAMAN = sonuc, time.time()
+    return sonuc
+
+
+def _kimlik_anahtari(k):
+    """Aynı tebligat/duruşma/dosyayı gösteren görevler için ortak anahtar (mükerrer tespiti)."""
+    tur = (k or {}).get("tur") or ""
+    if not tur:
+        return None
+    if k.get("barkod"):
+        return (tur, "B", k["barkod"])
+    if k.get("uets_no"):
+        return (tur, "U", k["uets_no"])
+    esas = k.get("esas") or ""
+    mah = clean_text(k.get("mahkeme") or "")
+    if tur == "DURUŞMA" and esas:
+        return (tur, esas, mah, (k.get("durusma") or "").replace(".", "/")[:10])
+    if tur == "EVRAK" and esas and k.get("konu"):
+        return (tur, esas, mah, clean_text(k["konu"]))
+    if tur == "DOSYA":
+        if esas:
+            return (tur, esas, mah)
+        if k.get("konu"):
+            return (tur, "KONU", clean_text(k["konu"]))
+    return None
+
+
+def ayni_kimlikli_aktif(content):
+    """Tüm listelerdeki aktif görevlerde aynı kimlik anahtarlı görev (yoksa None)."""
+    anahtar = _kimlik_anahtari(kimlik.oku(content or ""))
+    if not anahtar:
+        return None
+    for t in tum_aktif_gorevler():
+        if _kimlik_anahtari(kimlik.oku(t.get("content") or "")) == anahtar:
+            return t
+    return None
+
+
+def uyap_evrak_gorevi(birim, dosya_no, tur, aciklama="", tarih="", son_gun_iso="", oncelik=3, etiketler=None, detay=""):
+    """UYAP'a düşen yeni evrak için STANDART görev: dosya kartının ALT görevi, kimlik satırlı (EVRAK · mahkeme ·
+    esas · konu=tür+tarih). Aynı evrak için aktif, tamamlanmış ya da yapılmayacak görev varsa YENİSİ AÇILMAZ.
+    (Eskiden her yeni evrak kimliksiz, kartsız, tekrar kontrolsüz '📄 ...' görevi açıyordu: mükerrerlerin kaynağı.)"""
+    konu = f"{(tur or 'Evrak').strip()} {str(tarih or '')[:10]}".strip()
+    kim = kimlik.satir("EVRAK", mahkeme=birim, esas=dosya_no, konu=konu)
+    var = ayni_kimlikli_aktif(kim) or kapali_kopya_bul({"content": kim})
+    if var:
+        return {"ok": True, "gorev": var, "mevcut": True}
+    liste = determine_list(birim)
+    pid = PROJECT_IDS.get(liste) or PROJECT_IDS.get("Inbox") or "inbox"
+    kart, kart_pid = find_or_create_parent_task(birim, dosya_no, pid)
+    payload = {"title": f"📥 {(tur or 'UYAP evrakı').strip()} - {birim} - {dosya_no} Esas"[:250],
+               "projectId": kart_pid or pid, "content": kim + "\n\n" + (detay or aciklama or "").strip(),
+               "priority": int(oncelik or 0), "tags": list(etiketler or ["uyap"]), "timeZone": "Europe/Istanbul"}
+    if kart:
+        payload["parentId"] = kart
+    if son_gun_iso:
+        payload["dueDate"] = son_gun_iso if "T" in son_gun_iso else f"{son_gun_iso}T17:00:00+0300"
+        payload["isAllDay"] = False
+    g = tt_post(f"{CONFIG['TICKTICK_API_BASE']}/task", payload, what="UYAP evrak görevi")
+    return {"ok": bool(g), "gorev": g, "mevcut": False}
+
+
+def kapali_kopya_bul(payload):
+    """Açılmak üzere olan görevin TAMAMLANMIŞ ya da YAPILMAYACAK bir kopyası var mı (kimlik satırıyla)? Varsa döndürür."""
+    k = kimlik.oku((payload or {}).get("content") or "")
+    anahtar = _kimlik_anahtari(k)
+    if not anahtar:
+        return None
+    try:
+        kapali = get_completed_tasks_live()
+    except Exception:  # noqa: BLE001
+        return None
+    for t in kapali:
+        if _kimlik_anahtari(kimlik.oku(t.get("content") or "")) == anahtar:
+            return t
+    return None
+
+
 def get_completed_tasks_live(force_refresh=False):
     """TickTick'teki yakın zamanda tamamlanmış veya kapatılmış görevleri çeker."""
     global _COMPLETED_TASKS_CACHE, _LAST_COMPLETED_FETCH
@@ -314,6 +450,15 @@ def get_completed_tasks_live(force_refresh=False):
     url = f"{CONFIG['TICKTICK_API_BASE']}/task/completed"
     resp = tt_oku(url, what="tamamlanmış görevler", method="POST", json_body={})
     tasks = resp.json() if resp.status_code == 200 and resp.content else []
+    if not isinstance(tasks, list):
+        tasks = []
+    # "Yapılmayacak" (status -1) görevler /task/completed yanıtında YOK: filtre uç noktasıyla eklenir. Mükerrer
+    # kontrolü böylece aktif + tamamlanan + yapılmayacak görevlerin TAMAMINA bakar (kullanıcı şartı).
+    gorulen = {t.get("id") for t in tasks}
+    for t in kapali_gorevler_filtre(force=force_refresh):
+        if t.get("id") not in gorulen:
+            gorulen.add(t.get("id"))
+            tasks.append(t)
     _COMPLETED_TASKS_CACHE = tasks
     _LAST_COMPLETED_FETCH = now
     return tasks
@@ -369,13 +514,20 @@ def get_related_court_projects(court):
         return ["İdareMahkemesi", "VergiMahkemesi", "BİM_İdareDosyaları", "DanıştayDosyaları"]
     return ["AsliyeHukukMahkemesi", "AsliyeTicaretMahkemesi", "İşMahkemesi", "SulhHukukMahkemesi", "AileMahkemesi", "BAM_HukukDairesi", "Yargıtay-HukukDairesi"]
 
-def find_or_create_parent_task(court, esas_no, project_id, client_tag="", notion_url=""):
+def find_or_create_parent_task(court, esas_no, project_id, client_tag="", notion_url="", konu="", konu_kaynak="Notion"):
     """
     Mahkeme ve esas no için Ana Dava Kartını bulur; yoksa otomatik açar.
     Daima (parent_id, actual_project_id) çifti döndürür ki TickTick içinde subtask ile parent aynı projede olsun.
     """
     global SON_KART_YENI
     SON_KART_YENI = False
+    # 0. Tüm listelerde KİMLİK satırıyla ara (kullanıcı kartı yeniden adlandırsa ya da başka listeye taşısa da bulunur)
+    try:
+        t0 = kimlige_gore_bul("DOSYA", esas=esas_no, mahkeme=court)
+        if t0:
+            return t0["id"], t0.get("_pid") or t0.get("projectId") or project_id
+    except Exception:  # noqa: BLE001
+        pass
     # 1. Mevcut projede ara (okunamazsa TickTickOkumaHatasi: kart "yok" sanılıp kopyası AÇILMAZ)
     tasks = get_project_tasks_live(project_id)
     for t in tasks:
@@ -400,13 +552,9 @@ def find_or_create_parent_task(court, esas_no, project_id, client_tag="", notion
     # Parent kartlarına ASLA 'uets' etiketi verilmez!
     tags = [tg for tg in tags if tg != "uets"]
             
-    content = kimlik.satir("DOSYA", mahkeme=court, esas=esas_no) + "\n\n⚖️ **Dava Dosyası**\n"
-    content += f"- **Merci:** {court}\n- **Dosya:** {esas_no} Esas\n"
-    if raw_tag:
-        content += f"👤 **Müvekkil:** #{raw_tag}\n"
-    if notion_url:
-        content += f"🔗 **Notion Dosyası:** {notion_url}\n"
-        
+    import gorev_format
+    content = gorev_format.dosya_karti_icerigi(court, esas_no, raw_tag, notion_url, konu=konu, konu_kaynak=konu_kaynak)
+
     url = f"{CONFIG['TICKTICK_API_BASE']}/task"
     payload = {
         "title": f"{court} - {esas_no} Esas",

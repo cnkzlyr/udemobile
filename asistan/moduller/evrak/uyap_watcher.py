@@ -528,11 +528,12 @@ class UyapWatcher:
                 # Finans ve Safahat güncelle (yeni evrak düştüğünde anında mali durumu ve safahati tazele)
                 if truly_fresh:
                     try:
-                        is_icra = "İcra" in (case["birim"] or "") or "Icra" in (case["birim"] or "")
+                        from uyap_finans_safahat import icra_mi
+                        is_icra = icra_mi(case["birim"] or "", dict(case).get("dosya_tur") or "")
                         if is_icra:
                             self.finans_mgr.fetch_icra_hesap(dosya_id, dkey, case["birim"], case["dosya_no"])
                         else:
-                            self.finans_mgr.fetch_finans(dosya_id, dkey, case["birim"], case["dosya_no"])
+                            self.finans_mgr.fetch_finans(dosya_id, dkey, case["birim"], case["dosya_no"], is_icra=False)
                             self.finans_mgr.fetch_safahat(dosya_id, dkey, case["birim"], case["dosya_no"])
                     except Exception as fe:
                         logger.debug("Finans/safahat tazeleme hatası: %s", fe)
@@ -830,6 +831,19 @@ class UyapWatcher:
         if c is not None:
             c.close()
 
+    def _hesap_tazele(self) -> None:
+        """Boşta: hesabı hiç çekilmemiş / 24 saatten eski dosyaların UYAP hesaplarını (icra kapak hesabı, tahsilat,
+        reddiyat, harçlar, artan avans) azar azar tazeler. Böylece Dosya Hesapları ekranı hep gerçek veriyi gösterir."""
+        try:
+            if getattr(self, "bridge", None) is None:
+                return
+            self.finans_mgr.bridge = self.bridge
+            d = self.finans_mgr.hesaplari_tazele(limit=10)
+            if d.get("basarili"):
+                logger.info("💰 %d dosyanın UYAP hesabı tazelendi (%d icra).", d["basarili"], d.get("icra", 0))
+        except Exception as e:  # noqa: BLE001
+            logger.warning("Hesap tazeleme atlandı: %s", e)
+
     def run_loop(self, once: bool = False) -> int:
         """Sürekli arka plan nöbet döngüsü veya tek seferlik tarama (--once).
         Dönüş: 0 başarılı, 1 hata (--once modunda çıkış kodu olur; böylece arayüz hatayı 'başarılı' sanmaz)."""
@@ -912,6 +926,7 @@ class UyapWatcher:
                                             d["dogrulanan"], d.get("indirildi", 0))
                         except Exception as e:  # noqa: BLE001
                             logger.warning("Tahmin doğrulama atlandı: %s", e)
+                    self._hesap_tazele()
                     logger.info("✨ Arşiv Google Drive ile eşit. Bir sonraki açık dosya taraması %d dk içinde.",
                                 max(1, int((interval_s - (time.time() - self._son_tam_tur)) / 60)))
                     time.sleep(max(30.0, min(300.0, interval_s - (time.time() - self._son_tam_tur))))
@@ -925,6 +940,7 @@ class UyapWatcher:
                                             d["dogrulanan"], d.get("indirildi", 0))
                         except Exception as e:  # noqa: BLE001
                             logger.warning("Tahmin doğrulama atlandı: %s", e)
+                    self._hesap_tazele()
                     logger.info("✨ Tüm UYAP arşivi Google Drive ile %100 eşitlendi! Tam Nöbetçi Bekleme Modu (%d dakika)...", self.config.get("interval_minutes", 15))
                     if once:
                         break

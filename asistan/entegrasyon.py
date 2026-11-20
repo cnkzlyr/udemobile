@@ -42,6 +42,7 @@ GIZLI_ALANLAR = (
     "TICKTICK_EMAIL",
     "GMAIL_USER",
     "GMAIL_APP_PASS",
+    "OZET_API_KEY",
 )
 
 # Önbellek (5 dk)
@@ -102,6 +103,11 @@ def ayar_ozeti(avukat_dir: Path) -> dict:
         "gmail_user": e.get("GMAIL_USER", ""),
         "uets_tckn": _maskele(e.get("UETS_TCKN", "")),
         "otomatik_senkron": e.get("UYAP_OTO_SENKRON", "1") != "0",
+        # Dosya konusu özetleri: anahtar varsa yapay zekâ, yoksa evraklardan çıkarımsal özet (dosya_ozet.py)
+        "ozet_bagli": bool(e.get("OZET_API_KEY")),
+        "ozet_api_key": _maskele(e.get("OZET_API_KEY", "")),
+        "ozet_saglayici": e.get("OZET_SAGLAYICI", "anthropic"),
+        "ozet_model": e.get("OZET_MODEL", ""),
     }
 
 
@@ -120,6 +126,9 @@ def ayar_kaydet(avukat_dir: Path, girdi: dict) -> dict:
         # UETS giriş kodu (OTP) Gmail'den otomatik okunur (uets_downloader.find_latest_otp_code)
         "gmail_user": "GMAIL_USER",
         "gmail_app_pass": "GMAIL_APP_PASS",
+        "ozet_api_key": "OZET_API_KEY",
+        "ozet_saglayici": "OZET_SAGLAYICI",
+        "ozet_model": "OZET_MODEL",
     }
     for json_k, env_k in esleme.items():
         if json_k in girdi and str(girdi[json_k] or "").strip():
@@ -518,19 +527,22 @@ def uyap_otomatik_aktar(avukat_dir: Path, birim: str, dosya_no: str, tur: str,
             sonuc["hatalar"].append(f"Notion: {ex}")
 
     if e.get("TICKTICK_TOKEN"):
+        etiket = ["uyap", "tebligat" if teblig_mi else "evrak"]
         try:
-            etiket = ["uyap", "tebligat" if teblig_mi else "evrak"]
-            sonuc["ticktick"] = ticktick_gorev_ekle(
-                avukat_dir,
-                baslik=ozet_baslik,
-                icerik=detay,
-                mahkeme=birim,
-                son_tarih_iso=son_gun,
-                oncelik=5 if teblig_mi else 3,
-                etiketler=etiket,
-            )
-        except Exception as ex:
-            sonuc["hatalar"].append(f"TickTick: {ex}")
+            # Standart yol: dosya kartının altına kimlik satırlı görev; aynı evrak için (aktif / tamamlanan /
+            # yapılmayacak) görev varsa yenisi AÇILMAZ.
+            import sys as _sys
+            if str(avukat_dir) not in _sys.path:
+                _sys.path.insert(0, str(avukat_dir))
+            for _k in ("TICKTICK_TOKEN", "NOTION_TOKEN"):
+                if e.get(_k):
+                    os.environ.setdefault(_k, e[_k])
+            import ticktick_sync as _ts  # type: ignore
+            sonuc["ticktick"] = _ts.uyap_evrak_gorevi(birim, dosya_no, tur, aciklama=aciklama, tarih=tarih,
+                                                      son_gun_iso=son_gun, oncelik=5 if teblig_mi else 3,
+                                                      etiketler=etiket, detay=detay)
+        except Exception as ex:  # noqa: BLE001
+            sonuc["hatalar"].append(f"TickTick: {str(ex)[:200]}")
 
     # Belgede "Notion + TickTick + Telegram" yazıyordu ama Telegram'a hiç gönderilmiyordu
     if e.get("TELEGRAM_BOT_TOKEN") and e.get("TELEGRAM_CHAT_ID"):

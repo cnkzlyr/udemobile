@@ -2062,7 +2062,9 @@ class UyapBrowserBridge:
             except Exception:
                 pass
 
-        durum_vals = [1, 0] if include_closed else [1]
+        # Her iki durum kodu da sorgulanır; açık/kapalı ayrımı UYAP'ın döndürdüğü dosyaDurum alanından yapılır
+        # (kod anlamı yargı türüne göre değişebiliyor, eskiden yalnız açıklar istendiğinde kapalılar gelebiliyordu).
+        durum_vals = [0, 1]
         js = f"""
         (async () => {{
             const birimler = [
@@ -2077,6 +2079,19 @@ class UyapBrowserBridge:
                 ["25", "6701"]
             ];
             const durumlar = {json.dumps(durum_vals)};
+            // Avukatın yetkili olduğu TÜM birim türleri UYAP'tan dinamik alınır (icra daireleri dahil); sabit listede
+            // olmayan birimlerin dosyaları eskiden hiç gelmiyordu (icra dosyaları "Dosya Hesapları"nda görünmüyordu).
+            for (const yt of ["0", "1", "2", "6", "11", "25"]) {{
+                try {{
+                    const r = await fetch("/yargiBirimleriSorgula_brd.ajx", {{method: "POST",
+                        headers: {{"Content-Type": "application/json"}}, body: JSON.stringify({{yargiTuru: yt}})}});
+                    const d = r.ok ? await r.json() : null;
+                    if (Array.isArray(d)) for (const b of d) {{
+                        const kod = String((b && b.tablo) || "");
+                        if (kod && !birimler.some(x => x[0] === yt && x[1] === kod)) birimler.push([yt, kod]);
+                    }}
+                }} catch (e) {{}}
+            }}
 
             // UYAP aynı anda çok sayıda isteği zaman zaman reddeder: her istek 3 kez denenir,
             // aynı anda en fazla 6 istek çalışır (önceden reddedilen kategoriler sessizce boş dönüyordu).
@@ -2117,7 +2132,11 @@ class UyapBrowserBridge:
                                 }});
                                 if (d === null) {{ failed++; break; }}
                                 const list = Array.isArray(d[0]) ? d[0] : [];
-                                for (const x of list) out.push({{...x, dosyaDurumGenel: durum === 1 ? "Açık" : "Kapalı"}});
+                                for (const x of list) {{
+                                    const dd = String(x.dosyaDurum || "").toLocaleLowerCase("tr");
+                                    const genel = dd ? (dd.startsWith("açık") || dd.startsWith("acik") ? "Açık" : "Kapalı") : (durum === 0 ? "Açık" : "Kapalı");
+                                    out.push({{...x, dosyaDurumGenel: genel}});
+                                }}
                                 if (list.length < 200) break;
                             }} catch (e) {{
                                 break;
@@ -2157,7 +2176,9 @@ class UyapBrowserBridge:
             return allCases;
         }})()
         """
-        cases = self.eval_js(js, timeout=120.0) or []
+        cases = self.eval_js(js, timeout=240.0) or []
+        if not include_closed:
+            cases = [c for c in cases if c.get("dosyaDurumGenel") == "Açık"]
         if cases and include_closed:
             try:
                 cache_file.write_text(
