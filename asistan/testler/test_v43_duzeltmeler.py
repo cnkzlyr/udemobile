@@ -290,3 +290,17 @@ class MukerrerTahminTesti(unittest.TestCase):
             self.assertEqual(d["dogrulanan"], 1)
             self.assertEqual(d["indirildi"], 1)
             self.assertEqual(m._tahmin_haritasi(), {})
+
+
+class KararIstatistikTesti(unittest.TestCase):
+    def test_en_son_karar_bulunur_bosluklara_ragmen(self):
+        import hayfa_kopru as h
+        mevcut = set(range(1, 123457)) - {500, 501, 90000, 123400}
+        eski = h._karar_var_mi
+        h._karar_var_mi = lambda k: k in mevcut
+        try:
+            with tempfile.TemporaryDirectory() as td:
+                r = h.karar_istatistik(Path(td), yenile=True)
+                self.assertEqual(r["en_son_karar_no"], 123456)
+        finally:
+            h._karar_var_mi = eski

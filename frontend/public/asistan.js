@@ -317,7 +317,7 @@
   }
   `;
 
-  let kok = null, aktifSekme = (() => { try { return localStorage.getItem('canasistan.sonSekme') || 'sure'; } catch (e) { return 'sure'; } })(), stilVar = false;
+  let kok = null, aktifSekme = 'ana', stilVar = false;
   function stilEkle() {
     if (stilVar || !document.head) return;
     const st = document.createElement('style'); st.textContent = CSS; document.head.appendChild(st); stilVar = true;
@@ -325,11 +325,13 @@
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
   // Sekmeler işlevine göre gruplanır (v4.3): masaüstünde solda gruplu kenar çubuğu, telefonda kaydırılabilir çipler.
+  // v4.5 sadeleştirme: görünür olan yalnız 3 bölüm; diğer her şey "Diğer araçlar" altında katlı.
   const SEKME_GRUPLARI = [
-    ['Takip', [['uyap', '🔐 UYAP Giriş'], ['tebligat', '📨 Tebligatlar (UETS)'], ['yeni', '🔔 Yeni Evrak'], ['dosyalar', '📁 Dosyalar'], ['ajanda', '📅 Ajanda'], ['evrak', '🗂️ Evrak Ara']]],
-    ['Süre & Hesap', [['sure', '⏱️ Süre'], ['hesap', '🧮 Hesapla'], ['hesaplar', '💰 Dosya Hesapları']]],
-    ['Belge', [['a4', '📄 A4 PDF'], ['jar', '🔄 JAR Dönüştür'], ['hayfa', '📰 HAYFA']]],
-    ['Bağlantılar', [['drive', '☁️ Drive'], ['entegrasyon', '📋 Notion / TickTick'], ['gorev', '⚙️ Görevler'], ['baglanti', '🔌 Bağlantı']]]
+    ['', [['ana', '🏠 Ana Ekran'], ['dosyalar', '📁 Dosyalar'], ['tebligat', '📨 Tebligatlar']]],
+    ['Diğer araçlar', [['uyap', '🔐 UYAP Giriş'], ['yeni', '🔔 Yeni Evrak'], ['ajanda', '📅 Ajanda'], ['evrak', '🗂️ Evrak Ara'],
+      ['sure', '⏱️ Süre'], ['hesap', '🧮 Hesapla'], ['hesaplar', '💰 Dosya Hesapları'], ['a4', '📄 A4 PDF'], ['jar', '🔄 JAR Dönüştür'],
+      ['hayfa', '📰 HAYFA / İçtihat'], ['drive', '☁️ Drive Ayarları'], ['entegrasyon', '📋 Notion / TickTick / Telegram'],
+      ['gorev', '⚙️ Görevler'], ['baglanti', '🔌 Bağlantı']]]
   ];
   const SEKMELER = SEKME_GRUPLARI.flatMap(([, l]) => l);
 
@@ -403,6 +405,36 @@
   #ca-panel .ca-yukleniyor{display:flex;align-items:center;gap:10px;color:var(--ce-muted,#64748b);padding:18px 4px}
   #ca-panel .ca-yukleniyor::before{content:"";width:16px;height:16px;border-radius:50%;border:2px solid currentColor;border-right-color:transparent;animation:ca-don .8s linear infinite}
   @keyframes ca-don{to{transform:rotate(360deg)}}
+  #ca-panel .ca-govde>nav .ca-diger{display:none;flex-direction:inherit;gap:inherit}
+  #ca-panel .ca-govde>nav.diger-acik .ca-diger{display:flex}
+  #ca-panel .ca-govde>nav .ca-diger-ac{color:var(--ce-muted,#64748b)!important;font-size:12.5px!important}
+  /* Ana ekran kartları */
+  .pn-izgara{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}
+  .pn-kart{border-radius:16px;padding:18px;background:var(--ce-surface,#fff);border:1px solid var(--ce-border,#e2e6ec);box-shadow:0 1px 2px rgba(15,23,42,.04)}
+  .pn-kart h3{margin:0 0 4px;font-size:17px;display:flex;align-items:center;gap:8px}
+  .pn-alt{color:var(--ce-muted,#64748b);font-size:13px;margin:0 0 12px}
+  .pn-dugme{width:100%;padding:16px;border-radius:12px;border:0;font-size:16px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;transition:filter .15s}
+  .pn-dugme:hover{filter:brightness(1.06)}
+  .pn-dugme.kapali{background:#0f2744;color:#fff}
+  .pn-dugme.acik{background:#16a34a;color:#fff}
+  .pn-dugme:disabled{opacity:.55;cursor:not-allowed}
+  .pn-nokta{width:10px;height:10px;border-radius:50%;background:#94a3b8;display:inline-block}
+  .pn-nokta.yesil{background:#22c55e;box-shadow:0 0 0 0 rgba(34,197,94,.6);animation:pn-nabiz 1.8s infinite}
+  .pn-nokta.sari{background:#f59e0b}.pn-nokta.kirmizi{background:#ef4444}
+  @keyframes pn-nabiz{70%{box-shadow:0 0 0 8px rgba(34,197,94,0)}100%{box-shadow:0 0 0 0 rgba(34,197,94,0)}}
+  .pn-cubuk{height:12px;border-radius:8px;background:rgba(100,116,139,.15);overflow:hidden;margin:12px 0 6px}
+  .pn-cubuk>div{height:100%;background:linear-gradient(90deg,#c8a45a,#e0c27d);transition:width .6s}
+  .pn-sayilar{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
+  .pn-sayi{background:rgba(100,116,139,.07);border-radius:10px;padding:8px 10px}
+  .pn-sayi b{display:block;font-size:17px;font-variant-numeric:tabular-nums}
+  .pn-sayi span{font-size:11.5px;color:var(--ce-muted,#64748b)}
+  .pn-simdi{font-size:12.5px;color:var(--ce-muted,#64748b);margin-top:10px;min-height:2.6em;line-height:1.3;word-break:break-word}
+  .pn-uyari{background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;border-radius:10px;padding:8px 10px;font-size:13px;margin-top:10px}
+  body.ce-dark-mode .pn-uyari{background:#3b2410;border-color:#7c2d12;color:#fed7aa}
+  /* Asistan modu: editör hiç görünmez, panel tam ekran ana ekrandır */
+  body.ce-asistan-modu > *:not(#ca-panel):not(script):not(style){display:none!important}
+  body.ce-asistan-modu #ca-panel{background:var(--ce-bg,#f4f6f9)!important;backdrop-filter:none}
+  body.ce-asistan-modu #ca-panel .ca-kutu{width:100vw!important;height:100dvh!important;max-width:none!important;border-radius:0!important;border:0!important}
   @media (max-width:900px){
     #ca-panel .ca-kutu{width:100vw!important;height:100dvh!important;border-radius:0!important;border:0!important}
     #ca-panel .ca-govde{grid-template-columns:1fr;grid-template-rows:auto minmax(0,1fr)}
@@ -445,7 +477,8 @@
         <button class="ca-kapat" type="button" aria-label="Kapat">×</button>
       </header>
       <div class="ca-govde">
-        <nav aria-label="Asistan bölümleri">${SEKME_GRUPLARI.map(([g, l]) => `<div class="ca-grup">${esc(g)}</div>` + l.map(([k, ad]) => `<button type="button" data-sekme="${k}">${ad}</button>`).join('')).join('')}</nav>
+        <nav aria-label="Asistan bölümleri">${SEKME_GRUPLARI.map(([g, l], gi) => (gi === 0 ? '' : `<button type="button" class="ca-diger-ac">⋯ ${esc(g)}</button><div class="ca-diger">`)
+          + l.map(([k, ad]) => `<button type="button" data-sekme="${k}">${ad}</button>`).join('') + (gi === 0 ? '' : '</div>')).join('')}</nav>
         <div class="ca-icerik" tabindex="-1"></div>
       </div></div>`;
     document.body.appendChild(kok);
@@ -453,12 +486,115 @@
     kok.querySelector('#ca-hdr-drive-durum').onclick = () => sekmeAc('drive');
     kok.addEventListener('mousedown', e => { if (e.target === kok) kapat(); });
     document.addEventListener('keydown', e => { if (e.key === 'Escape' && kok.classList.contains('acik')) kapat(); });
-    kok.querySelectorAll('nav button').forEach(b => { b.onclick = () => sekmeAc(b.dataset.sekme); });
+    kok.querySelectorAll('nav button[data-sekme]').forEach(b => { b.onclick = () => sekmeAc(b.dataset.sekme); });
+    kok.querySelector('.ca-diger-ac').onclick = () => kok.querySelector('nav').classList.toggle('diger-acik');
     driveDurumunuGuncelle();
   }
 
   function ac(sekme) { panelKur(); kok.classList.add('acik'); sekmeAc(sekme || aktifSekme); driveDurumunuGuncelle(); }
-  function kapat() { if (kok) kok.classList.remove('acik'); gorevIzleDurdur(); }
+  function kapat() {
+    // Asistan modunda (uygulama ana ekranından açıldıysa) kapatınca editöre değil, ana ekrana dönülür
+    if (document.body.classList.contains('ce-asistan-modu') && window.AndroidBridge && window.AndroidBridge.asistanKapat) {
+      window.AndroidBridge.asistanKapat(); return;
+    }
+    document.body.classList.remove('ce-asistan-modu');
+    if (kok) kok.classList.remove('acik'); gorevIzleDurdur();
+    if (anaZamanlayici) { clearInterval(anaZamanlayici); anaZamanlayici = null; }
+  }
+
+  // ===================================================================== 🏠 ANA EKRAN
+  // İki büyük düğme (UYAP → Drive senkronu, Tebligat izleyici), canlı göstergeler ve içtihat sayacı.
+  let anaZamanlayici = null;
+  const sayi = n => (n == null ? '—' : Number(n).toLocaleString('tr-TR'));
+  const sure = sn => { if (!sn) return ''; const d = Math.floor(sn / 60); return d < 60 ? `${d} dk` : `${Math.floor(d / 60)} sa ${d % 60} dk`; };
+  const saatOnce = t => { if (!t) return ''; const ms = Date.now() - new Date(String(t).replace(' ', 'T')).getTime(); if (!(ms >= 0)) return ''; const d = Math.round(ms / 60000); return d < 1 ? 'az önce' : d < 60 ? `${d} dk önce` : d < 1440 ? `${Math.round(d / 60)} sa önce` : `${Math.round(d / 1440)} gün önce`; };
+
+  async function anaEkran(ic) {
+    ic.innerHTML = `<div class="pn-izgara">
+      <div class="pn-kart" id="pn-senkron"><h3>☁️ UYAP → Google Drive</h3><p class="pn-alt">Tüm UYAP evrakları PDF'e dönüştürülüp, mükerrerler ayıklanarak, düzenli adlarla Drive'a sürekli aktarılır.</p><div class="ca-yukleniyor">Yükleniyor…</div></div>
+      <div class="pn-kart" id="pn-tebligat"><h3>📨 Tebligat İzleyici</h3><p class="pn-alt">UETS'e arka planda girer; tebligatları EYP ekleri, üst yazısı ve etiketleriyle TickTick'e, ilgili dosyaya Notion'a işler.</p><div class="ca-yukleniyor">Yükleniyor…</div></div>
+      <div class="pn-kart" id="pn-ictihat"><h3>⚖️ İçtihat Veritabanı</h3><p class="pn-alt">hayfahukuk.com karar veritabanının canlı durumu.</p><div class="ca-yukleniyor">Ölçülüyor…</div></div>
+    </div>`;
+    const ciz = async () => {
+      let p;
+      try { p = await api('/api/pano'); } catch (e) { ic.querySelector('#pn-senkron').innerHTML = `<h3>☁️ UYAP → Google Drive</h3><span class="ca-hata">${esc(e.message)}</span>`; return; }
+      if (!document.body.contains(ic)) return;
+      senkronCiz(ic.querySelector('#pn-senkron'), p);
+      tebligatCiz(ic.querySelector('#pn-tebligat'), p);
+    };
+    const senkronCiz = (el, p) => {
+      const s = p.senkron, k = p.katalog || {}, d = p.drive || {};
+      const islenen = (k.indirildi || 0) + (k.mukerrer || 0) + (k.yok || 0);
+      const yuzde = k.evrak ? Math.min(100, Math.round(100 * islenen / k.evrak)) : 0;
+      const drvYuzde = d.indirilen ? Math.min(100, Math.round(100 * (d.drivede || 0) / d.indirilen)) : 0;
+      const nokta = !s.acik ? '' : (s.calisiyor ? (s.oturum === false ? 'sari' : 'yesil') : 'sari');
+      const durumYazi = !s.acik ? 'Kapalı' : !s.calisiyor ? 'Başlatılıyor…' : s.oturum === false ? 'UYAP oturumu açılıyor…' : 'Çalışıyor';
+      el.innerHTML = `<h3>☁️ UYAP → Google Drive <span class="pn-nokta ${nokta}"></span><span style="font-size:13px;font-weight:500;color:var(--ce-muted,#64748b)">${durumYazi}</span></h3>
+        <p class="pn-alt">Tüm UYAP evrakları PDF'e dönüştürülüp, mükerrerler ayıklanarak, düzenli adlarla Drive'a sürekli aktarılır.</p>
+        <button class="pn-dugme ${s.acik ? 'acik' : 'kapali'}" type="button" id="pn-s-dugme" ${s.ayarli ? '' : 'disabled'}>${s.acik ? '⏸ Senkronizasyonu Durdur' : '▶ Senkronizasyonu Başlat'}</button>
+        ${!s.ayarli ? `<div class="pn-uyari">⚠️ ${esc(s.neden || 'UYAP giriş bilgisi yok')}. <a href="#" data-git="uyap">Giriş bilgilerini girin</a></div>` : ''}
+        ${!d.ayar ? `<div class="pn-uyari">⚠️ Google Drive bağlı değil. <a href="#" data-git="drive">Drive'ı bağlayın</a></div>` : ''}
+        ${k.evrak ? `<div class="pn-cubuk" title="UYAP arşivi işlendi"><div style="width:${yuzde}%"></div></div>
+          <div style="display:flex;justify-content:space-between;font-size:13px"><span><b>%${yuzde}</b> arşiv işlendi</span><span>${sayi(islenen)} / ${sayi(k.evrak)} evrak</span></div>
+          <div class="pn-sayilar">
+            <div class="pn-sayi"><b>${sayi(k.indirildi)}</b><span>indirildi</span></div>
+            <div class="pn-sayi"><b>${sayi(k.bekleyen)}</b><span>sırada</span></div>
+            <div class="pn-sayi"><b>${sayi(d.drivede)}</b><span>Drive'da (%${drvYuzde})</span></div>
+            <div class="pn-sayi"><b>${sayi(k.mukerrer)}</b><span>mükerrer ayıklandı</span></div>
+            <div class="pn-sayi"><b>${sayi(k.dosya)}</b><span>dosya</span></div>
+            <div class="pn-sayi"><b>${sayi(k.yok + k.hata)}</b><span>UYAP'ta yok / hatalı</span></div>
+          </div>` : '<p class="ca-soluk" style="margin-top:12px">Henüz katalog yok — senkronizasyonu başlatınca UYAP dosyalarınız taranır.</p>'}
+        <div class="pn-simdi">${s.calisiyor && s.simdi ? '🔄 ' + esc(s.simdi) : ''}${k.son_indirme ? `<br>Son indirme: ${saatOnce(k.son_indirme)}` : ''}${s.nabiz && s.nabiz.son ? ` · Oturum ${s.nabiz.oturum_acik === false ? '<b style="color:#dc2626">düştü</b>' : 'açık'}` : ''}</div>
+        ${s.son_hata ? `<div class="pn-uyari">⚠️ ${esc(s.son_hata)}</div>` : ''}`;
+      el.querySelector('#pn-s-dugme').onclick = async e => {
+        e.currentTarget.disabled = true;
+        try { const r = await api('/api/pano/senkron', { method: 'POST', govde: { ac: !s.acik } }); senkronCiz(el, r); tebligatCiz(ic.querySelector('#pn-tebligat'), r); }
+        catch (er) { el.querySelector('.pn-simdi').innerHTML = `<span class="ca-hata">${esc(er.message)}</span>`; e.currentTarget.disabled = false; }
+      };
+      el.querySelectorAll('[data-git]').forEach(a => { a.onclick = ev => { ev.preventDefault(); sekmeAc(a.dataset.git); }; });
+    };
+    const tebligatCiz = (el, p) => {
+      const t = p.tebligat, acik = (t.aralik_dk || 0) > 0;
+      const nokta = acik ? (t.calisiyor ? 'yesil' : 'sari') : '';
+      el.innerHTML = `<h3>📨 Tebligat İzleyici <span class="pn-nokta ${nokta}"></span><span style="font-size:13px;font-weight:500;color:var(--ce-muted,#64748b)">${acik ? (t.calisiyor ? 'UETS kontrol ediliyor' : 'Açık') : 'Kapalı'}</span></h3>
+        <p class="pn-alt">UETS'e arka planda girer; tebligatları EYP ekleri, üst yazısı ve etiketleriyle TickTick'e, ilgili dosyaya Notion'a işler.</p>
+        <button class="pn-dugme ${acik ? 'acik' : 'kapali'}" type="button" id="pn-t-dugme" ${t.hazir ? '' : 'disabled'}>${acik ? '⏸ İzleyiciyi Durdur' : '▶ İzleyiciyi Başlat'}</button>
+        ${!t.hazir ? '<div class="pn-uyari">⚠️ UETS T.C. ve şifresi girilmemiş. <a href="#" data-git="entegrasyon">Bilgileri girin</a></div>' : ''}
+        ${t.kullanilamaz ? `<div class="pn-uyari">⚠️ ${esc(t.kullanilamaz)}</div>` : ''}
+        <div class="pn-sayilar" style="grid-template-columns:repeat(2,1fr)">
+          <div class="pn-sayi"><b>${acik ? (t.aralik_dk >= 60 ? (t.aralik_dk / 60) + ' saatte' : t.aralik_dk + ' dk\'da') + ' bir' : '—'}</b><span>kontrol sıklığı</span></div>
+          <div class="pn-sayi"><b>${t.son_bitis ? saatOnce(new Date(t.son_bitis * 1000).toISOString()) : '—'}</b><span>son kontrol ${t.son_kod === 0 ? '✓' : t.son_kod ? '⚠️' : ''}</span></div>
+        </div>
+        <div class="pn-simdi">${t.calisiyor && t.simdi ? '🔄 ' + esc(t.simdi) : acik && t.sonraki ? 'Sonraki kontrol: ' + new Date(t.sonraki * 1000).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }) : ''}</div>
+        <div style="margin-top:8px"><a href="#" data-git="tebligat">Tebligat listesini ve ayrıntıları aç →</a></div>`;
+      el.querySelector('#pn-t-dugme').onclick = async e => {
+        e.currentTarget.disabled = true;
+        try { const r = await api('/api/pano/tebligat', { method: 'POST', govde: { ac: !acik, aralik_dk: 60 } }); tebligatCiz(el, r); senkronCiz(ic.querySelector('#pn-senkron'), r); }
+        catch (er) { el.querySelector('.pn-simdi').innerHTML = `<span class="ca-hata">${esc(er.message)}</span>`; e.currentTarget.disabled = false; }
+      };
+      el.querySelectorAll('[data-git]').forEach(a => { a.onclick = ev => { ev.preventDefault(); sekmeAc(a.dataset.git); }; });
+    };
+    const ictihat = async (yenile) => {
+      const el = ic.querySelector('#pn-ictihat');
+      try {
+        const r = await api('/api/hayfa/karar-istatistik' + (yenile ? '?yenile=1' : ''));
+        if (!document.body.contains(el)) return;
+        el.innerHTML = `<h3>⚖️ İçtihat Veritabanı <span class="pn-nokta yesil"></span></h3><p class="pn-alt">hayfahukuk.com karar veritabanının canlı durumu.</p>
+          <div class="pn-sayilar" style="grid-template-columns:repeat(3,1fr)">
+            <div class="pn-sayi"><b>${sayi(r.en_son_karar_no)}</b><span>karar (en son no)</span></div>
+            <div class="pn-sayi"><b>${r.son_24s_artis == null ? '—' : '+' + sayi(r.son_24s_artis)}</b><span>son 24 saat</span></div>
+            <div class="pn-sayi"><b>${r.son_7g_artis == null ? '—' : '+' + sayi(r.son_7g_artis)}</b><span>son 7 gün</span></div>
+          </div>
+          <div class="pn-simdi">Ölçüm: ${esc(r.olcum_zamani)} · <a href="${esc(r.son_karar_url)}" target="_blank" rel="noopener">en son eklenen karar</a> · <a href="#" data-git="hayfa">Karar ara →</a></div>`;
+        el.querySelectorAll('[data-git]').forEach(a => { a.onclick = ev => { ev.preventDefault(); sekmeAc(a.dataset.git); }; });
+      } catch (e) { if (document.body.contains(el)) el.innerHTML = `<h3>⚖️ İçtihat Veritabanı <span class="pn-nokta kirmizi"></span></h3><p class="pn-alt">hayfahukuk.com karar veritabanının canlı durumu.</p><span class="ca-soluk">${esc(e.message)}</span>`; }
+    };
+    await ciz();
+    ictihat(false);
+    // Canlı: 5 sn'de bir pano, 10 dk'da bir içtihat sayacı
+    let tur = 0;
+    anaZamanlayici = setInterval(() => { if (!document.body.contains(ic) || aktifSekme !== 'ana') return; ciz(); if (++tur % 120 === 0) ictihat(true); }, 5000);
+  }
 
   function hayfaCtx() {
     return { api, esc, sunucuHatasi, evrakAc, kapat, sekmeAc };
@@ -467,6 +603,8 @@
   function sekmeAc(k) {
     aktifSekme = k;
     gorevIzleDurdur();
+    if (kok && !['ana', 'dosyalar', 'tebligat'].includes(k)) kok.querySelector('nav').classList.add('diger-acik');
+    if (anaZamanlayici) { clearInterval(anaZamanlayici); anaZamanlayici = null; }
     const btn = kok ? kok.querySelector(`nav button[data-sekme="${k}"]`) : null;
     kok.querySelectorAll('nav button').forEach(b => b.classList.toggle('secili', b.dataset.sekme === k));
     if (btn && typeof btn.scrollIntoView === 'function') {
@@ -500,6 +638,7 @@
       evrak: evrakSekmesi,
       gorev: gorevSekmesi,
       tebligat: tebligatSekmesi,
+      ana: anaEkran,
       baglanti: baglantiSekmesi
     };
     // Sekme değişince içerik başa sarılır, yükleme göstergesi çıkar ve son sekme hatırlanır.
@@ -1555,4 +1694,25 @@
 
   window.CanAsistan = { yenilikDenetle, ac, kapat, sureHesapla, uygulanacakGun, tatilUyarilari, a4Yerlesim, a4PdfOlustur, api };
   window.openHukukAsistani = ac;
+  // ?asistan=1 (Android ana ekrandaki "Hukuk Asistanı" / ayrı başlatıcı simgesi): editör hiç gösterilmez
+  try {
+    if (/[?&]asistan=1\b/.test(location.search)) {
+      document.documentElement.classList.add('ce-asistan-modu');
+      const basla = () => {
+        document.body.classList.add('ce-asistan-modu'); ac('ana');
+        // Asistandan bir evrak açılırsa editöre geç (asistan modu biter, × artık uygulamayı kapatmaz)
+        ['openDocumentFromBytes', 'openPdfViewer'].forEach(ad => {
+          const asil = window[ad];
+          if (typeof asil !== 'function') return;
+          window[ad] = function () {
+            document.body.classList.remove('ce-asistan-modu'); document.documentElement.classList.remove('ce-asistan-modu');
+            if (kok) kok.classList.remove('acik');
+            try { window.AndroidBridge && window.AndroidBridge.asistanModuBitti && window.AndroidBridge.asistanModuBitti(); } catch (e) {}
+            return asil.apply(this, arguments);
+          };
+        });
+      };
+      if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', basla); else basla();
+    }
+  } catch (e) {}
 })();

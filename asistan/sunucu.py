@@ -61,7 +61,7 @@ if hasattr(sys.stderr, "reconfigure"):
         pass
 from pathlib import Path
 
-SURUM = "4.4.2"
+SURUM = "4.5.0"
 KOK = Path(__file__).resolve().parent
 if str(KOK) not in sys.path:
     sys.path.insert(0, str(KOK))
@@ -808,6 +808,62 @@ def uyap_ping_ms() -> int | None:
     return ms
 
 
+_PANO_KATALOG: dict = {"t": 0.0, "v": None}
+
+
+def _katalog_ozet() -> dict | None:
+    """Ana ekran için katalog sayıları (700 bin satırda da hızlı: tek GROUP BY, 20 sn önbellek)."""
+    if _PANO_KATALOG["v"] is not None and time.time() - _PANO_KATALOG["t"] < 20:
+        return _PANO_KATALOG["v"]
+    k = _ro(katalog_yolu())
+    if k is None:
+        return None
+    try:
+        durumlar = {r[0] or "yeni": r[1] for r in k.execute("SELECT durum, COUNT(*) FROM evrak GROUP BY durum")}
+        tahmini = k.execute("SELECT COUNT(*) FROM evrak WHERE durum='mukerrer' AND hata LIKE 'tahmini%'").fetchone()[0]
+        dosya = k.execute("SELECT COUNT(*) FROM dosya").fetchone()[0]
+        son = k.execute("SELECT MAX(indirildi) FROM evrak WHERE durum='indirildi'").fetchone()[0]
+    finally:
+        k.close()
+    toplam = sum(durumlar.values())
+    v = {"dosya": dosya, "evrak": toplam, "indirildi": durumlar.get("indirildi", 0),
+         "mukerrer": durumlar.get("mukerrer", 0), "tahmini_mukerrer": tahmini, "yok": durumlar.get("yok", 0),
+         "hata": durumlar.get("hata", 0), "atlandi": durumlar.get("atlandi", 0),
+         "bekleyen": durumlar.get("yeni", 0) + durumlar.get("hata", 0), "son_indirme": son}
+    _PANO_KATALOG.update(t=time.time(), v=v)
+    return v
+
+
+def pano() -> dict:
+    """Sade ana ekranın tek isteği: senkron, tebligat izleyici, Drive, içtihat."""
+    b = BAGLI_TUT.durum()
+    akis = GOREV_DURUM["evrak-akis"]
+    vd = evrak_veri_dizini()
+    try:
+        drive = _drive_indeks.esitleme_ozeti(katalog_yolu(), vd)
+        drive["ayar"] = bool(_drive_indeks.drive_ayar_oku(vd).get("google_drive_webhook") or _drive_indeks.drive_ayar_oku(vd).get("google_drive_dir"))
+    except Exception as e:  # noqa: BLE001
+        drive = {"hata": str(e)[:200]}
+    uets = GOREV_DURUM["uets-senkron"]
+    # Son anlamlı satır: kullanıcıya "şu an ne yapıyor" göstergesi
+    def son_satir(g):
+        for x in reversed(list(g.gunluk)):
+            x = x.split("] ", 2)[-1].strip() if "] " in x else x.strip()
+            if x and not x.startswith("="):
+                return x[:220]
+        return ""
+    return {
+        "senkron": {"acik": bool(b["ayar"].get("bagli_tut")) and b["etkin"], "ayarli": b["etkin"], "neden": b["neden"],
+                    "calisiyor": akis.calisiyor(), "oturum": b.get("oturum"), "nabiz": b.get("nabiz"),
+                    "son_hata": b.get("son_hata"), "simdi": son_satir(akis), "baslangic": akis.baslangic},
+        "katalog": _katalog_ozet(),
+        "drive": drive,
+        "tebligat": {**UETS_ZAMAN.ayar(), "calisiyor": uets.calisiyor(), "son_bitis": uets.bitis, "son_kod": uets.kod,
+                     "simdi": son_satir(uets), "kullanilamaz": uets.kullanilamama_nedeni()},
+        "zaman": time.strftime("%Y-%m-%d %H:%M:%S"),
+    }
+
+
 def baglanti_istatistikleri() -> dict:
     calisma_suresi_sn = int(time.time() - SUNUCU_BASLAMA)
     saat = calisma_suresi_sn // 3600
@@ -962,6 +1018,8 @@ GOREVLER: dict[str, dict] = {
     "evrak-tebligat":   {"ad": "UYAP: tebligat evraklarını indir", "cwd": EVRAK_DIR, "cmd": [*PY, "uyap_indirici.py", "--cli", "--mode", "dosyalar", "--evrak-turu", "tebligat", "--scope", "all"], "cdp": True},
     "evrak-durusmalar": {"ad": "UYAP: duruşma listesini çek", "cwd": EVRAK_DIR, "cmd": [*PY, "uyap_indirici.py", "--cli", "--mode", "durusmalar"], "cdp": True},
     "evrak-nobetci":    {"ad": "UYAP nöbetçi: tek tarama turu", "cwd": EVRAK_DIR, "cmd": [*PY, "uyap_watcher.py", "--once"], "cdp": True},
+    # Sürekli UYAP → Google Drive akışı (Senkron düğmesi): arşiv durmadan iner, açık dosyalar aralıkla taranır
+    "evrak-akis":       {"ad": "UYAP → Drive sürekli senkronizasyon", "cwd": EVRAK_DIR, "cmd": [*PY, "uyap_watcher.py"], "cdp": True},
 }
 
 
@@ -1194,7 +1252,7 @@ class BagliTutucu:
         return True, ""
 
     def durum(self) -> dict:
-        g = GOREV_DURUM["evrak-nobetci"]
+        g = GOREV_DURUM["evrak-akis"] if (GOREV_DURUM["evrak-akis"].calisiyor() or GOREV_DURUM["evrak-akis"].gunluk) else GOREV_DURUM["evrak-nobetci"]
         ok, neden = self.etkin()
         gunluk = list(g.gunluk)
         oturum = None
@@ -1219,22 +1277,28 @@ class BagliTutucu:
                 break
         return {"etkin": ok, "neden": neden or g.kullanilamama_nedeni(), "calisiyor": g.calisiyor(), "son_hata": son_hata,
                 "son_baslangic": g.baslangic, "son_bitis": g.bitis, "son_kod": g.kod, "oturum": oturum,
-                "sonraki": self.sonraki if ok else None, "gunluk": gunluk[-8:], "ayar": uyap_ayar_oku()}
+                "sonraki": self.sonraki if ok else None, "gunluk": gunluk[-8:], "ayar": uyap_ayar_oku(),
+                "nabiz": {"son": NABIZ.son or None, "oturum_acik": NABIZ.son_durum, "basarili": NABIZ.basarili}}
 
     def dongu(self):
+        """Senkron açıkken sürekli akış görevini (evrak-akis) ayakta tutar; kapanırsa 60 sn sonra yeniden başlatır.
+        Eskiden 10 dk'da bir tek tur (--once) çalışıp yalnız 50 arşiv evrakı indiriyordu (700 bin evrak ≈ 97 gün)."""
         while True:
             self.olay.wait(timeout=20)
             self.olay.clear()
             try:
                 ok, self.son_neden = self.etkin()
-                g = GOREV_DURUM["evrak-nobetci"]
-                if not ok or g.calisiyor() or g.kullanilamama_nedeni() or time.time() < self.sonraki:
+                g = GOREV_DURUM["evrak-akis"]
+                if not ok:
+                    if g.calisiyor():
+                        g.durdur()
                     continue
-                if g.bitis and g.kod not in (0, None) and time.time() - g.bitis < self.YENIDEN_DENE_S:
+                if g.calisiyor() or g.kullanilamama_nedeni() or GOREV_DURUM["evrak-nobetci"].calisiyor() or time.time() < self.sonraki:
+                    continue
+                if g.bitis and time.time() - g.bitis < self.YENIDEN_DENE_S:
                     continue
                 g.baslat()
-                aralik = int(_uyap_cfg().get("canasistan_aralik_dk") or 10) * 60
-                self.sonraki = time.time() + aralik
+                self.sonraki = time.time() + self.YENIDEN_DENE_S
             except Exception as e:  # noqa: BLE001 — döngü asla ölmesin
                 self.son_neden = str(e)
                 self.sonraki = time.time() + self.YENIDEN_DENE_S
@@ -1295,6 +1359,74 @@ class UetsZamanlayici:
 
 
 UETS_ZAMAN = UetsZamanlayici()
+
+
+class OturumNabzi:
+    """UYAP oturumunu turlar ARASINDA canlı tutar (gizli tarayıcıda 4 dk'da bir hafif istek).
+
+    Neden: nöbetçi 10 dk'da bir çalışıp kapanıyordu; aradaki boşlukta UYAP oturumu düşüyor ve her tur yeniden
+    giriş = telefona her 10 dk'da bir Mobil İmza isteği demekti. Nabız oturumu açık tuttuğu için yeniden giriş
+    yalnızca oturum gerçekten koptuğunda yapılır (kart takılıysa e-İmza ile, PIN sorulmadan)."""
+    ARALIK_S = 240
+
+    def __init__(self):
+        self.son = 0.0
+        self.son_durum = None
+        self.basarili = 0
+
+    def vur(self) -> bool | None:
+        import urllib.request as _u
+        port = int(os.environ.get("CANASISTAN_CDP_PORT", "9223"))
+        try:
+            sekmeler = json.loads(_u.urlopen(f"http://127.0.0.1:{port}/json/list", timeout=3).read())
+        except Exception:  # noqa: BLE001 — tarayıcı yok
+            return None
+        sayfa = next((t for t in sekmeler if "uyap.gov.tr" in (t.get("url") or "") and t.get("webSocketDebuggerUrl")), None)
+        if not sayfa:
+            return None
+        import websocket
+        ws = websocket.create_connection(sayfa["webSocketDebuggerUrl"], timeout=15, suppress_origin=True)
+        try:
+            ws.send(json.dumps({"id": 1, "method": "Runtime.evaluate", "params": {
+                "expression": "fetch('/kullanici_bilgileri.uyap',{method:'POST',credentials:'include',"
+                              "headers:{'Content-Type':'application/json'},body:'{}'}).then(r=>r.json()).then(d=>!!(d&&(d.tcKimlikNo||d.tckn))).catch(()=>false)",
+                "awaitPromise": True, "returnByValue": True}}))
+            bitis = time.time() + 15
+            while time.time() < bitis:
+                m = json.loads(ws.recv())
+                if m.get("id") == 1:
+                    return bool(m.get("result", {}).get("result", {}).get("value"))
+        finally:
+            ws.close()
+        return None
+
+    def dongu(self):
+        while True:
+            time.sleep(30)
+            try:
+                if not BAGLI_TUT.etkin()[0]:
+                    continue
+                # Görevler tarayıcıyı kullanırken araya girme
+                if any(GOREV_DURUM[k].calisiyor() for k in GOREV_DURUM if GOREVLER[k].get("cdp") or GOREVLER[k].get("tarayici")):
+                    self.son = time.time()
+                    continue
+                if time.time() - self.son < self.ARALIK_S:
+                    continue
+                self.son = time.time()
+                self.son_durum = self.vur()
+                if self.son_durum:
+                    self.basarili += 1
+                elif self.son_durum is False:
+                    # Oturum düştü: beklemeden nöbetçiyi başlat (kart takılıysa e-İmza ile yeniden girer)
+                    BAGLI_TUT.uyandir()
+            except Exception:  # noqa: BLE001
+                pass
+
+    def baslat(self):
+        threading.Thread(target=self.dongu, daemon=True, name="oturum-nabzi").start()
+
+
+NABIZ = OturumNabzi()
 
 
 def cdp_kopru_baslat(port: int = 9223) -> None:
@@ -1546,6 +1678,10 @@ class Isleyici(BaseHTTPRequestHandler):
                 return self._dosya_gonder(loglar_zip(), "CanEditor_Loglar.zip", mime="application/zip")
             if yol == "/api/uyap":
                 return self._json(BAGLI_TUT.durum())
+            if yol == "/api/pano":
+                return self._json(pano())
+            if yol == "/api/hayfa/karar-istatistik":
+                return self._json(_hayfa_kopru.karar_istatistik(veri_dizini(), yenile=q.get("yenile") == "1"))
             if yol == "/api/ajanda":
                 return self._json(ajanda(int(q.get("gun") or 60), q.get("baslangic", ""), q.get("bitis", "")))
             if yol == "/api/uets/ayar":
@@ -1577,6 +1713,24 @@ class Isleyici(BaseHTTPRequestHandler):
                 return self._json(g.ozet())
             if yol == "/api/uyap/ayar":
                 return self._json(uyap_ayar_yaz(govde))
+            if yol == "/api/pano/senkron":
+                # Tek düğme: UYAP → Drive sürekli senkronu aç/kapat
+                ac = bool(govde.get("ac"))
+                uyap_ayar_yaz({"bagli_tut": ac})
+                if not ac and GOREV_DURUM["evrak-akis"].calisiyor():
+                    GOREV_DURUM["evrak-akis"].durdur()
+                BAGLI_TUT.uyandir()
+                return self._json(pano())
+            if yol == "/api/pano/tebligat":
+                # Tek düğme: tebligat izleyici (UETS arka plan) aç/kapat; açılınca hemen bir tur
+                ac = bool(govde.get("ac"))
+                UETS_ZAMAN.ayar_yaz(int(govde.get("aralik_dk") or 60) if ac else 0)
+                g = GOREV_DURUM["uets-senkron"]
+                if ac and not g.calisiyor() and not g.kullanilamama_nedeni() and UETS_ZAMAN.ayar()["hazir"]:
+                    g.baslat()
+                if not ac and g.calisiyor():
+                    g.durdur()
+                return self._json(pano())
             if yol == "/api/uyap/simdi":
                 BAGLI_TUT.uyandir()
                 return self._json(BAGLI_TUT.durum())
@@ -1768,6 +1922,7 @@ def main(argv=None):
     cdp_kopru_baslat()
     BAGLI_TUT.baslat()
     UETS_ZAMAN.baslat()
+    NABIZ.baslat()
     print(f"CanEditor Hukuk Asistanı {SURUM} — http://127.0.0.1:{a.port}", flush=True)
     print(f"Eşleştirme anahtarı: {k}", flush=True)
     print("CanEditor → Asistan → Bağlan penceresine bu anahtarı girin (masaüstü uygulamada otomatik).", flush=True)

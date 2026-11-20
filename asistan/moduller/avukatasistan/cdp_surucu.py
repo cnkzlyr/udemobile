@@ -354,7 +354,12 @@ class CdpSurucu:
         return None
 
     def quit(self) -> None:
-        # Paylaşılan WebView kapatılmaz; yalnız DevTools bağlantısı bırakılır
+        # Paylaşılan WebView kapatılmaz. UETS bitince gizli tarayıcı UYAP'a geri döner: UYAP oturum nabzı ve
+        # nöbetçi UYAP sayfasını bulamazsa gereksiz yeniden giriş (= Mobil İmza isteği) yapardı.
+        try:
+            self._komut("Page.navigate", {"url": "https://avukat.uyap.gov.tr/"}, zaman_asimi=15)
+        except Exception:  # noqa: BLE001
+            pass
         try:
             self._ws.close()
         except Exception:  # noqa: BLE001

@@ -1,6 +1,9 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
+  <!-- Asistan modu (Android ana ekran → Hukuk Asistanı): editör ilk karede bile görünmesin -->
+  <script>if (/[?&]asistan=1\b/.test(location.search)) document.documentElement.classList.add('ce-asistan-modu');</script>
+  <style>html.ce-asistan-modu body > *:not(#ca-panel):not(script):not(style){display:none!important}html.ce-asistan-modu body{background:#f4f6f9}</style>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>CanEditor - Cross-Platform UYAP &amp; Word Editörü</title>

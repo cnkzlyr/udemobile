@@ -363,6 +363,59 @@ def karar_detay(veri_dizini: Path, kid: str) -> dict:
     return sonuc
 
 
+def _karar_var_mi(kid: int) -> bool:
+    try:
+        html = _indir(f"/karar?id={kid}", timeout=15)
+    except Exception:  # noqa: BLE001 — 404 vb.
+        return False
+    if re.search(r"bulunamad|404|not found", html[:4000], re.I) and not re.search(r"<h1[^>]*>[^<]{5,}", html):
+        return False
+    return bool(re.search(r"<h1[^>]*>(.*?)</h1>", html, re.S | re.I))
+
+
+def karar_istatistik(veri_dizini: Path, yenile: bool = False) -> dict:
+    """İçtihat veritabanı canlı istatistiği: en yüksek karar no (≈ toplam karar) ve son 24 saat / 7 gün artışı.
+    Kararlar /karar?id=N ile sırayla numaralı: bilinen en yüksek numaradan ileri doğru üstel + ikili arama.
+    10 dk önbellekli; ölçüm geçmişi 30 gün tutulur."""
+    if not yenile:
+        onb = _cache_oku(veri_dizini, "karar_istatistik", ttl_s=600)
+        if onb:
+            return onb
+    gecmis = _cache_oku_bayat(veri_dizini, "karar_istatistik_gecmis") or {"olcumler": []}
+    olcumler = [o for o in gecmis.get("olcumler", []) if time.time() - o[0] < 30 * 86400]
+    alt = max([o[1] for o in olcumler] or [1])
+    if not _karar_var_mi(alt):
+        alt = 1
+        if not any(_karar_var_mi(i) for i in (1, 2, 3, 10, 100)):
+            raise ValueError("hayfahukuk.com'a ulaşılamadı (karar sayfaları açılmıyor)")
+    # Boşluklara dayanıklı varlık testi: N, N+1, N+2'den biri varsa N "var" sayılır
+    var = lambda n: any(_karar_var_mi(n + i) for i in range(3))  # noqa: E731
+    adim, ust = 64, None
+    while ust is None and adim < 50_000_000:
+        if var(alt + adim):
+            alt, adim = alt + adim, adim * 2
+        else:
+            ust = alt + adim
+    ust = ust or alt + 1
+    while ust - alt > 1:
+        orta = (alt + ust) // 2
+        if var(orta):
+            alt = orta
+        else:
+            ust = orta
+    simdi = time.time()
+    olcumler.append([simdi, alt])
+    _cache_yaz(veri_dizini, "karar_istatistik_gecmis", {"olcumler": olcumler[-500:]})
+
+    def artis(sn):
+        eski = [o for o in olcumler if simdi - o[0] >= sn]
+        return alt - eski[-1][1] if eski else None
+    sonuc = {"en_son_karar_no": alt, "son_24s_artis": artis(86400), "son_7g_artis": artis(7 * 86400),
+             "olcum_zamani": time.strftime("%Y-%m-%d %H:%M"), "son_karar_url": f"{SITE}/karar?id={alt}"}
+    _cache_yaz(veri_dizini, "karar_istatistik", sonuc)
+    return sonuc
+
+
 # ---------------------------------------------------------------------------
 # 4. MEVZUAT
 # ---------------------------------------------------------------------------

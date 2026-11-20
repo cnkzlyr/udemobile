@@ -245,9 +245,10 @@ public class EditorActivity extends Activity {
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
-        if (intent != null && intent.getBooleanExtra("ac_asistan", false)) {
+        if (asistanIstegi(intent)) {
             if (isPageLoaded && editorWebView != null) {
-                editorWebView.evaluateJavascript("if (window.openHukukAsistani) window.openHukukAsistani('dosyalar');", null);
+                // Editör zaten açıksa (belge olabilir) asistan tam ekran açılır; kapatınca editöre dönülür
+                editorWebView.evaluateJavascript("document.body.classList.add('ce-asistan-modu'); if (window.openHukukAsistani) window.openHukukAsistani('ana');", null);
             }
         }
         loadIncomingFile();
@@ -340,13 +341,13 @@ public class EditorActivity extends Activity {
                     editorWebView.evaluateJavascript("onDocumentSignatureChecked(" + pendingSigJson + ");", null);
                     pendingSigJson = null;
                 }
-                if (getIntent() != null && getIntent().getBooleanExtra("ac_asistan", false)) {
-                    editorWebView.evaluateJavascript("setTimeout(function(){ if (window.openHukukAsistani) window.openHukukAsistani('dosyalar'); }, 400);", null);
-                }
+
             }
         });
 
-        editorWebView.loadUrl("file:///android_asset/editor/editor.html");
+        // Ana ekrandaki "Hukuk Asistanı": editör HİÇ gösterilmeden asistan tam ekran açılır (editor.html?asistan=1)
+        asistanIcinAcildi = asistanIstegi(getIntent());
+        editorWebView.loadUrl("file:///android_asset/editor/editor.html" + (asistanIcinAcildi ? "?asistan=1" : ""));
     }
 
     private void setupListeners() {
@@ -1686,7 +1687,37 @@ public class EditorActivity extends Activity {
         return false;
     }
 
+    /** "Asistan" düğmesi (ac_asistan) ya da ayrı "Hukuk Asistanı" başlatıcı simgesi (AsistanGiris). */
+    private static boolean asistanIstegi(Intent i) {
+        if (i == null) return false;
+        if (i.getBooleanExtra("ac_asistan", false)) return true;
+        return i.getComponent() != null && i.getComponent().getClassName().endsWith("AsistanGiris");
+    }
+
+    /** Etkinlik yalnız asistan için açıldıysa (editörde belge yok) asistanı kapatmak ana ekrana döner. */
+    private boolean asistanIcinAcildi = false;
+
     private class EditorBridge {
+        /** Asistan modunda × : yalnız asistan için açıldıysa ana ekrana dön, değilse editöre. */
+        @JavascriptInterface
+        public void asistanKapat() {
+            runOnUiThread(() -> {
+                if (asistanIcinAcildi) {
+                    finish();
+                } else if (editorWebView != null) {
+                    editorWebView.evaluateJavascript("document.body.classList.remove('ce-asistan-modu');"
+                            + "document.documentElement.classList.remove('ce-asistan-modu');"
+                            + "var p=document.getElementById('ca-panel'); if(p) p.classList.remove('acik');", null);
+                }
+            });
+        }
+
+        /** Asistandan bir belge editörde açıldı: artık bu etkinlik bir editör, kapatınca bitmemeli. */
+        @JavascriptInterface
+        public void asistanModuBitti() {
+            asistanIcinAcildi = false;
+        }
+
         /** Hukuk Asistanı sunucusunu (Termux'suz, APK içi Python) hazırlar/başlatır; {"port","anahtar"} ya da {"hata"} döner. */
         @JavascriptInterface
         public String asistanBaglanti() {

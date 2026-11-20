@@ -862,18 +862,26 @@ class UyapWatcher:
                 # 1. Oturum nabzı
                 self.heartbeat()
 
+                # Sürekli akışta (once=False) açık dosya taraması / duruşma / süre analizi her pakette değil,
+                # interval_minutes'te bir yapılır; aradaki zamanın tamamı arşiv indirmeye (UYAP → Drive) ayrılır.
+                tam_tur = once or (time.time() - getattr(self, "_son_tam_tur", 0.0) >= interval_s)
+                if tam_tur:
+                    self._son_tam_tur = time.time()
+
                 # 2. V.I.P. ŞERİT: Derdest açık dosyaların evrak kontrolü (Yeni evrak anında yakalanır, indirilir ve Drive'a aktarılır)
-                if self.config.get("check_open_cases", True):
+                if tam_tur and self.config.get("check_open_cases", True):
                     stats = self.scan_open_cases()
                     yeni_sayisi = stats.get("new_downloaded", 0) if isinstance(stats, dict) else stats
                     if yeni_sayisi > 0:
                         logger.info("🔔 V.I.P. Nöbetçi: %d adet taze evrak yakalandı ve Google Drive'a yüklendi!", yeni_sayisi)
 
                 # 3. Duruşma kontrolü (Önümüzdeki 7 gün)
-                self.check_upcoming_hearings()
+                if tam_tur:
+                    self.check_upcoming_hearings()
 
                 # 4. Canlı Duruşma, Yasal Süre, Ara Karar ve Portal İşlemlerim Analizi
-                self.sync_intel_and_deadlines(force=once)
+                if tam_tur:
+                    self.sync_intel_and_deadlines(force=once)
 
                 # 5. ARŞİV EŞİTLEME ŞERİDİ: Kalan 506 bin evrakı kesin HUKUKİ ÖNEM sırasına göre Google Drive'a pompala
                 if self.config.get("auto_download_missing", True):
@@ -894,6 +902,19 @@ class UyapWatcher:
                 if kalan_evrak > 0:
                     logger.info("⏳ UYAP Arşiv Eşitlemesi Devam Ediyor: Kalan %d evrak önem sırasıyla indiriliyor (Sonraki paket 3 sn)...", kalan_evrak)
                     time.sleep(3.0)
+                elif time.time() - self._son_tam_tur < interval_s:
+                    # Arşiv bitti: bir sonraki açık dosya taramasına kadar bekle (ama tam aralığı tekrar saymadan)
+                    if getattr(self, "motor", None) and hasattr(self.motor, "tahminleri_dogrula"):
+                        try:
+                            d = self.motor.tahminleri_dogrula(limit=5)
+                            if d.get("dogrulanan"):
+                                logger.info("🔎 %d tahmini mükerrer doğrulandı (%d gerçekten farklıydı ve indirildi).",
+                                            d["dogrulanan"], d.get("indirildi", 0))
+                        except Exception as e:  # noqa: BLE001
+                            logger.warning("Tahmin doğrulama atlandı: %s", e)
+                    logger.info("✨ Arşiv Google Drive ile eşit. Bir sonraki açık dosya taraması %d dk içinde.",
+                                max(1, int((interval_s - (time.time() - self._son_tam_tur)) / 60)))
+                    time.sleep(max(30.0, min(300.0, interval_s - (time.time() - self._son_tam_tur))))
                 else:
                     # Boştayken birkaç "tahmini mükerrer"i gerçekten indirip doğrula (yanlış tahmin kalmasın)
                     if getattr(self, "motor", None) and hasattr(self.motor, "tahminleri_dogrula"):
