@@ -39,8 +39,9 @@ import urllib.request
 from pathlib import Path
 
 KOK = Path(__file__).resolve().parent
-AVUKAT_DIR = KOK / "moduller" / "avukatasistan"
-EVRAK_DIR = KOK / "moduller" / "evrak"
+# Sunucu, görevlere modüllerin YAZILABİLİR (eşitlenmiş) kopyasını bildirir; paketli kurulumda KOK salt-okunurdur
+AVUKAT_DIR = Path(os.environ.get("CANASISTAN_AVUKAT_DIR") or KOK / "moduller" / "avukatasistan")
+EVRAK_DIR = Path(os.environ.get("CANASISTAN_EVRAK_DIR") or KOK / "moduller" / "evrak")
 sys.path.insert(0, str(KOK))
 
 import dosya_ozet  # noqa: E402

@@ -50,7 +50,9 @@ import sys
 import time
 from pathlib import Path
 
-BASE_DIR = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
+# Betiğin KENDİ klasörü (masaüstünde kullanıcı klasörüne eşitlenmiş kopya). Eskiden paketli uygulamada sys._MEIPASS
+# (/usr/lib/CanEditor/.../_internal, SALT-OKUNUR) seçiliyordu: günlük açılamayıp görev anında çöküyordu (Fedora).
+BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = Path(os.environ.get("UYAP_VERI_DIZINI") or BASE_DIR)
 CONFIG_FILE = DATA_DIR / "watcher_config.json"
 LOG_DIR = DATA_DIR / "loglar"

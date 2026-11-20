@@ -7,6 +7,7 @@ kendi defter modülü oluşturur; böylece sunucunun sorguları modül şemalar�
 """
 import http.client
 import json
+import re
 import os
 import sqlite3
 import sys
@@ -223,6 +224,13 @@ class SunucuTest(unittest.TestCase):
 
     def test_gorev_listesi_izinli_komutlar(self):
         for g in sunucu.GOREVLER.values():
+            if "-c" in g["cmd"]:
+                # Paketli kurulumda diskte betik olmayan asistan modülleri "-c import modul" ile çalışır
+                kod = g["cmd"][g["cmd"].index("-c") + 1]
+                for modul in re.findall(r"import ([\w, ]+?);", kod)[0].replace(" ", "").split(","):
+                    if modul != "sys":
+                        self.assertTrue((Path(g["cwd"]) / f"{modul}.py").is_file(), g["cmd"])
+                continue
             betik = next(c for c in g["cmd"] if str(c).endswith(".py"))
             self.assertTrue((Path(g["cwd"]) / betik).is_file(), g["cmd"])
 

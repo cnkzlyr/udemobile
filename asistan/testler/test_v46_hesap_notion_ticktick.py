@@ -211,3 +211,35 @@ class TickTickDuzeni(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PaketliMasaustu(unittest.TestCase):
+    """v4.6.1: Fedora/RPM gibi salt-okunur kurulumda görevlerin çökmemesi."""
+
+    def test_moduller_salt_okunur_paket_klasorune_yazmaz(self):
+        for ad in ("uyap_watcher.py", "drive_aktarici.py"):
+            kaynak = (EVRAK_DIR / ad).read_text(encoding="utf-8")
+            self.assertNotIn('getattr(sys, "_MEIPASS"', kaynak, ad)
+
+    def test_calistir_dash_c(self):
+        with tempfile.TemporaryDirectory() as t:
+            hedef = Path(t) / "ok.txt"
+            eski_argv, eski_yol = list(sys.argv), list(sys.path)
+            try:
+                sunucu.calistir(["-c", f"open({str(hedef)!r}, 'w').write('1')"])
+            finally:
+                sys.argv, sys.path[:] = eski_argv, eski_yol
+            self.assertTrue(hedef.is_file())
+
+    def test_eslenen_kopya_yazilabilir(self):
+        with tempfile.TemporaryDirectory() as t:
+            kaynak, hedef = Path(t) / "paket", Path(t) / "kopya"
+            (kaynak / "evrak" / "loglar").mkdir(parents=True)
+            f = kaynak / "evrak" / "loglar" / "watcher.log"
+            f.write_text("x")
+            f.chmod(0o444)
+            sunucu.moduller_hazirla(kaynak, hedef)
+            self.assertTrue(os.access(hedef / "evrak" / "loglar" / "watcher.log", os.W_OK))
+            (kaynak / "evrak" / "yeni.py").write_text("y")
+            sunucu.moduller_hazirla(kaynak, hedef)   # ikinci eşitleme (sürüm yükseltme) de çökmemeli
+            self.assertTrue((hedef / "evrak" / "yeni.py").is_file())

@@ -61,7 +61,7 @@ if hasattr(sys.stderr, "reconfigure"):
         pass
 from pathlib import Path
 
-SURUM = "4.6.0"
+SURUM = "4.6.1"
 KOK = Path(__file__).resolve().parent
 if str(KOK) not in sys.path:
     sys.path.insert(0, str(KOK))
@@ -133,9 +133,24 @@ def moduller_hazirla(kaynak: Path | None = None, hedef: Path | None = None) -> P
         if d.exists() and d.suffix.lower() in KORUNAN_UZANTILAR:
             continue
         d.parent.mkdir(parents=True, exist_ok=True)
+        if os.name != "nt":
+            # Paket dosyaları salt-okunur kurulabilir (/usr/lib, izinler 444/555): kopyalar KULLANICIYA yazılabilir
+            # olmalı, yoksa modüller kendi klasörlerine günlük/veri yazamaz ve sonraki sürüm eşitlemesi de çöker.
+            for k in [d.parent, *d.parent.relative_to(hedef).parents]:
+                kd = hedef / k if not k.is_absolute() else k
+                try:
+                    if kd.is_dir() and not os.access(kd, os.W_OK):
+                        kd.chmod(kd.stat().st_mode | 0o700)
+                except OSError:
+                    pass
+            if d.exists() and not os.access(d, os.W_OK):
+                try:
+                    d.chmod(d.stat().st_mode | 0o600)
+                except OSError:
+                    pass
         shutil.copy2(f, d)
-        if os.name != "nt" and os.access(f, os.X_OK):
-            d.chmod(d.stat().st_mode | 0o111)
+        if os.name != "nt":
+            d.chmod(d.stat().st_mode | 0o600 | (0o111 if os.access(f, os.X_OK) else 0))
     damga_dosyasi.write_text(damga + "\n", encoding="utf-8")
     return hedef
 
@@ -1148,7 +1163,9 @@ GOREVLER: dict[str, dict] = {
     # Tüm dosyaların GERÇEK UYAP hesapları (icra kapak hesabı, tahsilat/reddiyat, harçlar, artan avans)
     "hesap-tara":       {"ad": "UYAP dosya hesaplarını çek (icra, avans, harç)", "cwd": EVRAK_DIR, "cmd": [*PY, "uyap_finans_safahat.py", "--saat", "12"], "cdp": True},
     # UYAP kataloğu → Notion (Dosyalar, Müvekkiller, Diğer Taraflar), dosya konuları; ardından TickTick düzeni
-    "notion-esitle":    {"ad": "UYAP → Notion eşitle (taraflar, birim, açılış, konu)", "cwd": KOK, "cmd": [*PY, "notion_uyap.py", "--uygula"]},
+    # Paketli masaüstünde asistan/*.py betik olarak diskte YOK (ikilinin içinde): modül olarak çalıştırılır
+    "notion-esitle":    {"ad": "UYAP → Notion eşitle (taraflar, birim, açılış, konu)", "cwd": KOK,
+                         "cmd": [*PY, "-c", "import sys, notion_uyap; sys.argv = ['notion_uyap', '--uygula']; sys.exit(notion_uyap.main())"]},
     "ticktick-duzen":   {"ad": "TickTick düzeni: mükerrer, eksik tebligat, dosya kartları", "cwd": AVUKAT_DIR, "cmd": [*PY, "ticktick_duzen.py", "--uygula"]},
 }
 
@@ -1178,6 +1195,10 @@ def gorev_ortami() -> dict:
     """Görev alt süreçlerinin ortamı: gömülü Java ve indirilmiş resmî UYAP Editör jar'ları modüllere tanıtılır."""
     env = dict(os.environ, PYTHONIOENCODING="utf-8", PYTHONUNBUFFERED="1")
     _ld_geri_yukle(env)
+    # Tüm görevler aynı, YAZILABİLİR veri klasörünü kullansın (katalog, günlük, ayar). Verilmezse modül kendi
+    # klasörünü seçer; paketli kurulumda bu salt-okunur program klasörü olabiliyordu.
+    env.setdefault("UYAP_VERI_DIZINI", str(evrak_veri_dizini()))
+    env["CANASISTAN_AVUKAT_DIR"], env["CANASISTAN_EVRAK_DIR"] = str(AVUKAT_DIR), str(EVRAK_DIR)
     jh = os.environ.get("CANASISTAN_JAVA_HOME")
     if jh and (Path(jh) / "bin").is_dir():
         env["JAVA_HOME"] = jh
@@ -2102,6 +2123,17 @@ def calistir(argv: list[str]) -> int:
     if not argv:
         print("Kullanım: --calistir betik.py [argümanlar]", file=sys.stderr)
         return 2
+    _ld_geri_yukle(os.environ)
+    if argv[0] == "-c":
+        # "python -c KOD" karşılığı (DNS tanısı vb.). Eskiden "-c" betik adı sanılıp çöküyordu.
+        if len(argv) < 2:
+            return 2
+        sys.argv = ["-c", *argv[2:]]
+        sys.path.insert(0, os.getcwd())
+        if hasattr(sys, "frozen"):
+            del sys.frozen
+        exec(compile(argv[1], "<-c>", "exec"), {"__name__": "__main__"})
+        return 0
     betik = Path(argv[0])
     if not betik.is_absolute():
         betik = Path.cwd() / betik
