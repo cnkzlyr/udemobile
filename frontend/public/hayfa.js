@@ -1167,7 +1167,7 @@ function doGet(e) {
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
           ${v.yerel_yedek ? `<button class="ca-btn ana" type="button" data-g="yerel">💻 Bu cihazdaki yedekten (${esc(v.yerel_zaman)})</button>` : ''}
           <button class="ca-btn${v.yerel_yedek ? '' : ' ana'}" type="button" data-g="bulut">☁️ Google Drive'dan</button>
-          <label class="ca-btn" style="cursor:pointer;margin:0">📁 Dosyadan (.cnayar)<input id="ay-g-dosya" type="file" accept=".cnayar,application/json" hidden></label>
+          <label class="ca-btn" style="cursor:pointer;margin:0">📁 Dosyadan (.cnayar)<input id="ay-g-dosya" type="file" hidden></label>
         </div><div id="ay-g-sonuc" style="margin-top:6px"></div></div>`;
     const yedekH = `<div class="ca-kart">
         <b>🔐 Ayar yedeği</b> ${v.sifre_kayitli ? '<span class="hf-etiket acik">Otomatik yedek açık</span>' : '<span class="hf-etiket kapali">Kapalı</span>'}
@@ -1200,6 +1200,7 @@ function doGet(e) {
       const f = df.files[0]; if (!f) return;
       const u8 = new Uint8Array(await f.arrayBuffer());
       let b = ''; for (let i = 0; i < u8.length; i += 0x8000) b += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000));
+      df.value = ''; // yanlış şifreden sonra aynı dosya yeniden seçilebilsin
       geri('dosya', btoa(b));
     };
     kap.querySelector('#ay-kaydet').onclick = async () => {

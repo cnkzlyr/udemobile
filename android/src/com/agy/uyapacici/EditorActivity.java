@@ -291,11 +291,37 @@ public class EditorActivity extends Activity {
                 }
                 filePathCallback = filePathCb;
                 try {
-                    Intent intent = fileChooserParams != null ? fileChooserParams.createIntent() : null;
-                    if (intent == null) {
-                        intent = new Intent(Intent.ACTION_GET_CONTENT);
-                        intent.addCategory(Intent.CATEGORY_OPENABLE);
-                        intent.setType("*/*");
+                    // Android, .cnayar/.udf gibi tanımadığı uzantıları "accept" filtresinde gri gösterip
+                    // seçtirmiyor. Bu yüzden filtreyi kendimiz kuruyoruz: tüm türler MIME'a çevrilebiliyorsa
+                    // onlarla, biri bile bilinmiyorsa */* ile (seçim yine yapılır, doğrulamayı sayfa yapar).
+                    Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
+                    intent.addCategory(Intent.CATEGORY_OPENABLE);
+                    intent.setType("*/*");
+                    if (fileChooserParams != null) {
+                        if (fileChooserParams.getMode() == FileChooserParams.MODE_OPEN_MULTIPLE) {
+                            intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
+                        }
+                        java.util.ArrayList<String> mimler = new java.util.ArrayList<>();
+                        boolean hepsiBilinen = true;
+                        String[] turler = fileChooserParams.getAcceptTypes();
+                        if (turler != null) {
+                            for (String ham : turler) {
+                                if (ham == null) continue;
+                                for (String t : ham.split(",")) {
+                                    t = t.trim().toLowerCase(java.util.Locale.ROOT);
+                                    if (t.isEmpty()) continue;
+                                    if (t.startsWith(".")) {
+                                        String m = android.webkit.MimeTypeMap.getSingleton().getMimeTypeFromExtension(t.substring(1));
+                                        if (m == null) { hepsiBilinen = false; continue; }
+                                        t = m;
+                                    }
+                                    if (!mimler.contains(t)) mimler.add(t);
+                                }
+                            }
+                        }
+                        if (hepsiBilinen && !mimler.isEmpty() && !mimler.contains("*/*")) {
+                            intent.putExtra(Intent.EXTRA_MIME_TYPES, mimler.toArray(new String[0]));
+                        }
                     }
                     startActivityForResult(intent, REQUEST_FILE_CHOOSER);
                     return true;
