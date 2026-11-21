@@ -716,6 +716,24 @@ class UyapWatcher:
 
     def get_missing_doc_ids(self, limit: int = 100) -> list[int]:
         """Varsa GUI filtrelerini (.katalog_filtre.json) okur; yoksa doğrudan HUKUKİ ÖNEM sırasına göre ID'leri döner."""
+        # Arayüzden "evraklarını Drive'a indir" denen dosyalar her şeyden önce
+        onc = self._oncelikli_dkeyler()
+        if onc:
+            try:
+                ph = ",".join("?" * len(onc))
+                ids = [r[0] for r in self.katalog.db.execute(
+                    f"SELECT id FROM evrak WHERE dkey IN ({ph}) AND durum NOT IN ('indirildi','mukerrer','yok','hata') "
+                    "AND (pdf_path IS NULL OR pdf_path='') ORDER BY tarih DESC LIMIT ?", (*onc, limit)).fetchall()]
+                bitmis = [d for d in onc if not self.katalog.db.execute(
+                    "SELECT 1 FROM evrak WHERE dkey=? AND durum NOT IN ('indirildi','mukerrer','yok','hata') "
+                    "AND (pdf_path IS NULL OR pdf_path='') LIMIT 1", (d,)).fetchone()
+                    and (self.katalog.db.execute("SELECT tarama FROM dosya WHERE dkey=?", (d,)).fetchone() or [""])[0] == "tamam"]
+                for d in bitmis:
+                    self._oncelik_birak(d)
+                if ids:
+                    return ids
+            except Exception as e:  # noqa: BLE001
+                logger.warning("Öncelikli dosyalar okunamadı: %s", e)
         filter_file = DATA_DIR / ".katalog_filtre.json"
         filt = {}
         if filter_file.exists():
@@ -833,36 +851,114 @@ class UyapWatcher:
         if c is not None:
             c.close()
 
-    def _arsiv_katalogla(self, adet: int = 60) -> None:
+    def _oncelikli_dkeyler(self) -> list:
+        """Arayüzdeki "Bu dosyayı getir / evraklarını Drive'a indir" düğmeleriyle öne alınan dosyalar."""
+        try:
+            v = json.loads((DATA_DIR / "oncelikli_dosyalar.json").read_text(encoding="utf-8"))
+            return [str(x) for x in (v.get("dkeyler") or [])] if isinstance(v, dict) else []
+        except Exception:  # noqa: BLE001
+            return []
+
+    def _oncelik_birak(self, dkey: str) -> None:
+        try:
+            p = DATA_DIR / "oncelikli_dosyalar.json"
+            v = json.loads(p.read_text(encoding="utf-8"))
+            v["dkeyler"] = [x for x in v.get("dkeyler") or [] if x != dkey]
+            p.write_text(json.dumps(v, ensure_ascii=False), encoding="utf-8")
+        except Exception:  # noqa: BLE001
+            pass
+
+    def _arsiv_katalogla(self, adet: int = 40) -> None:
+        """Tüm UYAP arşivinin (kapalı dosyalar dahil) evrak LİSTESİNİ kataloğa çıkarır.
+
+        v4.9: Eskiden aday sırası her turda aynıydı; UYAP'ın kalıcı hata verdiği (ör. vekâlet kaydı olmayan kapalı)
+        dosyalar listenin başında kalıp her turu tüketiyor, arşivin geri kalanı HİÇ listelenmiyordu (732 dosyadan 3'ü).
+        Artık: hiç denenmemiş dosyalar önce, kalıcı hatalılar 14 gün, geçici hatalılar 2 saat beklemeye alınır;
+        her denemenin zamanı 'taranma'da tutulur. Ayrıca tüm dosyaların oturum kimlikleri (dosya_id) tazelenir
+        ve tarafı boş dosyaların taraf listesi hızlıca tamamlanır."""
         try:
             if getattr(self, "motor", None) is None or getattr(self, "bridge", None) is None:
                 return
             cases = self.bridge.query_tum_dosyalar(include_closed=True) or []
             if not cases:
                 return
-            bilinen = {r[0]: (r[1] or "", r[2] or "") for r in self.katalog.db.execute(
-                "SELECT dkey, tarama, taranma FROM dosya").fetchall()}
-            esik = (dt.datetime.now() - dt.timedelta(days=14)).strftime("%Y-%m-%d")
-            adaylar = []
-            for c in cases:
-                dkey = self.motor._case_dkey(c)
-                tarama, taranma = bilinen.get(dkey, ("", ""))
-                if dkey not in bilinen or tarama != "tamam" or (taranma and taranma[:10] < esik):
-                    adaylar.append(dkey)
-            if not adaylar:
-                return
-            secilen = set(adaylar[:adet])
-            logger.info("🗂️ Arşiv kataloğu: %d dosyanın evrak listesi alınıyor (kalan %d / toplam %d dosya)...",
-                        len(secilen), len(adaylar), len(cases))
-            self.motor.scan(include_closed=True, only_dkeys=secilen)
+            db = self.katalog.db
+            bilinen = {r[0]: (r[1] or "", r[2] or "", r[3] or "") for r in db.execute(
+                "SELECT dkey, tarama, taranma, taraflar FROM dosya").fetchall()}
+            simdi = dt.datetime.now()
+            esik14 = (simdi - dt.timedelta(days=14)).isoformat(timespec="seconds")
+            esik2s = (simdi - dt.timedelta(hours=2)).isoformat(timespec="seconds")
+            onc = self._oncelikli_dkeyler()
+            # Oturum kimliklerini tazele (hesap/safahat/önizleme eski kimlikle başarısız oluyordu)
             try:
-                self.katalog.db.execute("UPDATE dosya SET taranma=? WHERE dkey IN (%s) AND tarama='tamam'"
-                                        % ",".join("?" * len(secilen)), (dt.datetime.now().strftime("%Y-%m-%d %H:%M"), *secilen))
-                self.katalog.db.commit()
+                with db:
+                    db.executemany("UPDATE dosya SET dosya_id=? WHERE dkey=? AND COALESCE(dosya_id,'')<>?",
+                                   [(str(c.get("dosyaId") or c.get("dosyaID") or ""), self.motor._case_dkey(c),
+                                     str(c.get("dosyaId") or c.get("dosyaID") or "")) for c in cases
+                                    if c.get("dosyaId") or c.get("dosyaID")])
             except Exception:  # noqa: BLE001
                 pass
+            gruplar = {0: [], 1: [], 2: [], 3: []}
+            for c in cases:
+                dkey = self.motor._case_dkey(c)
+                tarama, taranma, _t = bilinen.get(dkey, ("", "", ""))
+                if dkey in onc and tarama != "tamam":
+                    gruplar[0].append(dkey)
+                elif dkey not in bilinen or not tarama:
+                    gruplar[1].append(dkey)
+                elif tarama == "tamam":
+                    if taranma and taranma < esik14:
+                        gruplar[3].append(dkey)
+                elif tarama.startswith("hata"):
+                    gecici = any(k in tarama for k in ("oturum", "yanıt", "ag"))
+                    if (not taranma) or taranma < (esik2s if gecici else esik14):
+                        gruplar[2].append(dkey)
+            adaylar = gruplar[0] + gruplar[1] + gruplar[2] + gruplar[3]
+            self._katalog_kalan = len(gruplar[0]) + len(gruplar[1]) + len(gruplar[2])
+            if adaylar:
+                secilen = set(adaylar[:adet])
+                logger.info("🗂️ Arşiv kataloğu: %d dosyanın evrak listesi alınıyor (sırada %d / toplam %d dosya)...",
+                            len(secilen), len(adaylar), len(cases))
+                self.motor.scan(include_closed=True, only_dkeys=secilen)
+                try:
+                    with db:
+                        db.execute("UPDATE dosya SET taranma=? WHERE dkey IN (%s)" % ",".join("?" * len(secilen)),
+                                   (simdi.isoformat(timespec="seconds"), *secilen))
+                except Exception:  # noqa: BLE001
+                    pass
+            self._taraf_tamamla(cases)
         except Exception as e:  # noqa: BLE001
             logger.warning("Arşiv kataloğu atlandı: %s", e)
+
+    def _taraf_tamamla(self, cases: list, adet: int = 120) -> None:
+        """Tarafı boş dosyaların taraf listesini UYAP'tan çeker (evrak listesinden çok daha hızlı):
+        Dosyalar ekranı, Evrak Ara'da taraf adıyla arama ve müvekkil tespiti bütün arşivde çalışsın."""
+        try:
+            bos = {r[0] for r in self.katalog.db.execute(
+                "SELECT dkey FROM dosya WHERE COALESCE(taraflar,'')=''").fetchall()}
+            mevcut = {r[0] for r in self.katalog.db.execute("SELECT dkey FROM dosya").fetchall()}
+            hedef = [c for c in cases if self.motor._case_dkey(c) in bos or self.motor._case_dkey(c) not in mevcut][:adet]
+            if not hedef:
+                return
+            from uyap_indirici import infer_yargi_kategorisi
+            avukat = getattr(self, "_avukat_adi", "") or ""
+            yazilan = 0
+            for i in range(0, len(hedef), 6):
+                parca = hedef[i:i + 6]
+                res = self.motor._taraflar_batch([str(c.get("dosyaId") or c.get("dosyaID") or "") for c in parca])
+                if not avukat:
+                    avukat = self.motor._avukat_adi([v for v in res.values() if v]) or ""
+                    self._avukat_adi = avukat
+                for c in parca:
+                    v = res.get(str(c.get("dosyaId") or c.get("dosyaID") or ""))
+                    self.katalog.upsert_dosya(c, v if v else None, avukat,
+                                              infer_yargi_kategorisi(str(c.get("birimAdi") or "")), "")
+                    yazilan += 1 if v else 0
+                self.katalog.db.commit()
+            if yazilan:
+                logger.info("👥 %d dosyanın tarafları kataloğa yazıldı (kalan %d).", yazilan, max(0, len(bos) - yazilan))
+        except Exception as e:  # noqa: BLE001
+            logger.warning("Taraf tamamlama atlandı: %s", e)
 
     def _hesap_tazele(self) -> None:
         """Boşta: hesabı hiç çekilmemiş / 24 saatten eski dosyaların UYAP hesaplarını (icra kapak hesabı, tahsilat,
@@ -871,7 +967,7 @@ class UyapWatcher:
             if getattr(self, "bridge", None) is None:
                 return
             self.finans_mgr.bridge = self.bridge
-            d = self.finans_mgr.hesaplari_tazele(limit=10)
+            d = self.finans_mgr.hesaplari_tazele(limit=25)
             if d.get("basarili"):
                 logger.info("💰 %d dosyanın UYAP hesabı tazelendi (%d icra).", d["basarili"], d.get("icra", 0))
         except Exception as e:  # noqa: BLE001
@@ -925,8 +1021,14 @@ class UyapWatcher:
                 # 2b. TÜM ARŞİVİN KATALOĞU: kapalı dosyalar dahil her dosyanın evrak LİSTESİ (indirmeden) kataloğa
                 # işlenir; Evrak Ara bütün UYAP evrakında arar, arşiv eşitleme şeridi de bütün arşivi görür.
                 # Her turda en çok 60 dosya (UYAP'ı yormadan); 731 dosya ~3 saatte tamamlanır, sonra 14 günde bir tazelenir.
-                if tam_tur:
-                    self._arsiv_katalogla(adet=60)
+                if tam_tur or time.time() - getattr(self, "_son_katalog", 0.0) >= 90:
+                    self._son_katalog = time.time()
+                    self._arsiv_katalogla(adet=40)
+                # Hesaplar (icra kapak hesabı, tahsilat/reddiyat, safahat) arşiv indirmesi sürerken de tazelenir;
+                # eskiden yalnızca arşiv Drive ile eşitken çalıştığı için hiç çekilmiyordu.
+                if time.time() - getattr(self, "_son_hesap", 0.0) >= 300:
+                    self._son_hesap = time.time()
+                    self._hesap_tazele()
 
                 # 3. Duruşma kontrolü (Önümüzdeki 7 gün)
                 if tam_tur:

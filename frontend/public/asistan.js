@@ -621,7 +621,7 @@
         if (!document.body.contains(el)) return;
         el.innerHTML = `<h3>⚖️ İçtihat Veritabanı <span class="pn-nokta yesil"></span></h3><p class="pn-alt">hayfahukuk.com karar veritabanının canlı durumu.</p>
           <div class="pn-sayilar" style="grid-template-columns:repeat(3,1fr)">
-            <div class="pn-sayi"><b>${sayi(r.en_son_karar_no)}</b><span>karar (en son no)</span></div>
+            <div class="pn-sayi"><b>${sayi(r.en_son_karar_no)}</b><span>karar (toplam arşiv)</span></div>
             <div class="pn-sayi"><b>${r.son_24s_artis == null ? '—' : '+' + sayi(r.son_24s_artis)}</b><span>son 24 saat</span></div>
             <div class="pn-sayi"><b>${r.son_7g_artis == null ? '—' : '+' + sayi(r.son_7g_artis)}</b><span>son 7 gün</span></div>
           </div>
@@ -1077,7 +1077,7 @@
       sayi.innerHTML = `<div><span>UYAP evrakı (katalog)</span><b>${(v.toplam_evrak || 0).toLocaleString('tr-TR')}</b><span>${(v.indirilen || 0).toLocaleString('tr-TR')} indirildi</span></div>
         <div><span>Dosya</span><b>${(v.dosya_sayisi || 0).toLocaleString('tr-TR')}</b><span>${(v.taranan_dosya || 0).toLocaleString('tr-TR')} dosyanın evrak listesi alındı</span></div>
         <div><span>Drive indeksi</span><b>${v.drive && v.drive.toplam != null ? v.drive.toplam.toLocaleString('tr-TR') : '—'}</b><span>${v.drive ? 'dosya' : 'aramada gösterilir'}</span></div>`;
-      if (v.dosya_sayisi && v.taranan_dosya < v.dosya_sayisi) sayi.insertAdjacentHTML('beforeend', `<div style="grid-column:1/-1" class="ca-uyari">Arşivin tamamı henüz listelenmedi: ${v.dosya_sayisi - v.taranan_dosya} dosyanın evrak listesi Senkron açıkken arka planda alınıyor (her turda 60 dosya). Bitince tüm UYAP evrakı burada aranır.</div>`);
+      if (v.dosya_sayisi && v.taranan_dosya < v.dosya_sayisi) sayi.insertAdjacentHTML('beforeend', `<div style="grid-column:1/-1" class="ca-uyari">Arşivin tamamı henüz listelenmedi: ${v.dosya_sayisi - v.taranan_dosya} dosyanın evrak listesi Senkron açıkken arka planda alınıyor (1,5 dakikada bir 40 dosya; yeni dosyalar önce). Bitince tüm UYAP evrakı burada aranır. Bir dosyayı hemen istiyorsanız dosyayı açıp "UYAP'tan şimdi getir"e basın.</div>`);
     };
     const ara = async (devam) => {
       if (kontrol) kontrol.abort();
@@ -1094,7 +1094,14 @@
         birikim = birikim.concat(v.sonuclar);
         offset += v.sonuclar.length;
         const dr = ic._drive;
-        sonuc.innerHTML = `<div class="ca-soluk">${birikim.length}${v.sonuclar.length === 100 ? '+' : ''} UYAP evrakı${dr && dr.sonuclar ? ` · ${dr.sonuclar.length} Drive dosyası` : ''}</div>
+        if (!devam) ic._dosyalar = v.dosyalar || [];
+        const ds = ic._dosyalar || [];
+        sonuc.innerHTML = `${ds.length ? `<h4 style="margin:6px 0 4px">📂 Eşleşen dosyalar (${ds.length})</h4><table class="cw-tablo">${ds.map(x => `<tr>
+            <td><a href="#" data-dosya-ac="${esc(x.dkey)}"><b>${esc(x.birim || '')}</b></a><div class="ca-soluk">${esc(x.dosya_no || '')} · ${esc(x.durum || '')}</div></td>
+            <td class="ca-soluk">${esc((x.taraflar || '').slice(0, 220))}</td>
+            <td style="white-space:nowrap">${x.evrak_sayisi ? x.evrak_sayisi + ' evrak' : '<span class="cw-cip gri">liste alınmadı</span>'}</td>
+            <td><button class="cw-mini" type="button" data-dosya-ac="${esc(x.dkey)}">📂 Aç</button></td></tr>`).join('')}</table>` : ''}
+          <div class="ca-soluk">${birikim.length}${v.sonuclar.length === 100 ? '+' : ''} UYAP evrakı${dr && dr.sonuclar ? ` · ${dr.sonuclar.length} Drive dosyası` : ''}</div>
           <table class="cw-tablo">${birikim.map(r => `<tr>
             <td style="white-space:nowrap">${esc(trT(r.tarih))}</td>
             <td><b>${esc(r.tur || '')}</b><div class="ca-soluk">${esc(r.aciklama || '')}</div></td>
@@ -1371,7 +1378,7 @@
             ${sayiK('Tebligat (UETS)', sy.tebligat, `son 7 gün ${(sy.son7_tebligat || 0).toLocaleString('tr-TR')}`)}
             ${sayiK('Süresi 3 gün içinde dolan', sy.sure_3gun, 'Ajanda\'da ayrıntı')}
             ${sayiK('7 gün içinde duruşma', sy.durusma_7gun)}
-            ${sayiK('Yargıtay kararı (hayfahukuk)', sy.yargitay_karar, 'son karar no')}
+            ${sayiK('Yargıtay kararı (hayfahukuk)', sy.yargitay_karar, 'toplam arşiv')}
           </div>
           <div style="margin-top:12px"><b>Kopma / yeniden bağlanma kayıtları</b>
             ${(v.kesintiler || []).length ? `<table>${v.kesintiler.slice(0, 20).map(k => `<tr><td class="ca-soluk" style="white-space:nowrap">${esc(k.zaman)}</td><td><b>${esc(k.servis)}</b></td><td>${esc(k.olay)}</td><td class="ca-soluk">${esc(k.mesaj || '')}</td></tr>`).join('')}</table>` : '<div class="ca-soluk">Bu oturumda kopma olmadı.</div>'}
@@ -2149,8 +2156,48 @@
     const indirilen = ev.filter(e => e.yerel).length;
     const sekmeler = [['genel', '📌 Genel'], ['evrak', `📄 Evraklar (${ev.length})`], ['hesap', '💰 Hesap'], ['safahat', `🧭 Safahat (${(v.safahat || []).length})`],
       ['taraf', `👥 Taraflar (${(v.taraf_listesi || []).length})`], ['durusma', '📅 Duruşma & Tebligat'], ['drive', `☁️ Drive (${drivede}/${ev.length})`], ['not', '📝 Notlar']];
-    w.ic.innerHTML = `<div class="cw-sekmeler">${sekmeler.map(([k, a], i) => `<button type="button" data-s="${k}" class="${i ? '' : 'secili'}">${a}</button>`).join('')}</div><div class="cw-govde"></div>`;
+    const eksik = v.eksik || {};
+    const eksikMetin = [eksik.taraf && 'taraflar', eksik.evrak && 'evrak listesi', eksik.hesap && 'hesap'].filter(Boolean).join(', ');
+    w.ic.innerHTML = `<div class="cw-eylem" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:8px 10px;border-bottom:1px solid #e5e7eb">
+        <button class="ca-btn kucuk" type="button" id="cw-tazele">🔄 UYAP'tan şimdi getir</button>
+        <button class="ca-btn kucuk ana" type="button" id="cw-drive-indir">☁️ Evraklarını Drive'a indir${v.indirilmemis ? ` (${v.indirilmemis})` : ''}</button>
+        <span class="ca-soluk" id="cw-tazele-d" style="flex:1;min-width:160px">${eksikMetin ? '⚠️ Eksik: ' + esc(eksikMetin) : ''}</span></div>
+      <div class="cw-sekmeler">${sekmeler.map(([k, a], i) => `<button type="button" data-s="${k}" class="${i ? '' : 'secili'}">${a}</button>`).join('')}</div><div class="cw-govde"></div>`;
     const govde = w.ic.querySelector('.cw-govde');
+    // Taraf / evrak listesi / hesap eksikse dosya açılınca UYAP'tan kendiliğinden getirilir (gizli oturumla)
+    const tzD = w.ic.querySelector('#cw-tazele-d'), tzB = w.ic.querySelector('#cw-tazele');
+    let tzZam = null;
+    const tazeleIzle = () => {
+      clearInterval(tzZam);
+      tzB.disabled = true;
+      tzZam = setInterval(async () => {
+        if (!document.body.contains(w.ic)) return clearInterval(tzZam);
+        try {
+          const t = await api('/api/dosya/tazele?dkey=' + encodeURIComponent(dkey));
+          if (t.calisiyor) { tzD.textContent = '⏳ ' + (t.mesaj || 'UYAP\'tan alınıyor…'); return; }
+          clearInterval(tzZam); tzB.disabled = false;
+          if (t.hata) { tzD.innerHTML = `<span class="ca-hata">${esc(t.hata)}</span>`; return; }
+          const r = t.sonuc || {};
+          tzD.textContent = `✓ ${r.taraf || 0} taraf, ${r.evrak || 0} evrak${r.hesap ? ', hesap' : ''}${r.safahat ? ', safahat' : ''} alındı`;
+          setTimeout(() => { w.kapat(); dosyaPenceresi(dkey, ipucu); }, 900);
+        } catch (e) { /* bağlantı anlık kopabilir */ }
+      }, 2000);
+    };
+    const tazeleBaslat = async () => {
+      try { await api('/api/dosya/tazele', { method: 'POST', govde: { dkey } }); tzD.textContent = '⏳ UYAP\'a bağlanılıyor…'; tazeleIzle(); }
+      catch (e) { tzD.innerHTML = `<span class="ca-hata">${esc(e.message)}</span>`; }
+    };
+    tzB.onclick = tazeleBaslat;
+    if ((v.tazele || {}).calisiyor) tazeleIzle();
+    else if (eksikMetin && !(v.tazele || {}).hata && !(v.tazele || {}).bitis) tazeleBaslat();
+    w.ic.querySelector('#cw-drive-indir').onclick = async e => {
+      const b = e.currentTarget; b.disabled = true;
+      try {
+        const r = await api('/api/dosya/drive_indir', { method: 'POST', govde: { dkey } });
+        tzD.textContent = `☁️ Sıraya alındı: ${r.liste_aliniyor ? 'önce evrak listesi alınıyor, sonra ' : ''}${r.bekleyen || 'tüm'} evrak indirilip Drive'a yüklenecek${r.senkron_acildi ? ' (Senkron açıldı)' : ''}. İlerleme "Drive" sekmesinde.`;
+        if (r.liste_aliniyor) tazeleIzle();
+      } catch (er) { tzD.innerHTML = `<span class="ca-hata">${esc(er.message)}</span>`; b.disabled = false; }
+    };
     evrakDugmeBagla(govde);
     const ia = v.icra;
     const genel = () => `
@@ -2207,6 +2254,11 @@
       : '<p class="ca-soluk">Safahat henüz çekilmedi (Senkron açıkken icra dosyalarında hesapla birlikte, diğerlerinde yeni evrakla gelir). "Hesap" sekmesinden "UYAP\'tan yenile" de safahatı çeker.</p>';
     const tarafSekme = () => `<table class="cw-tablo"><tr><th>Ad</th><th>Rol</th><th>Vekil</th></tr>${(v.taraf_listesi || []).map(t => `<tr><td>${t.muvekkil ? '<span class="cw-cip yesil">Müvekkil</span> ' : ''}<b>${esc(t.ad)}</b></td><td>${esc(t.rol)}</td><td class="ca-soluk">${esc(t.vekil)}</td></tr>`).join('')}</table>`;
     const durusmaSekme = () => `<div class="cw-kart"><b>📅 Duruşmalar</b>${(v.durusmalar || []).length ? `<table class="cw-tablo">${v.durusmalar.map(x => `<tr><td>${esc(trT(x.tarih))} ${esc(x.saat || '')}</td><td>${esc(x.yer || '')}</td><td>${esc(x.aciklama || '')}</td><td>${esc(x.durum || '')}</td></tr>`).join('')}</table>` : '<p class="ca-soluk">Kayıt yok.</p>'}</div>
+      <div class="cw-kart"><b>📮 Tebligat süreçleri (UYAP)</b>${(v.tebligat_surecleri || []).length ? `<table class="cw-tablo"><tr><th>Tarih</th><th>Tebligat</th><th>Muhatap</th><th>Sonuç / tebliğ tarihi</th><th></th></tr>${v.tebligat_surecleri.map(x => `<tr>
+          <td style="white-space:nowrap">${esc(trT(x.tarih))}</td><td><b>${esc(x.tur)}</b><div class="ca-soluk">${esc(x.evrak)}${x.barkod ? ' · ' + esc(x.barkod) : ''}</div></td>
+          <td>${esc(x.muhatap)}${x.rol ? `<div class="ca-soluk">${esc(x.rol)}</div>` : ''}</td>
+          <td>${x.sonuc ? `<span class="cw-cip ${/bila|iade|edilemedi/i.test(x.sonuc) ? 'kirmizi' : /tebli|bizzat|21|35|muhtar|vekil/i.test(x.sonuc) ? 'yesil' : 'gri'}">${esc(x.sonuc)}</span>` : ''}${x.teblig_tarihi ? `<div><b>${esc(x.teblig_tarihi)}</b></div>` : ''}${x.sure_notu ? `<div class="ca-soluk">${esc(x.sure_notu)}</div>` : ''}</td>
+          <td>${x.skey ? `<button class="cw-mini" type="button" data-onizle="${esc(x.skey)}">👁</button>` : ''}</td></tr>`).join('')}</table>` : '<p class="ca-soluk">Bu dosyada tebligat evrakı yok ya da evrak listesi henüz alınmadı.</p>'}</div>
       <div class="cw-kart"><b>📨 Tebligatlar</b>${(v.tebligatlar || []).length ? `<table class="cw-tablo">${v.tebligatlar.map(x => `<tr><td>${esc(trT(x.eklenme))}</td><td>${esc(x.tebligat_turu || '')}</td><td>${esc(x.evrak_adi || '')}</td></tr>`).join('')}</table>` : '<p class="ca-soluk">Kayıt yok.</p>'}</div>
       ${ia ? `<div class="cw-kart"><b>🧭 İcra zaman çizelgesi</b><table class="cw-tablo">${(ia.zaman_cizelgesi || []).slice().reverse().map(o => `<tr><td>${esc(trT(o.tarih))}</td><td><span class="cw-cip gri">${esc(o.kaynak)}</span></td><td>${esc(o.metin)}</td></tr>`).join('')}</table></div>` : ''}`;
     const driveSekme = () => `<div class="cw-izgara"><div><span>Drive'a yüklenen</span><b>${drivede} / ${ev.length}</b></div><div><span>İndirilen</span><b>${indirilen}</b></div><div><span>Drive'daki dosyalar (esas no)</span><b>${(v.drive_dosyalar || []).length}</b></div></div>

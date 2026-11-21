@@ -373,45 +373,57 @@ def _karar_var_mi(kid: int) -> bool:
     return bool(re.search(r"<h1[^>]*>(.*?)</h1>", html, re.S | re.I))
 
 
+def _toplam_karar(html: str) -> int | None:
+    """Ana sayfadaki "159.651 kararlık arşivimizde" / "Yargıtay Karar Arşivi 159.651 karar" sayısı."""
+    for desen in (r"([\d.]{4,})\s*kararl[ıi]k\s*ar[şs]iv", r"Kar[aâ]r\s*Ar[şs]ivi\D{0,80}?([\d.]{4,})\s*karar",
+                  r"([\d.]{4,})\s*(?:Yarg[ıi]tay\s*)?karar[ıi]?\b"):
+        sayilar = [int(x.replace(".", "")) for x in re.findall(desen, html, re.I | re.S) if x.replace(".", "").isdigit()]
+        sayilar = [n for n in sayilar if n >= 1000]
+        if sayilar:
+            return max(sayilar)
+    return None
+
+
 def karar_istatistik(veri_dizini: Path, yenile: bool = False) -> dict:
-    """İçtihat veritabanı canlı istatistiği: en yüksek karar no (≈ toplam karar) ve son 24 saat / 7 gün artışı.
-    Kararlar /karar?id=N ile sırayla numaralı: bilinen en yüksek numaradan ileri doğru üstel + ikili arama.
-    10 dk önbellekli; ölçüm geçmişi 30 gün tutulur."""
+    """İçtihat veritabanı canlı istatistiği: TOPLAM karar sayısı (hayfahukuk.com ana sayfasındaki arşiv sayacı)
+    ve son 24 saat / 7 gün artışı. 10 dk önbellekli; ölçüm geçmişi 30 gün tutulur.
+
+    v4.9: Eskiden "en yüksek karar numarası" ikili aramayla bulunuyordu; karar kimlikleri ardışık olmadığı için
+    (ör. id=2567292) ~160 bin kararlık arşiv 2.559 görünüyordu. Artık sitenin kendi toplamı okunur."""
     if not yenile:
         onb = _cache_oku(veri_dizini, "karar_istatistik", ttl_s=600)
         if onb:
             return onb
     gecmis = _cache_oku_bayat(veri_dizini, "karar_istatistik_gecmis") or {"olcumler": []}
-    olcumler = [o for o in gecmis.get("olcumler", []) if time.time() - o[0] < 30 * 86400]
-    alt = max([o[1] for o in olcumler] or [1])
-    if not _karar_var_mi(alt):
-        alt = 1
-        if not any(_karar_var_mi(i) for i in (1, 2, 3, 10, 100)):
-            raise ValueError("hayfahukuk.com'a ulaşılamadı (karar sayfaları açılmıyor)")
-    # Boşluklara dayanıklı varlık testi: N, N+1, N+2'den biri varsa N "var" sayılır
-    var = lambda n: any(_karar_var_mi(n + i) for i in range(3))  # noqa: E731
-    adim, ust = 64, None
-    while ust is None and adim < 50_000_000:
-        if var(alt + adim):
-            alt, adim = alt + adim, adim * 2
-        else:
-            ust = alt + adim
-    ust = ust or alt + 1
-    while ust - alt > 1:
-        orta = (alt + ust) // 2
-        if var(orta):
-            alt = orta
-        else:
-            ust = orta
+    # Eski (numara tabanlı) ölçümler toplamla karşılaştırılamaz: atılır
+    olcumler = [o for o in gecmis.get("olcumler", []) if time.time() - o[0] < 30 * 86400 and len(o) > 2 and o[2] == "toplam"]
+    html = _indir("/", timeout=25)
+    toplam = _toplam_karar(html)
+    if not toplam:
+        try:
+            toplam = _toplam_karar(_indir("/karar-arama", timeout=25))
+        except Exception:  # noqa: BLE001
+            toplam = None
+    if not toplam:
+        raise ValueError("hayfahukuk.com toplam karar sayısı okunamadı")
+    son_url = f"{SITE}/karar-arama?sira=eklenen"
+    try:
+        m = re.search(r'href="(/karar\?id=\d+)"', _indir("/karar-arama?sira=eklenen", timeout=25))
+        if m:
+            son_url = SITE + m.group(1)
+    except Exception:  # noqa: BLE001
+        pass
+    tarih_m = re.search(r"en yeni karar\s*([0-9]{1,2}\s+\w+\s+20\d\d)", html, re.I)
     simdi = time.time()
-    olcumler.append([simdi, alt])
+    olcumler.append([simdi, toplam, "toplam"])
     _cache_yaz(veri_dizini, "karar_istatistik_gecmis", {"olcumler": olcumler[-500:]})
 
     def artis(sn):
         eski = [o for o in olcumler if simdi - o[0] >= sn]
-        return alt - eski[-1][1] if eski else None
-    sonuc = {"en_son_karar_no": alt, "son_24s_artis": artis(86400), "son_7g_artis": artis(7 * 86400),
-             "olcum_zamani": time.strftime("%Y-%m-%d %H:%M"), "son_karar_url": f"{SITE}/karar?id={alt}"}
+        return toplam - eski[-1][1] if eski else None
+    sonuc = {"toplam_karar": toplam, "en_son_karar_no": toplam, "son_24s_artis": artis(86400), "son_7g_artis": artis(7 * 86400),
+             "en_yeni_karar_tarihi": tarih_m.group(1) if tarih_m else "",
+             "olcum_zamani": time.strftime("%Y-%m-%d %H:%M"), "son_karar_url": son_url}
     _cache_yaz(veri_dizini, "karar_istatistik", sonuc)
     return sonuc
 

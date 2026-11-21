@@ -156,8 +156,12 @@ def otp_oku(sonra_ts: float, kullanici: str, sifre: str, en_fazla_yas_sn: int = 
         except imaplib.IMAP4.error as e:
             m = str(e)
             if "AUTHENTICATIONFAILED" in m or "Invalid credentials" in m:
-                _uyar("⚠️ Gmail girişi reddedildi: uygulama şifresi yanlış ya da iptal edilmiş. Google Hesabı → Güvenlik → "
-                      "Uygulama şifreleri'nden yeni bir şifre oluşturup Entegrasyonlar'a girin (normal Gmail şifresi çalışmaz).")
+                uz = len(sifre)
+                _uyar(f"⚠️ Gmail girişi reddedildi ({kullanici}). "
+                      + (f"Girilen uygulama şifresi {uz} harf; Google uygulama şifreleri 16 harftir, bir harf eksik/fazla. "
+                         if uz != 16 else "Uygulama şifresi bu hesaba ait değil ya da iptal edilmiş. ")
+                      + "UETS giriş kodlarının GELDİĞİ Gmail hesabında (Google Hesabı → Güvenlik → Uygulama şifreleri) "
+                        "yeni şifre oluşturup o adresle birlikte Entegrasyonlar'a girin.")
             else:
                 _uyar(f"⚠️ Gmail girişi başarısız: {m[:150]} (Gmail ayarlarında IMAP açık olmalı).")
             return None
@@ -218,7 +222,22 @@ def baglanti_testi(kullanici: str, sifre: str) -> dict:
         mail = imaplib.IMAP4_SSL("imap.gmail.com", 993, ssl_context=ssl_baglami(), timeout=15)
         mail.login(kullanici, re.sub(r"\s+", "", str(sifre)))
         kl = _klasorler(mail)
+        # UETS kodları bu hesaba geliyor mu? (son 30 günde uets@ göndericili ileti)
+        uets_var = None
+        try:
+            mail.select("INBOX", readonly=True)
+            typ, data = mail.uid("search", None, '(FROM "ptt.gov.tr" SINCE %s)'
+                                 % (_dt.datetime.now() - _dt.timedelta(days=30)).strftime("%d-%b-%Y"))
+            uets_var = bool(typ == "OK" and data and data[0])
+        except Exception:  # noqa: BLE001
+            pass
         mail.logout()
-        return {"ok": True, "mesaj": f"Gmail bağlı · {len(kl)} klasör taranacak"}
+        mesaj = f"Gmail bağlı ({kullanici}) · {len(kl)} klasör taranacak"
+        if uets_var is False:
+            mesaj += (" · ⚠️ Bu hesaba son 30 günde UETS iletisi gelmemiş: UETS kodları başka bir Gmail adresine "
+                      "gidiyor olabilir (UETS'te kayıtlı e-posta adresinizi kontrol edin).")
+        return {"ok": True, "mesaj": mesaj, "uets_iletisi": uets_var}
     except Exception as e:  # noqa: BLE001
-        return {"ok": False, "mesaj": str(e)[:200]}
+        uz = len(re.sub(r"\s+", "", str(sifre)))
+        ek = f" · uygulama şifresi {uz} harf (16 olmalı)" if uz != 16 else ""
+        return {"ok": False, "mesaj": f"{kullanici}: {str(e)[:160]}{ek}"}

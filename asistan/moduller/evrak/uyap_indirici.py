@@ -1003,9 +1003,11 @@ class UyapBrowserBridge:
 
     def _open_uyap_tab(self, pages: list) -> dict | None:
         """UYAP sekmesi yoksa boş bir sekmeyi UYAP'a yönlendirir ya da yeni sekme açar."""
+        # UETS'e ayrılmış gizli sayfa (about:blank#uets / uets.ptt.gov.tr) UYAP için kullanılmaz
+        pages = [t for t in pages if "uets" not in (t.get("url") or "").lower()]
         blank = next((t for t in pages if (t.get("url") or "").startswith(self.BLANK_PREFIXES)
                       and t.get("webSocketDebuggerUrl")), None)
-        # Android WebView tek sayfa taşır (/json/new desteklemez): mevcut sayfayı UYAP'a yönlendir
+        # Android: /json/new yok; sunucu köprüsü yalnızca GİZLİ WebView'ları listeler, görünür ekran ele geçirilmez
         if not blank and os.environ.get("CANASISTAN_ANDROID") == "1":
             blank = next((t for t in pages if t.get("webSocketDebuggerUrl")), None)
         if blank:

@@ -263,10 +263,16 @@ def webhook_dosya_getir(url: str, drive_id: str) -> tuple[bytes, str]:
 
 def _eski_betik_mesaji(r: dict) -> str:
     m = str(r.get("message") or r.get("hata") or r)
-    if "base64" in m.lower() or "content" in m.lower() or "undefined" in m.lower() or r.get("status") == "success":
-        return ("Google Apps Script betiğiniz eski sürüm: yalnızca yükleme yapabiliyor, Drive'ı listeleyemiyor. "
-                "Drive sekmesindeki '📋 Google Apps Script Kodunu Kopyala' ile yeni kodu yapıştırın ve "
-                "'Dağıt > Dağıtımları yönet > ✏️ > Yeni sürüm' ile yeniden dağıtın (URL değişmez).")
+    ml = m.lower()
+    # Eski betik "list"/"get" eylemini tanımaz, isteği yükleme sanıp boş içeriği çözmeye çalışır:
+    # "Exception: Bağımsız değişken boş olamaz: data" / "Invalid argument: data" / base64 hataları.
+    if (any(k in ml for k in ("base64", "content", "undefined", "boş olamaz", "bos olamaz", "cannot be null",
+                               "invalid argument", ": data")) or r.get("status") == "success"):
+        return ("ESKI_BETIK: Google Apps Script betiğiniz eski sürüm: Drive'a yükleyebiliyor ama Drive'ı LİSTELEYEMİYOR "
+                "(bu yüzden Drive'daki on binlerce dosya görünmüyor). Bir kerelik güncelleme: 1) Aşağıdaki "
+                "'📋 Yeni betiği kopyala' düğmesine basın, 2) script.google.com'da projenizi açıp eski kodun tamamını "
+                "silin ve yapıştırın, kaydedin, 3) Dağıt > Dağıtımları yönet > ✏️ (kalem) > Sürüm: 'Yeni sürüm' > Dağıt. "
+                "Web uygulaması adresi DEĞİŞMEZ; sonra 'Drive'ı Veritabanına İndeksle'ye yeniden basın.")
     return f"Apps Script hatası: {m[:300]}"
 
 

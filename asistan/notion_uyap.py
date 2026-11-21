@@ -295,6 +295,16 @@ def esitle(uygula: bool = False, zorla: bool = False, konu_sinir: int = 60, ikon
         rapor["engel"] = "UYAP kataloğu boş (önce Senkron ile UYAP taranmalı)."
         return rapor
     eksik = [k for k in katalog if not eslestir(k)]
+    # Denetim özeti (Düzen & Durum → "Değişiklik yapmadan denetle"): aynı esas+mahkeme için birden çok Notion sayfası
+    cift = 0
+    for _esas, l in esas_index.items():
+        mahk = [fold(x["mahkeme"] or x["baslik"]) for x in l]
+        cift += len(mahk) - len(set(mahk))
+    rapor.update({"notion_sayfa": len(nd), "uyap_dosya": len(katalog), "eslesen": len(katalog) - len(eksik),
+                  "eksik_dosya": len(eksik), "notion_mukerrer": cift,
+                  "tarafsiz_notion": sum(1 for d in nd if not d["muv"] and not d["karsi"]),
+                  "konusuz_notion": sum(1 for d in nd if not d["konu"]),
+                  "eksik_ornek": [f"{k['birim']} {k['dosya_no']}" for k in eksik[:8]]})
     if eksik and not zorla and len(eksik) > max(30, len(katalog) // 5):
         rapor["engel"] = (f"{len(eksik)} dosya Notion'da yok (olağandışı çok): yeni sayfa açılmadı. "
                           "Kontrol edip 'Notion'a zorla aktar' ile onaylayın.")

@@ -171,7 +171,12 @@ class CdpSurucu:
         while time.time() < bitis:
             try:
                 sekmeler = json.loads(urllib.request.urlopen(f"http://127.0.0.1:{port}/json/list", timeout=3).read())
-                sayfa = next((t for t in sekmeler if t.get("type") == "page" and t.get("webSocketDebuggerUrl")), None)
+                sayfalar = [t for t in sekmeler if t.get("type") == "page" and t.get("webSocketDebuggerUrl")]
+                # UETS için ayrılmış gizli sayfa (about:blank#uets ya da uets.ptt.gov.tr) önce; UYAP oturumunu taşıyan
+                # sayfa yalnızca başka gizli sayfa yoksa kullanılır (UETS girişi UYAP oturumunu düşürmesin).
+                sayfalar.sort(key=lambda t: (0 if "uets" in (t.get("url") or "").lower() else
+                                             2 if any(h in (t.get("url") or "") for h in ("uyap.gov.tr", "turkiye.gov.tr")) else 1))
+                sayfa = sayfalar[0] if sayfalar else None
                 if sayfa:
                     self._ws = websocket.create_connection(sayfa["webSocketDebuggerUrl"], timeout=60, suppress_origin=True)
                     break

@@ -22,7 +22,10 @@ import android.webkit.WebViewClient;
  */
 final class GizliTarayici {
     static final String UYAP = "https://avukat.uyap.gov.tr";
+    /** UETS için ayrı gizli sayfa: UETS girişi UYAP oturumunu bozmasın (CdpSurucu "#uets" sayfasını seçer). */
+    static final String UETS_BOS = "about:blank#uets";
     private static WebView wv;
+    private static WebView wvUets;
 
     private GizliTarayici() { }
 
@@ -37,6 +40,25 @@ final class GizliTarayici {
         if (wv != null) return;
         try {
             WebView.setWebContentsDebuggingEnabled(true);
+            wv = olustur(c, UYAP);
+            Tani.yaz("asistan", "gizli UYAP tarayıcısı hazır: " + soketAdi());
+        } catch (Throwable t) {
+            wv = null;
+            Tani.yaz("asistan", "gizli tarayıcı açılamadı: " + t);
+        }
+        try {
+            if (wvUets == null) wvUets = olustur(c, UETS_BOS);
+        } catch (Throwable t) {
+            wvUets = null;
+            Tani.yaz("asistan", "gizli UETS tarayıcısı açılamadı: " + t);
+        }
+    }
+
+    /** Ekrana HİÇ eklenmeyen WebView (DevTools'ta never_attached=true görünür; sunucu yalnızca bunları kullanır). */
+    @SuppressLint("SetJavaScriptEnabled")
+    private static WebView olustur(Context c, String url) {
+        WebView wv;
+        {
             wv = new WebView(c.getApplicationContext());
             WebSettings s = wv.getSettings();
             s.setJavaScriptEnabled(true);
@@ -76,12 +98,9 @@ final class GizliTarayici {
             });
             // Ekran dışı da olsa düzen boyutu olsun (sayfa betikleri genişlik ölçer)
             wv.layout(0, 0, 1366, 900);
-            wv.loadUrl(UYAP);
-            Tani.yaz("asistan", "gizli UYAP tarayıcısı hazır: " + soketAdi());
-        } catch (Throwable t) {
-            wv = null;
-            Tani.yaz("asistan", "gizli tarayıcı açılamadı: " + t);
+            wv.loadUrl(url);
         }
+        return wv;
     }
 
     static boolean hazir() { return wv != null; }

@@ -1049,14 +1049,19 @@ class Motor:
             let total = Number(d1 && d1.pageTotal) || 1;
             if (total <= 1) { try { const t = await (await post("/listDosyaEvraklarPageTotal.ajx", {dosyaId: id, pageNumber: 1})).json();
                  total = typeof t === "number" ? t : (Number(t && t.total) || 1); } catch(e) {} }
-            for (let p = 2; p <= Math.min(total, 200); p++) {
-              const r = await post("/list_dosya_evraklar.ajx", {dosyaId: id, pageNumber: p});
-              if (r.ok) pages.push(await r.json());
+            // Büyük (icra) dosyalarda yüzlerce sayfa olabilir: 5'erli paralel; 240 sn sınırına takılıp
+            // bütün grubun boşa gitmesi önlenir.
+            const son = Math.min(total, 600);
+            for (let p = 2; p <= son; p += 5) {
+              const grup = [];
+              for (let q = p; q < p + 5 && q <= son; q++) grup.push(post("/list_dosya_evraklar.ajx", {dosyaId: id, pageNumber: q})
+                .then(r => r.ok ? r.json() : null).catch(() => null));
+              for (const v of await Promise.all(grup)) if (v) pages.push(v);
             }
             out[id] = pages; } catch(e) { out[id] = {err: "ag", msg: String(e)}; } }));
           return out; })()""" % _json.dumps(ids)
         try:
-            res = self.bridge.eval_js(js, timeout=240.0)
+            res = self.bridge.eval_js(js, timeout=900.0)
             return res if isinstance(res, dict) else {}
         except Exception:
             return {}

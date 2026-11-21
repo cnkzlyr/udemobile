@@ -271,7 +271,7 @@ dependencies = [
 
 [[package]]
 name = "can-editor"
-version = "4.8.1"
+version = "4.9.0"
 dependencies = [
  "base64 0.22.1",
  "cryptoki",

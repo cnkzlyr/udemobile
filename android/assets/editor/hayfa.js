@@ -1033,6 +1033,18 @@ function doGet(e) {
       const indeksSonucuYaz = r => {
         islem.textContent = `✓ İndekslendi${r.kaynak ? ' (' + r.kaynak + ')' : ''}: ${r.toplam.toLocaleString('tr-TR')} dosya (${r.boyut_mb.toLocaleString('tr-TR')} MB) · +${r.yeni} yeni, ${r.guncellenen} güncellendi, ${r.silinen} silindi (${Math.round(r.sure_ms / 1000)} sn)`;
       };
+      // Eski Apps Script (list eylemi yok) için tek tıkla güncelleme yönergesi + kopyalama düğmesi
+      const hataGoster = (m) => {
+        const eski = String(m).startsWith('ESKI_BETIK:');
+        islem.innerHTML = `<div class="${eski ? 'ca-uyari' : 'ca-hata'}" style="line-height:1.5">${esc(String(m).replace(/^ESKI_BETIK:\s*/, ''))}</div>`
+          + (eski ? `<button class="ca-btn ana kucuk" type="button" id="hf-gs-kopya2" style="margin-top:6px">📋 Yeni betiği kopyala</button>
+             <a class="ca-btn kucuk" href="https://script.google.com/home" target="_blank" rel="noopener" style="margin-top:6px">↗ script.google.com</a>` : '');
+        const kb = islem.querySelector('#hf-gs-kopya2');
+        if (kb) kb.onclick = async () => {
+          try { await navigator.clipboard.writeText(GOOGLE_APPS_SCRIPT_KODU); kb.textContent = '✓ Kopyalandı'; }
+          catch (e) { prompt('Kodu kopyalayın:', GOOGLE_APPS_SCRIPT_KODU); }
+        };
+      };
       const indeksIzle = async () => {
         for (;;) {
           const d = await api('/api/drive/indeks_durum');
@@ -1042,7 +1054,7 @@ function doGet(e) {
             if (!document.body.contains(islem)) return;
             continue;
           }
-          if (d.hata) { islem.innerHTML = `<span class="ca-hata">${esc(d.hata)}</span>`; return; }
+          if (d.hata) { hataGoster(d.hata); return; }
           if (d.sonuc) { indeksSonucuYaz(d.sonuc); driveAra(); }
           return;
         }
@@ -1053,7 +1065,7 @@ function doGet(e) {
           const wh = whInput ? whInput.value.trim() : '';
           const r = await api('/api/drive/indeksle', { method: 'POST', govde: wh ? { webhook: wh } : {} });
           if (r.arkaplan) { await indeksIzle(); } else { indeksSonucuYaz(r); driveAra(); }
-        } catch (e) { islem.innerHTML = `<span class="ca-hata">${esc(e.message)}</span>`; }
+        } catch (e) { hataGoster(e.message); }
       };
       // Sekme açıldığında süren bir indeksleme varsa ilerlemesini göster
       api('/api/drive/indeks_durum').then(d => { if (d && d.calisiyor) indeksIzle(); }).catch(() => {});
@@ -1256,7 +1268,10 @@ function doGet(e) {
           <b>${baslik}</b><span><span class="hf-d-r"></span> <button class="ca-btn ana kucuk" type="button" data-calistir="${k}">▶ Şimdi çalıştır</button></span></div>
         <p class="ca-soluk" style="margin:4px 0">${aciklama}</p><div class="hf-d-sonuc"></div>
         <pre class="hf-d-log" style="max-height:220px;overflow:auto;background:#0f172a;color:#e2e8f0;padding:8px;border-radius:6px;font-size:11px;white-space:pre-wrap;margin-top:6px"></pre></div>`;
-      alan.innerHTML = kartH('ticktick-duzen', '🧹 TickTick temizliği ve düzeni', 'Mükerrerleri aktif, tamamlanan ve <b>yapılmayacak</b> görevlerin tamamına bakarak kapatır (silmez; notlar ve alt görevler asıl göreve taşınır), eksik tebligatları işaretler, Notion\'daki her açık dosyaya kart açar ve dosya konusunu yazar.')
+      alan.innerHTML = `<div class="ca-kart" id="hf-denetim"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+          <b>🔍 Denetim: her şey yerli yerinde mi?</b><button class="ca-btn ana kucuk" type="button" id="hf-den-bas">🔍 Değişiklik yapmadan denetle</button></div>
+          <p class="ca-soluk" style="margin:4px 0">UYAP kataloğu, Google Drive, Notion ve TickTick'i karşılaştırır; <b>hiçbir şeyi değiştirmez</b>. ✓ yeşil = doğru, ⚠️ = düzeltilecek (aşağıdaki "Şimdi çalıştır" düğmeleri düzeltir).</p>
+          <div id="hf-den-ic" class="ca-soluk">Yükleniyor…</div></div>` + kartH('ticktick-duzen', '🧹 TickTick temizliği ve düzeni', 'Mükerrerleri aktif, tamamlanan ve <b>yapılmayacak</b> görevlerin tamamına bakarak kapatır (silmez; notlar ve alt görevler asıl göreve taşınır), eksik tebligatları işaretler, Notion\'daki her açık dosyaya kart açar ve dosya konusunu yazar.')
         + kartH('notion-esitle', '📒 UYAP → Notion eşitleme', 'Eksik dosyaları açar; açılış tarihi, durum, müvekkil ve karşı taraf bağlarını, ikonları ve 5-10 cümlelik dosya konusunu yazar. Elle yazdığınız konu ezilmez.');
       const sonucMetin = (k, r) => !r ? '' : k === 'ticktick-duzen'
         ? `Son tur: <b>${r.kapatilan ?? 0}</b> kopya kapatıldı · <b>${r.yeni_kart ?? 0}</b> dosya kartı açıldı · <b>${r.eksik ?? 0}</b> eksik görev · ${r.kapali_sayisi ?? '?'} kapalı görev (${r.yapilmayacak_sayisi ?? '?'} yapılmayacak) denetlendi`
@@ -1283,6 +1298,47 @@ function doGet(e) {
         try { await api('/api/gorev/' + b.dataset.calistir, { method: 'POST', govde: {} }); } catch (er) { alert(er.message); }
         tazele();
       };
+      const sy = n => (n == null ? '—' : Number(n).toLocaleString('tr-TR'));
+      const sat = (ok, metin) => `<div style="padding:3px 0">${ok ? '✅' : '⚠️'} ${metin}</div>`;
+      const denetimCiz = async (baslat) => {
+        const kutu = alan.querySelector('#hf-den-ic'); if (!kutu) return;
+        let d;
+        try { d = await api('/api/denetim', baslat ? { method: 'POST', govde: {} } : undefined); }
+        catch (e) { kutu.innerHTML = `<span class="ca-hata">${esc(e.message)}</span>`; return; }
+        const k = d.katalog || {}, dr = d.drive || {}, n = d.notion, t = d.ticktick;
+        let h = '<b>UYAP</b>';
+        h += sat(k.liste_alinan >= k.dosya, `Evrak listesi alınan dosya: <b>${sy(k.liste_alinan)}</b> / ${sy(k.dosya)}${k.liste_hatali ? ` (${sy(k.liste_hatali)} dosyada UYAP liste vermedi)` : ''} · kataloğa geçen evrak: <b>${sy(k.evrak)}</b>`);
+        h += sat(!k.tarafsiz, `Tarafı bilinmeyen dosya: <b>${sy(k.tarafsiz)}</b>${k.muvekkilsiz ? ` · müvekkili tespit edilemeyen: ${sy(k.muvekkilsiz)}` : ''}`);
+        h += sat(k.hesap_cekilen >= k.dosya, `Hesabı UYAP'tan çekilen dosya: <b>${sy(k.hesap_cekilen)}</b> / ${sy(k.dosya)}`);
+        h += sat(!k.kategorisiz, `Kategorisi belirlenemeyen evrak: <b>${sy(k.kategorisiz)}</b>`);
+        h += '<b style="display:block;margin-top:8px">Google Drive</b>';
+        h += sat(dr.drivede >= dr.indirilen, `İndirilen evrak: <b>${sy(dr.indirilen)}</b> · Drive'a yüklenen: <b>${sy(dr.drivede)}</b>`);
+        h += sat(dr.indeks > 0, `Drive indeksi: <b>${sy(dr.indeks)}</b> dosya${dr.indeks ? '' : ' (Drive Ayarları → İndeksle; betik eskiyse güncelleme yönergesi çıkar)'}`);
+        h += '<b style="display:block;margin-top:8px">Notion</b>';
+        if (!n) h += '<div class="ca-soluk">Henüz denetlenmedi.</div>';
+        else if (n._calisiyor) h += '<div class="ca-soluk">⏳ Notion okunuyor…</div>';
+        else if (n.engel && n.notion_sayfa == null) h += sat(false, esc(n.engel));
+        else {
+          h += sat(!n.eksik_dosya, `UYAP dosyası: ${sy(n.uyap_dosya)} · Notion sayfası: ${sy(n.notion_sayfa)} · eşleşen: <b>${sy(n.eslesen)}</b> · Notion'da olmayan: <b>${sy(n.eksik_dosya)}</b>${(n.eksik_ornek || []).length ? `<div class="ca-soluk" style="font-size:12px">ör. ${n.eksik_ornek.map(esc).join(' · ')}</div>` : ''}`);
+          h += sat(!n.notion_mukerrer, `Notion'da mükerrer dosya sayfası: <b>${sy(n.notion_mukerrer)}</b>`);
+          h += sat(!n.tarafsiz_notion, `Müvekkil/karşı taraf bağı olmayan sayfa: <b>${sy(n.tarafsiz_notion)}</b> · konusu boş: <b>${sy(n.konusuz_notion)}</b>`);
+          h += sat(!(n.tarih || n.durum || n.muvekkil_bag || n.karsi_bag), `Düzeltilecek alan: açılış ${sy(n.tarih)}, durum ${sy(n.durum)}, taraf bağı ${sy((n.muvekkil_bag || 0) + (n.karsi_bag || 0))}, ikon ${sy(n.ikon)}`);
+        }
+        h += '<b style="display:block;margin-top:8px">TickTick</b>';
+        if (!t) h += '<div class="ca-soluk">Henüz denetlenmedi.</div>';
+        else if (t._calisiyor) h += '<div class="ca-soluk">⏳ TickTick okunuyor…</div>';
+        else {
+          h += sat(!t.kapatilan, `Mükerrer görev: <b>${sy(t.kapatilan)}</b> (aktif + tamamlanan + yapılmayacak denetlendi)`);
+          h += sat(!t.yeni_kart, `Kartı olmayan Notion dosyası: <b>${sy(t.yeni_kart)}</b>`);
+          h += sat(!t.eksik, `Biçimi bozuk / eksik görev: <b>${sy(t.eksik)}</b>${t.eksik_tebligat_barkod ? ` · eksik tebligat: ${sy(t.eksik_tebligat_barkod)}` : ''}`);
+          if ((t.hatalar || 0) > 0) h += sat(false, `${sy(t.hatalar)} okuma hatası`);
+        }
+        kutu.innerHTML = h;
+        alan.querySelector('#hf-den-bas').disabled = !!d.calisiyor;
+        if (d.calisiyor && document.body.contains(kutu)) setTimeout(() => denetimCiz(false), 4000);
+      };
+      alan.querySelector('#hf-den-bas').onclick = () => { alan.querySelector('#hf-den-ic').textContent = '⏳ Denetim başladı (Notion ve TickTick okunuyor, birkaç dakika sürebilir)…'; denetimCiz(true); };
+      denetimCiz(false);
       const zz = setInterval(tazele, 3000); tazele();
       return;
     }
@@ -1300,7 +1356,7 @@ function doGet(e) {
           <div><label>UETS Şifre</label><input id="hf-e-uets-pw" type="password" placeholder="${ayar.uets_bagli ? '•••• (kayıtlı)' : 'isteğe bağlı'}"></div>
           <div><label>Gmail adresi (UETS giriş kodu buraya gelir)</label><input id="hf-e-gm-u" placeholder="${ayar.gmail_bagli ? esc(ayar.gmail_user) + ' (kayıtlı)' : 'ornek@gmail.com'}"></div>
           <div><label>Gmail Uygulama Şifresi</label><input id="hf-e-gm-p" type="password" placeholder="${ayar.gmail_bagli ? '•••• (kayıtlı)' : '16 haneli uygulama şifresi'}">
-            <small class="ca-soluk" style="display:block;font-size:11px">Google Hesabı → Güvenlik → 2 Adımlı Doğrulama → Uygulama şifreleri. Girilmezse giriş kodunu Tebligatlar sekmesinden elle yazarsınız.</small></div>
+            <small class="ca-soluk" style="display:block;font-size:11px">UETS giriş kodunun GELDİĞİ Gmail hesabında: Google Hesabı → Güvenlik → 2 Adımlı Doğrulama → Uygulama şifreleri (16 harf). Girilmezse giriş kodunu Tebligatlar sekmesinden elle yazarsınız.</small><small id="hf-e-gm-uz" class="ca-hata" style="display:block;font-size:11px"></small></div>
           <div><label>Dosya özeti için yapay zekâ anahtarı (isteğe bağlı)</label><input id="hf-e-oz-k" type="password" placeholder="${ayar.ozet_bagli ? esc(ayar.ozet_api_key) + ' (kayıtlı)' : 'boş bırakılırsa özet evraklardan çıkarılır'}">
             <small class="ca-soluk" style="display:block;font-size:11px">Her dosyanın 5-10 cümlelik konusu Notion "DOSYA KONUSU" sütununa ve TickTick dosya kartına yazılır. Elle yazdığınız konu asla ezilmez.</small></div>
           <div><label>Yapay zekâ sağlayıcısı / model</label><div style="display:flex;gap:6px"><select id="hf-e-oz-s" style="flex:1">
@@ -1314,6 +1370,8 @@ function doGet(e) {
         <span id="hf-e-msg" class="ca-soluk"></span>
         <div id="hf-e-test-sonuc" style="margin-top:10px"></div></div>`;
       ayarYedekKarti(alan.querySelector('#ay-yedek'), Object.assign({}, ctx, { yenile: () => entegrasyonSekmesi(ic, ctx) }));
+      const gmP = alan.querySelector('#hf-e-gm-p'), gmUz = alan.querySelector('#hf-e-gm-uz');
+      if (gmP && gmUz) gmP.addEventListener('input', () => { const n = gmP.value.replace(/\s+/g, '').length; gmUz.textContent = n && n !== 16 ? `⚠️ ${n} harf yazdınız; Google uygulama şifresi 16 harftir.` : ''; });
       alan.querySelector('#hf-e-kaydet').onclick = async () => {
         const g = {
           notion_token: alan.querySelector('#hf-e-nt').value.trim(),

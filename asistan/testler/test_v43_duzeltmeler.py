@@ -293,14 +293,16 @@ class MukerrerTahminTesti(unittest.TestCase):
 
 
 class KararIstatistikTesti(unittest.TestCase):
-    def test_en_son_karar_bulunur_bosluklara_ragmen(self):
+    def test_toplam_karar_ana_sayfadan_okunur(self):
+        # v4.9: karar kimlikleri ardışık değil (id=2567292); toplam sitenin kendi sayacından okunur
         import hayfa_kopru as h
-        mevcut = set(range(1, 123457)) - {500, 501, 90000, 123400}
-        eski = h._karar_var_mi
-        h._karar_var_mi = lambda k: k in mevcut
+        eski = h._indir
+        h._indir = lambda yol, timeout=12: ('<p>Yargıtay Karar Arşivi <b>159.651</b> karar · en yeni karar 21 Ekim 2026</p>'
+                                            '<p>159.651 kararlık arşivimizde</p><a href="/karar?id=2567292">x</a>')
         try:
             with tempfile.TemporaryDirectory() as td:
                 r = h.karar_istatistik(Path(td), yenile=True)
-                self.assertEqual(r["en_son_karar_no"], 123456)
+                self.assertEqual(r["toplam_karar"], 159651)
+                self.assertTrue(r["son_karar_url"].endswith("id=2567292"))
         finally:
-            h._karar_var_mi = eski
+            h._indir = eski

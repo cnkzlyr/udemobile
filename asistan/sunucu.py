@@ -61,7 +61,7 @@ if hasattr(sys.stderr, "reconfigure"):
         pass
 from pathlib import Path
 
-SURUM = "4.8.1"
+SURUM = "4.9.0"
 KOK = Path(__file__).resolve().parent
 if str(KOK) not in sys.path:
     sys.path.insert(0, str(KOK))
@@ -374,8 +374,15 @@ def evrak_ara(q: str, limit: int = 100, dkey: str = "", kategori: str = "", duru
             drive = _drive_indeks.ara(drive_indeks_yolu(), q, "", "", 60)
         except Exception as e:  # noqa: BLE001
             drive = {"hazir": False, "sonuclar": [], "mesaj": str(e)}
+    # Dosya düzeyinde eşleşme (taraf / müvekkil / birim / esas): evrak listesi henüz alınmamış dosyalar da çıkar
+    dosyalar = []
+    if pos and offset == 0:
+        try:
+            dosyalar = dosyalar_listele(q, "", 25).get("dosyalar") or []
+        except Exception:  # noqa: BLE001
+            dosyalar = []
     return {"hazir": True, "toplam_evrak": toplam, "dosya_sayisi": dosya_say, "taranan_dosya": taranan,
-            "indirilen": indirilen, "eslesen": eslesen, "sonuclar": rows, "drive": drive}
+            "indirilen": indirilen, "eslesen": eslesen, "sonuclar": rows, "drive": drive, "dosyalar": dosyalar}
 
 
 _ONIZLE_KILIT: dict = {}
@@ -820,7 +827,51 @@ def dosya_detay(dkey: str) -> dict:
         "reddiyat": reddiyat,
         "icra": icra,
         "drive_defter": {k: v for k, v in _drive_defteri([e["id"] for e in evraklar]).items()},
+        "tazele": dosya_tazele_durum(dkey),
+        "tebligat_surecleri": tebligat_surecleri(dosya.get("dosya_no") or "", evraklar),
+        "eksik": {"taraf": not (dosya.get("taraflar") or "").strip(), "evrak": dosya.get("tarama") != "tamam" and not evraklar,
+                  "hesap": not (hesap or {}).get("cekildi")},
+        "drive_yuklenen": sum(1 for _ in _drive_defteri([e["id"] for e in evraklar])),
+        "indirilmemis": sum(1 for e in evraklar if not e.get("yerel")),
     }
+
+
+def tebligat_surecleri(dosya_no: str, evraklar: list) -> list:
+    """Dosyanın tebligat süreçleri: UYAP'tan indirilen mazbatalardan çıkarılan sonuçlar (muhatap, sonuç, yasal
+    tebliğ tarihi, süre notu — tebligat_takip_listesi.csv) + katalogdaki tebligat evrakları (indirilmemiş olsa da)."""
+    import csv as _csv
+    out, gorulen = [], set()
+    dn = re.sub(r"\s+", "", dosya_no or "")
+    yollar = [evrak_veri_dizini() / "tebligat_takip_listesi.csv",
+              evrak_veri_dizini() / "UYAP_Indirilenler" / "TEBLIGATLAR" / "tebligat_takip_listesi.csv",
+              Path("/sdcard/Download/UYAP_Indirilenler/TEBLIGATLAR/tebligat_takip_listesi.csv")]
+    for y in yollar:
+        try:
+            if not y.is_file():
+                continue
+            with y.open(encoding="utf-8-sig", newline="") as f:
+                for r in _csv.DictReader(f):
+                    if dn and re.sub(r"\s+", "", r.get("Dosya_No") or "") != dn:
+                        continue
+                    anahtar = (r.get("Evrak_Id") or "") + (r.get("Barkod_Veya_Delil_No") or "")
+                    if anahtar in gorulen:
+                        continue
+                    gorulen.add(anahtar)
+                    out.append({"kaynak": "UYAP mazbata", "tarih": r.get("Gonderim_Tarihi") or "", "tur": r.get("Tebligat_Turu") or "",
+                                "muhatap": r.get("Tebligat_Muhatabi") or "", "rol": r.get("Muhatap_Rolu") or "",
+                                "barkod": r.get("Barkod_Veya_Delil_No") or "", "teblig_tarihi": r.get("Hukuki_Teblig_Tarihi") or "",
+                                "sonuc": r.get("Teblig_Durumu_Sonuc") or "", "sure_notu": r.get("Yasal_Sure_Hesabi_Notu") or "",
+                                "evrak": r.get("Evrak_Adi") or ""})
+        except (OSError, _csv.Error):
+            continue
+    for e in evraklar:
+        t = fold(f"{e.get('tur') or ''} {e.get('kategori') or ''}")
+        if "tebli" in t or "mazbata" in t:
+            out.append({"kaynak": "UYAP evrak", "tarih": e.get("tarih") or "", "tur": e.get("tur") or "", "muhatap": "",
+                        "rol": "", "barkod": "", "teblig_tarihi": "", "sonuc": "indirildi, okunuyor" if e.get("yerel") else "henüz indirilmedi",
+                        "sure_notu": "", "evrak": e.get("aciklama") or "", "skey": e.get("skey")})
+    out.sort(key=lambda x: str(x.get("tarih") or ""), reverse=True)
+    return out[:200]
 
 
 def _json_yukle(v, varsayilan=None):
@@ -1045,6 +1096,137 @@ def hesap_yenile(dkey: str) -> dict:
         raise ValueError("Katalog yok")
     with c:
         return {"hesap": dosya_hesap_getir(c, dkey)}
+
+
+# ---------------------------------------------------------------------------
+# Tek dosyayı UYAP'tan şimdi getir (taraflar + tüm evrak listesi + hesap + safahat) ve
+# "Bu dosyanın evraklarını Drive'a indir" önceliği. İkisi de gizli oturumla, arka planda çalışır.
+# ---------------------------------------------------------------------------
+_DOSYA_TAZE: dict = {}
+_DOSYA_TAZE_KILIT = threading.Lock()
+
+
+def dosya_tazele_baslat(dkey: str) -> dict:
+    if not dkey:
+        raise ValueError("dkey gerekli")
+    with _DOSYA_TAZE_KILIT:
+        d = _DOSYA_TAZE.get(dkey)
+        if d and d.get("calisiyor"):
+            return d
+        d = {"dkey": dkey, "calisiyor": True, "basla": time.time(), "mesaj": "UYAP'a bağlanılıyor...", "sonuc": None, "hata": ""}
+        _DOSYA_TAZE[dkey] = d
+
+    def is_():
+        try:
+            pr = subprocess.Popen([*PY, "dosya_tazele.py", "--dkey", dkey], cwd=str(EVRAK_DIR), env=gorev_ortami(),
+                                  stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding="utf-8",
+                                  errors="replace")
+            son = ""
+            bitis = time.time() + 900
+            for satir in pr.stdout:  # type: ignore[union-attr]
+                satir = satir.strip()
+                if not satir:
+                    continue
+                son = satir
+                if not satir.startswith("{"):
+                    d["mesaj"] = satir[:200]
+                if time.time() > bitis:
+                    pr.kill()
+                    d["hata"] = "UYAP 15 dakikada yanıt vermedi."
+                    break
+            pr.wait(timeout=30)
+            if son.startswith("{"):
+                try:
+                    r = json.loads(son)
+                    d["sonuc"] = r
+                    d["hata"] = r.get("hata") or d["hata"]
+                except ValueError:
+                    pass
+            elif not d["hata"]:
+                d["hata"] = son[:300] or "Dosya getirilemedi"
+        except Exception as e:  # noqa: BLE001
+            d["hata"] = str(e)[:300]
+        finally:
+            d["calisiyor"] = False
+            d["bitis"] = time.time()
+    threading.Thread(target=is_, daemon=True, name="dosya-tazele").start()
+    return d
+
+
+def dosya_tazele_durum(dkey: str) -> dict:
+    return _DOSYA_TAZE.get(dkey) or {"dkey": dkey, "calisiyor": False}
+
+
+def dosya_drive_indir(dkey: str) -> dict:
+    """Dosyayı Senkron'un indirme sırasının başına alır: önce evrak listesi (yoksa), sonra tüm evrakı indirip
+    PDF'e çevirir ve Drive'a yükler. Senkron kapalıysa açılır."""
+    if not dkey:
+        raise ValueError("dkey gerekli")
+    p = evrak_veri_dizini() / "oncelikli_dosyalar.json"
+    try:
+        v = json.loads(p.read_text(encoding="utf-8")) if p.is_file() else {}
+    except ValueError:
+        v = {}
+    lst = [x for x in (v.get("dkeyler") or []) if x != dkey]
+    lst.insert(0, dkey)
+    p.write_text(json.dumps({"dkeyler": lst[:50]}, ensure_ascii=False), encoding="utf-8")
+    c = _ro(katalog_yolu())
+    bekleyen, tarama = 0, ""
+    if c is not None:
+        with c:
+            bekleyen = c.execute("SELECT COUNT(*) FROM evrak WHERE dkey=? AND (path IS NULL AND pdf_path IS NULL) "
+                                 "AND COALESCE(durum,'') NOT IN ('mukerrer','yok')", (dkey,)).fetchone()[0]
+            r = c.execute("SELECT tarama FROM dosya WHERE dkey=?", (dkey,)).fetchone()
+            tarama = (r[0] if r else "") or ""
+    if tarama != "tamam":
+        dosya_tazele_baslat(dkey)
+    g = GOREV_DURUM.get("evrak-akis")
+    senkron_acildi = False
+    if g is not None and not g.calisiyor() and not g.kullanilamama_nedeni():
+        g.baslat()
+        senkron_acildi = True
+    return {"sirada": True, "bekleyen": bekleyen, "liste_aliniyor": tarama != "tamam", "senkron_acildi": senkron_acildi}
+
+
+def denetim_ozeti() -> dict:
+    """Düzen & Durum → Denetim: UYAP kataloğu, Drive ve (son denetim turlarından) Notion/TickTick için
+    sade "doğru mu, eksik mi" tablosu. Notion/TickTick'e yazmaz; onların sayıları önizleme görevlerinden gelir."""
+    k = {}
+    c = _ro(katalog_yolu())
+    if c is not None:
+        with c:
+            ds = {r[1] for r in c.execute("PRAGMA table_info(dosya)").fetchall()}
+            k["dosya"] = c.execute("SELECT COUNT(*) FROM dosya").fetchone()[0]
+            k["acik"] = c.execute("SELECT COUNT(*) FROM dosya WHERE durum='Açık'").fetchone()[0]
+            k["liste_alinan"] = c.execute("SELECT COUNT(*) FROM dosya WHERE tarama='tamam'").fetchone()[0] if "tarama" in ds else 0
+            k["liste_hatali"] = c.execute("SELECT COUNT(*) FROM dosya WHERE tarama LIKE 'hata%'").fetchone()[0] if "tarama" in ds else 0
+            k["tarafsiz"] = c.execute("SELECT COUNT(*) FROM dosya WHERE COALESCE(taraflar,'')=''").fetchone()[0]
+            k["muvekkilsiz"] = c.execute("SELECT COUNT(*) FROM dosya WHERE COALESCE(muvekkil,'')='' AND COALESCE(taraflar,'')<>''").fetchone()[0]
+            k["evrak"] = c.execute("SELECT COUNT(*) FROM evrak").fetchone()[0]
+            k["indirilen"] = c.execute("SELECT COUNT(*) FROM evrak WHERE path IS NOT NULL OR pdf_path IS NOT NULL").fetchone()[0]
+            k["kategorisiz"] = c.execute("SELECT COUNT(*) FROM evrak WHERE COALESCE(kategori,'') IN ('','Diğer','Diger')").fetchone()[0]
+            k["hesap_cekilen"] = (c.execute("SELECT COUNT(*) FROM dosya_finans").fetchone()[0]
+                                  if _tablo_var(c, "dosya_finans") else 0)
+            k["hata_ornek"] = [dict(r) for r in c.execute(
+                "SELECT birim, dosya_no, tarama FROM dosya WHERE tarama LIKE 'hata%' LIMIT 6").fetchall()] if "tarama" in ds else []
+    drive = _drive_indeks.esitleme_ozeti(katalog_yolu(), evrak_veri_dizini())
+    drive["indeks"] = _drive_indeks.indeks_ozeti(drive_indeks_yolu()).get("toplam", 0) if drive_indeks_yolu().is_file() else 0
+
+    def son(kimlik):
+        g = GOREV_DURUM.get(kimlik)
+        if not g:
+            return None
+        for x in reversed(list(g.gunluk)):
+            if "@@SONUC@@" in x:
+                try:
+                    r = json.loads(x.split("@@SONUC@@", 1)[1])
+                    r["_bitis"] = g.bitis
+                    return r
+                except ValueError:
+                    return None
+        return {"_calisiyor": g.calisiyor()} if g.calisiyor() else None
+    return {"katalog": k, "drive": drive, "notion": son("notion-denetle"), "ticktick": son("ticktick-denetle"),
+            "calisiyor": any(GOREV_DURUM[x].calisiyor() for x in ("notion-denetle", "ticktick-denetle"))}
 
 
 SUNUCU_BASLAMA = time.time()
@@ -1487,6 +1669,10 @@ GOREVLER: dict[str, dict] = {
     "notion-esitle":    {"ad": "UYAP → Notion eşitle (taraflar, birim, açılış, konu)", "cwd": KOK,
                          "cmd": [*PY, "-c", "import sys, notion_uyap; sys.argv = ['notion_uyap', '--uygula']; sys.exit(notion_uyap.main())"]},
     "ticktick-duzen":   {"ad": "TickTick düzeni: mükerrer, eksik tebligat, dosya kartları", "cwd": AVUKAT_DIR, "cmd": [*PY, "ticktick_duzen.py", "--uygula"]},
+    # Denetim: aynı iki araç DEĞİŞİKLİK YAPMADAN (önizleme) çalışır; "neler bozuk / eksik" raporu
+    "notion-denetle":   {"ad": "Notion denetimi (değişiklik yapmaz)", "cwd": KOK,
+                         "cmd": [*PY, "-c", "import sys, notion_uyap; sys.argv = ['notion_uyap']; sys.exit(notion_uyap.main())"]},
+    "ticktick-denetle": {"ad": "TickTick denetimi (değişiklik yapmaz)", "cwd": AVUKAT_DIR, "cmd": [*PY, "ticktick_duzen.py"]},
 }
 
 
@@ -2130,6 +2316,54 @@ def cdp_kopru_baslat(port: int = 9223) -> None:
                     pass
                 x.close()
 
+    def unix_baglan():
+        hedef = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        hedef.connect("\0" + soket_adi)
+        return hedef
+
+    def baglan(istemci):
+        # /json ve /json/list yanıtları süzülür: süreçteki TÜM WebView'lar (görünür Asistan/editör ekranı dahil)
+        # DevTools'ta listelenir. Modüller "ilk sayfa"yı alıp UYAP/UETS'e yönlendirince kullanıcının ekranı
+        # UYAP/UETS giriş sayfasına dönüyordu. Artık yalnızca ekrana HİÇ eklenmemiş gizli WebView'lar görünür.
+        try:
+            istemci.settimeout(15)
+            ilk = istemci.recv(8192, socket.MSG_PEEK)
+        except OSError:
+            istemci.close()
+            return
+        satir = ilk.split(b"\r\n", 1)[0].split(b" ")
+        yol = satir[1].decode("latin-1", "replace").split("?")[0].rstrip("/") if len(satir) > 1 else ""
+        if satir and satir[0] in (b"GET", b"PUT") and yol in ("/json", "/json/list"):
+            try:
+                veri = b""
+                while b"\r\n\r\n" not in veri and len(veri) < 65536:
+                    parca = istemci.recv(8192)
+                    if not parca:
+                        break
+                    veri += parca
+                hedefler = _cdp_hedefleri(unix_baglan)
+                govde = json.dumps([t for t in hedefler if _gizli_hedef_mi(t)]).encode("utf-8")
+                istemci.sendall(b"HTTP/1.1 200 OK\r\nContent-Type: application/json; charset=UTF-8\r\n"
+                                + f"Content-Length: {len(govde)}\r\nConnection: close\r\n\r\n".encode() + govde)
+            except Exception:  # noqa: BLE001
+                pass
+            finally:
+                istemci.close()
+            return
+        if satir and satir[0] in (b"GET", b"PUT") and yol.startswith("/json/new"):
+            # Telefonda yeni sekme açılamaz; görünür ekranı ele geçirmemek için reddedilir
+            istemci.sendall(b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
+            istemci.close()
+            return
+        istemci.settimeout(None)
+        try:
+            hedef = unix_baglan()
+        except OSError:
+            istemci.close()
+            return
+        threading.Thread(target=aktar, args=(istemci, hedef), daemon=True).start()
+        threading.Thread(target=aktar, args=(hedef, istemci), daemon=True).start()
+
     def dinle():
         srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -2140,17 +2374,56 @@ def cdp_kopru_baslat(port: int = 9223) -> None:
         srv.listen(16)
         while True:
             istemci, _ = srv.accept()
-            hedef = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-            try:
-                hedef.connect("\0" + soket_adi)
-            except OSError:
-                istemci.close()
-                hedef.close()
-                continue
-            threading.Thread(target=aktar, args=(istemci, hedef), daemon=True).start()
-            threading.Thread(target=aktar, args=(hedef, istemci), daemon=True).start()
+            threading.Thread(target=baglan, args=(istemci,), daemon=True).start()
 
     threading.Thread(target=dinle, daemon=True, name="cdp-kopru").start()
+
+
+def _cdp_hedefleri(baglan) -> list:
+    """WebView DevTools soketinden ham /json/list okur (Connection: close, Content-Length'e göre)."""
+    h = baglan()
+    try:
+        h.settimeout(10)
+        h.sendall(b"GET /json/list HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n")
+        ham = b""
+        while True:
+            p = h.recv(65536)
+            if not p:
+                break
+            ham += p
+            if b"\r\n\r\n" in ham:
+                bas, _, govde = ham.partition(b"\r\n\r\n")
+                m = re.search(rb"content-length:\s*(\d+)", bas, re.I)
+                if m and len(govde) >= int(m.group(1)):
+                    break
+    finally:
+        h.close()
+    _, _, govde = ham.partition(b"\r\n\r\n")
+    v = json.loads(govde.decode("utf-8", "replace") or "[]")
+    return v if isinstance(v, list) else []
+
+
+_YEREL_URL = ("http://127.0.0.1", "http://localhost", "https://localhost", "file:", "content:", "https://appassets",
+              "http://appassets", "data:")
+
+
+def _gizli_hedef_mi(t: dict) -> bool:
+    """Yalnızca ekrana hiç eklenmemiş (gizli) WebView sayfası otomasyona açılır."""
+    if t.get("type") not in (None, "page"):
+        return False
+    url = str(t.get("url") or "")
+    if url.startswith(_YEREL_URL):
+        return False
+    try:
+        d = json.loads(t.get("description") or "{}")
+    except (TypeError, ValueError):
+        d = {}
+    if isinstance(d, dict) and d:
+        if "never_attached" in d:
+            return bool(d.get("never_attached"))
+        if "attached" in d:
+            return not d.get("attached")
+    return True
 
 
 def modul_durumu() -> dict:
@@ -2285,6 +2558,10 @@ class Isleyici(BaseHTTPRequestHandler):
                 return self._json(dosya_detay(q.get("dkey", "")))
             if yol == "/api/dosya/bul":
                 return self._json(dosya_bul(q.get("birim", ""), q.get("dosya_no", "")))
+            if yol == "/api/dosya/tazele":
+                return self._json(dosya_tazele_durum(q.get("dkey", "")))
+            if yol == "/api/denetim":
+                return self._json(denetim_ozeti())
             if yol == "/api/evrak/ara":
                 return self._json(evrak_ara(q.get("q", ""), int(q.get("limit") or 100), q.get("dkey", ""),
                                             q.get("kategori", ""), q.get("durum", ""), int(q.get("offset") or 0),
@@ -2443,6 +2720,15 @@ class Isleyici(BaseHTTPRequestHandler):
                 DUZEN_ZAMAN.simdi()
                 time.sleep(0.5)
                 return self._json(pano())
+            if yol == "/api/dosya/tazele":
+                return self._json(dosya_tazele_baslat(str(govde.get("dkey") or "")))
+            if yol == "/api/denetim":
+                for x in ("notion-denetle", "ticktick-denetle"):
+                    if not GOREV_DURUM[x].calisiyor() and not GOREV_DURUM[x].kullanilamama_nedeni():
+                        GOREV_DURUM[x].baslat()
+                return self._json(denetim_ozeti())
+            if yol == "/api/dosya/drive_indir":
+                return self._json(dosya_drive_indir(str(govde.get("dkey") or "")))
             if yol == "/api/dosya/hesap_yenile":
                 return self._json(hesap_yenile(str(govde.get("dkey") or "")))
             if yol == "/api/evrak/toplu_islem":
