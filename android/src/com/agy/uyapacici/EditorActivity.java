@@ -235,8 +235,16 @@ public class EditorActivity extends Activity {
     }
 
     @Override
+    protected void onResume() {
+        super.onResume();
+        // UYAP/UETS otomasyon WebView'ları bu pencereye ekran dışında eklenir (tam hızda çalışsın, görünmesin)
+        GizliTarayici.ekranaBagla(this);
+    }
+
+    @Override
     protected void onDestroy() {
         super.onDestroy();
+        GizliTarayici.ekrandanAyir(this);
         try { unregisterReceiver(usbReceiver); } catch (Exception ignored) {}
         try { CcidDriver.getInstance(this).disconnect(); } catch (Exception ignored) {}
     }

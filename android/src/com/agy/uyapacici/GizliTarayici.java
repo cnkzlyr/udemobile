@@ -1,7 +1,11 @@
 package com.agy.uyapacici;
 
 import android.annotation.SuppressLint;
+import android.app.Activity;
 import android.content.Context;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.FrameLayout;
 import android.os.Build;
 import android.webkit.CookieManager;
 import android.webkit.JsPromptResult;
@@ -104,4 +108,53 @@ final class GizliTarayici {
     }
 
     static boolean hazir() { return wv != null; }
+
+    /**
+     * v4.9.1: Otomasyon WebView'larını öndeki etkinliğin penceresine EKRAN DIŞINDA (-20000 px) ekler.
+     *
+     * Hiç pencereye eklenmemiş WebView'ı Chromium "gizli sekme" sayar: zamanlayıcıları 5 dk sonra dakikada bire
+     * indirilir (intensive wake-up throttling). UYAP giriş ve e-Devlet Mobil İmza sayfaları zincirleme
+     * zamanlayıcılarla çalıştığı için v4.9.0'da Mobil İmza formu hiç gönderilemiyor, süre doluyordu.
+     * Pencereye eklenmiş ama ekran dışında duran WebView "görünür" sayılır (tam hızda çalışır), kullanıcı ise
+     * hiçbir şey görmez ve dokunamaz. Görünür Asistan/editör ekranı sunucu köprüsünde yerel adresinden ayıklanır.
+     */
+    static synchronized void ekranaBagla(Activity a) {
+        if (a == null) return;
+        ViewGroup kok;
+        try {
+            kok = (ViewGroup) a.getWindow().getDecorView();
+        } catch (Throwable t) {
+            return;
+        }
+        for (WebView v : new WebView[]{wv, wvUets}) {
+            if (v == null || v.getParent() == kok) continue;
+            try {
+                if (v.getParent() instanceof ViewGroup) ((ViewGroup) v.getParent()).removeView(v);
+                v.setFocusable(false);
+                v.setFocusableInTouchMode(false);
+                v.setClickable(false);
+                v.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
+                v.setTranslationX(-20000f);
+                v.setTranslationY(-20000f);
+                kok.addView(v, new FrameLayout.LayoutParams(1366, 900));
+                v.onResume();
+                v.resumeTimers();
+            } catch (Throwable t) {
+                Tani.yaz("asistan", "gizli tarayıcı pencereye eklenemedi: " + t);
+            }
+        }
+    }
+
+    /** Etkinlik kapanırken WebView'ları o pencereden ayırır (sızıntı olmasın); WebView'lar yaşamaya devam eder. */
+    static synchronized void ekrandanAyir(Activity a) {
+        if (a == null) return;
+        try {
+            View kok = a.getWindow().getDecorView();
+            for (WebView v : new WebView[]{wv, wvUets}) {
+                if (v != null && v.getParent() == kok) ((ViewGroup) kok).removeView(v);
+            }
+        } catch (Throwable t) {
+            Tani.yaz("asistan", "gizli tarayıcı ayrılamadı: " + t);
+        }
+    }
 }

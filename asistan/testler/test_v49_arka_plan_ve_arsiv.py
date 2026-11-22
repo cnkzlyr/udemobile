@@ -31,22 +31,21 @@ import sunucu  # noqa: E402
 
 
 class GizliHedef(unittest.TestCase):
-    def test_gorunur_webview_elenir(self):
-        gorunur = {"type": "page", "url": "https://avukat.uyap.gov.tr/",
-                   "description": json.dumps({"attached": True, "never_attached": False, "visible": True})}
+    def test_gorunur_yerel_ekranlar_elenir(self):
+        editor = {"type": "page", "url": "file:///android_asset/editor/editor.html?asistan=1",
+                  "description": json.dumps({"attached": True, "visible": True})}
         asistan = {"type": "page", "url": "http://127.0.0.1:8765/asistan", "description": "{}"}
-        gizli = {"type": "page", "url": "https://avukat.uyap.gov.tr/",
-                 "description": json.dumps({"attached": False, "never_attached": True, "visible": False})}
-        uets = {"type": "page", "url": "about:blank#uets",
-                "description": json.dumps({"attached": False, "never_attached": True})}
-        # Etkinlik ekranı kapanıp ayrılmış görünür WebView: never_attached=False → yine elenir
-        ayrilmis = {"type": "page", "url": "https://x/", "description": json.dumps({"attached": False, "never_attached": False})}
-        secilen = [t for t in (gorunur, asistan, gizli, uets, ayrilmis) if sunucu._gizli_hedef_mi(t)]
-        self.assertEqual(secilen, [gizli, uets])
+        # v4.9.1: otomasyon WebView'ı pencereye ekran dışında bağlı (attached=True) — yine de verilmeli
+        uyap = {"type": "page", "url": "https://avukat.uyap.gov.tr/",
+                "description": json.dumps({"attached": True, "never_attached": False, "visible": True, "screenX": -20000})}
+        uets = {"type": "page", "url": "about:blank#uets", "description": json.dumps({"attached": True, "visible": True})}
+        gorunur_bos = {"type": "page", "url": "about:blank",
+                       "description": json.dumps({"attached": True, "visible": True, "screenX": 0})}
+        secilen = [t for t in (editor, asistan, uyap, uets, gorunur_bos) if sunucu._gizli_hedef_mi(t)]
+        self.assertEqual(secilen, [uyap, uets])
 
-    def test_eski_webview_never_attached_yoksa_attached_kullanilir(self):
-        self.assertTrue(sunucu._gizli_hedef_mi({"type": "page", "url": "https://a/", "description": '{"attached":false}'}))
-        self.assertFalse(sunucu._gizli_hedef_mi({"type": "page", "url": "https://a/", "description": '{"attached":true}'}))
+    def test_hic_eklenmemis_bos_sayfa_verilir(self):
+        self.assertTrue(sunucu._gizli_hedef_mi({"type": "page", "url": "about:blank", "description": '{"attached":false}'}))
 
 
 class ArsivKatalogSirasi(unittest.TestCase):

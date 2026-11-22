@@ -112,8 +112,15 @@ public class MainActivity extends Activity {
     }
 
     @Override
+    protected void onDestroy() {
+        GizliTarayici.ekrandanAyir(this);
+        super.onDestroy();
+    }
+
+    @Override
     protected void onResume() {
         super.onResume();
+        GizliTarayici.ekranaBagla(this);
         loadRecentDocuments();
         checkSystemStatus();
     }

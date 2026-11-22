@@ -1795,6 +1795,9 @@ class UyapBrowserBridge:
                 # Sayfa veya buton değiştiğinde canlı tarama ve kayıt tutma
                 state_sig = f"{page}|{curr_url}|{tuple(btn_texts)}"
                 if state_sig != last_page:
+                    if page != (last_page.split("|", 1)[0] if last_page else None):
+                        # Tanı: hangi adımda takıldığı Görevler/Tanı günlüğünde görünsün
+                        log_msg(f"[i] Giriş adımı: {page or 'bilinmiyor'} ({(curr_url or '')[:80]})")
                     last_page = state_sig
                     file_logger.info(f"[e-Devlet Taraması] Sayfa: {page} | Başlık: '{title}' | URL: {curr_url} | Butonlar: {btn_texts}")
 

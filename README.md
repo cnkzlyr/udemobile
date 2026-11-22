@@ -1,6 +1,6 @@
 # ⚖️ CanEditor (UdeMobile) — Birleşik Hukuk Platformu & Çapraz Platform UYAP Editörü
 
-[![Sürüm](https://img.shields.io/badge/Sürüm-v4.9.0-c8a45a.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v4.9.0)
+[![Sürüm](https://img.shields.io/badge/Sürüm-v4.9.1-c8a45a.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v4.9.1)
 [![Platformlar](https://img.shields.io/badge/Platformlar-Android%20%7C%20Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Web-0f2341.svg)](https://github.com/cnkzlyr/udemobile/releases)
 [![UYAP](https://img.shields.io/badge/Format-UYAP_UDF_v1.8-0D47A1.svg)](https://uyap.gov.tr)
 [![Word](https://img.shields.io/badge/Format-MS_DOCX_OpenXML-2B579A.svg?logo=microsoft-word&logoColor=white)](https://microsoft.com)
@@ -17,6 +17,14 @@
 - **Google Drive sürekli eşitleme & kesintisiz durum göstergesi** (Drive dosyalarında anlık arama ve doğrudan açma)
 - **Notion & TickTick canlı yönetimi + otomatik aktarım**
 - **`hayfahukuk.com` entegrasyonu** (Yargıtay İçtihat Arama, uygulama içi Mevzuat Okuyucusu, Hukuk Haberleri, günlük Resmî Gazete, **%100 çevrimdışı Adliye & IBAN Rehberi**, 7 hukuki hesaplayıcı)
+
+---
+
+## 🩹 v4.9.1: Mobil İmza Girişi Düzeltmesi (Android)
+
+- **Mobil İmza yeniden çalışıyor:** v4.9.0'da UYAP/UETS yalnızca pencereye hiç eklenmemiş bir WebView'da çalıştırıldı. Chromium bu sayfaları gizli sekme sayıp zamanlayıcılarını kısıyor (5 dakika sonra dakikada bir). Bu yüzden UYAP giriş ve e-Devlet Mobil İmza sayfaları ilerlemedi, form gönderilmedi ve süre doldu. Otomasyon WebView'ları artık uygulama penceresine **ekran dışında** ekleniyor: tam hızda çalışıyorlar ama ekranda görünmüyorlar ve dokunulamıyorlar.
+- **Görünür ekran yine korunuyor:** Editör, Asistan ve UYAP mobil görünümü yerel adreslerden açıldığı için DevTools köprüsünde yerel adresleri üzerinden ayıklanıyor; otomasyon bu ekranlara hiç dokunmuyor.
+- **Tanı:** Giriş sırasında hangi adımda kalındığı (UYAP giriş, e-Devlet formu, onay bekleme, OAuth) günlüğe yazılıyor. Tanı dosyasına son 40 satır ekleniyor.
 
 ---
 
@@ -223,21 +231,21 @@ Ayrıntılı mimari: [`docs/BIRLESIK_MIMARI.md`](docs/BIRLESIK_MIMARI.md) · Han
 | **Bağlantı & Rolling Log** | Sistem sağlık paneli, kesintisiz Google Drive sync göstergesi, 2MB rotasyonlu otomatik loglama ve tek tıkla Log ZIP indirme |
 | **Android Başlatıcı & USF** | Ana ekrandan tek tıkla Hukuk Asistanı'nı açan buton, sistemde `.udf` ve `.usf` varsayılan açıcı ilişkilendirmesi |
 
-## 🚀 Hızlı İndirme (v4.9.0)
+## 🚀 Hızlı İndirme (v4.9.1)
 
 Kurulum paketleri **her şeyi içinde taşır**: Python, Java, görünmez Chrome ve sürücüsüz e-imza altyapısı. Ayrıca bir şey kurmanız gerekmez.
 
 | Platform | Paket Dosyası | Açıklama |
 | :--- | :--- | :--- |
-| **Windows 10 / 11 (64-bit)** | [**CanEditor_4.9.0_x64-setup.exe**](https://github.com/cnkzlyr/udemobile/releases/download/v4.9.0/CanEditor_4.9.0_x64-setup.exe) · [MSI](https://github.com/cnkzlyr/udemobile/releases/download/v4.9.0/CanEditor_4.9.0_x64_en-US.msi) | Standart kurulum (NSIS) · kurumsal MSI |
-| **macOS (Apple Silicon & Intel)** | [**CanEditor_4.9.0_universal.dmg**](https://github.com/cnkzlyr/udemobile/releases/download/v4.9.0/CanEditor_4.9.0_universal.dmg) | Universal (M1/M2/M3/M4 + Intel) — Applications'a sürükleyin |
-| **Linux Debian / Ubuntu / Pardus** | [**CanEditor_4.9.0_amd64.deb**](https://github.com/cnkzlyr/udemobile/releases/download/v4.9.0/CanEditor_4.9.0_amd64.deb) | `sudo apt install ./CanEditor_4.9.0_amd64.deb` (e-imza kart hizmeti otomatik kurulur) |
-| **Linux Fedora / RHEL / openSUSE** | [**CanEditor-4.9.0-1.x86_64.rpm**](https://github.com/cnkzlyr/udemobile/releases/download/v4.9.0/CanEditor-4.9.0-1.x86_64.rpm) | `sudo dnf install ./CanEditor-4.9.0-1.x86_64.rpm` |
-| **Linux (tüm dağıtımlar)** | [**CanEditor_4.9.0_amd64.AppImage**](https://github.com/cnkzlyr/udemobile/releases/download/v4.9.0/CanEditor_4.9.0_amd64.AppImage) | `chmod +x` ile çalıştırın (e-imza için bir kez `sudo apt install pcscd libccid`) |
-| **Android (Telefon & Tablet)** | [**CanEditor-v4.9.0.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v4.9.0/CanEditor-v4.9.0.apk) · [en son](https://github.com/cnkzlyr/udemobile/releases/download/v4.9.0/CanEditor-latest.apk) | Tek uygulama · Termux gerektirmez; gömülü Python asistan APK içinde |
-| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v4.9.0.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v4.9.0/CanEditor-Portable-Web-GUI-v4.9.0.zip) | **Kurulumsuz;** `index.html` ile her sistemde çalışır |
+| **Windows 10 / 11 (64-bit)** | [**CanEditor_4.9.1_x64-setup.exe**](https://github.com/cnkzlyr/udemobile/releases/download/v4.9.1/CanEditor_4.9.1_x64-setup.exe) · [MSI](https://github.com/cnkzlyr/udemobile/releases/download/v4.9.1/CanEditor_4.9.1_x64_en-US.msi) | Standart kurulum (NSIS) · kurumsal MSI |
+| **macOS (Apple Silicon & Intel)** | [**CanEditor_4.9.1_universal.dmg**](https://github.com/cnkzlyr/udemobile/releases/download/v4.9.1/CanEditor_4.9.1_universal.dmg) | Universal (M1/M2/M3/M4 + Intel) — Applications'a sürükleyin |
+| **Linux Debian / Ubuntu / Pardus** | [**CanEditor_4.9.1_amd64.deb**](https://github.com/cnkzlyr/udemobile/releases/download/v4.9.1/CanEditor_4.9.1_amd64.deb) | `sudo apt install ./CanEditor_4.9.1_amd64.deb` (e-imza kart hizmeti otomatik kurulur) |
+| **Linux Fedora / RHEL / openSUSE** | [**CanEditor-4.9.1-1.x86_64.rpm**](https://github.com/cnkzlyr/udemobile/releases/download/v4.9.1/CanEditor-4.9.1-1.x86_64.rpm) | `sudo dnf install ./CanEditor-4.9.1-1.x86_64.rpm` |
+| **Linux (tüm dağıtımlar)** | [**CanEditor_4.9.1_amd64.AppImage**](https://github.com/cnkzlyr/udemobile/releases/download/v4.9.1/CanEditor_4.9.1_amd64.AppImage) | `chmod +x` ile çalıştırın (e-imza için bir kez `sudo apt install pcscd libccid`) |
+| **Android (Telefon & Tablet)** | [**CanEditor-v4.9.1.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v4.9.1/CanEditor-v4.9.1.apk) · [en son](https://github.com/cnkzlyr/udemobile/releases/download/v4.9.1/CanEditor-latest.apk) | Tek uygulama · Termux gerektirmez; gömülü Python asistan APK içinde |
+| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v4.9.1.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v4.9.1/CanEditor-Portable-Web-GUI-v4.9.1.zip) | **Kurulumsuz;** `index.html` ile her sistemde çalışır |
 
-Tüm dosyalar ve sürümler: [GitHub Releases — v4.9.0](https://github.com/cnkzlyr/udemobile/releases/tag/v4.9.0) · [Tüm Sürümler](https://github.com/cnkzlyr/udemobile/releases)
+Tüm dosyalar ve sürümler: [GitHub Releases — v4.9.1](https://github.com/cnkzlyr/udemobile/releases/tag/v4.9.1) · [Tüm Sürümler](https://github.com/cnkzlyr/udemobile/releases)
 
 ---
 

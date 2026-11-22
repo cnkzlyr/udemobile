@@ -61,7 +61,7 @@ if hasattr(sys.stderr, "reconfigure"):
         pass
 from pathlib import Path
 
-SURUM = "4.9.0"
+SURUM = "4.9.1"
 KOK = Path(__file__).resolve().parent
 if str(KOK) not in sys.path:
     sys.path.insert(0, str(KOK))
@@ -1934,7 +1934,7 @@ class BagliTutucu:
                 break
         return {"etkin": ok, "neden": neden or g.kullanilamama_nedeni(), "calisiyor": g.calisiyor(), "son_hata": son_hata,
                 "son_baslangic": g.baslangic, "son_bitis": g.bitis, "son_kod": g.kod, "oturum": oturum,
-                "sonraki": self.sonraki if ok else None, "gunluk": gunluk[-8:], "ayar": uyap_ayar_oku(),
+                "sonraki": self.sonraki if ok else None, "gunluk": gunluk[-40:], "ayar": uyap_ayar_oku(),
                 "nabiz": {"son": NABIZ.son or None, "oturum_acik": NABIZ.son_durum, "basarili": NABIZ.basarili}}
 
     def dongu(self):
@@ -2404,27 +2404,30 @@ def _cdp_hedefleri(baglan) -> list:
 
 
 _YEREL_URL = ("http://127.0.0.1", "http://localhost", "https://localhost", "file:", "content:", "https://appassets",
-              "http://appassets", "data:")
+              "http://appassets", "data:", "blob:")
 
 
 def _gizli_hedef_mi(t: dict) -> bool:
-    """Yalnızca ekrana hiç eklenmemiş (gizli) WebView sayfası otomasyona açılır."""
+    """Otomasyona açık WebView sayfası mı?
+
+    Görünür ekranlar (editör, Asistan, UYAP mobil görünümü) her zaman YEREL adresten (file:///android_asset,
+    127.0.0.1) açılır; bunlar asla verilmez. v4.9.0'da yalnızca "pencereye hiç eklenmemiş" WebView'lar veriliyordu;
+    o WebView'larda Chromium zamanlayıcıları kıstığı için Mobil İmza girişi çalışmadı. v4.9.1'de otomasyon
+    WebView'ları pencereye ekran dışında eklenir; ayrım yerel adres üzerinden yapılır. Boş (about:blank) sayfa
+    yalnızca UETS'e ayrılmışsa ya da pencereye bağlı değilse verilir (yeni açılmış görünür bir WebView olabilir)."""
     if t.get("type") not in (None, "page"):
         return False
     url = str(t.get("url") or "")
     if url.startswith(_YEREL_URL):
         return False
-    try:
-        d = json.loads(t.get("description") or "{}")
-    except (TypeError, ValueError):
-        d = {}
-    if isinstance(d, dict) and d:
-        if "never_attached" in d:
-            return bool(d.get("never_attached"))
-        if "attached" in d:
-            return not d.get("attached")
+    if url.startswith("about:") and "#uets" not in url:
+        try:
+            d = json.loads(t.get("description") or "{}")
+        except (TypeError, ValueError):
+            d = {}
+        if isinstance(d, dict) and d.get("attached") and d.get("visible") and float(d.get("screenX") or 0) > -5000:
+            return False
     return True
-
 
 def modul_durumu() -> dict:
     def var(*mod):
