@@ -1532,18 +1532,35 @@ function format(cmd, val = null) {
     return;
   }
 
-  document.execCommand(cmd, false, val);
-
-  // Paragraf hizalaması: Hem CSS style hem align niteliğini eşzamanlı güncelle
-  if (cmd === 'justifyLeft' || cmd === 'justifyCenter' || cmd === 'justifyRight' || cmd === 'justifyFull') {
-    const alignVal = cmd === 'justifyLeft' ? 'left' : (cmd === 'justifyCenter' ? 'center' : (cmd === 'justifyRight' ? 'right' : 'justify'));
-    const ap = getActiveParagraph();
-    if (ap) {
-      ap.style.textAlign = alignVal;
-      ap.setAttribute('align', alignVal);
-      ap.setAttribute('data-orig-align', alignVal);
+  // v4.9.1 — HİZALAMA: Tarayıcının yerel justify* komutu KULLANILMAZ.
+  // Eskiden yerel komut çalıştırılıp yalnızca imlecin bulunduğu paragrafın data-orig-align'ı güncelleniyordu:
+  //  * Mobil düzen geçişi (applyMobileViewLayoutPass) ve UDF kaydı data-orig-align'ı esas aldığı için seçimdeki
+  //    DİĞER paragraflar eski hizalamaya dönüyordu ("seçilenden daha az kısım etkileniyor").
+  //  * Yerel komut bazı paragrafları <div style="text-align"> içine sarıp blok yapısını bozuyordu.
+  //  * Sekme (udf-tab-space) genişlikleri eski hizalamaya göre kalıp yazılar üst üste biniyordu.
+  // Artık seçimle kesişen TÜM paragraflara (sayfalar arası dahil) hizalama doğrudan yazılır, sekmeler yeniden
+  // hesaplanır ve sayfa düzeni tazelenir. / Native justify* is bypassed; every intersecting block is aligned.
+  const HIZA = { justifyLeft: 'left', justifyCenter: 'center', justifyRight: 'right', justifyFull: 'justify' };
+  let etkilenen = [];
+  if (HIZA[cmd]) {
+    const alignVal = HIZA[cmd];
+    etkilenen = getSelectedParagraphs();
+    etkilenen.forEach(p => {
+      p.style.textAlign = alignVal;
+      p.setAttribute('align', alignVal);
+      p.setAttribute('data-orig-align', alignVal);
+      // İç içe kalmış eski hizalama sarmalayıcıları paragrafın hizalamasını ezmesin
+      p.querySelectorAll('div[style*="text-align"], span[style*="text-align"]').forEach(ic => { ic.style.textAlign = ''; });
+    });
+    if (etkilenen.length && typeof isMobileReflowActive === 'function' && isMobileReflowActive()) {
+      try { applyMobileViewLayoutPass(); } catch (e) { /* mobil düzen yoksa */ }
     }
+  } else {
+    document.execCommand(cmd, false, val);
+    etkilenen = getSelectedParagraphs();
   }
+  // Biçim/hizalama değişince sekme genişlikleri ve sayfa kırılımları yeniden hesaplanır (üst üste binme olmasın)
+  biciminArdindanDuzenle(etkilenen);
 
   // Düzenlenebilir alan odaklı değilse son aktif sayfaya odak ver
   const isEditable = document.activeElement && (document.activeElement.isContentEditable || (document.activeElement.closest && document.activeElement.closest('.page-body-box')));
@@ -1555,6 +1572,25 @@ function format(cmd, val = null) {
   updateActiveButtons();
   updateCounts();
 }
+
+/**
+ * v4.9.1 — Biçim/hizalama değişikliğinden sonra düzeni onarır: etkilenen paragraflardaki UYAP sekme
+ * (udf-tab-space / udf-tab-label) genişliklerini yeni yazı boyutu/hizalamaya göre yeniden hesaplar ve
+ * sayfalamayı tazeler. Eskiden sekmeler eski ölçüyle kaldığı için satırlar üst üste biniyordu.
+ */
+function biciminArdindanDuzenle(paragraflar) {
+  const ps = (paragraflar && paragraflar.length) ? paragraflar : [];
+  requestAnimationFrame(() => {
+    try {
+      ps.forEach(p => {
+        if (p && p.isConnected && (p.querySelector('.udf-tab-space') || p.querySelector('.udf-tab-label'))) realignTabsInParagraph(p);
+      });
+    } catch (e) { /* sekme yok */ }
+    if (typeof debouncedPagination === 'function') debouncedPagination(60);
+    else if (window.CanFlow && window.CanFlow.schedule) window.CanFlow.schedule(0);
+  });
+}
+window.biciminArdindanDuzenle = biciminArdindanDuzenle;
 
 // Yazı Tipi Ailesi (Tüm Sayfalar ve Seçim Uyumlu)
 
@@ -1610,7 +1646,7 @@ function changeFontFamily(font) {
     if (ed) ed.style.fontFamily = font;
   }
   updateCounts();
-  debouncedPagination();
+  biciminArdindanDuzenle(getSelectedParagraphs());
   if (window.CanHistory) CanHistory.commit();
 }
 
@@ -1643,6 +1679,7 @@ function changeFontSize(val) {
     if (ed) ed.style.fontSize = currentFontSize + 'pt';
   }
   updateCounts();
+  biciminArdindanDuzenle(getSelectedParagraphs());
   if (window.CanHistory) CanHistory.commit();
 }
 window.changeFontSize = changeFontSize;
