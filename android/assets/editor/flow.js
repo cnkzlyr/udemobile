@@ -783,13 +783,47 @@
     return { aralik: rg, parcalar };
   }
   function secimYap(r) { const s = window.getSelection(); s.removeAllRanges(); s.addRange(r); }
+  /**
+   * Tüm belgeyi seçer (bütün sayfalar).
+   * v4.9.1: Her sayfa ayrı contenteditable olduğu için Chromium GÖRÜNÜR seçimi odaktaki sayfaya kırpıyordu
+   * (aralık tüm sayfaları kapsasa da yalnız o sayfa boyanıyor, Selection.toString() yalnız o sayfayı veriyordu).
+   * Seçim sürdükçe sayfa kapsayıcısı geçici olarak tek düzenleme alanı yapılır; seçim tek sayfaya inince
+   * (imleç konunca, tıklanınca) eski haline döner. / The container temporarily becomes the single editing host.
+   */
+  function tekAlanAc() {
+    const c = container();
+    if (!c || c.hasAttribute('data-tum-secim')) return;
+    c.setAttribute('data-tum-secim', c.getAttribute('contenteditable') || '');
+    c.setAttribute('contenteditable', 'true');
+    // Sayfa araları, üst/altbilgi alanları düzenlenemez kalsın
+    c.querySelectorAll('.' + SKIP_CLASSES.join(', .') + ', .page-header-box, .page-footer-box').forEach(n => {
+      if (!n.hasAttribute('contenteditable')) { n.setAttribute('contenteditable', 'false'); n.setAttribute('data-tum-secim-kilit', '1'); }
+    });
+  }
+  function tekAlanKapat() {
+    const c = container();
+    if (!c || !c.hasAttribute('data-tum-secim')) return;
+    const eski = c.getAttribute('data-tum-secim');
+    c.removeAttribute('data-tum-secim');
+    if (eski) c.setAttribute('contenteditable', eski); else c.removeAttribute('contenteditable');
+    c.querySelectorAll('[data-tum-secim-kilit]').forEach(n => { n.removeAttribute('contenteditable'); n.removeAttribute('data-tum-secim-kilit'); });
+  }
+  document.addEventListener('selectionchange', () => {
+    const c = container();
+    if (!c || !c.hasAttribute('data-tum-secim')) return;
+    const s = window.getSelection();
+    if (!s || !s.rangeCount || s.isCollapsed) { tekAlanKapat(); return; }
+    const r = s.getRangeAt(0);
+    if (govdeOf(r.startContainer) && govdeOf(r.startContainer) === govdeOf(r.endContainer)) tekAlanKapat();
+  });
   function tumunuSec() {
     const all = bodies();
     if (!all.length) return false;
+    if (all.length > 1) tekAlanAc();
     const r = document.createRange();
     r.setStart(all[0], 0);
     r.setEnd(all[all.length - 1], all[all.length - 1].childNodes.length);
-    try { all[0].focus({ preventScroll: true }); } catch (e) { /* eski tarayıcı */ }
+    try { (all.length > 1 ? container() : all[0]).focus({ preventScroll: true }); } catch (e) { /* eski tarayıcı */ }
     secimYap(r);
     return true;
   }
@@ -871,7 +905,7 @@
     'insertlinebreak', 'delete', 'forwarddelete', 'insertimage', 'inserthorizontalrule']);
   document.execCommand = function (komut, ui, deger) {
     const k = String(komut || '').toLowerCase();
-    if (k === 'selectall' && bodies().length) { if (!isMobileFlow() && tumunuSec()) return true; }
+    if (k === 'selectall' && bodies().length) { if (tumunuSec()) return true; }
     const x = !BICIMSIZ.has(k) && sayfalarArasi();
     if (!x) return ozgunExec(komut, ui, deger);
     let sonuc = false, bas = null, bit = null;
@@ -902,7 +936,8 @@
     if (e.defaultPrevented || e.isComposing) return;
     const mod = e.ctrlKey || e.metaKey;
     if (mod && !e.altKey && !e.shiftKey && (e.key === 'a' || e.key === 'A' || e.code === 'KeyA')) {
-      if (isMobileFlow() || !govdeOf(document.activeElement) && !govdeOf((window.getSelection() || {}).anchorNode)) return;
+      // v4.9.1: mobil/tablet (harici klavye) dahil Ctrl+A TÜM belgeyi seçer; eskiden mobilde yalnız odaklı sayfa seçiliyordu
+      if (!govdeOf(document.activeElement) && !govdeOf((window.getSelection() || {}).anchorNode)) return;
       e.preventDefault();
       tumunuSec();
       return;
