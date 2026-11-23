@@ -638,8 +638,9 @@ def login_and_download(headless=False, count=None, auto_sync=True, external_driv
         tani.adim(driver, "acilis")
 
         # 1. OTURUM VE DOĞRULAMA KONTROLÜ
-        current_url = driver.current_url.lower()
-        if "login" in current_url:
+        # v4.9.3: giriş adımları bir işleve alındı; EYP indirirken oturum düşerse (401) aynı adımlarla yeniden
+        # giriş yapılır. EN: login extracted so it can be re-run mid-session on 401.
+        def _oturum_ac():
             print("\n🔑 Oturum açma ekranı algılandı...")
             login_deadline = time.time() + 180
             credentials_submitted = False
@@ -669,7 +670,7 @@ def login_and_download(headless=False, count=None, auto_sync=True, external_driv
                             # Giriş butonuna basmadan hemen önce referans son Gmail ID'sini al
                             baseline_msg_id = get_latest_gmail_msg_id()
                             print(f"📝 TCKN ({uets_tckn[:4]}***) ve Şifre otomatik giriliyor (Referans E-posta ID: {baseline_msg_id})...")
-                            
+                        
                             tckn_inputs[0].clear()
                             tckn_inputs[0].send_keys(uets_tckn)
                             time.sleep(0.5)
@@ -705,16 +706,16 @@ def login_and_download(headless=False, count=None, auto_sync=True, external_driv
                             c_inputs = sms_blocks[0].find_elements(By.TAG_NAME, "input")
                             if not c_inputs:
                                 c_inputs = driver.find_elements(By.CSS_SELECTOR, "m-sms-code input, .mat-input-element")
-                            
+                        
                             if c_inputs:
                                 c_inputs[0].clear()
                                 c_inputs[0].send_keys(code)
                                 time.sleep(1)
-                                
+                            
                                 devam_btns = sms_blocks[0].find_elements(By.CSS_SELECTOR, "button.btn-brand, button.btn-primary")
                                 if not devam_btns:
                                     devam_btns = driver.find_elements(By.XPATH, "//m-sms-code//button[contains(., 'Devam')] | //button[contains(., 'Devam')]")
-                                
+                            
                                 if devam_btns:
                                     driver.execute_script("arguments[0].click();", devam_btns[0])
                                     print("✅ 'Devam' butonuna tıklandı, portala giriliyor...")
@@ -727,6 +728,10 @@ def login_and_download(headless=False, count=None, auto_sync=True, external_driv
                         print("⏳ Kod henüz gelmedi, bekleniyor (manuel de girebilirsiniz)...")
 
                 time.sleep(2)
+
+        current_url = driver.current_url.lower()
+        if "login" in current_url:
+            _oturum_ac()
         else:
             print("✨ Aktif UETS oturumu algılandı! Portala doğrudan erişiliyor...")
 
@@ -931,13 +936,39 @@ def login_and_download(headless=False, count=None, auto_sync=True, external_driv
                     if api_sess is not None and mesaj_id:
                         from uets_api import eyp_indir, _oturum as _yeni_oturum, TarayiciOturumu as _TO
                         yol = None
-                        for eyp_sess in (api_sess, _TO(driver, token)):
+                        # v4.9.3: erişim anahtarı liste alındığında BİR KEZ okunuyordu; TickTick kontrolü dakikalarca
+                        # sürünce süresi doluyor, sonraki EYP'ler "401" / "HTTP 0" ile inmiyordu. Artık her EYP'den
+                        # önce portalın tazelediği güncel anahtar okunur; 401'de UETS'e yeniden giriş yapılıp bir kez
+                        # daha denenir.
+                        for deneme_eyp in range(2):
                             try:
-                                yol = eyp_indir(eyp_sess, mesaj_id, dl_dir)
+                                if "etebligat" not in (driver.current_url or ""):
+                                    driver.get(f"{PORTAL}/messages/1")
+                                    time.sleep(2)
+                                token = tarayicidan_token(driver) or token
+                            except Exception:
+                                pass
+                            oturum_dustu = False
+                            for eyp_sess in (_yeni_oturum(token, u_agent), _TO(driver, token)):
+                                try:
+                                    yol = eyp_indir(eyp_sess, mesaj_id, dl_dir)
+                                    break
+                                except Exception as api_eyp_err:
+                                    oturum_dustu = oturum_dustu or "401" in str(api_eyp_err) or "403" in str(api_eyp_err)
+                                    print(f"   ↳ ⚠️ API ({type(eyp_sess).__name__}) ile EYP indirilemedi: {api_eyp_err}")
+                                    tani.hata(driver, f"api-eyp-{type(eyp_sess).__name__}", api_eyp_err)
+                            if yol or deneme_eyp or not oturum_dustu:
                                 break
-                            except Exception as api_eyp_err:
-                                print(f"   ↳ ⚠️ API ({type(eyp_sess).__name__}) ile EYP indirilemedi: {api_eyp_err}")
-                                tani.hata(driver, f"api-eyp-{type(eyp_sess).__name__}", api_eyp_err)
+                            print("   ↳ 🔑 UETS oturumu düşmüş; yeniden giriş yapılıp tekrar denenecek...")
+                            try:
+                                driver.get(f"{PORTAL}/messages/1")
+                                time.sleep(3)
+                                if "login" in driver.current_url.lower():
+                                    _oturum_ac()
+                                ensure_messages_table(driver, timeout=20)
+                            except Exception as giris_err:
+                                print(f"   ↳ ⚠️ Yeniden giriş yapılamadı: {giris_err}")
+                                break
                         if yol:
                             local_eyp_cache[b_code] = yol
                             downloaded_eyp += 1
