@@ -1278,35 +1278,97 @@ def dosya_tazele_durum(dkey: str) -> dict:
     return _DOSYA_TAZE.get(dkey) or {"dkey": dkey, "calisiyor": False}
 
 
+# ---------------------------------------------------------------------------
+# v4.9.3 ÖNCELİK KUYRUĞU: elle "indir" denen her şey (dosyanın tüm evrakı ya da tek tek seçilen evraklar)
+# oncelikli_dosyalar.json'a yazılır. Senkron (uyap_watcher) bu dosyayı HER evrak arasında yoklar: o an ne
+# yapıyorsa (arşiv paketi, katalog listeleme, açık dosya taraması) bırakır, önce bunları indirip PDF'e çevirir ve
+# Drive'a eşitler, sonra kaldığı işe döner. EN: shared priority queue polled by the watcher between documents.
+# ---------------------------------------------------------------------------
+_ONCELIK_KILIT = threading.Lock()
+
+
+def _oncelik_yolu() -> Path:
+    return evrak_veri_dizini() / "oncelikli_dosyalar.json"
+
+
+def oncelik_oku() -> dict:
+    try:
+        v = json.loads(_oncelik_yolu().read_text(encoding="utf-8"))
+        return v if isinstance(v, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def oncelik_ekle(dkeyler: list | None = None, skeyler: list | None = None) -> dict:
+    with _ONCELIK_KILIT:
+        v = oncelik_oku()
+        dk = [x for x in (v.get("dkeyler") or []) if x not in (dkeyler or [])]
+        sk = [x for x in (v.get("skeyler") or []) if x not in (skeyler or [])]
+        v = {"dkeyler": (list(dkeyler or []) + dk)[:50], "skeyler": (list(skeyler or []) + sk)[:5000],
+             "zaman": time.time()}
+        _oncelik_yolu().parent.mkdir(parents=True, exist_ok=True)
+        gecici = _oncelik_yolu().with_suffix(".tmp")
+        gecici.write_text(json.dumps(v, ensure_ascii=False), encoding="utf-8")
+        os.replace(gecici, _oncelik_yolu())
+    # Senkron kapalıysa açılır; açıksa bir sonraki evrakta (≈1-2 sn) öncelikli işe geçer
+    g = GOREV_DURUM.get("evrak-akis")
+    acildi = False
+    if g is not None and not g.calisiyor() and not g.kullanilamama_nedeni():
+        try:
+            g.baslat()
+            acildi = True
+        except RuntimeError:
+            pass
+    return {"sirada": True, "senkron_acildi": acildi, "senkron_calisiyor": bool(g and g.calisiyor())}
+
+
+def oncelik_durum(dkey: str = "", skeyler: list | None = None) -> dict:
+    """Öncelikli işin ilerlemesi: kaç evrak indi, kaçı Drive'da, kaçı kaldı."""
+    c = _ro(katalog_yolu())
+    v = oncelik_oku()
+    sonuc = {"sirada": bool(dkey and dkey in (v.get("dkeyler") or [])) or bool(set(skeyler or []) & set(v.get("skeyler") or [])),
+             "toplam": 0, "inen": 0, "kalan": 0, "hata": 0, "tarama": "", "drive": 0}
+    if c is None:
+        return sonuc
+    with c:
+        if dkey:
+            r = c.execute("SELECT tarama FROM dosya WHERE dkey=?", (dkey,)).fetchone()
+            sonuc["tarama"] = (r[0] if r else "") or ""
+            rows = c.execute("SELECT id, durum, path, pdf_path FROM evrak WHERE dkey=?", (dkey,)).fetchall()
+        elif skeyler:
+            ph = ",".join("?" * len(skeyler[:900]))
+            rows = c.execute(f"SELECT id, durum, path, pdf_path FROM evrak WHERE skey IN ({ph})", skeyler[:900]).fetchall()
+        else:
+            rows = []
+    for r in rows:
+        sonuc["toplam"] += 1
+        if r["durum"] in ("indirildi", "mukerrer") or r["path"] or r["pdf_path"]:
+            sonuc["inen"] += 1
+        elif r["durum"] in ("hata", "yok"):
+            sonuc["hata"] += 1
+        else:
+            sonuc["kalan"] += 1
+    try:
+        idler = [r["id"] for r in rows]
+        sonuc["drive"] = sum(len(_drive_defteri(idler[i:i + 900])) for i in range(0, len(idler), 900))
+    except Exception:  # noqa: BLE001
+        pass
+    g = GOREV_DURUM.get("evrak-akis")
+    sonuc["senkron_calisiyor"] = bool(g and g.calisiyor())
+    if g is not None:
+        son = [x for x in list(g.gunluk)[-30:] if "⚡" in x]
+        sonuc["son"] = son[-1].split("] ", 2)[-1][:200] if son else ""
+    return sonuc
+
+
 def dosya_drive_indir(dkey: str) -> dict:
-    """Dosyayı Senkron'un indirme sırasının başına alır: önce evrak listesi (yoksa), sonra tüm evrakı indirip
-    PDF'e çevirir ve Drive'a yükler. Senkron kapalıysa açılır."""
+    """Dosyayı ÖNCELİK kuyruğunun başına alır: Senkron o an ne yapıyorsa bırakır, evrak listesi yoksa önce listeyi
+    alır, sonra tüm evrakı indirip PDF'e çevirir ve Drive'a yükler."""
     if not dkey:
         raise ValueError("dkey gerekli")
-    p = evrak_veri_dizini() / "oncelikli_dosyalar.json"
-    try:
-        v = json.loads(p.read_text(encoding="utf-8")) if p.is_file() else {}
-    except ValueError:
-        v = {}
-    lst = [x for x in (v.get("dkeyler") or []) if x != dkey]
-    lst.insert(0, dkey)
-    p.write_text(json.dumps({"dkeyler": lst[:50]}, ensure_ascii=False), encoding="utf-8")
-    c = _ro(katalog_yolu())
-    bekleyen, tarama = 0, ""
-    if c is not None:
-        with c:
-            bekleyen = c.execute("SELECT COUNT(*) FROM evrak WHERE dkey=? AND (path IS NULL AND pdf_path IS NULL) "
-                                 "AND COALESCE(durum,'') NOT IN ('mukerrer','yok')", (dkey,)).fetchone()[0]
-            r = c.execute("SELECT tarama FROM dosya WHERE dkey=?", (dkey,)).fetchone()
-            tarama = (r[0] if r else "") or ""
-    if tarama != "tamam":
-        dosya_tazele_baslat(dkey)
-    g = GOREV_DURUM.get("evrak-akis")
-    senkron_acildi = False
-    if g is not None and not g.calisiyor() and not g.kullanilamama_nedeni():
-        g.baslat()
-        senkron_acildi = True
-    return {"sirada": True, "bekleyen": bekleyen, "liste_aliniyor": tarama != "tamam", "senkron_acildi": senkron_acildi}
+    r = oncelik_ekle(dkeyler=[dkey])
+    d = oncelik_durum(dkey)
+    return {**r, "bekleyen": d["kalan"], "liste_aliniyor": d["tarama"] != "tamam"}
 
 
 def denetim_ozeti() -> dict:
@@ -1712,9 +1774,10 @@ def evrak_toplu_islem(g: dict) -> dict:
         except Exception as e:
             return {"ok": False, "mesaj": f"Drive eşitleme hatası: {e}"}
     elif eylem == "indir":
-        BAGLI_TUT.uyandir()
+        # v4.9.3: eskiden yalnız nöbetçi uyandırılıyordu, seçilen evraklar HİÇBİR sıraya girmiyordu.
+        oncelik_ekle(skeyler=[str(x) for x in skeys])
         basarili = len(skeys)
-        mesaj = f"{basarili} evrak indirme sırasına alındı ve UYAP nöbetçisi tetiklendi."
+        mesaj = f"⚡ {basarili} evrak öncelikle indiriliyor; birkaç saniye içinde başlar, inince Drive'a eşitlenir."
     else:
         basarili = len(skeys)
         mesaj = f"{basarili} evrak için işlem tamamlandı."
@@ -1778,7 +1841,9 @@ GOREVLER: dict[str, dict] = {
     "evrak-katalog":    {"ad": "UYAP Evrak Kataloğu penceresi", "cwd": EVRAK_DIR, "cmd": [*PY, "katalog_gui.py"], "pencere": True},
     "evrak-giris":      {"ad": "UYAP oturum aç (e-imza)", "cwd": EVRAK_DIR, "cmd": [*PY, "uyap_indirici.py", "--cli", "--mode", "login"], "cdp": True},
     "evrak-islemlerim": {"ad": "UYAP: İşlemlerim evraklarını indir", "cwd": EVRAK_DIR, "cmd": [*PY, "uyap_indirici.py", "--cli", "--mode", "islemlerim"], "cdp": True},
-    "evrak-tebligat":   {"ad": "UYAP: tebligat evraklarını indir", "cwd": EVRAK_DIR, "cmd": [*PY, "uyap_indirici.py", "--cli", "--mode", "dosyalar", "--evrak-turu", "tebligat", "--scope", "all"], "cdp": True},
+    # v4.9.3: 731 dosyayı yeniden listelemek yerine katalogdaki tebligat/mazbatalar ÖNCELİK kuyruğuna alınır;
+    # Senkron her şeyden önce indirir ve Drive'a eşitler (bu görev ilerlemeyi gösterir).
+    "evrak-tebligat":   {"ad": "UYAP: tebligat evraklarını indir", "cwd": EVRAK_DIR, "cmd": [*PY, "oncelik_kuyruk.py", "--kategori", "tebligat"], "senkron_gerekir": True},
     "evrak-durusmalar": {"ad": "UYAP: duruşma listesini çek", "cwd": EVRAK_DIR, "cmd": [*PY, "uyap_indirici.py", "--cli", "--mode", "durusmalar"], "cdp": True},
     "evrak-nobetci":    {"ad": "UYAP nöbetçi: tek tarama turu", "cwd": EVRAK_DIR, "cmd": [*PY, "uyap_watcher.py", "--once"], "cdp": True},
     # Sürekli UYAP → Google Drive akışı (Senkron düğmesi): arşiv durmadan iner, açık dosyalar aralıkla taranır
@@ -1960,6 +2025,13 @@ class Gorev:
                                      stdout=subprocess.PIPE, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
                                      text=True, encoding="utf-8", errors="replace")
         threading.Thread(target=self._oku, daemon=True).start()
+        if self.tanim.get("senkron_gerekir"):
+            akis = GOREV_DURUM.get("evrak-akis")
+            if akis is not None and not akis.calisiyor() and not akis.kullanilamama_nedeni():
+                try:
+                    akis.baslat()
+                except RuntimeError:
+                    pass
 
     def _oku(self):
         assert self.proc and self.proc.stdout
@@ -2732,6 +2804,8 @@ class Isleyici(BaseHTTPRequestHandler):
             if yol == "/api/dosyalar":
                 return self._json(dosyalar_listele(q.get("q", ""), q.get("durum", ""), int(q.get("limit") or 150),
                                                    muvekkil=q.get("muvekkil", "")))
+            if yol == "/api/oncelik/durum":
+                return self._json(oncelik_durum(q.get("dkey", ""), [x for x in q.get("skeyler", "").split(",") if x]))
             if yol == "/api/muvekkiller":
                 return self._json(muvekkil_listesi())
             if yol == "/api/dosya/detay":

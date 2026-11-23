@@ -482,7 +482,9 @@ def get_completed_tasks_live(force_refresh=False):
     """TickTick'teki yakın zamanda tamamlanmış veya kapatılmış görevleri çeker."""
     global _COMPLETED_TASKS_CACHE, _LAST_COMPLETED_FETCH
     now = time.time()
-    if not force_refresh and _COMPLETED_TASKS_CACHE is not None and (now - _LAST_COMPLETED_FETCH < 60):
+    # v4.9.3: 60 sn → 10 dk. UETS her tebligatta bu listeyi yeniden çekiyordu; TickTick HTTP 429 verip
+    # tebligat aktarımı saatlerce takılıyordu.
+    if not force_refresh and _COMPLETED_TASKS_CACHE is not None and (now - _LAST_COMPLETED_FETCH < 600):
         return _COMPLETED_TASKS_CACHE
 
     # Tamamlanmış görevler, kapatılmış tebligat/kartların YENİDEN açılmasını önler: okunamazsa durulur.

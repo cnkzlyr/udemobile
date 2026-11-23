@@ -1320,7 +1320,7 @@
     "uets-otokontrol": "Tebligat sürelerinde çakışma, kaçırılma riski veya eksik evrak olup olmadığını denetleyen güvenlik raporu üretir.",
     "evrak-nobetci": "UYAP Avukat Portalını nöbetçi modunda arka planda periyodik olarak tarar. Büronuzun tüm derdest dosyalarındaki yeni evrakları anında yakalar ve indirir.",
     "evrak-islemlerim": "UYAP Avukat Portalındaki 'İşlemlerim' sekmesini tarar; son yapılan havaleler, tensip zaptı onayları ve ara kararları anında günceller.",
-    "evrak-tebligat": "UYAP sistemine düşen tebligat mazbatalarını ve tebellüğ belgelerini toplu olarak indirip yerel kataloğa ekler.",
+    "evrak-tebligat": "Katalogdaki tüm tebligat, mazbata ve tebellüğ belgelerini ÖNCELİKLE indirir: Senkron o an ne yapıyorsa bırakıp önce bunları indirir, PDF'e çevirir ve Drive'a eşitler. Burada ilerleme görünür.",
     "evrak-durusmalar": "Büronuzun tüm mahkemelerdeki duruşma tarihlerini, saatlerini ve duruşma salonlarını UYAP'tan çeker.",
     "evrak-giris": "UYAP portalına güvenli elektronik imza veya mobil imza ile otomatik yetkilendirme ve oturum tazeleme işlemi yapar.",
     "asistan-gui": "Masaüstü Avukat Asistanı bağımsız yönetim penceresini açar.",
@@ -1907,12 +1907,7 @@
         });
 
         ic.querySelectorAll('[data-indir-skey]').forEach(b => {
-          b.onclick = async () => {
-            try {
-              const res = await api('/api/evrak/toplu_islem', { method: 'POST', govde: { eylem: 'indir', skeys: [b.dataset.indirSkey] } });
-              alert(res.mesaj || 'İndirme kuyruğuna alındı.');
-            } catch (e) { alert(e.message); }
-          };
+          b.onclick = () => hemenIndir([b.dataset.indirSkey], b);
         });
 
         ic.querySelectorAll('[data-git-dkey]').forEach(b => {
@@ -1935,7 +1930,7 @@
         };
 
         const topIndir = ic.querySelector('#ca-toplu-indir');
-        if (topIndir) topIndir.onclick = () => calistirToplu('indir');
+        if (topIndir) topIndir.onclick = () => { const l = Array.from(seciliSkeys); if (!l.length) return alert('Lütfen en az bir evrak seçin.'); hemenIndir(l, topIndir); };
 
         const topPdf = ic.querySelector('#ca-toplu-pdf');
         if (topPdf) topPdf.onclick = () => calistirToplu('pdf');
@@ -2334,13 +2329,36 @@
     return `<span style="white-space:nowrap">
       <button class="cw-mini ana" type="button" data-onizle="${esc(e.skey)}" data-ad="${esc(e.tur || 'Evrak')}">👁 Önizle</button>
       <button class="cw-mini" type="button" data-orijinal="${esc(e.skey)}" data-ad="${esc(e.tur || 'Evrak')}">🗂️ Orijinal</button>
+      ${e.yerel ? '' : `<button class="cw-mini" type="button" data-hemen="${esc(e.skey)}" title="Sıra beklemeden şimdi indir ve Drive'a eşitle">⚡ İndir</button>`}
       ${driveUrl ? `<a class="cw-mini" href="${esc(driveUrl)}" target="_blank" rel="noopener" title="Drive'da aç">☁️ Drive</a>` : ''}
       </span>`;
   }
+  // v4.9.3: tek tek ya da seçerek "indir" denen evraklar öncelik kuyruğuna girer; Senkron o an ne yapıyorsa
+  // bırakıp önce bunları indirir ve Drive'a eşitler. Düğme ilerlemeyi gösterir.
+  async function hemenIndir(skeys, btn) {
+    if (!skeys.length) return;
+    const eski = btn ? btn.textContent : '';
+    if (btn) { btn.disabled = true; btn.textContent = '⚡ Sırada…'; }
+    try {
+      const r = await api('/api/evrak/toplu_islem', { method: 'POST', govde: { eylem: 'indir', skeys } });
+      if (window.showToast) window.showToast(r.mesaj || 'Öncelikle indiriliyor');
+      const bas = Date.now();
+      const zam = setInterval(async () => {
+        if ((btn && !document.body.contains(btn)) || Date.now() - bas > 30 * 60000) return clearInterval(zam);
+        try {
+          const d = await api('/api/oncelik/durum?skeyler=' + encodeURIComponent(skeys.slice(0, 300).join(',')));
+          if (btn) btn.textContent = d.kalan ? `⚡ ${d.inen}/${d.toplam}` : (d.hata && !d.inen ? '⚠️ Alınamadı' : '✅ İndi');
+          if (!d.kalan && !d.sirada) { clearInterval(zam); if (window.showToast) window.showToast(`✅ ${d.inen} evrak indi ve Drive'a eşitlendi`); }
+        } catch (e) { /* anlık kopma */ }
+      }, 2500);
+    } catch (e) { if (btn) { btn.disabled = false; btn.textContent = eski; } alert(e.message); }
+  }
+
   function evrakDugmeBagla(kap) {
     kap.addEventListener('click', e => {
-      const b = e.target.closest('[data-onizle],[data-orijinal],[data-dosya-ac]');
+      const b = e.target.closest('[data-onizle],[data-orijinal],[data-dosya-ac],[data-hemen]');
       if (!b) return;
+      if (b.dataset.hemen) { hemenIndir([b.dataset.hemen], b); return; }
       if (b.dataset.onizle) evrakOnizle(b.dataset.onizle, b.dataset.ad, 'pdf');
       else if (b.dataset.orijinal) evrakOnizle(b.dataset.orijinal, b.dataset.ad, 'orijinal');
       else if (b.dataset.dosyaAc) dosyaPenceresi(b.dataset.dosyaAc);
@@ -2365,7 +2383,7 @@
     const eksikMetin = [eksik.taraf && 'taraflar', eksik.evrak && 'evrak listesi', eksik.hesap && 'hesap'].filter(Boolean).join(', ');
     w.ic.innerHTML = `<div class="cw-eylem" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:8px 10px;border-bottom:1px solid #e5e7eb">
         <button class="ca-btn kucuk" type="button" id="cw-tazele">🔄 UYAP'tan şimdi getir</button>
-        <button class="ca-btn kucuk ana" type="button" id="cw-drive-indir">☁️ Evraklarını Drive'a indir${v.indirilmemis ? ` (${v.indirilmemis})` : ''}</button>
+        <button class="ca-btn kucuk ana" type="button" id="cw-drive-indir" title="Senkron o an ne yapıyorsa bırakır, önce bu dosyanın evraklarını indirip Drive'a eşitler">⚡ Hemen indir + Drive'a eşitle${v.indirilmemis ? ` (${v.indirilmemis})` : ''}</button>
         <span class="ca-soluk" id="cw-tazele-d" style="flex:1;min-width:160px">${eksikMetin ? '⚠️ Eksik: ' + esc(eksikMetin) : ''}</span></div>
       <div class="cw-sekmeler">${sekmeler.map(([k, a], i) => `<button type="button" data-s="${k}" class="${i ? '' : 'secili'}">${a}</button>`).join('')}</div><div class="cw-govde"></div>`;
     const govde = w.ic.querySelector('.cw-govde');
@@ -2395,14 +2413,35 @@
     tzB.onclick = tazeleBaslat;
     if ((v.tazele || {}).calisiyor) tazeleIzle();
     else if (eksikMetin && !(v.tazele || {}).hata && !(v.tazele || {}).bitis) tazeleBaslat();
-    w.ic.querySelector('#cw-drive-indir').onclick = async e => {
-      const b = e.currentTarget; b.disabled = true;
+    // v4.9.3 ÖNCELİKLİ İNDİRME: Senkron o an ne yapıyorsa bırakır (1-2 sn içinde), önce bu dosyanın evrakını
+    // indirip PDF'e çevirir ve Drive'a eşitler. İlerleme burada canlı görünür.
+    const dib = w.ic.querySelector('#cw-drive-indir');
+    let oncZam = null;
+    const oncelikIzle = () => {
+      clearInterval(oncZam);
+      const tur = async () => {
+        if (!document.body.contains(w.ic)) return clearInterval(oncZam);
+        try {
+          const d = await api('/api/oncelik/durum?dkey=' + encodeURIComponent(dkey));
+          const yuzde = d.toplam ? Math.round(d.inen * 100 / d.toplam) : 0;
+          tzD.innerHTML = d.tarama !== 'tamam' && d.sirada && !d.toplam ? '⚡ Öncelikli: önce UYAP\'tan evrak listesi alınıyor…'
+            : `⚡ <b>${d.inen}/${d.toplam}</b> evrak indi (%${yuzde})${d.drive ? ` · ☁️ ${d.drive} Drive'a yüklendi` : ''}${d.kalan ? ` · ${d.kalan} kaldı` : ''}${d.hata ? ` · ${d.hata} alınamadı` : ''}`
+              + (d.son ? `<div class="ca-soluk" style="font-size:11.5px">${esc(d.son)}</div>` : '')
+              + (!d.senkron_calisiyor && d.kalan ? '<div class="ca-hata">Senkron çalışmıyor; Ana Ekran\'dan başlatın.</div>' : '');
+          if (!d.sirada && !d.kalan) { clearInterval(oncZam); dib.disabled = false; tzD.innerHTML = `✅ Hepsi indi: ${d.inen}/${d.toplam} evrak${d.hata ? ` (${d.hata} tanesi UYAP'tan alınamadı)` : ''}. Drive'a eşitlendi.`; }
+        } catch (e) { /* bağlantı anlık kopabilir */ }
+      };
+      tur(); oncZam = setInterval(tur, 2000);
+    };
+    dib.onclick = async () => {
+      dib.disabled = true;
       try {
         const r = await api('/api/dosya/drive_indir', { method: 'POST', govde: { dkey } });
-        tzD.textContent = `☁️ Sıraya alındı: ${r.liste_aliniyor ? 'önce evrak listesi alınıyor, sonra ' : ''}${r.bekleyen || 'tüm'} evrak indirilip Drive'a yüklenecek${r.senkron_acildi ? ' (Senkron açıldı)' : ''}. İlerleme "Drive" sekmesinde.`;
-        if (r.liste_aliniyor) tazeleIzle();
-      } catch (er) { tzD.innerHTML = `<span class="ca-hata">${esc(er.message)}</span>`; b.disabled = false; }
+        tzD.textContent = `⚡ Öncelikle indiriliyor${r.senkron_acildi ? ' (Senkron başlatıldı, oturum açılıyor…)' : '…'}`;
+        oncelikIzle();
+      } catch (er) { tzD.innerHTML = `<span class="ca-hata">${esc(er.message)}</span>`; dib.disabled = false; }
     };
+    api('/api/oncelik/durum?dkey=' + encodeURIComponent(dkey)).then(d => { if (d.sirada) { dib.disabled = true; oncelikIzle(); } }).catch(() => {});
     evrakDugmeBagla(govde);
     const ia = v.icra;
     const genel = () => `

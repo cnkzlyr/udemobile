@@ -1047,6 +1047,9 @@ class Motor:
         self.dbg = klog.debug
         self.progress = progress or (lambda done, total, text="": None)
         self.stop_flag = threading.Event()
+        # v4.9.3: kesme() True dönerse (elle "indir" denen öncelikli iş geldi) uzun paket/tarama yarıda bırakılır;
+        # bırakılan evraklar 'yeni' kalır, sonraki turda kaldığı yerden devam edilir.
+        self.kesme = None
         self.pause_flag = threading.Event()
         self.oturum = ""
         self.case_ids: dict[str, str] = {}
@@ -1066,9 +1069,15 @@ class Motor:
         self.oturum = dt.datetime.now().strftime("%Y%m%d%H%M%S") + f"{random.randint(0, 999):03d}"
         self.case_ids = {}
 
+    def _kesilsin_mi(self) -> bool:
+        try:
+            return bool(self.kesme and self.kesme())
+        except Exception:  # noqa: BLE001
+            return False
+
     def _sleep(self, s: float):
         end = time.time() + s
-        while time.time() < end and not self.stop_flag.is_set():
+        while time.time() < end and not self.stop_flag.is_set() and not self._kesilsin_mi():
             time.sleep(0.1)
         while self.pause_flag.is_set() and not self.stop_flag.is_set():
             time.sleep(0.2)
@@ -1192,6 +1201,9 @@ class Motor:
         while pending:
             if self.stop_flag.is_set():
                 self.log("[!] Tarama durduruldu.")
+                break
+            if self._kesilsin_mi():
+                self.log("⚡ Öncelikli indirme isteği geldi: katalog taraması sonraki tura bırakıldı.")
                 break
             chunk, pending = pending[:batch], pending[batch:]
             res = self._evraklar_batch([self.case_ids.get(self._case_dkey(c), "") for c in chunk])
@@ -1597,6 +1609,9 @@ class Motor:
                  f"her {self.batch_n} evrakta {self.batch_pause:.0f} sn mola). Takılan istek 40 sn'de kesilir.")
         for eid in ids:
             if self.stop_flag.is_set():
+                break
+            if self._kesilsin_mi():
+                self.log("⚡ Öncelikli indirme isteği geldi: bu paket yarıda bırakıldı (kalanlar sonra iner).")
                 break
             done += 1
             try:

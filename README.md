@@ -30,6 +30,15 @@
 - **Notion/TickTick denetimi:** Ham Python hatası ya da "Failed to execute script" yerine anlaşılır tek satır gösteriliyor. Notion güvenlik durdurması (🛑) "Hata" sayılmıyor, uyarı olarak görünüyor.
 - **Diğer:** Hesap satırları iki kez yazılmıyor, sıfır tutarlı satırlar günlüğe düşmüyor. Uzun Telegram özetleri bölünerek gönderiliyor (eskiden "message is too long" hatası alınıyordu). Katalog yedeği Drive'da `.tmp.db` olarak yarım kalmıyor (WinError 32). UETS CSV temizliğinde yanlış "Silinemedi" uyarısı çıkmıyor. Drive aramasında uygulamanın iç dosyaları gösterilmiyor. Yeni Evrak sekmesindeki toplu işlem düğmelerinin yazısı artık görünüyor.
 
+### ⚡ Elle "indir" dediğiniz her şey öncelikli
+- Dosya penceresindeki **"⚡ Hemen indir + Drive'a eşitle"**, her evrak satırındaki **"⚡ İndir"** ve Yeni Evrak sekmesindeki **"Seçilenleri İndir"** artık ortak bir öncelik kuyruğuna yazıyor. Senkron bu kuyruğa her evraktan önce bakıyor. O an arşiv paketi indiriyor, katalog listeliyor ya da açık dosyaları tarıyor olsa bile 1-2 saniye içinde işi bırakıyor. Önce sizin istediklerinizi indirip PDF'e çeviriyor ve Drive'a eşitliyor, sonra kaldığı yerden devam ediyor. Evrak listesi henüz alınmamış bir dosyada önce liste alınıyor.
+- İlerleme dosya penceresinde canlı görünüyor ("⚡ 34/117 evrak indi · ☁️ 30 Drive'a yüklendi · 83 kaldı"). Tek evrak düğmeleri de "⚡ 1/1 → ✅ İndi" diye ilerliyor.
+- Eskiden "Seçilenleri İndir" yalnızca nöbetçiyi uyandırıyordu; seçilen evraklar hiçbir sıraya girmiyordu.
+
+### 📨 Tebligat indirme düzeltmeleri
+- **UETS:** CSV iniyordu, ama TickTick'e aktarma HTTP 429 döngüsünde saatlerce takılıyordu (paylaşılan istek sınırı ve 30 dakikalık önbellekle çözüldü). Tamamlanan görev listesi her tebligatta değil, 10 dakikada bir çekiliyor.
+- **"UYAP: tebligat evraklarını indir":** 731 dosyanın hepsini UYAP'ta yeniden listeliyordu (147 paket, saatler). Senkron'la aynı gizli tarayıcıyı paylaştığı için ikisini de yavaşlatıyordu. Artık katalogdaki tüm indirilmemiş tebligat, mazbata ve tebellüğ belgeleri öncelik kuyruğuna alınıyor; Senkron bunları her şeyden önce indirip Drive'a eşitliyor. Görev kartı ilerlemeyi gösteriyor. Bu sırada elle istenen tek bir dosya yine araya girebiliyor (100'lük parçalar).
+
 ### 👤 Her yerde müvekkil seçici
 - **Dosyalar, Evrak Ara, Tebligatlar, Yeni Evrak, Ajanda, Süre ve Dosya Hesapları** sekmelerinin hepsinde aynı müvekkil seçici var. Bir sekmede seçtiğiniz müvekkil hepsinde geçerli oluyor ve seçim hatırlanıyor.
 - **Benzer yazılmış adlar birlikte önerilir:** UYAP'ta aynı müvekkil farklı yazılmış olabilir (ör. "ABC İNŞ. LTD. ŞTİ." ve "ABC İNŞAAT LİMİTED ŞİRKETİ", rol ekleri, fazladan boşluk ya da tek harf farkı). Seçicide bu adlar "≈ benzer yazım" diye işaretleniyor ve "Hepsini birlikte seç" öneriliyor.

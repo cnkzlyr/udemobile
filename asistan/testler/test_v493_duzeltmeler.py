@@ -104,5 +104,67 @@ class ArsivOnceligiTesti(unittest.TestCase):
         self.assertEqual(w.get_priority_backlog_ids(10), [2, 1])
 
 
+
+class OncelikKuyruguTesti(unittest.TestCase):
+    """Elle 'indir' denen dosya/evraklar arşiv paketini keser ve önce iner."""
+
+    def test_oncelik_once_iner_ve_kuyruktan_cikar(self):
+        import uyap_watcher as uw
+        d = Path(tempfile.mkdtemp())
+        db = sqlite3.connect(":memory:")
+        db.row_factory = sqlite3.Row
+        db.executescript("""CREATE TABLE dosya(dkey TEXT, tarama TEXT);
+            CREATE TABLE evrak(id INTEGER PRIMARY KEY, skey TEXT, dkey TEXT, durum TEXT, pdf_path TEXT, tarih TEXT, is_ek INTEGER);
+            INSERT INTO dosya VALUES ('D1','tamam');
+            INSERT INTO evrak VALUES (1,'s1','D1','yeni',NULL,'2025-01-01',0),(2,'s2','D1','yeni',NULL,'2025-01-02',1),
+                                     (3,'s3','D2','yeni',NULL,'2025-01-03',0);""")
+        (d / "oncelikli_dosyalar.json").write_text(json.dumps({"dkeyler": ["D1"], "skeyler": ["s3"]}), encoding="utf-8")
+        indirilen = []
+
+        class Motor:
+            kesme = None
+
+            def download(self, ids, tahmin=True):
+                indirilen.extend(ids)
+                for i in ids:
+                    db.execute("UPDATE evrak SET durum='indirildi' WHERE id=?", (i,))
+                return {"indirildi": len(ids)}
+
+        with mock.patch.object(uw, "DATA_DIR", d):
+            w = uw.UyapWatcher.__new__(uw.UyapWatcher)
+            w.katalog = type("K", (), {"db": db})()
+            w.bridge, w.motor, w.cloud = object(), Motor(), None
+            self.assertTrue(w._kesme())
+            self.assertEqual(w._oncelik_isle(), 3)
+            self.assertEqual(sorted(indirilen), [1, 2, 3])
+            v = json.loads((d / "oncelikli_dosyalar.json").read_text(encoding="utf-8"))
+            self.assertEqual(v, {"dkeyler": [], "skeyler": []})
+            self.assertFalse(w._kesme())
+
+
+
+class TebligatOncelikTesti(unittest.TestCase):
+    def test_tebligat_kategorisi_once_iner_elle_istek_araya_girer(self):
+        import uyap_watcher as uw
+        d = Path(tempfile.mkdtemp())
+        db = sqlite3.connect(":memory:")
+        db.executescript("""CREATE TABLE dosya(dkey TEXT, tarama TEXT);
+            CREATE TABLE evrak(id INTEGER PRIMARY KEY, skey TEXT, dkey TEXT, durum TEXT, pdf_path TEXT, tarih TEXT,
+                               is_ek INTEGER, kategori TEXT, ara TEXT);
+            INSERT INTO dosya VALUES ('D9','tamam');
+            INSERT INTO evrak VALUES (1,'a','D1','yeni',NULL,'2025-01-01',0,'tebligat','kapali tebligat'),
+                                     (2,'b','D1','yeni',NULL,'2025-01-02',1,'diger','teblig mazbatasi'),
+                                     (3,'c','D1','yeni',NULL,'2025-01-03',0,'karar','gerekceli karar'),
+                                     (4,'d','D9','yeni',NULL,'2020-01-03',0,'karar','karar');""")
+        (d / "oncelikli_dosyalar.json").write_text(json.dumps({"dkeyler": ["D9"], "kategoriler": ["tebligat"]}), encoding="utf-8")
+        with mock.patch.object(uw, "DATA_DIR", d):
+            w = uw.UyapWatcher.__new__(uw.UyapWatcher)
+            w.katalog = type("K", (), {"db": db})()
+            w._oncelik_oku()
+            ids = w._oncelik_idleri(["D9"], [], sinir=10)
+            self.assertEqual(ids[0], 4)              # elle istenen dosya toplu tebligat isteğinden önce
+            self.assertEqual(sorted(ids), [1, 2, 4])  # karar (3) tebligat değil
+
+
 if __name__ == "__main__":
     unittest.main()
