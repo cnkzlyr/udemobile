@@ -105,6 +105,18 @@ class TelegramClient:
     def send_message(self, text: str, parse_mode: str = "HTML") -> bool:
         if not self.is_configured:
             return False
+        # v4.9.3: Telegram tek mesajda en çok 4096 karakter alır ("message is too long" 400 hatası):
+        # uzun özetler satır sınırından bölünüp sırayla gönderilir. EN: split at line boundaries (<= 3900 chars).
+        if len(text) > 3900:
+            parca, ok = "", True
+            for satir in text.split("\n"):
+                if len(parca) + len(satir) + 1 > 3900 and parca:
+                    ok = self.send_message(parca, parse_mode) and ok
+                    parca = ""
+                parca += satir[:3900] + "\n"
+            if parca.strip():
+                ok = self.send_message(parca, parse_mode) and ok
+            return ok
         import requests
         url = f"https://api.telegram.org/bot{self.bot_token}/sendMessage"
         payload = {

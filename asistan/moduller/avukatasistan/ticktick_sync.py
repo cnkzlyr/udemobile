@@ -315,8 +315,13 @@ _KAPALI_FILTRE = None
 _KAPALI_FILTRE_ZAMAN = 0
 
 
-def _filtre_istek(govde):
-    """POST /task/filter (TickTick Open API): status 2 = tamamlandı, -1 = yapılmayacak. Desteklenmiyorsa []."""
+class _FiltreKesildi(Exception):
+    """Filtre isteği sınır/bağlantı yüzünden yapılamadı: bölerek çekme durdurulur (yüzlerce istek gönderilmez)."""
+
+
+def _filtre_istek(govde, kes=False):
+    """POST /task/filter (TickTick Open API): status 2 = tamamlandı, -1 = yapılmayacak. Desteklenmiyorsa [].
+    kes=True: okunamazsa _FiltreKesildi fırlatılır (bölerek çekmede kalan istekler atlanır)."""
     try:
         r = tt_oku(f"{CONFIG['TICKTICK_API_BASE']}/task/filter", what="kapalı görevler (filtre)", method="POST",
                    json_body=govde, timeout=60)
@@ -325,15 +330,34 @@ def _filtre_istek(govde):
             return v if isinstance(v, list) else (v.get("tasks") or v.get("result") or [])
     except Exception as e:  # noqa: BLE001  — filtre uç noktası yoksa eski davranış (yalnız /task/completed)
         print(f"   ⚠️ TickTick kapalı görev filtresi okunamadı: {str(e)[:120]}")
+        if kes:
+            raise _FiltreKesildi(str(e)) from e
     return []
+
+
+def _filtre_onbellek_yolu():
+    d = os.environ.get("UYAP_VERI_DIZINI") or os.path.join(os.path.dirname(os.path.abspath(__file__)), "veri")
+    return os.path.join(d, "ticktick_kapali_onbellek.json")
 
 
 def kapali_gorevler_filtre(force=False):
     """Tamamlanan ve YAPILMAYACAK görevlerin tamamı (tüm listeler). Yanıt 200 kayıtla sınırlıysa liste liste,
-    gerekirse yıl yıl bölünerek çekilir. 10 dk önbellek."""
+    gerekirse yıl yıl bölünerek çekilir.
+    v4.9.3: 30 dk'lık önbellek artık DİSKTE ve tüm süreçlerce paylaşılır (UETS, TickTick düzeni, otokontrol aynı
+    listeyi ayrı ayrı çekip TickTick'i HTTP 429'a sokuyordu). Bölerek çekmede bir istek bile sınıra takılırsa
+    kalanlar atlanır, eldeki kısmi liste kullanılır (mükerrer kontrolü aktif görevlerle yine yapılır)."""
     global _KAPALI_FILTRE, _KAPALI_FILTRE_ZAMAN
     if not force and _KAPALI_FILTRE is not None and time.time() - _KAPALI_FILTRE_ZAMAN < 600:
         return _KAPALI_FILTRE
+    if not force:
+        try:
+            with open(_filtre_onbellek_yolu(), encoding="utf-8") as f:
+                ob = json.load(f)
+            if time.time() - float(ob.get("zaman") or 0) < 1800 and isinstance(ob.get("gorevler"), list):
+                _KAPALI_FILTRE, _KAPALI_FILTRE_ZAMAN = ob["gorevler"], float(ob["zaman"])
+                return _KAPALI_FILTRE
+        except (OSError, ValueError, TypeError):
+            pass
     sonuc, gorulen = [], set()
 
     def ekle(lst):
@@ -342,26 +366,41 @@ def kapali_gorevler_filtre(force=False):
                 gorulen.add(t["id"])
                 sonuc.append(t)
 
-    ilk = _filtre_istek({"status": [2, -1]})
-    ekle(ilk)
-    if len(ilk) >= 190:
-        pids = []
-        try:
-            r = tt_oku(f"{CONFIG['TICKTICK_API_BASE']}/project", what="liste adları", timeout=20)
-            pids = [p["id"] for p in (r.json() or []) if r.status_code == 200]
-        except Exception:  # noqa: BLE001
-            pass
-        for pid in pids + ["inbox"]:
-            for durum in (2, -1):
-                lst = _filtre_istek({"projectIds": [pid], "status": [durum]})
-                ekle(lst)
-                if len(lst) >= 190:
-                    yil = datetime.now().year
-                    for y in range(yil, yil - 8, -1):
-                        ekle(_filtre_istek({"projectIds": [pid], "status": [durum],
-                                            "startDate": f"{y}-01-01T00:00:00.000+0000",
-                                            "endDate": f"{y + 1}-01-01T00:00:00.000+0000"}))
+    tam = True
+    try:
+        ilk = _filtre_istek({"status": [2, -1]}, kes=True)
+        ekle(ilk)
+        if len(ilk) >= 190:
+            pids = []
+            try:
+                r = tt_oku(f"{CONFIG['TICKTICK_API_BASE']}/project", what="liste adları", timeout=20)
+                pids = [p["id"] for p in (r.json() or []) if r.status_code == 200]
+            except Exception:  # noqa: BLE001
+                pass
+            for pid in pids + ["inbox"]:
+                for durum in (2, -1):
+                    lst = _filtre_istek({"projectIds": [pid], "status": [durum]}, kes=True)
+                    ekle(lst)
+                    if len(lst) >= 190:
+                        yil = datetime.now().year
+                        for y in range(yil, yil - 8, -1):
+                            ekle(_filtre_istek({"projectIds": [pid], "status": [durum],
+                                                "startDate": f"{y}-01-01T00:00:00.000+0000",
+                                                "endDate": f"{y + 1}-01-01T00:00:00.000+0000"}, kes=True))
+    except _FiltreKesildi:
+        tam = False
+        print(f"   ↪️ Kapalı görev listesi kısmi alındı ({len(sonuc)} görev); kalan istekler sonraki tura bırakıldı.", flush=True)
     _KAPALI_FILTRE, _KAPALI_FILTRE_ZAMAN = sonuc, time.time()
+    if tam:
+        try:
+            yol = _filtre_onbellek_yolu()
+            os.makedirs(os.path.dirname(yol), exist_ok=True)
+            gecici = yol + f".{os.getpid()}.tmp"
+            with open(gecici, "w", encoding="utf-8") as f:
+                json.dump({"zaman": _KAPALI_FILTRE_ZAMAN, "gorevler": sonuc}, f, ensure_ascii=False)
+            os.replace(gecici, yol)
+        except OSError:
+            pass
     return sonuc
 
 

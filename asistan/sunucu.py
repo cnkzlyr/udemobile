@@ -61,7 +61,7 @@ if hasattr(sys.stderr, "reconfigure"):
         pass
 from pathlib import Path
 
-SURUM = "4.9.2"
+SURUM = "4.9.3"
 KOK = Path(__file__).resolve().parent
 if str(KOK) not in sys.path:
     sys.path.insert(0, str(KOK))
@@ -295,6 +295,100 @@ def terimler(metin: str) -> tuple[list[str], list[str]]:
     return pos[:8], neg[:8]
 
 
+# ---------------------------------------------------------------------------
+# v4.9.3 Müvekkil seçici: her sekmede aynı müvekkil filtresi. Aynı kişi/şirket UYAP'ta farklı yazılmış olabilir
+# ("AHMET SUNGUR (Sanık)", "AHMET  SUNGUR", "ABC İNŞAAT LTD. ŞTİ." / "ABC INSAAT LIMITED SIRKETI"): benzer adlar
+# gruplanır ve seçicide "birlikte seç" diye önerilir. EN: client list with fuzzy grouping of name variants.
+# ---------------------------------------------------------------------------
+_SIRKET_EKLERI = re.compile(
+    r"\b(ltd|limited|sti|sirketi|sirket|a ?s|anonim|ticaret|tic|sanayi|san|ve|insaat|ins|pazarlama|paz|"
+    r"ithalat|ihracat|ith|ihr|turizm|tur|gida|nakliyat|lojistik|holding|koop|kooperatifi)\b")
+
+
+def muvekkil_ad_temiz(ad: str) -> str:
+    """'AHMET SUNGUR (Sanık)' → 'AHMET SUNGUR' (rol ve vekil ekleri atılır)."""
+    ad = re.sub(r"\([^)]*\)", " ", str(ad or ""))
+    ad = re.sub(r"\bvekil:.*$", " ", ad, flags=re.I)
+    return re.sub(r"\s+", " ", ad).strip(" ;,-")
+
+
+def _muvekkil_anahtar(ad: str) -> str:
+    """Benzerlik anahtarı: Türkçe harfler katlanır, noktalama ve şirket ekleri atılır, kelimeler sıralanır."""
+    f = re.sub(r"[^a-z0-9 ]+", " ", fold(ad))
+    f = _SIRKET_EKLERI.sub(" ", f)
+    return " ".join(sorted(w for w in f.split() if len(w) > 1))
+
+
+def muvekkil_listesi() -> dict:
+    """Katalogdaki tüm müvekkiller: ad, dosya sayısı, dkey'ler ve benzer yazılmış adların grubu."""
+    import difflib
+    c = _ro(katalog_yolu())
+    if c is None:
+        return {"hazir": False, "muvekkiller": [], "gruplar": []}
+    with c:
+        rows = c.execute("SELECT dkey, birim, dosya_no, muvekkil FROM dosya WHERE COALESCE(muvekkil,'') <> ''").fetchall()
+    adlar: dict[str, dict] = {}
+    for r in rows:
+        for parca in str(r["muvekkil"] or "").split(";"):
+            ad = muvekkil_ad_temiz(parca)
+            if len(ad) < 3:
+                continue
+            m = adlar.setdefault(ad, {"ad": ad, "anahtar": _muvekkil_anahtar(ad), "dkeyler": [], "dosyalar": []})
+            if r["dkey"] not in m["dkeyler"]:
+                m["dkeyler"].append(r["dkey"])
+                m["dosyalar"].append(f"{r['birim'] or ''}|{r['dosya_no'] or ''}")
+    liste = sorted(adlar.values(), key=lambda x: (-len(x["dkeyler"]), x["ad"]))
+    # Gruplama (birleşim-bul): aynı anahtar, biri diğerinin kelimelerini kapsıyor ya da yazım benzerliği ≥ %88.
+    # Yalnız en az bir uzun kelimeyi paylaşan adlar karşılaştırılır (binlerce adda da hızlı).
+    ebeveyn = list(range(len(liste)))
+
+    def bul(i):
+        while ebeveyn[i] != i:
+            ebeveyn[i] = ebeveyn[ebeveyn[i]]
+            i = ebeveyn[i]
+        return i
+
+    kova: dict[str, list[int]] = {}
+    for i, m in enumerate(liste):
+        for w in set(m["anahtar"].split()):
+            if len(w) >= 3:
+                kova.setdefault(w, []).append(i)
+    for idx in kova.values():
+        if len(idx) > 60:          # çok yaygın kelime (ör. "mehmet"): tek başına benzerlik kanıtı değil
+            continue
+        for a_i, i in enumerate(idx):
+            for j in idx[a_i + 1:]:
+                if bul(i) == bul(j):
+                    continue
+                a, b = liste[i]["anahtar"], liste[j]["anahtar"]
+                if not a or not b:
+                    continue
+                ka, kb = set(a.split()), set(b.split())
+                ayni = a == b or (min(len(ka), len(kb)) >= 2 and (ka <= kb or kb <= ka))
+                if not ayni:
+                    sm = difflib.SequenceMatcher(None, a, b)
+                    ayni = sm.real_quick_ratio() >= 0.88 and sm.quick_ratio() >= 0.88 and sm.ratio() >= 0.88
+                if ayni:
+                    ebeveyn[bul(i)] = bul(j)
+    gruplar: dict[int, list[str]] = {}
+    for i, m in enumerate(liste):
+        gruplar.setdefault(bul(i), []).append(m["ad"])
+    for i, m in enumerate(liste):
+        m["grup"] = [x for x in gruplar[bul(i)] if x != m["ad"]]
+        m.pop("anahtar", None)
+    return {"hazir": True, "muvekkiller": liste,
+            "gruplar": [g for g in gruplar.values() if len(g) > 1]}
+
+
+def _muvekkil_kosul(muvekkil: str, sutun: str = "muvekkil_ara") -> tuple[str, list]:
+    """'AD1|AD2' → SQL koşulu (dosya tablosunda müvekkil adlarından biri geçen dosyalar)."""
+    adlar = [fold(muvekkil_ad_temiz(x)) for x in str(muvekkil or "").split("|") if x.strip()]
+    adlar = [a for a in adlar if a][:50]
+    if not adlar:
+        return "", []
+    return "(" + " OR ".join(f"COALESCE({sutun},'') LIKE ?" for _ in adlar) + ")", [f"%{a}%" for a in adlar]
+
+
 def _drive_defteri(ids: list) -> dict:
     """Katalog evrak id -> Drive yükleme kaydı (url, zaman)."""
     p = drive_indeks_yolu()
@@ -316,7 +410,8 @@ def _drive_defteri(ids: list) -> dict:
 
 
 def evrak_ara(q: str, limit: int = 100, dkey: str = "", kategori: str = "", durum: str = "", offset: int = 0,
-              drive_dahil: bool = True) -> dict:
+              drive_dahil: bool = True, muvekkil: str = "", dosya_durum: str = "", baslangic: str = "",
+              bitis: str = "", tur_q: str = "") -> dict:
     """UYAP evrak kataloğunda (kapalı dosyalar dahil tüm arşiv) + Drive indeksinde arama.
 
     Hız: her terim katlanmış 'ara' sütununda ya da (küçük) dosya tablosunda eşleşen dosyaların evrakında aranır;
@@ -343,8 +438,30 @@ def evrak_ara(q: str, limit: int = 100, dkey: str = "", kategori: str = "", duru
             kosul.append("e.dkey = ?")
             param.append(dkey)
         if kategori:
-            kosul.append("e.kategori = ?")
-            param.append(kategori)
+            # v4.9.3: "tebligat" filtresi kategori dışında türü/açıklaması tebligat olanları da kapsar
+            # (Kapalı Tebligat, e-Tebligat, Tebliğ Mazbatası, Tebligat Parçası, PTT Teslim...)
+            if kategori == "tebligat":
+                kosul.append(f"(e.kategori = 'tebligat' OR {ara_s} LIKE '%teblig%' OR {ara_s} LIKE '%mazbata%')")
+            else:
+                kosul.append("e.kategori = ?")
+                param.append(kategori)
+        mk, mp = _muvekkil_kosul(muvekkil)
+        if mk:
+            kosul.append(f"e.dkey IN (SELECT dkey FROM dosya WHERE {mk})")
+            param += mp
+        if dosya_durum == "acik":
+            kosul.append("e.dkey IN (SELECT dkey FROM dosya WHERE durum='Açık')")
+        elif dosya_durum == "kapali":
+            kosul.append("e.dkey IN (SELECT dkey FROM dosya WHERE COALESCE(durum,'') <> 'Açık')")
+        if baslangic:
+            kosul.append("e.tarih >= ?")
+            param.append(baslangic[:10])
+        if bitis:
+            kosul.append("e.tarih <= ?")
+            param.append(bitis[:10] + "T99")
+        if tur_q:
+            kosul.append("fold(COALESCE(e.tur,'')) LIKE ?")
+            param.append(f"%{fold(tur_q)}%")
         if durum == "indirildi":
             kosul.append("(e.path IS NOT NULL OR e.pdf_path IS NOT NULL)")
         elif durum == "indirilmedi":
@@ -378,7 +495,7 @@ def evrak_ara(q: str, limit: int = 100, dkey: str = "", kategori: str = "", duru
     dosyalar = []
     if pos and offset == 0:
         try:
-            dosyalar = dosyalar_listele(q, "", 25).get("dosyalar") or []
+            dosyalar = dosyalar_listele(q, "", 25, muvekkil=muvekkil).get("dosyalar") or []
         except Exception:  # noqa: BLE001
             dosyalar = []
     return {"hazir": True, "toplam_evrak": toplam, "dosya_sayisi": dosya_say, "taranan_dosya": taranan,
@@ -724,7 +841,7 @@ def _not_db():
     return _cm()
 
 
-def dosyalar_listele(q: str = "", durum: str = "", limit: int = 150) -> dict:
+def dosyalar_listele(q: str = "", durum: str = "", limit: int = 150, muvekkil: str = "") -> dict:
     """UYAP kataloğundaki tüm dava dosyalarını filtreli listeler."""
     c = _ro(katalog_yolu())
     if c is None:
@@ -742,6 +859,10 @@ def dosyalar_listele(q: str = "", durum: str = "", limit: int = 150) -> dict:
         for t in neg:
             kosul.append("NOT (COALESCE(birim,'') LIKE ? OR COALESCE(taraf_ara,'') LIKE ?)")
             param += [f"%{t}%"] * 2
+        mk, mp = _muvekkil_kosul(muvekkil)
+        if mk:
+            kosul.append(mk)
+            param += mp
         where = ("WHERE " + " AND ".join(kosul)) if kosul else ""
         sql = (
             "SELECT dkey, birim, dosya_no, dosya_tur, durum, yargi, acilis, muvekkil, taraflar, evrak_sayisi, taranma "
@@ -1697,6 +1818,38 @@ def tebligat_panel(komut: str, barkod: str = "", zaman_asimi: int = 300) -> dict
     raise ValueError(f"Tebligat işlemi başarısız: {hata[:300]}" + ("\n" + "\n".join(gunluk[-5:]) if gunluk else ""))
 
 
+# v4.9.3: Tebligat listesi (UETS + EYP + TickTick + Notion) TickTick istek sınırındayken dakikalarca sürüyor,
+# sekme "taranıyor…" diye takılı kalıyordu. Son liste bellekte tutulur ve HEMEN döner; 5 dk'dan eskiyse arka
+# planda tazelenir (yanıtta "tazeleniyor": true). İlk açılışta (önbellek yoksa) bir kez beklenir.
+_TEB_ONBELLEK: dict = {"veri": None, "zaman": 0.0, "calisiyor": False, "hata": ""}
+_TEB_KILIT = threading.Lock()
+
+
+def _teb_tazele():
+    try:
+        v = tebligat_panel("liste")
+        _TEB_ONBELLEK.update(veri=v, zaman=time.time(), hata="")
+    except Exception as e:  # noqa: BLE001
+        _TEB_ONBELLEK["hata"] = str(e)[:300]
+    finally:
+        _TEB_ONBELLEK["calisiyor"] = False
+
+
+def tebligat_liste_onbellekli(tazele: bool = False) -> dict:
+    with _TEB_KILIT:
+        eski = time.time() - _TEB_ONBELLEK["zaman"] > 300
+        if (eski or tazele) and not _TEB_ONBELLEK["calisiyor"]:
+            _TEB_ONBELLEK["calisiyor"] = True
+            if _TEB_ONBELLEK["veri"] is None:
+                _teb_tazele()
+            else:
+                threading.Thread(target=_teb_tazele, daemon=True, name="tebligat-liste").start()
+    if _TEB_ONBELLEK["veri"] is None:
+        raise ValueError(_TEB_ONBELLEK["hata"] or "Tebligat listesi alınamadı")
+    return {**_TEB_ONBELLEK["veri"], "zaman": _TEB_ONBELLEK["zaman"], "tazeleniyor": _TEB_ONBELLEK["calisiyor"],
+            "son_hata": _TEB_ONBELLEK["hata"]}
+
+
 def gorev_ortami() -> dict:
     """Görev alt süreçlerinin ortamı: gömülü Java ve indirilmiş resmî UYAP Editör jar'ları modüllere tanıtılır."""
     env = dict(os.environ, PYTHONIOENCODING="utf-8", PYTHONUNBUFFERED="1")
@@ -1753,6 +1906,18 @@ def _ld_geri_yukle(env) -> None:
         env.pop("LD_LIBRARY_PATH", None)
 
 
+def oturum_satiri_coz(satir: str) -> bool | None:
+    """Bir günlük satırı UYAP oturumunun açıldığını (True) ya da düştüğünü (False) söylüyor mu?"""
+    k = satir.lower()
+    if "oturum" in k and any(x in k for x in ("açılamadı", "doğrulanamadı", "açık değil", "düştü", "sonlanmış", "yenilenemedi")):
+        return False
+    if "girilemedi" in k:
+        return False
+    if ("oturum" in k and any(x in k for x in ("doğrulandı", "açıldı", "oturumu açık", "oturum açık"))) or "giriş başarılı" in k:
+        return True
+    return None
+
+
 class Gorev:
     def __init__(self, kimlik: str, tanim: dict):
         self.kimlik, self.tanim = kimlik, tanim
@@ -1760,6 +1925,12 @@ class Gorev:
         self.baslangic = self.bitis = None
         self.kod: int | None = None
         self.gunluk: deque[str] = deque(maxlen=400)
+        # v4.9.3: UYAP oturum durumu satır satır izlenip KALICI tutulur. Eskiden durum yalnız son 400 günlük
+        # satırında aranıyordu; sürekli akışta "oturum doğrulandı" satırı birkaç dakikada tampondan düşüyor,
+        # arayüz oturum açıkken bile "Bağlanılıyor…" gösteriyordu.
+        self.oturum: bool | None = None
+        self.oturum_zaman: float | None = None
+        self.oturum_satir = ""
 
     def kullanilamama_nedeni(self) -> str:
         """Android'de tarayıcı otomasyonu ve masaüstü pencereleri yoktur; bu görevler masaüstünde çalışır."""
@@ -1783,6 +1954,7 @@ class Gorev:
             raise RuntimeError(neden)
         env = gorev_ortami()
         self.gunluk.clear()
+        self.oturum = None
         self.kod, self.bitis, self.baslangic = None, None, time.time()
         self.proc = subprocess.Popen(self.tanim["cmd"], cwd=str(self.tanim["cwd"]), env=env,
                                      stdout=subprocess.PIPE, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
@@ -1793,7 +1965,11 @@ class Gorev:
         assert self.proc and self.proc.stdout
         with self.proc.stdout:
             for satir in self.proc.stdout:
-                self.gunluk.append(satir.rstrip("\n"))
+                satir = satir.rstrip("\n")
+                self.gunluk.append(satir)
+                durum = oturum_satiri_coz(satir)
+                if durum is not None:
+                    self.oturum, self.oturum_zaman, self.oturum_satir = durum, time.time(), satir.split("] ", 2)[-1][:200]
         self.kod = self.proc.wait()
         self.bitis = time.time()
 
@@ -1912,18 +2088,15 @@ class BagliTutucu:
         g = GOREV_DURUM["evrak-akis"] if (GOREV_DURUM["evrak-akis"].calisiyor() or GOREV_DURUM["evrak-akis"].gunluk) else GOREV_DURUM["evrak-nobetci"]
         ok, neden = self.etkin()
         gunluk = list(g.gunluk)
-        oturum = None
-        for satir in reversed(gunluk):
-            k = satir.lower()
-            if "oturum" in k and any(x in k for x in ("açılamadı", "doğrulanamadı", "açık değil")):
-                oturum = False
-                break
-            if "girilemedi" in k:
-                oturum = False
-                break
-            if "oturum" in k and any(x in k for x in ("doğrulandı", "açıldı", "oturumu açık", "aktif")):
-                oturum = True
-                break
+        oturum = g.oturum
+        if oturum is None:          # henüz satır satır izlenmediyse (yeni başlamış görev) tampona bakılır
+            for satir in reversed(gunluk):
+                oturum = oturum_satiri_coz(satir)
+                if oturum is not None:
+                    break
+        # Nabız (4 dk'da bir hafif istek) daha yeni bir sonuç verdiyse o geçerlidir
+        if NABIZ.son_durum is not None and NABIZ.son and NABIZ.son > (g.oturum_zaman or 0):
+            oturum = NABIZ.son_durum
         # Son turdaki gerçek hata (ör. "Nöbetçi döngü hatası") rozette görünsün; eskiden yalnız ham günlükte kalıyordu
         son_hata = ""
         for satir in reversed(gunluk):
@@ -1934,6 +2107,7 @@ class BagliTutucu:
                 break
         return {"etkin": ok, "neden": neden or g.kullanilamama_nedeni(), "calisiyor": g.calisiyor(), "son_hata": son_hata,
                 "son_baslangic": g.baslangic, "son_bitis": g.bitis, "son_kod": g.kod, "oturum": oturum,
+                "oturum_zaman": g.oturum_zaman, "oturum_satir": g.oturum_satir,
                 "sonraki": self.sonraki if ok else None, "gunluk": gunluk[-40:], "ayar": uyap_ayar_oku(),
                 "nabiz": {"son": NABIZ.son or None, "oturum_acik": NABIZ.son_durum, "basarili": NABIZ.basarili}}
 
@@ -2556,7 +2730,10 @@ class Isleyici(BaseHTTPRequestHandler):
                                    "entegrasyon": _entegrasyon.ayar_ozeti(AVUKAT_DIR),
                                    "termux": os.environ.get("PREFIX", "").startswith("/data/data/com.termux")})
             if yol == "/api/dosyalar":
-                return self._json(dosyalar_listele(q.get("q", ""), q.get("durum", ""), int(q.get("limit") or 150)))
+                return self._json(dosyalar_listele(q.get("q", ""), q.get("durum", ""), int(q.get("limit") or 150),
+                                                   muvekkil=q.get("muvekkil", "")))
+            if yol == "/api/muvekkiller":
+                return self._json(muvekkil_listesi())
             if yol == "/api/dosya/detay":
                 return self._json(dosya_detay(q.get("dkey", "")))
             if yol == "/api/dosya/bul":
@@ -2568,7 +2745,9 @@ class Isleyici(BaseHTTPRequestHandler):
             if yol == "/api/evrak/ara":
                 return self._json(evrak_ara(q.get("q", ""), int(q.get("limit") or 100), q.get("dkey", ""),
                                             q.get("kategori", ""), q.get("durum", ""), int(q.get("offset") or 0),
-                                            q.get("drive", "1") != "0"))
+                                            q.get("drive", "1") != "0", muvekkil=q.get("muvekkil", ""),
+                                            dosya_durum=q.get("dosya_durum", ""), baslangic=q.get("baslangic", ""),
+                                            bitis=q.get("bitis", ""), tur_q=q.get("tur", "")))
             if yol == "/api/icra/analiz":
                 return self._json(icra_analizi())
             if yol == "/api/evrak/onizle":
@@ -2810,8 +2989,12 @@ class Isleyici(BaseHTTPRequestHandler):
                     raise ValueError("Geçersiz kod")
                 (AVUKAT_DIR / "uets_otp.txt").write_text(kod, encoding="utf-8")
                 return self._json({"ok": True})
+            if yol == "/api/tebligat/liste":
+                return self._json(tebligat_liste_onbellekli(bool(govde.get("tazele"))))
             if yol.startswith("/api/tebligat/"):
-                return self._json(tebligat_panel(yol.rsplit("/", 1)[-1], str(govde.get("barkod") or "")))
+                r = tebligat_panel(yol.rsplit("/", 1)[-1], str(govde.get("barkod") or ""))
+                _TEB_ONBELLEK["zaman"] = 0          # değişiklik yapıldı: liste bir sonraki istekte tazelenir
+                return self._json(r)
             if yol == "/api/drive/esitle":
                 # Arka planda, ilerlemeli; tüm eksikler (limitsiz) — /api/drive/esitle_durum ile izlenir
                 return self._json(_drive_indeks.esitle_arkaplan(katalog_yolu(), evrak_veri_dizini(), int(govde.get("limit") or 100000)))

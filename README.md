@@ -1,6 +1,6 @@
 # ⚖️ CanEditor (UdeMobile) — Birleşik Hukuk Platformu & Çapraz Platform UYAP Editörü
 
-[![Sürüm](https://img.shields.io/badge/Sürüm-v4.9.2-c8a45a.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v4.9.2)
+[![Sürüm](https://img.shields.io/badge/Sürüm-v4.9.3-c8a45a.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v4.9.3)
 [![Platformlar](https://img.shields.io/badge/Platformlar-Android%20%7C%20Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Web-0f2341.svg)](https://github.com/cnkzlyr/udemobile/releases)
 [![UYAP](https://img.shields.io/badge/Format-UYAP_UDF_v1.8-0D47A1.svg)](https://uyap.gov.tr)
 [![Word](https://img.shields.io/badge/Format-MS_DOCX_OpenXML-2B579A.svg?logo=microsoft-word&logoColor=white)](https://microsoft.com)
@@ -17,6 +17,30 @@
 - **Google Drive sürekli eşitleme & kesintisiz durum göstergesi** (Drive dosyalarında anlık arama ve doğrudan açma)
 - **Notion & TickTick canlı yönetimi + otomatik aktarım**
 - **`hayfahukuk.com` entegrasyonu** (Yargıtay İçtihat Arama, uygulama içi Mevzuat Okuyucusu, Hukuk Haberleri, günlük Resmî Gazete, **%100 çevrimdışı Adliye & IBAN Rehberi**, 7 hukuki hesaplayıcı)
+
+---
+
+## 🧭 v4.9.3: Okunur Günlükler, Kendiliğinden Bağlanan UYAP, Müvekkil Seçici ve Sade Drive Senkronu
+
+- **Günlükler okunuyor:** Görevler ve UYAP Giriş sekmelerindeki günlük kutuları açık gri zemine açık gri yazıyla çiziliyordu; yazı ancak seçince görünüyordu. Artık koyu zemin üzerinde açık yazıyla gösteriliyor. Yukarı kaydırdığınızda ya da metin seçtiğinizde kutu donuyor, satırlar kaymıyor ve sayfa başa zıplamıyor. En alta inince canlı akış devam ediyor.
+- **UYAP oturumu "Bağlanılıyor…"da kalmıyor:** Oturum durumu yalnızca son 400 günlük satırında aranıyordu. Hesap satırları bu tamponu birkaç dakikada doldurduğu için oturum açıkken bile durum kayboluyordu. Durum artık satır satır izleniyor ve kalıcı tutuluyor; oturum nabzının sonucu da hesaba katılıyor.
+- **"UYAP oturum aç (e-imza)" görevi çalışıyor:** Görev `--mode login` ile çağrılıyordu ama indirici bu modu tanımıyordu (`invalid choice: 'login'`). Mod eklendi: yalnızca oturumu açıp doğruluyor.
+- **TickTick HTTP 429 seli bitti:** UETS, TickTick düzeni ve otokontrol, kapalı görev listesini ayrı ayrı onlarca istekle çekiyordu. Her süreç her denemeyi günlüğe yazıyordu. Artık istek sınırı tüm süreçler arasında paylaşılıyor, `Retry-After` dikkate alınıyor ve günlüğe tek satır yazılıyor. Kapalı görev listesi diskte 30 dakika önbelleğe alınıyor; sınıra takılınca bölerek çekme duruyor.
+- **İşlemlerim indirmesi Windows'ta çökmüyor:** Uzun klasör adları (`Avukat Evrak Kaydi (İstinaf Ba…`) 260 karakter yol sınırını aşıyordu. Yol artık sınıra sığacak şekilde kısaltılıyor; benzersiz evrak numarası korunuyor.
+- **Notion/TickTick denetimi:** Ham Python hatası ya da "Failed to execute script" yerine anlaşılır tek satır gösteriliyor. Notion güvenlik durdurması (🛑) "Hata" sayılmıyor, uyarı olarak görünüyor.
+- **Diğer:** Hesap satırları iki kez yazılmıyor, sıfır tutarlı satırlar günlüğe düşmüyor. Uzun Telegram özetleri bölünerek gönderiliyor (eskiden "message is too long" hatası alınıyordu). Katalog yedeği Drive'da `.tmp.db` olarak yarım kalmıyor (WinError 32). UETS CSV temizliğinde yanlış "Silinemedi" uyarısı çıkmıyor. Drive aramasında uygulamanın iç dosyaları gösterilmiyor. Yeni Evrak sekmesindeki toplu işlem düğmelerinin yazısı artık görünüyor.
+
+### 👤 Her yerde müvekkil seçici
+- **Dosyalar, Evrak Ara, Tebligatlar, Yeni Evrak, Ajanda, Süre ve Dosya Hesapları** sekmelerinin hepsinde aynı müvekkil seçici var. Bir sekmede seçtiğiniz müvekkil hepsinde geçerli oluyor ve seçim hatırlanıyor.
+- **Benzer yazılmış adlar birlikte önerilir:** UYAP'ta aynı müvekkil farklı yazılmış olabilir (ör. "ABC İNŞ. LTD. ŞTİ." ve "ABC İNŞAAT LİMİTED ŞİRKETİ", rol ekleri, fazladan boşluk ya da tek harf farkı). Seçicide bu adlar "≈ benzer yazım" diye işaretleniyor ve "Hepsini birlikte seç" öneriliyor.
+
+### 🔎 Yeni filtreler
+- **Evrak Ara:** 📨 Tebligatlar, ⚖️ Kararlar, 🗓️ Duruşma zaptı, 🔬 Bilirkişi ve ✍️ Dilekçeler için hızlı çipler var. Tebligat filtresi tür ya da açıklamasında tebligat/mazbata geçen evrakları da buluyor. Açık/kapalı dosya ve tarih aralığı filtreleri eklendi. Kategori listesi artık sabit ve eksiksiz.
+- **Tebligatlar:** Süresi işleyenler, son günü geçmiş olanlar, TickTick'te eksik ya da eki bekleyenler ve EYP paketi inmemiş olanlar ayrı ayrı süzülebiliyor. Liste artık hemen açılıyor: son liste gösteriliyor, arka planda tazeleniyor.
+
+### ☁️ Sade Google Drive senkronu
+- Drive sekmesinde artık tek bir durum satırı ve tek bir **"Şimdi eşitle"** düğmesi var. Senkron açıkken bütün UYAP evrakı kendiliğinden Drive'a gidiyor. Ayrıntılar, indeksleme ve kurulum ayarları katlı "Gelişmiş" bölümünde duruyor.
+- **Mükerrerler liste okunurken ayıklanıyor:** Bir dosyanın evrak listesi kataloğa yazılırken aynı dosya adı anahtarı ve daha önce aynı içerikle gelmiş ek kalıpları hemen mükerrer işaretleniyor. İndirme döngüsü mükerrer aramak için beklemiyor. Eskiden her mükerrerde 247 bin satırlık tablo yeniden taranıyordu ve her indirme partisinden önce on binlerce yol Drive diskinde tek tek yoklanıyordu (artık en çok 6 saatte bir).
 
 ---
 
@@ -239,21 +263,21 @@ Ayrıntılı mimari: [`docs/BIRLESIK_MIMARI.md`](docs/BIRLESIK_MIMARI.md) · Han
 | **Bağlantı & Rolling Log** | Sistem sağlık paneli, kesintisiz Google Drive sync göstergesi, 2MB rotasyonlu otomatik loglama ve tek tıkla Log ZIP indirme |
 | **Android Başlatıcı & USF** | Ana ekrandan tek tıkla Hukuk Asistanı'nı açan buton, sistemde `.udf` ve `.usf` varsayılan açıcı ilişkilendirmesi |
 
-## 🚀 Hızlı İndirme (v4.9.2)
+## 🚀 Hızlı İndirme (v4.9.3)
 
 Kurulum paketleri **her şeyi içinde taşır**: Python, Java, görünmez Chrome ve sürücüsüz e-imza altyapısı. Ayrıca bir şey kurmanız gerekmez.
 
 | Platform | Paket Dosyası | Açıklama |
 | :--- | :--- | :--- |
-| **Windows 10 / 11 (64-bit)** | [**CanEditor_4.9.2_x64-setup.exe**](https://github.com/cnkzlyr/udemobile/releases/download/v4.9.2/CanEditor_4.9.2_x64-setup.exe) · [MSI](https://github.com/cnkzlyr/udemobile/releases/download/v4.9.2/CanEditor_4.9.2_x64_en-US.msi) | Standart kurulum (NSIS) · kurumsal MSI |
-| **macOS (Apple Silicon & Intel)** | [**CanEditor_4.9.2_universal.dmg**](https://github.com/cnkzlyr/udemobile/releases/download/v4.9.2/CanEditor_4.9.2_universal.dmg) | Universal (M1/M2/M3/M4 + Intel) — Applications'a sürükleyin |
-| **Linux Debian / Ubuntu / Pardus** | [**CanEditor_4.9.2_amd64.deb**](https://github.com/cnkzlyr/udemobile/releases/download/v4.9.2/CanEditor_4.9.2_amd64.deb) | `sudo apt install ./CanEditor_4.9.2_amd64.deb` (e-imza kart hizmeti otomatik kurulur) |
-| **Linux Fedora / RHEL / openSUSE** | [**CanEditor-4.9.2-1.x86_64.rpm**](https://github.com/cnkzlyr/udemobile/releases/download/v4.9.2/CanEditor-4.9.2-1.x86_64.rpm) | `sudo dnf install ./CanEditor-4.9.2-1.x86_64.rpm` |
-| **Linux (tüm dağıtımlar)** | [**CanEditor_4.9.2_amd64.AppImage**](https://github.com/cnkzlyr/udemobile/releases/download/v4.9.2/CanEditor_4.9.2_amd64.AppImage) | `chmod +x` ile çalıştırın (e-imza için bir kez `sudo apt install pcscd libccid`) |
-| **Android (Telefon & Tablet)** | [**CanEditor-v4.9.2.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v4.9.2/CanEditor-v4.9.2.apk) · [en son](https://github.com/cnkzlyr/udemobile/releases/download/v4.9.2/CanEditor-latest.apk) | Tek uygulama · Termux gerektirmez; gömülü Python asistan APK içinde |
-| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v4.9.2.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v4.9.2/CanEditor-Portable-Web-GUI-v4.9.2.zip) | **Kurulumsuz;** `index.html` ile her sistemde çalışır |
+| **Windows 10 / 11 (64-bit)** | [**CanEditor_4.9.3_x64-setup.exe**](https://github.com/cnkzlyr/udemobile/releases/download/v4.9.3/CanEditor_4.9.3_x64-setup.exe) · [MSI](https://github.com/cnkzlyr/udemobile/releases/download/v4.9.3/CanEditor_4.9.3_x64_en-US.msi) | Standart kurulum (NSIS) · kurumsal MSI |
+| **macOS (Apple Silicon & Intel)** | [**CanEditor_4.9.3_universal.dmg**](https://github.com/cnkzlyr/udemobile/releases/download/v4.9.3/CanEditor_4.9.3_universal.dmg) | Universal (M1/M2/M3/M4 + Intel) — Applications'a sürükleyin |
+| **Linux Debian / Ubuntu / Pardus** | [**CanEditor_4.9.3_amd64.deb**](https://github.com/cnkzlyr/udemobile/releases/download/v4.9.3/CanEditor_4.9.3_amd64.deb) | `sudo apt install ./CanEditor_4.9.3_amd64.deb` (e-imza kart hizmeti otomatik kurulur) |
+| **Linux Fedora / RHEL / openSUSE** | [**CanEditor-4.9.3-1.x86_64.rpm**](https://github.com/cnkzlyr/udemobile/releases/download/v4.9.3/CanEditor-4.9.3-1.x86_64.rpm) | `sudo dnf install ./CanEditor-4.9.3-1.x86_64.rpm` |
+| **Linux (tüm dağıtımlar)** | [**CanEditor_4.9.3_amd64.AppImage**](https://github.com/cnkzlyr/udemobile/releases/download/v4.9.3/CanEditor_4.9.3_amd64.AppImage) | `chmod +x` ile çalıştırın (e-imza için bir kez `sudo apt install pcscd libccid`) |
+| **Android (Telefon & Tablet)** | [**CanEditor-v4.9.3.apk**](https://github.com/cnkzlyr/udemobile/releases/download/v4.9.3/CanEditor-v4.9.3.apk) · [en son](https://github.com/cnkzlyr/udemobile/releases/download/v4.9.3/CanEditor-latest.apk) | Tek uygulama · Termux gerektirmez; gömülü Python asistan APK içinde |
+| **Taşınabilir Web & Masaüstü** | [**CanEditor-Portable-Web-GUI-v4.9.3.zip**](https://github.com/cnkzlyr/udemobile/releases/download/v4.9.3/CanEditor-Portable-Web-GUI-v4.9.3.zip) | **Kurulumsuz;** `index.html` ile her sistemde çalışır |
 
-Tüm dosyalar ve sürümler: [GitHub Releases — v4.9.2](https://github.com/cnkzlyr/udemobile/releases/tag/v4.9.2) · [Tüm Sürümler](https://github.com/cnkzlyr/udemobile/releases)
+Tüm dosyalar ve sürümler: [GitHub Releases — v4.9.3](https://github.com/cnkzlyr/udemobile/releases/tag/v4.9.3) · [Tüm Sürümler](https://github.com/cnkzlyr/udemobile/releases)
 
 ---
 

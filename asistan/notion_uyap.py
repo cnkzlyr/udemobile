@@ -464,8 +464,13 @@ def main() -> int:
     except RuntimeError as e:
         print(f"[!] {e}", flush=True)
         return 2
+    except Exception as e:  # noqa: BLE001 — v4.9.3: ham Traceback yerine anlaşılır tek satır (paketli sürümde
+        # "Failed to execute script 'sunucu'" dışında hiçbir şey görünmüyordu)
+        print(f"[x] Notion eşitleme hatası: {type(e).__name__}: {e}", flush=True)
+        return 1
     print("@@SONUC@@" + json.dumps(r, ensure_ascii=False), flush=True)
-    return 0 if not r.get("engel") else 1
+    # Güvenlik durdurması (engel) bir HATA değildir: 🛑 satırı arayüzde uyarı olarak görünür, görev "Hata" sayılmaz
+    return 0
 
 
 if __name__ == "__main__":

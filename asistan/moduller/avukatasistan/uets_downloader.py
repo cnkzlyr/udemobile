@@ -745,10 +745,13 @@ def login_and_download(headless=False, count=None, auto_sync=True, external_driv
         print("   🧹 Mevcut eski CSV dosyaları temizleniyor...")
         for d in CONFIG["DOWNLOAD_DIRS"]:
             if os.path.exists(d):
-                for old_csv in glob.glob(os.path.join(d, "*tebligat*.csv")) + glob.glob(os.path.join(d, "*Tebligat*.csv")):
+                # v4.9.3: büyük/küçük harf duyarsız Windows aynı dosyayı iki kez buluyordu ("Silinemedi ... WinError 2")
+                for old_csv in sorted({os.path.normcase(x): x for x in glob.glob(os.path.join(d, "*tebligat*.csv")) + glob.glob(os.path.join(d, "*Tebligat*.csv"))}.values()):
                     try:
                         os.remove(old_csv)
                         print(f"      🗑️ Eski CSV silindi: {os.path.basename(old_csv)}")
+                    except FileNotFoundError:
+                        pass
                     except Exception as e:
                         print(f"      ⚠️ Silinemedi: {old_csv} ({e})")
 

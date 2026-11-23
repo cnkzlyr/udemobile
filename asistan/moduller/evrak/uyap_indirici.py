@@ -3304,6 +3304,18 @@ class UyapDownloaderApp:
             parts = [f"evrak_{tokens['is_emir_no'] or tokens['evrak_id']}"]
 
         ident = tokens["is_emir_no"] or tokens["evrak_id"]
+        # v4.9.3: Windows MAX_PATH (260) — AppData altındaki kökle birlikte "Avukat Evrak Kaydi (İstinaf Ba..."
+        # gibi uzun klasör adları sınırı aşıyor, "[Errno 2] No such file or directory" ile İşlemlerim çöküyordu.
+        # EN: shrink folder parts and file stem until the absolute path fits in 240 chars (unique ident kept).
+        sinir = 240
+        def _tam(pp):
+            return len(str(base_dir.joinpath(*pp[:-1]))) + 1 + len(f"{pp[-1]}_{ident}{ext}")
+        uzunluk = 60
+        while _tam(parts) > sinir and uzunluk >= 12:
+            parts = [x[:uzunluk].rstrip(". _") or "Klasor" for x in parts]
+            uzunluk -= 8
+        if _tam(parts) > sinir:
+            parts = parts[:1] + [parts[-1][:40]]
         filename_stem = f"{parts[-1]}_{ident}"
         folder_path = base_dir.joinpath(*parts[:-1])
         folder_path.mkdir(parents=True, exist_ok=True)
@@ -4707,7 +4719,12 @@ def run_cli_mode(args):
     # 2. Tarayıcı + UYAP oturumu (Mobil İmza / e-İmza / elle giriş) - tek yerden
     bridge, user = cli_ensure_session(args)
     if not user:
+        print("[x] UYAP oturumu açılamadı.")
         return 1
+    if getattr(args, "mode", "") == "login":
+        ad = f"{user.get('adi', '')} {user.get('soyadi', '')}".strip() or "Avukat"
+        print(f"✅ UYAP oturumu doğrulandı: Sayın {ad}")
+        return 0
     tckn = _tckn_of(user)
     pin = args.pin or DEFAULT_E_IMZA_PIN
     auto_relogin = not args.no_auto_relogin
@@ -5122,7 +5139,9 @@ def main():
     parser.add_argument("--gsm", type=str, default="", help="Mobil İmza için GSM Numarası (başında sıfır olmadan 10 hane)")
     parser.add_argument("--operator", type=str, default="", choices=["", "turktelekom", "turkcell", "vodafone", "1", "2", "3"], help="Mobil İmza operatörü (turktelekom, turkcell, vodafone)")
     parser.add_argument("--mobil-imza", action="store_true", help="Oturum yoksa doğrudan Mobil İmza akışını başlat")
-    parser.add_argument("--mode", type=str, default="islemlerim", choices=["islemlerim", "dosyalar", "durusmalar"], help="Çalışma modu: islemlerim, dosyalar (dava dosyası evrakları), durusmalar (duruşma takvimi)")
+    # v4.9.3: "login" modu eklendi — Görevler'deki "UYAP oturum aç (e-imza)" bu modu çağırıyordu ama argparse
+    # tanımıyordu ("invalid choice: 'login'", kod 2). Yalnızca oturumu açar/doğrular ve çıkar, indirme yapmaz.
+    parser.add_argument("--mode", type=str, default="islemlerim", choices=["islemlerim", "dosyalar", "durusmalar", "login"], help="Çalışma modu: islemlerim, dosyalar (dava dosyası evrakları), durusmalar (duruşma takvimi), login (yalnız oturum aç)")
     parser.add_argument("--evrak-turu", type=str, default="", help="Dava dosyalarından indirilecek evrak türü (durusma, bilirkisi, karar, tensip, dilekce, iddianame, kesinlesme, tumu veya serbest metin)")
     parser.add_argument("--include-attachments", action="store_true", help="Evrakların ek belgelerini de indir")
     parser.add_argument("--scope", type=str, default="all", choices=["all", "acik", "fav"], help="Taranacak dosya kapsamı: all (Açık + Kapalı - 700+ Dosya), acik (Yalnızca Açık), fav (Sık Kullanılanlar)")

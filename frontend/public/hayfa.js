@@ -475,9 +475,12 @@ function doGet(e) {
           <option value="birim">Mahkeme / Birim Adı</option>
         </select></div>
       </div>
+      <div id="hf-dosya-muv"></div>
       <div id="hf-dosya-govde" style="margin-top:12px"><p class="ca-soluk">Yükleniyor…</p></div>`;
 
     const qIn = ic.querySelector('#hf-dosya-q');
+    // v4.9.3: ortak müvekkil seçici (benzer yazılmış adları birlikte seçmeyi önerir)
+    const MUV = window.CanMuvekkil;
     const dSel = ic.querySelector('#hf-dosya-durum');
     const turSel = ic.querySelector('#hf-dosya-tur');
     const siraSel = ic.querySelector('#hf-dosya-sira');
@@ -634,7 +637,7 @@ function doGet(e) {
       }
       govde.innerHTML = '<p class="ca-soluk">Dosyalar yükleniyor…</p>';
       try {
-        const v = await api(`/api/dosyalar?limit=250&q=${encodeURIComponent(qIn.value.trim())}&durum=${encodeURIComponent(dSel.value)}`);
+        const v = await api(`/api/dosyalar?limit=${MUV && MUV.secim().length ? 500 : 250}&q=${encodeURIComponent(qIn.value.trim())}&durum=${encodeURIComponent(dSel.value)}${MUV ? MUV.param() : ''}`);
         if (!v.hazir) { govde.innerHTML = `<div class="ca-kart">${esc(v.mesaj)}</div>`; return; }
 
         let dosyalar = (v.dosyalar || []).filter(d => {
@@ -778,7 +781,8 @@ function doGet(e) {
         const v = await api(`/api/dosya/hesaplar?q=${encodeURIComponent(qIn.value.trim())}&dosya_tur=${encodeURIComponent(turSel.value)}&durum=${encodeURIComponent(dSel.value)}`);
         if (!v.hazir) { govde.innerHTML = `<div class="ca-kart">${esc(v.mesaj || 'Katalog hazır değil.')}</div>`; return; }
         const st = v.istatistik || {};
-        const hs = v.hesaplar || [];
+        const msuz = MUV && MUV.suzgec();
+        const hs = (v.hesaplar || []).filter(h => !msuz || msuz(h));
         const icra = hs.filter(h => h.is_icra);
         const dava = hs.filter(h => !h.is_icra);
         const satirIcra = h => `<tr data-dkey="${esc(h.dkey)}" style="cursor:pointer">
@@ -843,6 +847,7 @@ function doGet(e) {
     }
 
     qIn.addEventListener('input', () => { clearTimeout(zam); zam = setTimeout(listele, 320); });
+    if (MUV) { MUV.secici(ic.querySelector('#hf-dosya-muv'), () => listele()); MUV.yukle().then(() => { if (MUV.secim().length && dosyaGorunumModu === 'hesaplar') listele(); }).catch(() => {}); }
     dSel.onchange = listele;
     turSel.onchange = listele;
     siraSel.onchange = listele;
@@ -876,29 +881,38 @@ function doGet(e) {
       const tarih = t => t ? esc(String(t).replace('T', ' ').slice(0, 16)) : '—';
       const durum = !v.yapilandirildi ? '⚪ Yapılandırılmadı' : (v.mod === 'webhook' ? '🟢 Bulut Webhook' : (v.dizin_var ? (v.yazilabilir ? '🟢 Bağlı ve Yazılabilir' : '🟠 Salt Okunur') : '🔴 Klasör Erişilemiyor'));
 
+      // v4.9.3 SADELEŞTİRME: "Çok basit bir Drive senkronu" — tek durum satırı, tek düğme. Senkron açıkken TÜM UYAP
+      // evrakı kendiliğinden Drive'a gider; mükerrerler evrak listesi okunurken ayıklanır (indirme beklemez).
+      // Ayrıntı tablosu, indeksleme, kopya temizliği ve ayarlar "Gelişmiş" altında katlı durur.
+      const drivede = v.yukleme ? v.yukleme.drivede : (k.indirilen != null && k.driveda_olmayan != null ? k.indirilen - k.driveda_olmayan : null);
+      const bekleyen = (k.indirilmeyi_bekleyen || 0) + (k.driveda_olmayan || 0);
       ic.innerHTML = `
         <div class="ca-kart">
           <div class="ca-hedef" style="font-size:18px">${durum}</div>
-          <table>
-            <tr><th>Klasör / Mod</th><td><code>${esc(v.dizin || a.google_drive_webhook || '—')}</code></td></tr>
-            ${kl ? `<tr><th>Disk Özeti</th><td>${kl.dosya.toLocaleString('tr-TR')}${kl.tam_sayim ? '' : '+'} dosya · ${kl.boyut_mb.toLocaleString('tr-TR')} MB · son: ${tarih(kl.son_degisiklik)}</td></tr>` : ''}
-            <tr><th>Drive Veritabanı İndeksi</th><td>${idx.hazir ? `<b>${idx.toplam.toLocaleString('tr-TR')}</b> dosya (${idx.boyut_mb.toLocaleString('tr-TR')} MB) · son indeks: ${tarih(idx.son_indeks)}` : 'Henüz indekslenmedi'}</td></tr>
-            <tr><th>Katalog Yedeği</th><td>${v.yedek ? tarih(v.yedek.zaman) + ' · ' + v.yedek.boyut_mb + ' MB' : '—'}</td></tr>
-            ${k.indirilen !== undefined ? `<tr><th>UYAP Kataloğu</th><td>${k.indirilen.toLocaleString('tr-TR')} indirildi · ${k.indirilmeyi_bekleyen.toLocaleString('tr-TR')} bekliyor${k.driveda_olmayan != null ? ` · <b>${k.driveda_olmayan.toLocaleString('tr-TR')}</b> Drive'a aktarılacak` : ''}</td></tr>` : ''}
-            ${v.mod === 'webhook' && v.yukleme ? `<tr><th>Drive'a Yüklenen</th><td><b>${v.yukleme.drivede.toLocaleString('tr-TR')}</b> / ${v.yukleme.indirilen.toLocaleString('tr-TR')} evrak${v.yukleme.indirilen > v.yukleme.drivede ? ` · <b>${(v.yukleme.indirilen - v.yukleme.drivede).toLocaleString('tr-TR')}</b> yüklenecek` : ' ✓ tamamı Drive\'da'}${v.yukleme.son_yukleme ? ' · son: ' + tarih(v.yukleme.son_yukleme) : ''}</td></tr>` : ''}
-            <tr><th>Nöbetçi Son Tur</th><td>${n ? `${tarih(n.son_tur)} (${n.dakika_once} dk önce) ${n.gecikti ? '🔴' : '🟢'}` : '—'}</td></tr>
-          </table>
+          <p style="margin:6px 0;font-size:14px">${drivede != null ? `<b>${drivede.toLocaleString('tr-TR')}</b> evrak Drive'da` : ''}${bekleyen ? ` · <b>${bekleyen.toLocaleString('tr-TR')}</b> sırada` : (drivede != null ? ' · ✓ hepsi eşit' : '')}${n ? ` · son tur ${n.dakika_once} dk önce ${n.gecikti ? '🔴' : '🟢'}` : ''}</p>
+          <p class="ca-soluk" style="margin:0 0 8px">Senkron açıkken bütün UYAP evrakı kendiliğinden Drive'a aktarılır. Mükerrerler evrak listesi okunurken ayıklanır; indirme hiç bekletilmez. Başka ayar gerekmez.</p>
           ${(v.uyarilar || []).map(u => `<div class="ca-uyari">⚠️ ${esc(u)}</div>`).join('')}
           <div style="margin-top:8px">
-            <button class="ca-btn ana" type="button" id="hf-drv-esitle">☁️ Eksikleri Drive'a Eşitle</button>
-            <button class="ca-btn altin" type="button" id="hf-drv-indeks">🗄️ Drive'ı Veritabanına İndeksle</button>
+            <button class="ca-btn ana" type="button" id="hf-drv-esitle">☁️ Şimdi eşitle</button>
             <button class="ca-btn" type="button" id="hf-drv-yenile">↻ Yenile</button>
-            ${v.mod === 'webhook' ? '<button class="ca-btn" type="button" id="hf-drv-kopya" title="UYAP_Arsiv içinde aynı ad ve boyuttaki kopyaları çöp kutusuna taşır (30 gün geri alınabilir)">🧹 Drive\'daki kopyaları temizle</button>' : ''}
           </div>
           <div id="hf-drv-ilerleme" style="display:none;margin-top:10px">
             <div style="height:10px;border-radius:6px;background:rgba(100,116,139,.18);overflow:hidden"><div id="hf-drv-bar" style="height:100%;width:0;background:var(--hf-gold,#c8a45a);transition:width .4s"></div></div>
           </div>
           <div id="hf-drv-islem" class="ca-soluk" style="margin-top:6px"></div>
+          <details style="margin-top:10px"><summary class="ca-soluk" style="cursor:pointer">Ayrıntılar ve bakım</summary>
+          <table style="margin-top:6px">
+            <tr><th>Klasör / Mod</th><td><code>${esc(v.dizin || a.google_drive_webhook || '—')}</code></td></tr>
+            ${kl ? `<tr><th>Disk Özeti</th><td>${kl.dosya.toLocaleString('tr-TR')}${kl.tam_sayim ? '' : '+'} dosya · ${kl.boyut_mb.toLocaleString('tr-TR')} MB · son: ${tarih(kl.son_degisiklik)}</td></tr>` : ''}
+            <tr><th>Drive Veritabanı İndeksi</th><td>${idx.hazir ? `<b>${idx.toplam.toLocaleString('tr-TR')}</b> dosya (${idx.boyut_mb.toLocaleString('tr-TR')} MB) · son indeks: ${tarih(idx.son_indeks)}` : 'Henüz indekslenmedi'}</td></tr>
+            <tr><th>Katalog Yedeği</th><td>${v.yedek ? tarih(v.yedek.zaman) + ' · ' + v.yedek.boyut_mb + ' MB' : '—'}</td></tr>
+            ${k.indirilen !== undefined ? `<tr><th>UYAP Kataloğu</th><td>${k.indirilen.toLocaleString('tr-TR')} indirildi · ${k.indirilmeyi_bekleyen.toLocaleString('tr-TR')} bekliyor${k.driveda_olmayan != null ? ` · <b>${k.driveda_olmayan.toLocaleString('tr-TR')}</b> Drive'a aktarılacak` : ''}</td></tr>` : ''}
+            <tr><th>Nöbetçi Son Tur</th><td>${n ? `${tarih(n.son_tur)} (${n.dakika_once} dk önce) ${n.gecikti ? '🔴' : '🟢'}` : '—'}</td></tr>
+          </table>
+          <div style="margin-top:8px">
+            <button class="ca-btn" type="button" id="hf-drv-indeks">🗄️ Drive'ı yeniden indeksle</button>
+            ${v.mod === 'webhook' ? '<button class="ca-btn" type="button" id="hf-drv-kopya" title="UYAP_Arsiv içinde aynı ad ve boyuttaki kopyaları çöp kutusuna taşır (30 gün geri alınabilir)">🧹 Drive\'daki kopyaları temizle</button>' : ''}
+          </div></details>
         </div>
 
         <div class="ca-kart">
@@ -911,7 +925,7 @@ function doGet(e) {
         </div>
 
         <details class="ca-kart" id="hf-cfg-detay">
-          <summary style="cursor:pointer;font-weight:600">⚙️ Google Drive &amp; Telegram Ayarları</summary>
+          <summary style="cursor:pointer;font-weight:600">⚙️ Gelişmiş: Drive klasörü / webhook ve Telegram (yalnız ilk kurulumda)</summary>
           <div class="ca-satir" style="margin-top:8px">
             <div>
               <label>Yerel Google Drive Klasörü</label>
@@ -940,7 +954,6 @@ function doGet(e) {
             <button class="ca-btn altin" type="button" id="hf-cfg-kopyala-gs">📋 Google Apps Script Kodunu Kopyala</button>
           </div>
           <div id="hf-cfg-bildirim" class="ca-soluk" style="margin-top:6px"></div>
-          <label style="display:flex;gap:8px;align-items:center;color:inherit;font-size:13px;margin-top:10px"><input type="checkbox" id="hf-cfg-auto" style="width:auto"${a.drive_auto_index !== false ? ' checked' : ''}> Her nöbetçi turunda Drive veritabanını otomatik güncelle</label>
         </details>
 
         <details class="ca-kart" style="background:var(--hf-gold-soft,#f5ecd9);border:1px solid var(--hf-gold,#c8a45a)">
@@ -1120,7 +1133,7 @@ function doGet(e) {
           google_drive_dir: dirVal,
           google_drive_webhook: whVal,
           telegram_chat_id: ic.querySelector('#hf-cfg-chat').value.trim(),
-          drive_auto_index: ic.querySelector('#hf-cfg-auto').checked
+          drive_auto_index: true   // v4.9.3: seçenek kaldırıldı, indeks her zaman kendiliğinden güncellenir
         };
         const tg = ic.querySelector('#hf-cfg-tg').value.trim();
         if (tg) g.telegram_token = tg;
@@ -1285,8 +1298,7 @@ function doGet(e) {
             el.querySelector('.hf-d-r').innerHTML = g.calisiyor ? '<span class="hf-etiket acik">● Çalışıyor</span>' : g.kod === 0 ? '<span class="hf-etiket">✓ Tamam</span>' : g.kod ? `<span class="hf-etiket kapali">Hata (${g.kod})</span>` : '';
             const b = el.querySelector('[data-calistir]'); b.disabled = !!g.calisiyor;
             const satirlar = (g.gunluk || []).filter(x => !x.includes('@@SONUC@@'));
-            const pre = el.querySelector('pre'); const altta = pre.scrollHeight - pre.scrollTop - pre.clientHeight < 24; const ust = pre.scrollTop;
-            const m = satirlar.join('\n'); if (pre.textContent !== m) { pre.textContent = m || 'Henüz çalışmadı.'; pre.scrollTop = altta ? pre.scrollHeight : ust; }
+            if (window.CanGunluk) window.CanGunluk(el.querySelector('pre'), satirlar, 'Henüz çalışmadı.');
             const sx = (g.gunluk || []).filter(x => x.includes('@@SONUC@@')).slice(-1)[0];
             if (sx) { try { el.querySelector('.hf-d-sonuc').innerHTML = sonucMetin(g.kimlik, JSON.parse(sx.split('@@SONUC@@')[1])); } catch (e) { /* */ } }
           }

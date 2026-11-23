@@ -310,7 +310,30 @@
   #ca-panel table{width:100%;border-collapse:collapse;font-size:13px}
   #ca-panel td,#ca-panel th{text-align:left;padding:6px 8px;border-bottom:1px solid var(--ce-border,#eef0f3);vertical-align:top}
   #ca-panel .ca-soluk{color:var(--ce-muted,#6b7280);font-size:12px}
-  #ca-panel pre{background:var(--ce-bg,#f6f7f9);padding:8px;border-radius:8px;max-height:220px;overflow:auto;font-size:12px;white-space:pre-wrap}
+  #ca-panel pre{background:var(--ce-bg,#f6f7f9);color:var(--ce-text,#1f2937);padding:8px;border-radius:8px;max-height:220px;overflow:auto;font-size:12px;white-space:pre-wrap}
+  /* v4.9.3 günlük kutuları: "#ca-panel pre" (ID seçicisi) ".gv-log pre"yi eziyor, açık gri zemine açık gri yazı
+     düşüyordu — yazı ancak seçince görünüyordu. Günlükler artık tek sınıfla, yüksek karşıtlıkla çizilir. */
+  #ca-panel pre.ca-gunluk,#ca-panel .gv-log pre,#ca-panel pre.hf-d-log{background:#0f172a!important;color:#e5e7eb!important;font:12px/1.5 ui-monospace,Consolas,monospace;user-select:text;-webkit-user-select:text;overscroll-behavior:contain}
+  #ca-panel .ca-muv{position:relative;border:1px solid var(--ce-border,#e2e6ec);border-radius:10px;padding:6px 8px;margin:8px 0;background:var(--ce-surface,#fff)}
+  #ca-panel .ca-muv-ust{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+  #ca-panel .ca-muv-et{font-size:12.5px;font-weight:600;color:var(--ce-muted,#64748b)}
+  #ca-panel .ca-muv-q{flex:1 1 200px;min-width:160px;border:0!important;outline:0;background:transparent!important;padding:4px!important;margin:0!important}
+  #ca-panel .ca-muv-cip{display:inline-flex;align-items:center;gap:4px;background:#e0e7ff;color:#1e3a8a;border-radius:999px;padding:2px 4px 2px 10px;font-size:12.5px;border:0}
+  #ca-panel .ca-muv-cip button{border:0;background:transparent;cursor:pointer;font-size:15px;line-height:1;color:inherit;padding:0 4px}
+  #ca-panel .ca-muv-cip.oneri{background:#fef3c7;color:#78350f;padding:3px 10px;cursor:pointer;margin:2px}
+  #ca-panel .ca-muv-temizle{border:0;background:transparent;color:#b91c1c;cursor:pointer;font-size:12px}
+  #ca-panel .ca-muv-liste{position:absolute;left:0;right:0;top:100%;z-index:30;max-height:300px;overflow:auto;background:var(--ce-surface,#fff);border:1px solid var(--ce-border,#d0d5dd);border-radius:10px;box-shadow:0 10px 24px rgba(0,0,0,.15);padding:4px}
+  #ca-panel .ca-muv-satir{display:flex;justify-content:space-between;gap:8px;padding:6px 8px;border-radius:6px;cursor:pointer;font-size:13px}
+  #ca-panel .ca-muv-satir:hover{background:var(--ce-bg,#f1f5f9)}
+  #ca-panel .ca-muv-benzer{margin-top:6px;font-size:12.5px;background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;padding:6px 8px;color:#78350f}
+  body.ce-dark-mode #ca-panel .ca-muv-benzer{background:#3a2a07;color:#f5d48a}
+  #ca-panel .ca-filtre-cipler{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+  #ca-panel .ca-filtre-cipler button{border:1px solid var(--ce-border,#d0d5dd);background:var(--ce-surface,#fff);color:inherit;border-radius:999px;padding:4px 10px;font-size:12.5px;cursor:pointer}
+  #ca-panel .ca-filtre-cipler button.secili{background:#0f2341;color:#fff;border-color:#0f2341}
+  /* v4.9.3: koyu toplu işlem çubuğunda düğmeler beyaz zemine beyaz yazı olup boş kutu gibi görünüyordu */
+  #ca-panel .hf-toplu-bar .ca-btn:not(.ana):not(.altin){color:#0f172a;background:#fff}
+  body.ce-dark-mode #ca-panel .hf-toplu-bar .ca-btn:not(.ana):not(.altin){color:#e5e7eb;background:#1e293b}
+  #ca-panel .ca-gunluk-not{font-size:11.5px;color:#b45309;margin:2px 0 0;cursor:pointer}
   @media (max-width:720px){
     #ca-panel .ca-kutu{width:100vw!important;max-height:100dvh!important;height:100dvh!important;border-radius:0!important;display:flex!important;flex-direction:column!important;overflow:hidden!important}
     #ca-panel header{flex-shrink:0!important;min-height:48px!important;height:48px!important}
@@ -325,6 +348,127 @@
     if (stilVar || !document.head) return;
     const st = document.createElement('style'); st.textContent = CSS; document.head.appendChild(st); stilVar = true;
   }
+  // v4.9.3 Günlük kutusu güncelleyici (tek yer): metin YERİNDE güncellenir, sayfa yeniden çizilmez.
+  //  • En alttaysanız yeni satırları izler.
+  //  • Yukarı kaydırdıysanız ya da metin seçtiyseniz kutu DONAR (satırlar kaymaz, seçim bozulmaz);
+  //    altında "⏸ duraklatıldı — en alta inmek için tıklayın" yazar. En alta inince yeniden canlanır.
+  function gunlukYaz(pre, satirlar, bos) {
+    if (!pre) return;
+    const metin = (Array.isArray(satirlar) ? satirlar.join('\n') : String(satirlar || '')) || (bos || '');
+    pre.classList.add('ca-gunluk');
+    let not = pre.nextElementSibling && pre.nextElementSibling.classList.contains('ca-gunluk-not') ? pre.nextElementSibling : null;
+    const sec = window.getSelection && window.getSelection();
+    const secimVar = sec && !sec.isCollapsed && sec.anchorNode && pre.contains(sec.anchorNode);
+    const altta = pre.scrollHeight - pre.scrollTop - pre.clientHeight < 30 || pre.clientHeight === 0;
+    if (pre.textContent === metin) { if (not && altta && !secimVar) not.remove(); return; }
+    if (!pre.textContent || (altta && !secimVar)) {
+      pre.textContent = metin; pre.scrollTop = pre.scrollHeight;
+      if (not) not.remove();
+      return;
+    }
+    if (!not) {
+      not = document.createElement('div'); not.className = 'ca-gunluk-not';
+      not.textContent = '⏸ Günlük okumanız için duraklatıldı — yeni satırlar için en alta inin ya da buraya tıklayın.';
+      not.onclick = () => { if (window.getSelection) window.getSelection().removeAllRanges(); pre.scrollTop = pre.scrollHeight; gunlukYaz(pre, satirlar, bos); };
+      pre.after(not);
+    }
+  }
+  window.CanGunluk = gunlukYaz;
+
+  // ===================================================================================================
+  // v4.9.3 MÜVEKKİL SEÇİCİ — her sekmede aynı, ortak seçim (bir sekmede seçince hepsinde geçerli).
+  // Aynı müvekkil UYAP'ta farklı yazılmış olabilir ("ABC İNŞ. LTD. ŞTİ." / "ABC INSAAT LIMITED SIRKETI",
+  // "AHMET SUNGUR (Sanık)"): sunucu benzer adları gruplar, seçici "benzer yazılmış N ad daha — birlikte seç" önerir.
+  // ===================================================================================================
+  const MUV_DEPO = 'ca-muvekkil-secim';
+  let muvSecim = (() => { try { const v = JSON.parse(localStorage.getItem(MUV_DEPO) || '[]'); return Array.isArray(v) ? v : []; } catch (e) { return []; } })();
+  let muvVeri = null, muvSoz = null;
+  const katla = s => String(s || '').replace(/İ/g, 'i').replace(/I/g, 'ı').toLocaleLowerCase('tr')
+    .replace(/ı/g, 'i').replace(/ş/g, 's').replace(/ğ/g, 'g').replace(/ü/g, 'u').replace(/ö/g, 'o').replace(/ç/g, 'c').replace(/[âàá]/g, 'a').replace(/[îí]/g, 'i').replace(/[ûú]/g, 'u')
+    .replace(/[^a-z0-9/]+/g, ' ').trim();
+  function muvYukle(tazele) {
+    if (muvVeri && !tazele) return Promise.resolve(muvVeri);
+    if (!muvSoz || tazele) muvSoz = api('/api/muvekkiller').then(v => { muvVeri = v; return v; }).catch(e => { muvSoz = null; throw e; });
+    return muvSoz;
+  }
+  function muvSecimYaz(l) {
+    muvSecim = [...new Set(l)];
+    try { localStorage.setItem(MUV_DEPO, JSON.stringify(muvSecim)); } catch (e) { /* özel pencere */ }
+    document.dispatchEvent(new CustomEvent('ca-muvekkil', { detail: muvSecim }));
+  }
+  const muvParam = () => muvSecim.length ? '&muvekkil=' + encodeURIComponent(muvSecim.join('|')) : '';
+  // İstemci tarafı süzgeç: seçili müvekkillerin dosyaları (dkey ya da "mahkeme|esas")
+  function muvSuzgec() {
+    if (!muvSecim.length || !muvVeri) return null;
+    const dk = new Set(), bn = new Set();
+    for (const m of muvVeri.muvekkiller || []) {
+      if (!muvSecim.includes(m.ad)) continue;
+      (m.dkeyler || []).forEach(x => dk.add(x));
+      (m.dosyalar || []).forEach(x => { const [b, n] = x.split('|'); bn.add(katla(b) + '|' + katla(n)); });
+    }
+    return r => {
+      if (r.dkey && dk.has(r.dkey)) return true;
+      const b = katla(r.birim || r.mahkeme || ''), n = katla(r.dosya_no || r.esas || '');
+      if (bn.has(b + '|' + n)) return true;
+      // mahkeme adı kısaltılmış olabilir: esas no aynı ve mahkeme adı birbirini içeriyorsa eşleşir
+      if (n) for (const k of bn) { const [kb, kn] = k.split('|'); if (kn === n && (kb.includes(b) || b.includes(kb))) return true; }
+      return false;
+    };
+  }
+  function muvekkilSecici(kap, degisti) {
+    if (!kap) return;
+    kap.classList.add('ca-muv');
+    kap.innerHTML = `<div class="ca-muv-ust"><span class="ca-muv-et">👤 Müvekkil</span><span class="ca-muv-cipler"></span>
+        <input class="ca-muv-q" placeholder="Müvekkil seçin (tümü için boş bırakın)…" autocomplete="off"></div>
+      <div class="ca-muv-liste" hidden></div><div class="ca-muv-benzer" hidden></div>`;
+    const cipler = kap.querySelector('.ca-muv-cipler'), q = kap.querySelector('.ca-muv-q'),
+      liste = kap.querySelector('.ca-muv-liste'), benzer = kap.querySelector('.ca-muv-benzer');
+    const bilgi = ad => (muvVeri && (muvVeri.muvekkiller || []).find(m => m.ad === ad)) || null;
+    const benzerGoster = ad => {
+      const m = bilgi(ad); const eksik = m ? (m.grup || []).filter(x => !muvSecim.includes(x)) : [];
+      if (!eksik.length) { benzer.hidden = true; return; }
+      benzer.hidden = false;
+      benzer.innerHTML = `💡 <b>${esc(ad)}</b> ile benzer yazılmış ${eksik.length} ad var, aynı müvekkil olabilir:
+        ${eksik.map(x => `<button type="button" class="ca-muv-cip oneri" data-ekle="${esc(x)}">+ ${esc(x)} <small>${(bilgi(x) || {}).dkeyler ? bilgi(x).dkeyler.length + ' dosya' : ''}</small></button>`).join('')}
+        <button type="button" class="ca-btn kucuk ana" data-hepsi="${esc(ad)}">Hepsini birlikte seç</button>
+        <button type="button" class="ca-btn kucuk" data-kapat>Hayır</button>`;
+    };
+    const cipCiz = () => {
+      cipler.innerHTML = muvSecim.map(a => `<span class="ca-muv-cip">${esc(a)} <button type="button" data-cikar="${esc(a)}" title="Kaldır">×</button></span>`).join('')
+        + (muvSecim.length > 1 ? '<button type="button" class="ca-muv-temizle" data-temizle>Temizle</button>' : '');
+      q.placeholder = muvSecim.length ? 'Başka müvekkil ekle…' : 'Müvekkil seçin (tümü için boş bırakın)…';
+    };
+    const listeCiz = () => {
+      const t = katla(q.value);
+      if (!muvVeri) { liste.hidden = false; liste.innerHTML = '<div class="ca-soluk">Müvekkiller yükleniyor…</div>'; return; }
+      const l = (muvVeri.muvekkiller || []).filter(m => !muvSecim.includes(m.ad) && (!t || katla(m.ad).includes(t))).slice(0, 40);
+      liste.hidden = false;
+      liste.innerHTML = l.length ? l.map(m => `<div class="ca-muv-satir" data-sec="${esc(m.ad)}"><span>${esc(m.ad)}</span>
+          <span class="ca-soluk">${m.dkeyler.length} dosya${m.grup && m.grup.length ? ` · ≈ ${m.grup.length} benzer yazım` : ''}</span></div>`).join('')
+        : `<div class="ca-soluk">${(muvVeri.muvekkiller || []).length ? 'Eşleşen müvekkil yok.' : 'Katalogda müvekkil bilgisi henüz yok (dosya tarafları Senkron ile alınır).'}</div>`;
+    };
+    const sec = ad => { muvSecimYaz([...muvSecim, ad]); q.value = ''; liste.hidden = true; benzerGoster(ad); };
+    q.addEventListener('focus', () => { muvYukle().then(listeCiz).catch(() => {}); listeCiz(); });
+    q.addEventListener('input', listeCiz);
+    q.addEventListener('keydown', e => { if (e.key === 'Escape') { liste.hidden = true; q.blur(); }
+      if (e.key === 'Enter') { const ilk = liste.querySelector('[data-sec]'); if (ilk) { e.preventDefault(); sec(ilk.dataset.sec); } } });
+    q.addEventListener('blur', () => setTimeout(() => { liste.hidden = true; }, 200));
+    kap.addEventListener('mousedown', e => { if (e.target.closest('[data-sec]')) e.preventDefault(); });
+    kap.addEventListener('click', e => {
+      const t = e.target.closest('[data-sec],[data-cikar],[data-ekle],[data-hepsi],[data-kapat],[data-temizle]'); if (!t) return;
+      if (t.dataset.sec) sec(t.dataset.sec);
+      else if (t.dataset.cikar) { muvSecimYaz(muvSecim.filter(x => x !== t.dataset.cikar)); benzer.hidden = true; }
+      else if (t.dataset.ekle) { muvSecimYaz([...muvSecim, t.dataset.ekle]); benzerGoster(muvSecim[0]); }
+      else if (t.dataset.hepsi) { const m = bilgi(t.dataset.hepsi); muvSecimYaz([...muvSecim, ...((m && m.grup) || [])]); benzer.hidden = true; }
+      else if (t.dataset.kapat !== undefined) benzer.hidden = true;
+      else if (t.dataset.temizle !== undefined) { muvSecimYaz([]); benzer.hidden = true; }
+    });
+    const dinle = () => { if (!document.body.contains(kap)) { document.removeEventListener('ca-muvekkil', dinle); return; } cipCiz(); if (degisti) degisti(muvSecim); };
+    document.addEventListener('ca-muvekkil', dinle);
+    cipCiz();
+    muvYukle().catch(() => {});
+  }
+  window.CanMuvekkil = { secici: muvekkilSecici, param: muvParam, suzgec: muvSuzgec, yukle: muvYukle, secim: () => muvSecim.slice() };
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
   // Sekmeler işlevine göre gruplanır (v4.3): masaüstünde solda gruplu kenar çubuğu, telefonda kaydırılabilir çipler.
@@ -737,8 +881,13 @@
         }
       });
       l.sort((a, b) => a.kalan - b.kalan);
+      // v4.9.3: seçili müvekkil filtresi burada da geçerli
+      await muvYukle().catch(() => {});
+      const ms = muvSuzgec();
+      if (ms) { const t = l.filter(ms); l.length = 0; l.push(...t); }
+      if (!kap.dataset.muvDinle) { kap.dataset.muvDinle = '1'; const dinle = () => { if (!document.body.contains(kap)) return document.removeEventListener('ca-muvekkil', dinle); dosyaSureleriCiz(kap); }; document.addEventListener('ca-muvekkil', dinle); }
       const renk = k => k < 0 ? ['#fee2e2', '#991b1b'] : k <= 3 ? ['#ffedd5', '#9a3412'] : k <= 10 ? ['#fef9c3', '#854d0e'] : ['#dcfce7', '#166534'];
-      kap.innerHTML = `<b>📌 Dosyalarımdaki işleyen süreler</b> <span class="ca-soluk">${l.length} kayıt · tebligatlar (60 gün) ve icra dosyaları</span>
+      kap.innerHTML = `<b>📌 Dosyalarımdaki işleyen süreler</b> <span class="ca-soluk">${l.length} kayıt · tebligatlar (60 gün) ve icra dosyaları${muvSecim.length ? ' · müvekkil: ' + esc(muvSecim.join(', ')) : ''}</span>
         ${l.length ? `<div style="max-height:380px;overflow:auto;margin-top:6px"><table>${l.slice(0, 300).map(x => { const r = renk(x.kalan); return `<tr>
           <td style="white-space:nowrap"><span style="background:${r[0]};color:${r[1]};padding:1px 8px;border-radius:999px;font-size:12px;font-weight:700">${x.kalan < 0 ? Math.abs(x.kalan) + ' gün geçti' : x.kalan === 0 ? 'BUGÜN' : x.kalan + ' gün'}</span><div class="ca-soluk">${esc((x.tarih || '').split('-').reverse().join('.'))}</div></td>
           <td><b>${esc(x.tur)}</b><div class="ca-soluk" style="font-size:12px">${esc((x.aciklama || '').slice(0, 220))}</div></td>
@@ -764,7 +913,7 @@
       </div>
       <datalist id="ca-merciler"><option value="Asliye Hukuk Mahkemesi"><option value="Asliye Ticaret Mahkemesi"><option value="İş Mahkemesi"><option value="Aile Mahkemesi"><option value="Tüketici Mahkemesi"><option value="Sulh Hukuk Mahkemesi"><option value="İcra Hukuk Mahkemesi"><option value="İcra Dairesi"><option value="Asliye Ceza Mahkemesi"><option value="Ağır Ceza Mahkemesi"><option value="Cumhuriyet Başsavcılığı Soruşturma Bürosu"><option value="İdare Mahkemesi"><option value="Vergi Mahkemesi"><option value="Bölge Adliye Mahkemesi Hukuk Dairesi"><option value="Yargıtay Hukuk Dairesi"></datalist>
       <div id="ca-sure-sonuc"></div>
-      <div class="ca-kart" id="ca-dosya-sureleri"><b>📌 Dosyalarımdaki işleyen süreler</b> <span class="ca-soluk">yükleniyor…</span></div>
+      <div id="ca-sure-muv"></div><div class="ca-kart" id="ca-dosya-sureleri"><b>📌 Dosyalarımdaki işleyen süreler</b> <span class="ca-soluk">yükleniyor…</span></div>
       <p class="ca-soluk">Kural: UETS'de tebliğ, gelişi izleyen 5. gün sayılır (Tebligat K. 7/a); süre tebliğden sonraki günden başlar, son gün hafta sonuna denk gelirse Pazartesi 17:00'ye uzar. Resmî/adli tatil tarihi ileri almaz, yalnızca uyarı olarak gösterilir. Bu bir yardımcı hesaptır; somut süreyi kanun metniyle doğrulayın.</p>`;
     const hesapla = () => {
       const v = ic.querySelector('#ca-gelis').value;
@@ -796,6 +945,7 @@
     ic.querySelectorAll('input,select').forEach(el => el.addEventListener('input', hesapla));
     hesapla();
     dosyaSureleriCiz(ic.querySelector('#ca-dosya-sureleri'));
+    muvekkilSecici(ic.querySelector('#ca-sure-muv'));
   }
 
   // --- A4 ---
@@ -892,14 +1042,27 @@
         <button class="ca-btn ana" type="button" id="ca-u-kaydet">💾 Kaydet ve bağlan</button>
         <button class="ca-btn" type="button" id="ca-u-simdi">🔄 Şimdi bağlan</button>
         <span id="ca-u-mesaj" class="ca-soluk"></span></div>`;
+    // v4.9.3: kart her 4 sn'de innerHTML ile YENİDEN ÇİZİLİYORDU → günlük başa zıplıyor, okunamıyordu; ayrıca
+    // sürekli senkron "çalışıyor" olduğu için oturum açıkken bile "Bağlanılıyor…" yazıyordu. Artık iskelet bir kez
+    // kurulur, yalnız metinler güncellenir; oturum durumu sunucunun kalıcı izlediği değerden okunur.
     const durumCiz = d => {
       const k = ic.querySelector('#ca-uyap-durum'); if (!k) return;
-      const rozet = d.oturum === true ? '🟢 UYAP oturumu açık' : d.calisiyor ? '⏳ Bağlanılıyor…' : d.oturum === false ? '🔴 Oturum açılamadı — yeniden denenecek' : d.etkin ? '⚪ Sıradaki kontrol bekleniyor' : /kapalı/.test(d.neden || '') ? '⚪ Bağlı tut kapalı' : '⚪ Giriş bilgisi girilmedi';
-      k.innerHTML = `<div class="ca-hedef" style="font-size:18px">${rozet}</div>
-        ${d.neden ? `<div class="ca-uyari">${esc(d.neden)}</div>` : ''}
-        ${d.son_hata ? `<div class="ca-uyari" style="border-color:#dc2626">⚠️ Son turda hata: ${esc(d.son_hata)}</div>` : ''}
-        <p class="ca-soluk">Son deneme: ${zamanYaz(d.son_baslangic)} · Sonraki: ${d.sonraki ? zamanYaz(d.sonraki) : '—'}</p>
-        ${d.gunluk && d.gunluk.length ? `<pre style="white-space:pre-wrap;max-height:160px;overflow:auto">${esc(d.gunluk.join('\n'))}</pre>` : ''}`;
+      if (!k.dataset.kurulu) {
+        k.innerHTML = `<div class="ca-hedef" style="font-size:18px" data-r></div><div class="ca-uyari" data-n hidden></div>
+          <div class="ca-uyari" style="border-color:#dc2626" data-h hidden></div><p class="ca-soluk" data-z></p>
+          <details data-l><summary class="ca-soluk" style="cursor:pointer">Günlük</summary><pre class="ca-gunluk" style="max-height:220px"></pre></details>`;
+        k.dataset.kurulu = '1';
+      }
+      const rozet = d.oturum === true ? '🟢 UYAP oturumu açık'
+        : d.oturum === false ? (d.calisiyor ? '🟠 Oturum düştü — yeniden bağlanılıyor (e-İmza / Mobil İmza)…' : '🔴 Oturum açılamadı — yeniden denenecek')
+        : d.calisiyor ? '⏳ Oturum kontrol ediliyor…'
+        : d.etkin ? '⚪ Sıradaki kontrol bekleniyor' : /kapalı/.test(d.neden || '') ? '⚪ Bağlı tut kapalı' : '⚪ Giriş bilgisi girilmedi';
+      k.querySelector('[data-r]').textContent = rozet;
+      const n = k.querySelector('[data-n]'); n.hidden = !d.neden; n.textContent = d.neden || '';
+      const h = k.querySelector('[data-h]'); h.hidden = !d.son_hata; h.textContent = d.son_hata ? '⚠️ Son turda hata: ' + d.son_hata : '';
+      k.querySelector('[data-z]').textContent = (d.oturum_zaman ? `Oturum durumu: ${zamanYaz(d.oturum_zaman)} — ${d.oturum_satir || ''} · ` : '')
+        + `Senkron başlangıcı: ${zamanYaz(d.son_baslangic)}` + (d.nabiz && d.nabiz.son ? ` · Son nabız: ${zamanYaz(d.nabiz.son)}` : '');
+      gunlukYaz(k.querySelector('pre'), d.gunluk || [], 'Henüz çıktı yok.');
       oturumNoktasi(d);
     };
     durumCiz(v);
@@ -950,6 +1113,7 @@
           <input type="text" id="ca-aj-ara" placeholder="Ajandada ara (mahkeme, dosya no, açıklama, barkod)..." style="width:100%;">
         </div>
       </div>
+      <div id="ca-aj-muv"></div>
       <div id="ca-aj-liste"><p class="ca-soluk">Yükleniyor…</p></div>`;
 
     const basIn = ic.querySelector('#ca-aj-bas');
@@ -966,8 +1130,10 @@
       const secilenTur = turSel.value;
       const bugun = isoGun(new Date());
 
+      const ms = muvSuzgec();
       const filtrelenen = sonOlaylar.filter(o => {
         if (secilenTur && o.tur !== secilenTur) return false;
+        if (ms && !ms(o)) return false;
         if (q) {
           const metin = [o.birim, o.esas, o.baslik, o.yer, o.barkod].filter(Boolean).join(' ').toLowerCase();
           if (!metin.includes(q)) return false;
@@ -1033,6 +1199,8 @@
     });
 
     ic.querySelector('#ca-aj-yenile').onclick = yukle;
+    muvekkilSecici(ic.querySelector('#ca-aj-muv'), cizTablo);
+    muvYukle().then(cizTablo).catch(() => {});
     listeEl.addEventListener('click', e => {
       const b = e.target.closest('[data-bul-no]');
       if (b) dosyaPenceresiBul(b.dataset.bulBirim, b.dataset.bulNo);
@@ -1061,12 +1229,25 @@
 
   // EVRAK ARA: UYAP evrak kataloğunun TAMAMI (kapalı dosyalar dahil arşiv listesi) + Drive indeksi.
   // Yazdıkça aranır (eski istek iptal edilir); sonuçlarda indirmeden Önizle / Orijinal / Drive / Dosyaya git (pencere).
+  // v4.9.3: Evrak Ara filtreleri — müvekkil seçici, hızlı tür çipleri (📨 Tebligatlar, Karar, Duruşma, Bilirkişi...),
+  // açık/kapalı dosya ve tarih aralığı. Kategori listesi artık sabittir (eskiden ilk sonuçlardan doluyordu).
+  const EVRAK_KATEGORILERI = [['tebligat', '📨 Tebligat / Mazbata'], ['karar', '⚖️ Karar / Hüküm'], ['durusma', '🗓️ Duruşma Zaptı'],
+    ['tensip', 'Tensip Zaptı'], ['bilirkisi', '🔬 Bilirkişi / Rapor'], ['iddianame', 'İddianame'], ['dilekce', '✍️ Dilekçe / Talep'],
+    ['muzekkere', 'Müzekkere / Cevap'], ['talimat', 'Talimat'], ['icra', 'İcra / Haciz'], ['mali', 'Makbuz / Harç'],
+    ['kesinlesme', 'Kesinleşme'], ['tutuklama', 'Tutuklama / Adli Kontrol'], ['ifade', 'İfade / Tutanak'], ['vekalet', 'Vekaletname'],
+    ['form', 'Form / Cetvel'], ['yazisma', 'Üst Yazı']];
   function evrakSekmesi(ic) {
     ic.innerHTML = `<div class="cw-izgara" id="ca-ev-say" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px"></div>
-      <div style="display:grid;grid-template-columns:3fr 1fr 1fr;gap:8px;margin-top:8px">
+      <div id="ca-ev-muv"></div>
+      <div class="ca-filtre-cipler" id="ca-ev-cip">${[['', 'Tümü'], ['tebligat', '📨 Tebligatlar'], ['karar', '⚖️ Kararlar'], ['durusma', '🗓️ Duruşma zaptı'], ['bilirkisi', '🔬 Bilirkişi'], ['dilekce', '✍️ Dilekçeler']].map(([k, a]) => `<button type="button" data-k="${k}">${a}</button>`).join('')}</div>
+      <div style="display:grid;grid-template-columns:3fr 1fr 1fr;gap:8px;margin-top:4px">
         <input id="ca-evrak-q" placeholder='Ara: taraf, evrak türü, mahkeme, esas no… (ör. bilirkişi -ek "ağır ceza")'>
         <select id="ca-ev-d"><option value="">Tüm evrak</option><option value="indirildi">İndirilmiş</option><option value="indirilmedi">İndirilmemiş</option></select>
-        <select id="ca-ev-k"><option value="">Tüm kategoriler</option></select></div>
+        <select id="ca-ev-k"><option value="">Tüm kategoriler</option>${EVRAK_KATEGORILERI.map(([k, a]) => `<option value="${k}">${a}</option>`).join('')}</select></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:6px">
+        <select id="ca-ev-dd"><option value="">Açık + kapalı dosyalar</option><option value="acik">Yalnız açık (derdest) dosyalar</option><option value="kapali">Yalnız kapalı dosyalar</option></select>
+        <input id="ca-ev-t1" type="date" title="Bu tarihten itibaren">
+        <input id="ca-ev-t2" type="date" title="Bu tarihe kadar"></div>
       <div id="ca-evrak-sonuc" style="margin-top:10px"><span class="ca-soluk">Aramak için yazın; boş bırakırsanız en yeni evraklar listelenir.</span></div>`;
     const q = ic.querySelector('#ca-evrak-q'), sonuc = ic.querySelector('#ca-evrak-sonuc'), dSel = ic.querySelector('#ca-ev-d'), kSel = ic.querySelector('#ca-ev-k');
     const sayi = ic.querySelector('#ca-ev-say');
@@ -1087,7 +1268,8 @@
       if (metin && metin.replace(/[-"\s]/g, '').length < 2) { sonuc.innerHTML = '<span class="ca-soluk">En az 2 harf yazın.</span>'; return; }
       if (!devam) { offset = 0; birikim = []; sonuc.innerHTML = '<span class="ca-soluk">Aranıyor…</span>'; }
       try {
-        const v = await api(`/api/evrak/ara?limit=100&offset=${offset}&durum=${dSel.value}&kategori=${encodeURIComponent(kSel.value)}&drive=${offset ? 0 : 1}&q=${encodeURIComponent(metin)}`, { signal: kontrol.signal });
+        const ek = `&dosya_durum=${ic.querySelector('#ca-ev-dd').value}&baslangic=${ic.querySelector('#ca-ev-t1').value}&bitis=${ic.querySelector('#ca-ev-t2').value}${muvParam()}`;
+        const v = await api(`/api/evrak/ara?limit=100&offset=${offset}&durum=${dSel.value}&kategori=${encodeURIComponent(kSel.value)}&drive=${offset ? 0 : 1}&q=${encodeURIComponent(metin)}${ek}`, { signal: kontrol.signal });
         if (benim !== sira) return;
         if (!v.hazir) { sonuc.innerHTML = `<div class="cw-kart">${esc(v.mesaj)}</div>`; return; }
         if (!offset) { sayiCiz(v); birikim = []; ic._drive = v.drive; }
@@ -1112,15 +1294,16 @@
           ${dr && dr.sonuclar && dr.sonuclar.length ? `<h4 style="margin:14px 0 4px">☁️ Google Drive'da (${dr.toplam.toLocaleString('tr-TR')} dosyalık indekste)</h4><table class="cw-tablo">${dr.sonuclar.map(f => `<tr><td>${esc(f.ad)}</td><td class="ca-soluk">${esc(f.klasor || '')}</td><td>${f.url ? `<a class="cw-mini" href="${esc(f.url)}" target="_blank" rel="noopener">☁️ Aç</a>` : ''}</td></tr>`).join('')}</table>` : ''}`;
         const daha = sonuc.querySelector('#ca-ev-daha');
         if (daha) daha.onclick = () => ara(true);
-        if (!kSel.dataset.dolu) {
-          const katlar = [...new Set(birikim.map(r => r.kategori).filter(Boolean))].sort();
-          if (katlar.length) { kSel.insertAdjacentHTML('beforeend', katlar.map(k => `<option>${esc(k)}</option>`).join('')); kSel.dataset.dolu = '1'; }
-        }
       } catch (e) { if (e.name !== 'AbortError' && benim === sira) sonuc.innerHTML = `<div class="cw-kart ca-hata">${esc(e.message)}</div>`; }
     };
     sonuc.addEventListener('click', e => { if (e.target.closest('a[data-dosya-ac]')) e.preventDefault(); });
     q.addEventListener('input', () => { clearTimeout(zam); zam = setTimeout(() => ara(false), 300); });
-    dSel.onchange = () => ara(false); kSel.onchange = () => ara(false);
+    const cipCiz = () => ic.querySelectorAll('#ca-ev-cip [data-k]').forEach(b => b.classList.toggle('secili', b.dataset.k === kSel.value));
+    ic.querySelector('#ca-ev-cip').onclick = e => { const b = e.target.closest('[data-k]'); if (!b) return; kSel.value = b.dataset.k; cipCiz(); ara(false); };
+    dSel.onchange = () => ara(false); kSel.onchange = () => { cipCiz(); ara(false); };
+    ['#ca-ev-dd', '#ca-ev-t1', '#ca-ev-t2'].forEach(x => { ic.querySelector(x).onchange = () => ara(false); });
+    muvekkilSecici(ic.querySelector('#ca-ev-muv'), () => ara(false));
+    cipCiz();
     ara(false);
     q.focus();
   }
@@ -1147,7 +1330,7 @@
   // 📨 Tebligatlar: masaüstündeki "Avukat Asistanı penceresi"nin (Tk) telefonda da çalışan karşılığı.
   // UETS'ten taze CSV + EYP indirme, TickTick'e eklerle aktarma, Notion eşleşmesi ve durum tablosu.
   async function tebligatSekmesi(ic) {
-    const gunlukKutu = id => `<pre id="${id}" style="display:none;max-height:240px;overflow:auto;font-size:12px;background:#111827;color:#e5e7eb;padding:10px;border-radius:8px;white-space:pre-wrap"></pre>`;
+    const gunlukKutu = id => `<pre id="${id}" class="ca-gunluk" style="display:none;max-height:240px;overflow:auto;padding:10px;border-radius:8px;white-space:pre-wrap"></pre>`;
     ic.innerHTML = `<div class="ca-kart">
         <b>📨 UETS Tebligatları → TickTick (EYP ekleriyle) + Notion</b>
         <p class="ca-soluk" style="margin:6px 0">UETS'e arka planda (görünmez tarayıcıyla) girer, güncel CSV'yi ve eksik EYP paketlerini indirir; her tebligatı ilgili Notion dosyasıyla eşleştirip TickTick'e ekleriyle ekler.</p>
@@ -1165,14 +1348,23 @@
           <div style="display:flex;gap:6px;margin-top:6px"><input id="tb-otp-kod" inputmode="numeric" autocomplete="one-time-code" placeholder="6 haneli kod" style="max-width:160px"><button class="ca-btn ana" type="button" id="tb-otp-gonder">Gönder</button></div></div>
         ${gunlukKutu('tb-gunluk')}
       </div>
-      <div class="ca-kart"><input id="tb-q" placeholder="Mahkeme, esas no, barkod, müvekkil ara…"><div id="tb-liste" style="margin-top:8px" class="ca-soluk">Tebligat durumu yükleniyor (TickTick ve Notion sorgulanıyor)…</div></div>`;
+      <div class="ca-kart"><div id="tb-muv"></div>
+        <div style="display:grid;grid-template-columns:2fr 1fr;gap:8px"><input id="tb-q" placeholder="Mahkeme, esas no, barkod, müvekkil ara…">
+          <select id="tb-f"><option value="">Tüm tebligatlar</option><option value="sure">Süresi işleyenler (son gün geçmemiş)</option><option value="gecmis">Son günü geçmiş</option><option value="eksik">TickTick'te eksik / ek bekleyen</option><option value="eypyok">EYP paketi inmemiş</option></select></div>
+        <div id="tb-liste" style="margin-top:8px" class="ca-soluk">Tebligat durumu yükleniyor…</div></div>`;
     const islem = ic.querySelector('#tb-islem'), liste = ic.querySelector('#tb-liste'), gl = ic.querySelector('#tb-gunluk');
     liste.addEventListener('click', e => { const b = e.target.closest('[data-bul-no]'); if (b) dosyaPenceresiBul(b.dataset.bulBirim, b.dataset.bulNo); });
     let veri = [];
     const renk = { green: '#16a34a', blue: '#2563eb', orange: '#d97706', red: '#dc2626', gray: '#64748b' };
     const ciz = () => {
       const q = (ic.querySelector('#tb-q').value || '').toLocaleLowerCase('tr');
-      const l = veri.filter(d => !q || `${d.mahkeme} ${d.esas} ${d.barkod} ${d.muvekkil} ${d.durum}`.toLocaleLowerCase('tr').includes(q));
+      const f = ic.querySelector('#tb-f').value, ms = muvSuzgec();
+      const bugun = new Date().toISOString().slice(0, 10);
+      const sgIso = d => { const m = String(d.son_gun || '').match(/(\d{2})\.(\d{2})\.(\d{4})/); return m ? `${m[3]}-${m[2]}-${m[1]}` : String(d.son_gun || '').slice(0, 10); };
+      const l = veri.filter(d => (!q || `${d.mahkeme} ${d.esas} ${d.barkod} ${d.muvekkil} ${d.durum}`.toLocaleLowerCase('tr').includes(q))
+        && (!ms || ms(d) || muvSecim.some(a => katla(d.muvekkil || '').includes(katla(a))))
+        && (!f || (f === 'sure' && d.son_gun && sgIso(d) >= bugun) || (f === 'gecmis' && d.son_gun && sgIso(d) < bugun)
+          || (f === 'eksik' && /MISSING|PENDING/.test(d.durum_kodu || '')) || (f === 'eypyok' && !d.eyp)));
       const say = k => veri.filter(d => (d.durum_kodu || '').includes(k)).length;
       liste.innerHTML = `<div class="ca-soluk" style="margin-bottom:6px">${veri.length} tebligat · ✓ ${say('SYNCED') + say('COMPLETED')} TickTick'te · ⚠️ ${say('MISSING')} eksik · 📎 ${say('PENDING_ATTACHMENT')} ek bekliyor</div>
         <table>${l.map(d => `<tr>
@@ -1184,10 +1376,16 @@
             <button class="ca-btn kucuk" type="button" data-bul-birim="${esc(d.mahkeme || '')}" data-bul-no="${esc(d.esas || '')}">📂 Dosya</button></td></tr>`).join('') || '<tr><td>Kayıt yok. Önce "UETS\'ten İndir" çalıştırın.</td></tr>'}</table>`;
       liste.querySelectorAll('[data-zorla]').forEach(b => { b.onclick = () => calistir('zorla', { barkod: b.dataset.zorla }, b); });
     };
-    const yukle = async () => {
-      liste.innerHTML = '<span class="ca-soluk">⏳ Tebligatlar, TickTick ve Notion taranıyor…</span>';
-      try { const r = await api('/api/tebligat/liste', { method: 'POST', govde: {} }); veri = r.tebligatlar || []; ciz(); }
-      catch (e) { liste.innerHTML = `<span class="ca-hata">${esc(e.message)}</span>`; }
+    // v4.9.3: sunucu son listeyi hemen döndürür, eskiyse arka planda tazeler; tazelenince kendiliğinden yeniden çizilir
+    const yukle = async (tazele) => {
+      if (!veri.length) liste.innerHTML = '<span class="ca-soluk">⏳ Tebligatlar, TickTick ve Notion taranıyor (ilk açılışta bir kez sürer)…</span>';
+      try {
+        const r = await api('/api/tebligat/liste', { method: 'POST', govde: tazele ? { tazele: true } : {} });
+        veri = r.tebligatlar || []; ciz();
+        const not = r.tazeleniyor ? '🔄 Liste arka planda tazeleniyor…' : (r.zaman ? 'Son güncelleme: ' + new Date(r.zaman * 1000).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }) : '');
+        liste.insertAdjacentHTML('afterbegin', `<div class="ca-soluk" style="margin-bottom:4px">${not}${r.son_hata ? ' · ⚠️ ' + esc(r.son_hata) : ''}</div>`);
+        if (r.tazeleniyor) setTimeout(() => { if (document.body.contains(liste)) yukle(); }, 8000);
+      } catch (e) { liste.innerHTML = `<span class="ca-hata">${esc(e.message)}</span>`; }
     };
     const calistir = async (komut, govde, btn) => {
       if (btn) btn.disabled = true;
@@ -1209,7 +1407,7 @@
         let g;
         try { g = (await api('/api/gorevler')).gorevler.find(x => x.kimlik === 'uets-senkron'); } catch (e) { break; }
         if (!g) break;
-        gl.textContent = (g.gunluk || []).join('\n'); gl.scrollTop = gl.scrollHeight;
+        gunlukYaz(gl, g.gunluk || []);
         const kodBekliyor = g.calisiyor && (g.gunluk || []).slice(-6).some(x => /OTP|Doğrulama kodu|kod henüz gelmedi/i.test(x));
         ic.querySelector('#tb-otp').style.display = kodBekliyor ? 'block' : 'none';
         islem.textContent = g.calisiyor ? '⏳ UETS senkronizasyonu sürüyor (paneli kapatabilirsiniz)…' : (g.kod === 0 ? '✓ UETS senkronizasyonu tamamlandı' : `⚠️ UETS görevi ${g.kod} koduyla bitti`);
@@ -1228,10 +1426,13 @@
       otoBilgi.textContent = !a.hazir ? '⚠️ Önce Notion/TickTick sekmesinde UETS TC ve şifresini girin' : (a.aralik_dk && a.sonraki ? 'sonraki: ' + new Date(a.sonraki * 1000).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }) : ''); };
     api('/api/uets/ayar').then(otoYaz).catch(() => {});
     oto.onchange = async () => { try { otoYaz(await api('/api/uets/ayar', { method: 'POST', govde: { aralik_dk: +oto.value } })); } catch (e) { otoBilgi.textContent = e.message; } };
-    ic.querySelector('#tb-yenile').onclick = yukle;
+    ic.querySelector('#tb-yenile').onclick = () => yukle(true);
     ic.querySelector('#tb-temizle').onclick = e => calistir('temizle', {}, e.currentTarget);
     ic.querySelector('#tb-excel').onclick = e => calistir('excel', {}, e.currentTarget);
     ic.querySelector('#tb-q').oninput = ciz;
+    ic.querySelector('#tb-f').onchange = ciz;
+    muvekkilSecici(ic.querySelector('#tb-muv'), ciz);
+    muvYukle().then(() => { if (veri.length) ciz(); }).catch(() => {});
     yukle();
   }
 
@@ -1247,10 +1448,15 @@
       : g.kod === 0 ? '<span class="gv-rozet tamam">✓ Tamamlandı</span>'
       : (g.kod !== null && g.kod !== undefined) ? `<span class="gv-rozet hata">✕ Hata (kod ${g.kod})</span>`
       : '<span class="gv-rozet bos">Beklemede</span>';
+    // v4.9.3: asıl hata satırı gösterilir. Eskiden son satır alınıyordu: PyInstaller'ın genel "Failed to execute
+    // script 'sunucu'" satırı ya da ham @@SONUC@@ JSON'u hata diye görünüyordu. 🛑 güvenlik durdurmaları da gösterilir.
     const sonHata = g => {
-      if (g.calisiyor || !g.kod) return '';
-      const s = (g.gunluk || []).filter(x => /error|hata|exception|traceback|❌|\[!\]/i.test(x)).slice(-1)[0] || (g.gunluk || []).slice(-1)[0] || '';
-      return s.replace(/^.*?\] /, '').slice(0, 220);
+      const l = (g.gunluk || []).filter(x => !/@@SONUC@@|Failed to execute script|^\s*File "|^\s*\^+\s*$|Traceback \(most recent/.test(x));
+      const dur = l.filter(x => x.includes('🛑')).slice(-1)[0];
+      if (g.calisiyor || !g.kod) return dur ? dur.replace(/^.*?🛑/, '🛑') : '';
+      const s = l.filter(x => /^\s*[\w.]+(Error|Exception|Hatasi|Kesildi)\b.*:/.test(x)).slice(-1)[0]
+        || l.filter(x => /error|hata|exception|❌|\[x\]|\[!\]|🛑/i.test(x)).slice(-1)[0] || l.slice(-1)[0] || '';
+      return s.replace(/^.*?\] /, '').trim().slice(0, 300);
     };
     const kart = g => `<div class="gv-kart" data-g="${g.kimlik}">
         <div class="gv-ust"><div><b>${esc(g.ad)}</b> <span class="gv-r"></span></div><div class="gv-d"></div></div>
@@ -1268,14 +1474,7 @@
       const h = el.querySelector('.gv-hata');
       const sh = sonHata(g);
       h.hidden = !sh; h.textContent = sh;
-      const pre = el.querySelector('pre');
-      const metin = (g.gunluk || []).join('\n');
-      if (pre.textContent !== metin) {
-        const altta = pre.scrollHeight - pre.scrollTop - pre.clientHeight < 24;
-        const ust = pre.scrollTop;
-        pre.textContent = metin;
-        pre.scrollTop = altta ? pre.scrollHeight : ust;
-      }
+      gunlukYaz(el.querySelector('pre'), g.gunluk || [], 'Henüz çıktı yok.');
       if (g.calisiyor && !el.dataset.acildi) { el.querySelector('details').open = true; el.dataset.acildi = '1'; }
     };
     const ciz = async () => {
@@ -1292,7 +1491,7 @@
           .gv-rozet.calisiyor{background:#dcfce7;color:#166534}.gv-rozet.tamam{background:#eef2ff;color:#3730a3}
           .gv-rozet.hata{background:#fee2e2;color:#991b1b}.gv-rozet.bos{background:#f1f5f9;color:#475569}
           .gv-log summary{cursor:pointer;font-size:12px;color:var(--ce-muted,#64748b)}
-          .gv-log pre{max-height:260px;overflow:auto;background:#0f172a;color:#e2e8f0;padding:8px;border-radius:6px;font-size:11px;white-space:pre-wrap}
+          .gv-log pre{max-height:320px;overflow:auto;padding:8px;border-radius:6px;white-space:pre-wrap}
           .gv-hata{font-size:12px;margin:2px 0 4px}
           .gv-ozet{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px;margin-bottom:12px}
           .gv-ozet div{border:1px solid var(--ce-border,#e2e8f0);border-radius:10px;padding:8px 10px}
@@ -1540,7 +1739,11 @@
           tumEvraklar = yeniGelenler;
         }
 
-        const tb = v.tebligatlar || [];
+        // v4.9.3: müvekkil seçiliyse yalnız o müvekkilin dosyalarına düşen evrak/tebligat gösterilir
+        await muvYukle().catch(() => {});
+        const ms = muvSuzgec();
+        const tb = (v.tebligatlar || []).filter(t => !ms || ms(t));
+        const gorunen = ms ? tumEvraklar.filter(ms) : tumEvraklar;
 
         if (!tumEvraklar.length && !tb.length && !qVal && !durumVal) {
           ic.innerHTML = `
@@ -1572,6 +1775,7 @@
             </div>
           </div>
 
+          <div id="ca-yeni-muv"></div>
           <div class="hf-toplu-bar">
             <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;color:#fff;margin:0;font-weight:600">
               <input type="checkbox" id="ca-yeni-sec-tum" style="width:18px;height:18px"> Tümünü Seç
@@ -1614,7 +1818,7 @@
             </div>` : ''}
 
           <div id="ca-yeni-evrak-kutusu">
-            ${tumEvraklar.map(r => `
+            ${gorunen.map(r => `
               <div class="ca-kart" style="display:flex;align-items:flex-start;gap:10px;margin-bottom:8px">
                 <input type="checkbox" data-skey-chk="${esc(r.skey)}" ${seciliSkeys.has(r.skey) ? 'checked' : ''} style="width:18px;height:18px;margin-top:4px">
                 <div style="flex:1">
@@ -1670,7 +1874,7 @@
         if (secTum) {
           secTum.onchange = () => {
             if (secTum.checked) {
-              tumEvraklar.forEach(e => seciliSkeys.add(e.skey));
+              gorunen.forEach(e => seciliSkeys.add(e.skey));
             } else {
               seciliSkeys.clear();
             }
@@ -1757,6 +1961,7 @@
 
         const filtreBtn = ic.querySelector('#ca-yeni-filtre-btn');
         if (filtreBtn) filtreBtn.onclick = () => yukleVeCiz(false);
+        muvekkilSecici(ic.querySelector('#ca-yeni-muv'), () => yukleVeCiz(false));
 
         const qInput = ic.querySelector('#ca-yeni-q');
         if (qInput) {

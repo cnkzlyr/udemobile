@@ -364,7 +364,10 @@ def indeks_ozeti(db_yolu: Path) -> dict:
 def ara(db_yolu: Path, q: str = "", uzanti: str = "", esas: str = "", limit: int = 100) -> dict:
     if not db_yolu.is_file():
         return {"hazir": False, "toplam": 0, "sonuclar": [], "mesaj": "Drive veritabanı henüz indekslenmedi. 'Drive'ı İndeksle' düğmesine tıklayın."}
-    kosul, param = [], []
+    # v4.9.3: uygulamanın kendi iç dosyaları (katalog yedeği, .tmp.db, şifreli ayar yedekleri) evrak aramasında
+    # en üstte çıkıyordu; aramada gösterilmez.
+    kosul = ["uzanti NOT IN ('db','cnayar','tmp','part','json')", "ad NOT LIKE 'uyap_katalog_yedek%'"]
+    param = []
     if uzanti:
         kosul.append("uzanti = ?")
         param.append(uzanti.lower().lstrip("."))
