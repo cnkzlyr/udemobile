@@ -22,7 +22,10 @@ def send_task_via_email(subject, body, attachment_paths=None):
     TickTick'e e-posta yoluyla görev ve orijinal dosya ekleri (PDF, UDF vb.) gönderir.
     """
     if not (SMTP_USER and SMTP_PASS and TICKTICK_EMAIL):
-        print("⚠️ E-posta ile görev gönderilemedi: .env içinde GMAIL_USER, GMAIL_APP_PASS ve TICKTICK_EMAIL olmalı.")
+        eksik = [ad for ad, v in (("Gmail adresi", SMTP_USER), ("Gmail uygulama şifresi", SMTP_PASS),
+                                  ("TickTick e-posta adresi", TICKTICK_EMAIL)) if not v]
+        print(f"⚠️ EYP ekleri TickTick'e GÖNDERİLEMEDİ: {', '.join(eksik)} girilmemiş "
+              "(CanEditor → Notion / TickTick / Telegram → API Anahtarları). Girince bir sonraki turda gönderilir.")
         return False
     msg = MIMEMultipart()
     msg["From"] = SMTP_USER

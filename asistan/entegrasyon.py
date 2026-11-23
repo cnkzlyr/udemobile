@@ -101,6 +101,8 @@ def ayar_ozeti(avukat_dir: Path) -> dict:
         "uets_bagli": bool(e.get("UETS_TCKN") and e.get("UETS_PASSWORD")),
         "gmail_bagli": bool(e.get("GMAIL_USER") and e.get("GMAIL_APP_PASS")),
         "gmail_user": e.get("GMAIL_USER", ""),
+        "ticktick_email": e.get("TICKTICK_EMAIL", ""),
+        "ek_gonderim_hazir": bool(e.get("GMAIL_USER") and e.get("GMAIL_APP_PASS") and e.get("TICKTICK_EMAIL")),
         "uets_tckn": _maskele(e.get("UETS_TCKN", "")),
         "otomatik_senkron": e.get("UYAP_OTO_SENKRON", "1") != "0",
         # Dosya konusu özetleri: anahtar varsa yapay zekâ, yoksa evraklardan çıkarımsal özet (dosya_ozet.py)
@@ -126,6 +128,9 @@ def ayar_kaydet(avukat_dir: Path, girdi: dict) -> dict:
         # UETS giriş kodu (OTP) Gmail'den otomatik okunur (uets_downloader.find_latest_otp_code)
         "gmail_user": "GMAIL_USER",
         "gmail_app_pass": "GMAIL_APP_PASS",
+        # v4.9.3: TickTick'e DOSYA (EYP ekleri) ancak e-postayla eklenebiliyor; adres arayüzde hiç sorulmuyordu,
+        # ekler "E-posta ile görev gönderilemedi" uyarısıyla TickTick'e hiç gitmiyordu.
+        "ticktick_email": "TICKTICK_EMAIL",
         "ozet_api_key": "OZET_API_KEY",
         "ozet_saglayici": "OZET_SAGLAYICI",
         "ozet_model": "OZET_MODEL",

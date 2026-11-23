@@ -1038,6 +1038,10 @@ def create_or_update_uets_subtask(tebligat, project_id, parent_id, client_tag=""
                 print("   ⏳ E-posta TickTick'e ulaştı, ekler işleniyor. Mükerrer açılmaması için API ile ikinci görev açılmadı.")
                 update_barcode_state(barcode, "pending_email", has_eyp=True, project_id=project_id)
                 return "pending_email", True, "new"
+        else:
+            # v4.9.3: e-posta gönderilemedi (ayar eksik / SMTP hatası). Eskiden görev 6 saat HİÇ açılmıyordu
+            # (yasal süre riski). Artık görev hemen API ile eksiz açılır; ekler sonraki turda (SENARYO 1) eklenir.
+            force = True
 
     # -------------------------------------------------------------------------
     # SENARYO 4: Henüz EYP inmemiş -> KULLANICI KURALI / ZORLA EKLEME

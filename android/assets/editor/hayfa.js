@@ -1369,6 +1369,8 @@ function doGet(e) {
           <div><label>Gmail adresi (UETS giriş kodu buraya gelir)</label><input id="hf-e-gm-u" placeholder="${ayar.gmail_bagli ? esc(ayar.gmail_user) + ' (kayıtlı)' : 'ornek@gmail.com'}"></div>
           <div><label>Gmail Uygulama Şifresi</label><input id="hf-e-gm-p" type="password" placeholder="${ayar.gmail_bagli ? '•••• (kayıtlı)' : '16 haneli uygulama şifresi'}">
             <small class="ca-soluk" style="display:block;font-size:11px">UETS giriş kodunun GELDİĞİ Gmail hesabında: Google Hesabı → Güvenlik → 2 Adımlı Doğrulama → Uygulama şifreleri (16 harf). Girilmezse giriş kodunu Tebligatlar sekmesinden elle yazarsınız.</small><small id="hf-e-gm-uz" class="ca-hata" style="display:block;font-size:11px"></small></div>
+          <div><label>TickTick e-posta adresi (EYP eklerini göndermek için)</label><input id="hf-e-tt-mail" value="${esc(ayar.ticktick_email || '')}" placeholder="todo+xxxx@mail.ticktick.com">
+            <small class="${ayar.ek_gonderim_hazir ? 'ca-soluk' : 'ca-hata'}" style="display:block;font-size:11px">${ayar.ek_gonderim_hazir ? '✓ Tebligat ekleri TickTick görevlerine dosya olarak eklenir.' : '⚠️ Girilmezse tebligat EYP ekleri TickTick\'e GİTMEZ.'} Adres: TickTick → Ayarlar → Hesap → "E-postayla görev ekle". Gönderim yukarıdaki Gmail hesabından yapılır.</small></div>
           <div><label>Dosya özeti için yapay zekâ anahtarı (isteğe bağlı)</label><input id="hf-e-oz-k" type="password" placeholder="${ayar.ozet_bagli ? esc(ayar.ozet_api_key) + ' (kayıtlı)' : 'boş bırakılırsa özet evraklardan çıkarılır'}">
             <small class="ca-soluk" style="display:block;font-size:11px">Her dosyanın 5-10 cümlelik konusu Notion "DOSYA KONUSU" sütununa ve TickTick dosya kartına yazılır. Elle yazdığınız konu asla ezilmez.</small></div>
           <div><label>Yapay zekâ sağlayıcısı / model</label><div style="display:flex;gap:6px"><select id="hf-e-oz-s" style="flex:1">
@@ -1395,6 +1397,7 @@ function doGet(e) {
           uets_password: alan.querySelector('#hf-e-uets-pw').value.trim(),
           gmail_user: alan.querySelector('#hf-e-gm-u').value.trim(),
           gmail_app_pass: alan.querySelector('#hf-e-gm-p').value.replace(/\s+/g, ''),
+          ticktick_email: alan.querySelector('#hf-e-tt-mail').value.trim(),
           ozet_api_key: alan.querySelector('#hf-e-oz-k').value.trim(),
           ozet_saglayici: alan.querySelector('#hf-e-oz-s').value,
           ozet_model: alan.querySelector('#hf-e-oz-m').value.trim(),
