@@ -337,7 +337,11 @@ def main():
     if not CONFIG.get("TICKTICK_TOKEN"):
         print("[!] TickTick anahtarı yok (Entegrasyonlar sekmesinden girin).")
         return 2
-    r = calistir(uygula=a.uygula)
+    try:
+        r = calistir(uygula=a.uygula)
+    except Exception as e:  # noqa: BLE001 — v4.9.3: anlaşılır tek satır (Traceback yerine)
+        print(f"[x] TickTick düzeni durdu: {type(e).__name__}: {e}", flush=True)
+        return 1
     ozet = {k: (len(v) if isinstance(v, list) else v) for k, v in r.items()}
     print("@@SONUC@@" + json.dumps(ozet, ensure_ascii=False), flush=True)
     return 0

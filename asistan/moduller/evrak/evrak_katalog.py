@@ -392,6 +392,8 @@ class Katalog:
                     rows,
                 )
                 self.db.executemany("INSERT OR IGNORE INTO evrak_dosya(skey,dkey) VALUES(?,?)", links)
+                # v4.9.3: mükerrerler LİSTE OKUNURKEN ayıklanır (indirme sırasında bekletilmez)
+                self._liste_mukerrer(dkey, [r[0] for r in rows])
                 self.db.execute(
                     "UPDATE dosya SET evrak_sayisi=(SELECT COUNT(*) FROM evrak_dosya WHERE dkey=?) WHERE dkey=?",
                     (dkey, dkey),
@@ -399,9 +401,66 @@ class Katalog:
         self._execute_with_retry(_do_ingest)
         return len(rows)
 
-    def sync_disk(self) -> int:
+    LISTE_TAHMIN_ISARETI = "tahmini mükerrer (indirilmedi, sonra doğrulanacak)"
+
+    def _liste_mukerrer(self, dkey: str, skeys: list) -> int:
+        """v4.9.3 — "Liste okudukça mükerrere bak": bir dosyanın evrak listesi kataloğa yazılırken, yalnızca o
+        listenin satırları için iki ucuz ve güvenli kural uygulanır; böylece indirme döngüsü mükerrer aramak için
+        hiç beklemez (eskiden her mükerrerde 247 bin satırlık tabloda GROUP BY yeniden çalışıyordu):
+          1) Aynı benzersiz dosya adı anahtarı (ad_anahtar: taramadaki 12+ haneli zaman damgası) → ilki asıl.
+          2) Bu dosyada geçmişte en az 2 kez AYNI içerikle (SHA-256) gelmiş ek kalıbı (tür + gönderen) → asıl
+             kopyaya bağlanır, indirilmez; boştayken tahminleri_dogrula() ile doğrulanır.
+        EN: per-listing duplicate marking (name key + learned attachment pattern) so downloads never stall."""
+        if not skeys:
+            return 0
+        n = 0
+        for i in range(0, len(skeys), 800):
+            parca = skeys[i:i + 800]
+            ph = ",".join("?" * len(parca))
+            n += self.db.execute(f"""
+                UPDATE evrak SET durum='mukerrer',
+                  dup_of=(SELECT MIN(e2.skey) FROM evrak e2 WHERE e2.ad_anahtar=evrak.ad_anahtar AND e2.durum<>'mukerrer')
+                WHERE skey IN ({ph}) AND ad_anahtar IS NOT NULL AND durum='yeni'
+                  AND skey <> (SELECT MIN(e2.skey) FROM evrak e2 WHERE e2.ad_anahtar=evrak.ad_anahtar
+                               AND e2.durum <> 'mukerrer')""", parca).rowcount or 0
+        if os.environ.get("UYAP_MUKERRER_TAHMIN", "1") == "0":
+            return n
+        kaliplar = {}
+        for r in self.db.execute("""SELECT lower(trim(tur)) t, lower(trim(COALESCE(gonderen,''))) g,
+                                      COUNT(*) c, COUNT(DISTINCT sha256) d,
+                                      MIN(CASE WHEN durum='indirildi' THEN skey END) asil,
+                                      MIN(CASE WHEN durum='indirildi' THEN path END) yol
+                                    FROM evrak WHERE dkey=? AND is_ek=1 AND sha256 IS NOT NULL
+                                      AND durum IN ('indirildi','mukerrer')
+                                    GROUP BY t, g HAVING c >= 2 AND d = 1 AND asil IS NOT NULL""", (dkey,)).fetchall():
+            kaliplar[(r["t"] or "", r["g"] or "")] = (r["asil"], r["yol"])
+        if not kaliplar:
+            return n
+        for (t, g) in [k for k in kaliplar if self.db.execute(
+                "SELECT 1 FROM evrak WHERE dkey=? AND is_ek=1 AND hata='tahmin yanlış çıktı' AND lower(trim(tur))=? "
+                "AND lower(trim(COALESCE(gonderen,'')))=? LIMIT 1", (dkey, k[0], k[1])).fetchone()]:
+            kaliplar.pop((t, g), None)
+        simdi = dt.datetime.now().isoformat(timespec="seconds")
+        for i in range(0, len(skeys), 800):
+            parca = skeys[i:i + 800]
+            ph = ",".join("?" * len(parca))
+            for r in self.db.execute(f"""SELECT id, lower(trim(tur)) t, lower(trim(COALESCE(gonderen,''))) g FROM evrak
+                                        WHERE skey IN ({ph}) AND is_ek=1 AND durum='yeni'""", parca).fetchall():
+                hedef = kaliplar.get((r["t"] or "", r["g"] or ""))
+                if hedef:
+                    self.db.execute("UPDATE evrak SET durum='mukerrer', dup_of=?, path=?, indirildi=?, hata=? WHERE id=?",
+                                    (hedef[0], hedef[1], simdi, self.LISTE_TAHMIN_ISARETI, r["id"]))
+                    n += 1
+        return n
+
+    def sync_disk(self, en_az_aralik_sn: int = 0) -> int:
         """Diskte artık bulunmayan (silinmiş/taşınmış) indirmeleri 'İndirilmedi' durumuna döndürür.
-        Mükerrer kayıtlardan asıl kopyası silinenler de yeniden indirilebilir hale gelir."""
+        Mükerrer kayıtlardan asıl kopyası silinenler de yeniden indirilebilir hale gelir.
+        v4.9.3: en_az_aralik_sn verilirse bu süre dolmadan tekrar taranmaz — her indirme partisinin başında
+        on binlerce yolu Google Drive sanal diskinde (G:) tek tek yoklamak indirmeyi dakikalarca bekletiyordu."""
+        if en_az_aralik_sn and time.time() - getattr(self, "_son_sync_disk", 0) < en_az_aralik_sn:
+            return 0
+        self._son_sync_disk = time.time()
         rows = self.db.execute(
             "SELECT id, path FROM evrak WHERE durum IN ('indirildi','mukerrer') AND path IS NOT NULL").fetchall()
         exists: dict = {}
@@ -784,16 +843,35 @@ class Katalog:
 
     def cloud_backup(self, target_path: Path | str) -> bool:
         """SQLite yerleşik backup API'si ile çalışan veritabanını kilitlemeden
-        Google Drive veya hedef klasöre tutarlı anlık yedek çıkarır."""
+        Google Drive veya hedef klasöre tutarlı anlık yedek çıkarır.
+        v4.9.3: "with sqlite3.connect()" bağlantıyı KAPATMIYORDU; Windows'ta .tmp.db açık kaldığı için yeniden
+        adlandırma "[WinError 32] başka bir işlem tarafından kullanılıyor" ile düşüyor, Drive'da yarım
+        uyap_katalog_yedek.tmp.db kalıyordu. Artık geçici kopya YEREL veri klasöründe hazırlanır, bağlantı açıkça
+        kapatılır ve Drive'a tek adımda kopyalanır (Drive istemcisi kilitliyse birkaç kez denenir)."""
+        import shutil
         try:
             target = Path(target_path)
             target.parent.mkdir(parents=True, exist_ok=True)
-            tmp_target = target.with_suffix(".tmp.db")
-            with sqlite3.connect(str(tmp_target)) as dst:
+            yerel = DATA_DIR / "uyap_katalog_yedek.hazirlik.db"
+            dst = sqlite3.connect(str(yerel))
+            try:
                 self.db.backup(dst, pages=100)
-            if target.exists():
-                target.unlink()
-            tmp_target.rename(target)
+            finally:
+                dst.close()
+            eski_tmp = target.with_suffix(".tmp.db")
+            for deneme in range(5):
+                try:
+                    shutil.copyfile(yerel, eski_tmp)
+                    os.replace(eski_tmp, target)
+                    break
+                except PermissionError:
+                    if deneme == 4:
+                        raise
+                    time.sleep(3 * (deneme + 1))
+            try:
+                yerel.unlink()
+            except OSError:
+                pass
             return True
         except Exception as e:
             klog.error("Cloud backup hatası: %s", e)
@@ -969,6 +1047,9 @@ class Motor:
         self.dbg = klog.debug
         self.progress = progress or (lambda done, total, text="": None)
         self.stop_flag = threading.Event()
+        # v4.9.3: kesme() True dönerse (elle "indir" denen öncelikli iş geldi) uzun paket/tarama yarıda bırakılır;
+        # bırakılan evraklar 'yeni' kalır, sonraki turda kaldığı yerden devam edilir.
+        self.kesme = None
         self.pause_flag = threading.Event()
         self.oturum = ""
         self.case_ids: dict[str, str] = {}
@@ -988,9 +1069,15 @@ class Motor:
         self.oturum = dt.datetime.now().strftime("%Y%m%d%H%M%S") + f"{random.randint(0, 999):03d}"
         self.case_ids = {}
 
+    def _kesilsin_mi(self) -> bool:
+        try:
+            return bool(self.kesme and self.kesme())
+        except Exception:  # noqa: BLE001
+            return False
+
     def _sleep(self, s: float):
         end = time.time() + s
-        while time.time() < end and not self.stop_flag.is_set():
+        while time.time() < end and not self.stop_flag.is_set() and not self._kesilsin_mi():
             time.sleep(0.1)
         while self.pause_flag.is_set() and not self.stop_flag.is_set():
             time.sleep(0.2)
@@ -1114,6 +1201,9 @@ class Motor:
         while pending:
             if self.stop_flag.is_set():
                 self.log("[!] Tarama durduruldu.")
+                break
+            if self._kesilsin_mi():
+                self.log("⚡ Öncelikli indirme isteği geldi: katalog taraması sonraki tura bırakıldı.")
                 break
             chunk, pending = pending[:batch], pending[batch:]
             res = self._evraklar_batch([self.case_ids.get(self._case_dkey(c), "") for c in chunk])
@@ -1493,7 +1583,7 @@ class Motor:
     # ------------------------------------------------------------------ indirme
     def download(self, ids: list[int], tahmin: bool = True) -> dict:
         stats = {"indirildi": 0, "mukerrer": 0, "yok": 0, "hata": 0, "atlandi": 0, "onbellek": 0, "tahmini_mukerrer": 0}
-        n_gone = self.kat.sync_disk()
+        n_gone = self.kat.sync_disk(en_az_aralik_sn=6 * 3600)
         if n_gone:
             self.log(f"[i] Diskte bulunamayan {n_gone} evrak yeniden indirilecek olarak işaretlendi.")
         if not ids:
@@ -1519,6 +1609,9 @@ class Motor:
                  f"her {self.batch_n} evrakta {self.batch_pause:.0f} sn mola). Takılan istek 40 sn'de kesilir.")
         for eid in ids:
             if self.stop_flag.is_set():
+                break
+            if self._kesilsin_mi():
+                self.log("⚡ Öncelikli indirme isteği geldi: bu paket yarıda bırakıldı (kalanlar sonra iner).")
                 break
             done += 1
             try:
@@ -1568,7 +1661,8 @@ class Motor:
                                             path=dup["path"], indirildi=dt.datetime.now().isoformat(timespec="seconds"))
                         self.log(f"[=] Mükerrer (aynı içerik zaten var, kaydedilmedi): {row['tur']} → {Path(dup['path']).name}")
                         if tahmin and row["is_ek"]:
-                            canli_harita = self._tahmin_haritasi()  # bu kalıp artık öğrenilmiş olabilir
+                            # v4.9.3: tüm tabloyu yeniden taramak yerine kalıp yerinde öğrenilir (indirme beklemez)
+                            canli_harita[self._imza(row)] = (dup["skey"], dup["path"])
                     else:
                         path = unique_path(target_path_for(row, self.base, ext))
                         path.parent.mkdir(parents=True, exist_ok=True)

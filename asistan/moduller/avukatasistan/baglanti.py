@@ -113,27 +113,93 @@ def _hata_metni(e):
     return type(e).__name__
 
 
+# ----------------------------------------------------------------------------------------------- 429 (istek sınırı)
+# v4.9.3: TickTick "HTTP 429 Too Many Requests" verince eskiden HER süreç (UETS, TickTick düzeni, otokontrol) kendi
+# başına 3-6-12-24 sn deneyip her denemeyi günlüğe yazıyordu: yüzlerce "okunamadı (HTTP 429)" satırı, sınır hiç
+# açılmıyordu. Artık sınır tüm süreçlerce paylaşılan bir dosyada tutulur (sunucu adı -> "şu zamana kadar bekle");
+# her süreç istekten önce bu süreyi sessizce bekler, günlüğe yalnız BİR satır yazılır.
+# EN: shared cross-process rate-limit cooldown per host (file based), honours Retry-After.
+def _sinir_dosyasi():
+    d = os.environ.get("UYAP_VERI_DIZINI") or os.path.join(HERE, "veri")
+    return os.path.join(d, "istek_siniri.json")
+
+
+def _sinir_oku():
+    try:
+        with open(_sinir_dosyasi(), encoding="utf-8") as f:
+            return json.load(f) or {}
+    except (OSError, ValueError):
+        return {}
+
+
+def sinir_kalan(url):
+    """Bu sunucu için paylaşılan 429 bekleme süresinden kalan saniye (0 = serbest)."""
+    host = urlparse(url).netloc
+    try:
+        return max(0.0, float(_sinir_oku().get(host, 0)) - time.time())
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def sinir_koy(url, sn):
+    host = urlparse(url).netloc
+    v = _sinir_oku()
+    v[host] = max(float(v.get(host) or 0), time.time() + sn)
+    try:
+        os.makedirs(os.path.dirname(_sinir_dosyasi()), exist_ok=True)
+        gecici = _sinir_dosyasi() + f".{os.getpid()}.tmp"
+        with open(gecici, "w", encoding="utf-8") as f:
+            json.dump(v, f)
+        os.replace(gecici, _sinir_dosyasi())
+    except OSError:
+        pass
+
+
+def _retry_after(r, varsayilan):
+    try:
+        return max(5, min(600, int(float(r.headers.get("Retry-After") or varsayilan))))
+    except (TypeError, ValueError):
+        return varsayilan
+
+
 def oku(method, url, headers, json_body=None, timeout=15, ne="veri", hata_sinifi=BaglantiHatasi,
         kabul=(200, 404), yetki_mesaji=""):
     """Dayanıklı OKUMA. Kabul edilen kodlardan biriyle yanıt döner; olmazsa hata_sinifi fırlatır (boş SAYMAZ).
-    Sıra: kısa yeniden denemeler -> internet gelene kadar bekleme -> bir tur daha kısa deneme."""
+    Sıra: kısa yeniden denemeler -> internet gelene kadar bekleme -> bir tur daha kısa deneme.
+    429 (istek sınırı): paylaşılan bekleme süresi konur ve SESSİZCE beklenir (en çok 3 kez); internet yok sayılmaz."""
     son = ""
+    sinir_deneme = 0
     for tur in range(2):
         beklemeler = kisa_beklemeler()
-        for deneme in range(len(beklemeler) + 1):
+        deneme = 0
+        while deneme <= len(beklemeler):
+            kalan = sinir_kalan(url)
+            if kalan > 0 and beklemeler:
+                _uyu(kalan)
             try:
                 r = requests.request(method, url, headers=headers, json=json_body, timeout=timeout)
                 if r.status_code in kabul:
                     return r
+                if r.status_code == 429:
+                    sinir_deneme += 1
+                    if sinir_deneme > 3 or not beklemeler:
+                        raise hata_sinifi(f"{ne}: sunucu istek sınırında (HTTP 429); birazdan kendiliğinden yeniden denenecek")
+                    sn = _retry_after(r, 60 * sinir_deneme)
+                    sinir_koy(url, sn)
+                    if sinir_deneme == 1:
+                        print(f"   ⏳ {ne}: istek sınırı (HTTP 429) — {sn} sn beklenip devam edilecek.", flush=True)
+                    continue          # deneme sayacı artmaz; döngü başında paylaşılan süre beklenir
                 if r.status_code in (401, 403):
                     raise hata_sinifi(yetki_mesaji or f"{ne}: erişim reddedildi (HTTP {r.status_code}), anahtarı kontrol edin")
                 son = f"HTTP {r.status_code}"
             except requests.RequestException as e:
                 son = _hata_metni(e)
             if deneme < len(beklemeler):
-                print(f"   📶 {ne} okunamadı ({son}); {beklemeler[deneme]} sn sonra yeniden denenecek "
-                      f"({deneme + 1}/{len(beklemeler)})...", flush=True)
+                # Yalnız ilk denemede yazılır (eskiden her denemede bir satır: günlük okunmaz hale geliyordu)
+                if deneme == 0:
+                    print(f"   📶 {ne} okunamadı ({son}); kısa aralıklarla yeniden deneniyor...", flush=True)
                 _uyu(beklemeler[deneme])
+            deneme += 1
         if tur == 0 and not bekle(ne, hedef=url):
             break
     raise hata_sinifi(f"{ne} okunamadı ({son}). İnternet gelince aynı komutu yeniden çalıştırın; "

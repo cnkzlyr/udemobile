@@ -27,6 +27,8 @@ if not logger.handlers:
     _handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] (FinansSafahat) %(message)s"))
     logger.addHandler(_handler)
     logger.setLevel(logging.INFO)
+# v4.9.3: kök günlükçüye (Watcher) de iletilip her satır İKİ kez yazılıyordu: (FinansSafahat) + (Watcher)
+logger.propagate = False
 
 # Katalogla AYNI veritabanı: paketli uygulamada UYAP_VERI_DIZINI (eskiden modül klasörüne yazılıyor, sunucu
 # kataloğu başka yerde okuduğunda hesaplar hiç görünmüyordu).
@@ -395,7 +397,7 @@ class UyapFinansSafahatManager:
         ))
         conn.commit()
         conn.close()
-        logger.info(f"[{dkey}] Finans güncellendi: Tahsilat={coz['toplam_tahsilat']:.2f} TL, Reddiyat={coz['toplam_reddiyat']:.2f} TL, Kalan={coz['kalan_bakiye']:.2f} TL")
+        (logger.info if (coz['toplam_tahsilat'] or coz['toplam_reddiyat'] or coz['kalan_bakiye']) else logger.debug)(f"[{dkey}] Finans güncellendi: Tahsilat={coz['toplam_tahsilat']:.2f} TL, Reddiyat={coz['toplam_reddiyat']:.2f} TL, Kalan={coz['kalan_bakiye']:.2f} TL")
         return {
             "toplamTahsilat": coz["toplam_tahsilat"], "toplamReddiyat": coz["toplam_reddiyat"],
             "toplamHarc": coz["toplam_harc"], "kalanBakiye": coz["kalan_bakiye"],
