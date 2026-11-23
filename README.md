@@ -40,6 +40,7 @@
 
 ### ☁️ Sade Google Drive senkronu
 - Drive sekmesinde artık tek bir durum satırı ve tek bir **"Şimdi eşitle"** düğmesi var. Senkron açıkken bütün UYAP evrakı kendiliğinden Drive'a gidiyor. Ayrıntılar, indeksleme ve kurulum ayarları katlı "Gelişmiş" bölümünde duruyor.
+- **Drive'a "bir türlü aktarmıyor" sorunu:** Drive tarafı tıkalı değildi; inen her evrak zaten Drive'a gidiyordu ("0 Drive'a aktarılacak"). Darboğaz UYAP'tan indirmeydi. Örnek bir 15 dakikada indirme yalnızca bir kez, 1,5 dakika çalışmış, 50 evrağın 44'ü indirildikten sonra mükerrer çıkıp atılmıştı. Kalan süreyi katalog listeleme (90 sn'de bir), hesap çekme (5 dk'da bir) ve açık dosya taraması alıyordu. Artık her turda yaklaşık 4 dakika kesintisiz indirme yapılıyor (100'lük paketler). Bekleyen evrak varken katalog 6 dakikada, hesaplar 30 dakikada bir çekiliyor. Önce asıl evraklar indiriliyor, ekler sonra geliyor; ekler çoğunlukla başka bir evrakın kopyası.
 - **Mükerrerler liste okunurken ayıklanıyor:** Bir dosyanın evrak listesi kataloğa yazılırken aynı dosya adı anahtarı ve daha önce aynı içerikle gelmiş ek kalıpları hemen mükerrer işaretleniyor. İndirme döngüsü mükerrer aramak için beklemiyor. Eskiden her mükerrerde 247 bin satırlık tablo yeniden taranıyordu ve her indirme partisinden önce on binlerce yol Drive diskinde tek tek yoklanıyordu (artık en çok 6 saatte bir).
 
 ---

@@ -57,14 +57,14 @@ class NobetciTesti(unittest.TestCase):
         db.row_factory = sqlite3.Row
         db.executescript("""
             CREATE TABLE evrak(id INTEGER PRIMARY KEY, durum TEXT, pdf_path TEXT, kategori TEXT, tarih TEXT,
-                               birim TEXT, dosya_no TEXT);
+                               birim TEXT, dosya_no TEXT, is_ek INTEGER DEFAULT 0);
         """)
         pdf = Path(self.td.name) / "a.pdf"
         pdf.write_bytes(b"%PDF")
-        db.execute("INSERT INTO evrak VALUES (1,'yeni',?, 'karar','2024-01-01','Ankara 1. Asliye','2024/1')", (str(pdf),))
-        db.execute("INSERT INTO evrak VALUES (2,'yok',NULL,'karar','2024-01-02','X','1')")
-        db.execute("INSERT INTO evrak VALUES (3,'hata',NULL,'karar','2024-01-03','X','2')")
-        db.execute("INSERT INTO evrak VALUES (4,'yeni',NULL,'dilekce','2024-01-04','X','3')")
+        db.execute("INSERT INTO evrak VALUES (1,'yeni',?, 'karar','2024-01-01','Ankara 1. Asliye','2024/1',0)", (str(pdf),))
+        db.execute("INSERT INTO evrak VALUES (2,'yok',NULL,'karar','2024-01-02','X','1',0)")
+        db.execute("INSERT INTO evrak VALUES (3,'hata',NULL,'karar','2024-01-03','X','2',0)")
+        db.execute("INSERT INTO evrak VALUES (4,'yeni',NULL,'dilekce','2024-01-04','X','3',0)")
         self.db = db
 
     def tearDown(self):

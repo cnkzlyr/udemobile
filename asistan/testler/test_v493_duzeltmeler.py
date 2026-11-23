@@ -92,5 +92,17 @@ class OturumTesti(unittest.TestCase):
         self.assertIn('"login"]', kaynak)
 
 
+class ArsivOnceligiTesti(unittest.TestCase):
+    def test_asil_evrak_eklerden_once(self):
+        import uyap_watcher as uw
+        db = sqlite3.connect(":memory:")
+        db.execute("CREATE TABLE evrak(id INTEGER PRIMARY KEY, durum TEXT, pdf_path TEXT, kategori TEXT, tarih TEXT, is_ek INTEGER)")
+        db.execute("INSERT INTO evrak VALUES (1,'yeni',NULL,'karar','2025-01-01',1)")
+        db.execute("INSERT INTO evrak VALUES (2,'yeni',NULL,'yazisma','2020-01-01',0)")
+        w = uw.UyapWatcher.__new__(uw.UyapWatcher)
+        w.katalog = type("K", (), {"db": db})()
+        self.assertEqual(w.get_priority_backlog_ids(10), [2, 1])
+
+
 if __name__ == "__main__":
     unittest.main()

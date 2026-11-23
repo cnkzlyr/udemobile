@@ -709,6 +709,9 @@ class UyapWatcher:
         ORDER BY 
             -- Daha önce hata veren evraklar en sona: aynı bozuk 50 evrak sonsuza dek tekrar denenmesin
             CASE WHEN e.durum = 'hata' THEN 1 ELSE 0 END ASC,
+            -- v4.9.3: önce ASIL evraklar, ekler sonra. Ekler çoğunlukla başka evrakın kopyası (ör. Temyiz Formu'nun
+            -- "Gerekçeli Karar" eki): logdaki pakette 50 evrağın 44'ü indirilip mükerrer çıkarak boşa gidiyordu.
+            e.is_ek ASC,
             CASE 
                 WHEN e.kategori IN ('karar') THEN 1
                 WHEN e.kategori IN ('durusma', 'tensip') THEN 2
@@ -792,6 +795,7 @@ class UyapWatcher:
             self.motor = ek.Motor(self.bridge, self.katalog, self.download_dir, log=logger.info, relogin=relogin_fn)
 
         target_ids = self.get_missing_doc_ids(limit=max_batch)
+        self._son_paket_dolu = len(target_ids) >= max_batch
         if not target_ids:
             logger.info("✨ Tüm evraklar güncel! İndirilmeyi bekleyen eksik evrak bulunamadı.")
             return 0
@@ -1033,12 +1037,16 @@ class UyapWatcher:
                 # 2b. TÜM ARŞİVİN KATALOĞU: kapalı dosyalar dahil her dosyanın evrak LİSTESİ (indirmeden) kataloğa
                 # işlenir; Evrak Ara bütün UYAP evrakında arar, arşiv eşitleme şeridi de bütün arşivi görür.
                 # Her turda en çok 60 dosya (UYAP'ı yormadan); 731 dosya ~3 saatte tamamlanır, sonra 14 günde bir tazelenir.
-                if tam_tur or time.time() - getattr(self, "_son_katalog", 0.0) >= 90:
+                # v4.9.3 ZAMAN BÜTÇESİ: indirme bekleyen evrak varken katalog listeleme 90 sn'de bir değil 6 dk'da bir,
+                # hesap tazeleme 5 dk'da bir değil 30 dk'da bir yapılır. Eskiden 15 dakikanın ~1,5 dakikası indirmeye
+                # kalıyordu (logda 15:25-15:40 arası tek paket: 6 evrak) ve Drive'a "bir türlü aktarmıyor" görünüyordu.
+                bekleyen_var = bool(getattr(self, "_bekleyen_var", True))
+                if tam_tur or time.time() - getattr(self, "_son_katalog", 0.0) >= (360 if bekleyen_var else 90):
                     self._son_katalog = time.time()
                     self._arsiv_katalogla(adet=40)
                 # Hesaplar (icra kapak hesabı, tahsilat/reddiyat, safahat) arşiv indirmesi sürerken de tazelenir;
                 # eskiden yalnızca arşiv Drive ile eşitken çalıştığı için hiç çekilmiyordu.
-                if time.time() - getattr(self, "_son_hesap", 0.0) >= 300:
+                if time.time() - getattr(self, "_son_hesap", 0.0) >= (1800 if bekleyen_var else 300):
                     self._son_hesap = time.time()
                     self._hesap_tazele()
 
@@ -1051,8 +1059,14 @@ class UyapWatcher:
                     self.sync_intel_and_deadlines(force=once)
 
                 # 5. ARŞİV EŞİTLEME ŞERİDİ: Kalan 506 bin evrakı kesin HUKUKİ ÖNEM sırasına göre Google Drive'a pompala
+                # v4.9.3: tek paket yerine ~4 dakika boyunca art arda paketler indirilir (diğer işler araya girmez)
                 if self.config.get("auto_download_missing", True):
-                    eksikler = self.reconcile_missing_docs(max_batch=50)
+                    pas_bas, eksikler = time.time(), 0
+                    while time.time() - pas_bas < 240:
+                        n = self.reconcile_missing_docs(max_batch=100)
+                        eksikler += n
+                        if not getattr(self, "_son_paket_dolu", False):
+                            break
                     if eksikler > 0:
                         logger.info("📦 Öncelikli Arşiv Eşitleme: %d evrak Google Drive'a aktarıldı.", eksikler)
 
@@ -1065,6 +1079,7 @@ class UyapWatcher:
                     "SELECT COUNT(*) FROM evrak WHERE durum NOT IN ('indirildi', 'mukerrer', 'yok', 'hata') AND (pdf_path IS NULL OR pdf_path = '')"
                 )
                 kalan_evrak = cur_rem.fetchone()[0]
+                self._bekleyen_var = kalan_evrak > 0
 
                 if kalan_evrak > 0:
                     logger.info("⏳ UYAP Arşiv Eşitlemesi Devam Ediyor: Kalan %d evrak önem sırasıyla indiriliyor (Sonraki paket 3 sn)...", kalan_evrak)
