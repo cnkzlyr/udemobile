@@ -39,6 +39,122 @@ UYAP Avukat Portal (`https://avukat.uyap.gov.tr`) üzerindeki tüm derdest ve ka
 
 ---
 
+## 🔐 UDF E-İmza & Mobil İmza Mimarisi: Neden Sessiz (Headless) Arka Plan İmzası?
+
+UYAP sisteminde hazırlanan dilekçe, layihâ ve mazeret belgeleri `.udf` (Uyap Doküman Formatı - ZIP sıkıştırmalı `content.xml` ve `sign.sgn`) biçimindedir. Bu sistem; **Termux (Android)**, **Windows (CMD/PowerShell)**, **Linux (Ubuntu / Fedora)** ve **macOS** terminallerinde **tek bir komutla (`uyap-imzala`)** hem donanım USB e-imza hem de UYAP Mobil İmza ile resmi CAdES-BES standardında imzalama ve doğrulama yeteneğine sahiptir.
+
+```
+                         ┌─────────────────────────────────────────────────────────┐
+                         │              UYAP UDF İMZALAMA MOTORU                   │
+                         │              (uyap-imzala / uyap_imzala.py)             │
+                         └────────────────────────────┬────────────────────────────┘
+                                                      │
+                       ┌──────────────────────────────┴──────────────────────────────┐
+                       ▼                                                             ▼
+         ┌───────────────────────────┐                                 ┌───────────────────────────┐
+         │   USB E-İMZA (ArkSigner)  │                                 │   UYAP MOBİL İMZA (SIM)   │
+         │  (Port 5975 / CCID / APDU)│                                 │  (Port 5976 / Havelsan)   │
+         └─────────────┬─────────────┘                                 └─────────────┬─────────────┘
+                       │                                                             │
+         ┌─────────────┴─────────────┐                                 ┌─────────────┴─────────────┐
+         │ • Sıfır popup, sıfır onay │                                 │ • OTA Binary SMS / STK    │
+         │ • APDU VERIFY PIN (455625)│                                 │ • Ekranda zorunlu PIN     │
+         │ • 0.3 sn sürede imzalama  │                                 │ • 5070 s. Kanun gereği    │
+         │ • %100 Arka Planda Sessiz │                                 │ • Donanım yokken Yedek    │
+         └─────────────┬─────────────┘                                 └─────────────┬─────────────┘
+                       │                                                             │
+                       └──────────────────────────────┬──────────────────────────────┘
+                                                      ▼
+                                       ┌─────────────────────────────┐
+                                       │   Resmi CAdES-BES sign.sgn  │
+                                       │    + content.xml -> .UDF    │
+                                       │    + İsteğe bağlı .PDF      │
+                                       └─────────────────────────────┘
+```
+
+### 1. Teknik ve Yasal Nedenler
+
+#### ❓ Mobil İmza (SIM Kart) Neden Arka Planda Sessizce İmzalanayamaz?
+* **SIM Kart İçi Güvenli Çip (Secure Element):** Mobil imzanın özel anahtarı (private key) telefonun işletim sisteminde veya dosya sisteminde değil, doğrudan SIM kartın çipinin içindeki kriptografik donanım alanında kilitlidir. Android, iOS veya Termux bu anahtarı asla okuyamaz.
+* **Operatörün SIM Toolkit (STK) Protokolü & ETSI TS 102 204:** UYAP imza talebini operatöre (Türk Telekom, Turkcell, Vodafone) ilettiğinde, operatör baz istasyonundan SIM karta özel bir ikili (binary) OTA SMS gönderir. SIM kart çipi bu sinyali aldığında donanımsal olarak işletim sistemine `GET INPUT` komutu verir ve Android o tanıdık SIM Toolkit modal ekranını zorunlu olarak ekrana basar.
+* **5070 Sayılı Elektronik İmza Kanunu & Güvenlik Kuralı:** 5070 Sayılı Kanun gereğince inkar edilemezlik (non-repudiation) ilkesi esastır. SIM kart çipinin donanım yazılımı (firmware), o ekrandan PIN girilip "Tamam" denmediği sürece `COMPUTE SIGNATURE` işlemini yapmayı fiziksel olarak reddeder.
+* **Android Güvenlik Duvarı:** SIM Toolkit ekranı Android'in en yüksek güvenlikli katmanında açıldığı için, arka plandaki hiçbir programın o ekrana gizlice tuş basması (`INJECT_EVENTS` kısıtlaması) mümkün değildir. Bu sayede zararlı yazılımların kullanıcının haberi olmadan işlem yapması engellenir.
+
+#### ⚡ USB E-İmzada (ArkSigner / CCID SmartCard) Neden %100 Sessiz İmza Mümkündür?
+İşte tam olarak bu nedenle USB E-İmza (ArkSigner, Akis vb.) otomasyon ve arka plan işleri için biçilmiş kaftandır:
+* **Doğrudan CCID / PC/SC APDU İletişimi:** Telefona OTG ile veya bilgisayara USB portundan bağlanan token ile doğrudan standart ISO 7816 akıllı kart APDU komutlarıyla haberleşilir.
+* **Sıfır Ekran, Sıfır Popup:** PIN kodunuz (ör. `455625`) komut satırından veya arka uç API'sinden karta doğrudan kriptografik APDU paketi olarak gönderilir (`VERIFY PIN`). Ekranda hiçbir onay kutusu, bildirim veya açılır pencere belirmez.
+* **Sub-second (0.3 saniye) Hız:** Dosyayı gönderdiğiniz an 0.3 - 0.5 saniye içinde tamamen sessizce CAdES-BES imzası üretilir.
+* **UYAP & CanEditor Birebir Uyumluluğu:** Adalet E-İmza servisinin `POST /api/v1/docsignature/signdigest` uç noktası doğrudan `content.xml` belgesinin SHA-256 özetini imzalar; bu sayede CanEditor veya UYAP Editör'de açıldığında **"İçerik özeti uyuşmuyor"** hatası asla yaşanmaz.
+
+---
+
+### 2. Çapraz Platform (Cross-Platform) Kullanım
+
+`uyap-imzala`, Python 3 standart kütüphaneleriyle yazılmış olup harici derleme gerektirmeden tüm platformlarda yerel olarak çalışır:
+
+| Platform | Çalışma Ortamı | E-İmza Altyapısı | Komut Örneği |
+|---|---|---|---|
+| **Android (Termux)** | Termux CLI / Widget | CCID Köprüsü (`ccid_bridge.py`) + Adalet Servisi | `uyap-imzala dilekce.udf` |
+| **Windows 10/11** | PowerShell / CMD / Terminal | Windows SmartCard (WinSCard) + Adalet E-İmza Tray | `uyap-imzala.bat dilekce.udf` veya `python uyap_imzala.py dilekce.udf` |
+| **Linux (Ubuntu/Debian)** | Bash / Zsh | pcsc-lite (`pcscd`) + Adalet E-İmza | `./uyap-imzala dilekce.udf` |
+| **Linux (Fedora/RHEL)** | Bash / Zsh | pcsc-lite (`pcscd`) + Adalet E-İmza | `./uyap-imzala dilekce.udf` |
+| **macOS (Darwin)** | Terminal / iTerm2 | CryptoTokenKit / PCSC + Adalet E-İmza | `./uyap-imzala dilekce.udf` |
+
+---
+
+### 3. Komut Satırı Kullanım Kılavuzu
+
+```bash
+# 1. Otomatik İmzalama (Kart takılıysa sessiz e-imza, takılı değilse Mobil İmza fallback)
+uyap-imzala dilekce.udf
+
+# 2. Özel PIN belirterek imzalama
+uyap-imzala dilekce.udf --pin 455625
+
+# 3. Donanım kartını atlayıp doğrudan UYAP Mobil İmza ile imzalama
+uyap-imzala dilekce.udf --mobil --operator 2 --gsm 05525286225
+
+# 4. İmzalandıktan sonra anında vektörel PDF önizlemesini de üretme
+uyap-imzala dilekce.udf --pdf
+
+# 5. UDF dosyasındaki imzanın geçerliliğini ve SHA-256 özetini doğrulama
+uyap-imzala dilekce_IMZALI.udf --dogrula
+
+# 6. Takılı akıllı kart, sertifika sahibi ve servis durumlarını sorgulama
+uyap-imzala --durum
+
+# 7. Çoklu / toplu imzalama
+uyap-imzala evrak1.udf evrak2.udf klasor/*.udf
+```
+
+---
+
+### 4. CanEditor Hukuk Asistanı REST API Entegrasyonu
+
+CanEditor Asistan (`sunucu.py`) arka ucuna tam entegre edilen uç noktalar sayesinde CanEditor arayüzünden doğrudan imzalama yönetilebilir:
+
+* `GET /api/imza/durum` → Takılı kartı, sertifika sahibini, mobil servis ve sessiz imza hazır olma durumunu JSON olarak döner.
+* `POST /api/imza/imzala` → Belirtilen UDF belgesini sessizce imzalar, `_IMZALI.udf` (ve isteğe bağlı PDF) üretir:
+  ```json
+  {
+    "udf": "C:/Dava/Dilekce.udf",
+    "pin": "455625",
+    "yontem": "oto",
+    "pdf": true
+  }
+  ```
+* `POST /api/imza/dogrula` → Belgenin imzasını ve içerik özetini (`content.xml` vs `sign.sgn`) denetler:
+  ```json
+  {
+    "udf": "C:/Dava/Dilekce_IMZALI.udf"
+  }
+  ```
+
+---
+
+---
+
 ## ☁️ Google Drive Hibrit Mimarisi: Her Cihazdan 0 MB Depolama ile Erişim
 
 Bu sistemin en büyük avantajı, **hiçbir cihazınıza on binlerce dosyayı (onlarca GB arşivi) tek tek indirmek zorunda kalmamanızdır**:

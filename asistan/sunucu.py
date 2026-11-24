@@ -76,6 +76,7 @@ import drive_indeks as _drive_indeks  # noqa: E402
 import entegrasyon as _entegrasyon    # noqa: E402
 import hayfa_kopru as _hayfa_kopru    # noqa: E402
 import jar_donustur as _jar_donustur  # noqa: E402
+import imza as _imza                  # noqa: E402
 # Pakete gömülü (PyInstaller) ikili: Python kurulu olmadan çalışır. Modül kodu paketin içinde salt okunurdur;
 # modüller verilerini kendi klasörlerine yazdığı için ilk açılışta kullanıcı veri dizinine eşitlenir.
 DONDURULMUS = bool(getattr(sys, "frozen", False))
@@ -2799,8 +2800,11 @@ class Isleyici(BaseHTTPRequestHandler):
                 return self._json({"surum": SURUM, "moduller": modul_durumu(), "katalog": str(katalog_yolu()),
                                    "defter": str(defter_yolu()), "platform": sys.platform,
                                    "jar": _jar_donustur.durum(),
+                                   "imza": _imza.durum_ozet(),
                                    "entegrasyon": _entegrasyon.ayar_ozeti(AVUKAT_DIR),
                                    "termux": os.environ.get("PREFIX", "").startswith("/data/data/com.termux")})
+            if yol == "/api/imza/durum":
+                return self._json(_imza.durum())
             if yol == "/api/dosyalar":
                 return self._json(dosyalar_listele(q.get("q", ""), q.get("durum", ""), int(q.get("limit") or 150),
                                                    muvekkil=q.get("muvekkil", "")))
@@ -3133,6 +3137,10 @@ class Isleyici(BaseHTTPRequestHandler):
                 ))
             if yol == "/api/a4":
                 return self._json(a4_birlestir(list(govde.get("dosyalar") or []), govde.get("cikti")))
+            if yol == "/api/imza/imzala":
+                return self._json(_imza.imzala(govde))
+            if yol == "/api/imza/dogrula":
+                return self._json(_imza.dogrula(govde))
             self._json({"hata": "Bulunamadı"}, 404)
         except (ValueError, RuntimeError) as e:
             self._json({"hata": str(e)}, 400)
