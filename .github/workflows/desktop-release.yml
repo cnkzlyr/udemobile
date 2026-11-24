@@ -133,12 +133,19 @@ jobs:
           fi
           ls -l out
 
+      # Sürüm notları docs/surum-notlari/<etiket>.md'den (README'deki sürüm bölümüyle aynı içerik); yoksa kısa not.
+      - name: Surum notlari
+        run: |
+          f="docs/surum-notlari/${TAG}.md"
+          if [ -f "$f" ]; then cp "$f" "$RUNNER_TEMP/notlar.md"; else echo "CanEditor ${TAG}" > "$RUNNER_TEMP/notlar.md"; fi
+
       - name: Upload to GitHub release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.TAG }}
           name: CanEditor ${{ env.TAG }}
           target_commitish: ${{ github.sha }}
+          body_path: ${{ runner.temp }}/notlar.md
           files: out/*
           fail_on_unmatched_files: false
 

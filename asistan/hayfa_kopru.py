@@ -432,8 +432,12 @@ def karar_istatistik(veri_dizini: Path, yenile: bool = False) -> dict:
 # 4. MEVZUAT
 # ---------------------------------------------------------------------------
 
-def mevzuat_ara(veri_dizini: Path, q: str = "", tur: str = "") -> dict:
-    anahtar = f"mevzuat:{_fold(q)}:{_fold(tur)}"
+def mevzuat_ara(veri_dizini: Path, q: str = "", tur: str = "", yer: str = "") -> dict:
+    """Mevzuat arama. yer="madde" → hayfahukuk.com mevzuat arşivinde madde METNİ içinde arar (Kasım 2026
+    madde/bölüm/cetvel arşivi); boş → yalnız mevzuat adında arar.
+    EN: Legislation search; yer="madde" searches inside article texts of the HAYFA legislation archive."""
+    yer = "madde" if yer == "madde" else ""
+    anahtar = f"mevzuat:{_fold(q)}:{_fold(tur)}:{yer}"
     onb = _cache_oku(veri_dizini, anahtar, ttl_s=3600)
     if onb:
         return onb
@@ -443,6 +447,8 @@ def mevzuat_ara(veri_dizini: Path, q: str = "", tur: str = "") -> dict:
         qs["q"] = q
     if tur:
         qs["tur"] = tur
+    if yer:
+        qs["yer"] = yer
     yol = "/mevzuat" + ("?" + urllib.parse.urlencode(qs) if qs else "")
     try:
         html = _indir(yol, timeout=15)

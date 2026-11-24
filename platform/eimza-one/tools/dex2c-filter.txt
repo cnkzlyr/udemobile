@@ -1,0 +1,7 @@
+# Dex2C whitelist. Keep Android lifecycle, WebView/JavascriptInterface and card
+# transport methods as DEX so framework reflection and vendor SDK calls remain stable.
+app/eimza/mobile/ArkBootstrap;.*
+app/eimza/mobile/RsaDigestInfo;.*
+app/eimza/mobile/AdaletDeviceInfo;.*
+app/eimza/mobile/PortalOrigins;.*
+

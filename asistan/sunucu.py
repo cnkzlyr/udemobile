@@ -61,7 +61,7 @@ if hasattr(sys.stderr, "reconfigure"):
         pass
 from pathlib import Path
 
-SURUM = "4.9.4"
+SURUM = "4.10.0"
 KOK = Path(__file__).resolve().parent
 if str(KOK) not in sys.path:
     sys.path.insert(0, str(KOK))
@@ -77,6 +77,7 @@ import entegrasyon as _entegrasyon    # noqa: E402
 import hayfa_kopru as _hayfa_kopru    # noqa: E402
 import jar_donustur as _jar_donustur  # noqa: E402
 import imza as _imza                  # noqa: E402
+import kisisel_ayar as _kisisel_ayar  # noqa: E402,F401 — PIN/TC/GSM tek kaynak (pakete gömülsün)
 # Pakete gömülü (PyInstaller) ikili: Python kurulu olmadan çalışır. Modül kodu paketin içinde salt okunurdur;
 # modüller verilerini kendi klasörlerine yazdığı için ilk açılışta kullanıcı veri dizinine eşitlenir.
 DONDURULMUS = bool(getattr(sys, "frozen", False))
@@ -1953,8 +1954,9 @@ def gorev_ortami() -> dict:
                 env.setdefault(k, _e[k])
     except Exception:
         pass
-    # Android: alt görevler de DNS yedeğini (sitecustomize → dns_cozucu) yüklesin diye uygulama klasörü PYTHONPATH'e
-    if ANDROID:
+    # Uygulama klasörü (asistan/) her platformda PYTHONPATH'e: veri klasörüne eşitlenmiş modüller ortak yardımcıları
+    # (kisisel_ayar, oz_denetim) bulabilsin; Android'de ayrıca DNS yedeği (sitecustomize → dns_cozucu) yüklensin.
+    if True:
         yollar = [str(KOK)] + [p for p in env.get("PYTHONPATH", "").split(os.pathsep) if p and p != str(KOK)]
         env["PYTHONPATH"] = os.pathsep.join(yollar)
     jars = os.environ.get("CANASISTAN_UYAP_JARS")
@@ -2040,11 +2042,19 @@ class Gorev:
             for satir in self.proc.stdout:
                 satir = satir.rstrip("\n")
                 self.gunluk.append(satir)
+                if satir.strip():
+                    _oz_denetim.kaydet(f"gorev/{self.kimlik}", satir)  # birleşik günlük (caneditor log -f)
                 durum = oturum_satiri_coz(satir)
                 if durum is not None:
                     self.oturum, self.oturum_zaman, self.oturum_satir = durum, time.time(), satir.split("] ", 2)[-1][:200]
         self.kod = self.proc.wait()
         self.bitis = time.time()
+        _oz_denetim.kaydet(f"gorev/{self.kimlik}", f"bitti: çıkış kodu {self.kod}", "BILGI" if self.kod == 0 else "HATA")
+        if self.kimlik == "ticktick-duzen" and self.kod == 0:
+            try:  # öz-denetim, düzenin yakın zamanda çalıştığını bilsin (gereksiz ikinci tur açılmasın)
+                (_oz_denetim.veri_dizini() / "ticktick_duzen_son.txt").write_text(str(time.time()))
+            except OSError:
+                pass
 
     def durdur(self):
         if self.calisiyor():
@@ -2058,6 +2068,10 @@ class Gorev:
 
 
 GOREV_DURUM: dict[str, Gorev] = {k: Gorev(k, v) for k, v in GOREVLER.items()}
+
+import oz_denetim as _oz_denetim  # noqa: E402 — birleşik günlük + öz-denetim (v4.10.0)
+
+OZ_DENETIM = _oz_denetim.OzDenetimZamanlayici()
 
 
 # ---------------------------------------------------------------------------
@@ -2888,7 +2902,7 @@ class Isleyici(BaseHTTPRequestHandler):
             if yol == "/api/hayfa/karar":
                 return self._json(_hayfa_kopru.karar_detay(veri_dizini(), q.get("id", "")))
             if yol == "/api/hayfa/mevzuat":
-                return self._json(_hayfa_kopru.mevzuat_ara(veri_dizini(), q.get("q", ""), q.get("tur", "")))
+                return self._json(_hayfa_kopru.mevzuat_ara(veri_dizini(), q.get("q", ""), q.get("tur", ""), q.get("yer", "")))
             if yol == "/api/hayfa/adliyeler":
                 return self._json(_hayfa_kopru.adliye_ara(q.get("q", ""), q.get("il", ""), q.get("tur", ""), int(q.get("limit") or 80)))
             if yol == "/api/dosya/hesaplar":
@@ -2915,6 +2929,10 @@ class Isleyici(BaseHTTPRequestHandler):
                 return self._json(UETS_ZAMAN.ayar())
             if yol == "/api/gorevler":
                 return self._json({"gorevler": [g.ozet(int(q.get("satir") or 40)) for g in GOREV_DURUM.values()]})
+            if yol == "/api/oz-denetim":
+                # v4.10.0: son öz-denetim raporu + birleşik günlüğün son satırları (GUI "Sağlık" paneli)
+                return self._json({"rapor": _oz_denetim.son_rapor(), "calisiyor": OZ_DENETIM.calisiyor,
+                                   "gunluk": _oz_denetim.son_kayitlar(int(q.get("satir") or 120), q.get("kaynak", ""))})
             self._json({"hata": "Bulunamadı"}, 404)
         except (ValueError, RuntimeError) as e:
             self._json({"hata": str(e)}, 400)
@@ -3137,7 +3155,12 @@ class Isleyici(BaseHTTPRequestHandler):
                 ))
             if yol == "/api/a4":
                 return self._json(a4_birlestir(list(govde.get("dosyalar") or []), govde.get("cikti")))
+            if yol == "/api/oz-denetim":
+                if govde.get("bekle"):
+                    return self._json(_oz_denetim.tam_denetim(onar=not govde.get("salt_oku")))
+                return self._json({"baslatildi": OZ_DENETIM.simdi()})
             if yol == "/api/imza/imzala":
+                _oz_denetim.kaydet("imza", f"imzala istendi: {Path(str(govde.get('udf') or govde.get('dosya') or '')).name} yontem={govde.get('yontem', 'oto')}")
                 return self._json(_imza.imzala(govde))
             if yol == "/api/imza/dogrula":
                 return self._json(_imza.dogrula(govde))
@@ -3201,6 +3224,8 @@ def main(argv=None):
     DUZEN_ZAMAN.baslat()
     DRIVE_ZAMAN.baslat()
     NABIZ.baslat()
+    OZ_DENETIM.baslat()  # v4.10.0: her 3 saatte bir kendi kendini test et + onar (oz_denetim.py)
+    _oz_denetim.kaydet("sunucu", f"başladı: {SURUM} port {a.port}")
     print(f"CanEditor Hukuk Asistanı {SURUM} — http://127.0.0.1:{a.port}", flush=True)
     print(f"Eşleştirme anahtarı: {k}", flush=True)
     print("CanEditor → Asistan → Bağlan penceresine bu anahtarı girin (masaüstü uygulamada otomatik).", flush=True)

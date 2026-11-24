@@ -427,13 +427,58 @@ def _kimlik_anahtari(k):
     return None
 
 
+def gorev_anahtarlari(t_or_content, baslik=""):
+    """Bir görevin (ya da açılacak görev notunun) BAŞLIKTAN BAĞIMSIZ tüm eşleşme anahtarları.
+
+    v4.10.0: Eskiden yalnız kimlik satırına bakılıyordu. Kullanıcı notu düzenleyip kimlik satırını sildiyse ya da
+    görev kimlik düzeninden önce açılmışsa, tamamlanmış/yapılmayacak kopyası TANINMIYOR ve aynı tebligat için yeni
+    görev açılıyordu. Artık şu anahtarların HERHANGİ BİRİ tutarsa aynı iş sayılır:
+      1. kimlik satırı anahtarı (_kimlik_anahtari)
+      2. ("BARKOD", barkod): başlıkta ya da notta geçen UETS/PTT barkodu (tebligat ve EK alt görevi aynı barkodu
+         taşır; bu yüzden tür ayrımı yapılmaz — barkod tek başına benzersizdir)
+      3. ("UETSNO", no)
+    EN: title-independent match keys; any shared key means the same piece of work."""
+    if isinstance(t_or_content, dict):
+        content, baslik = t_or_content.get("content") or "", t_or_content.get("title") or ""
+    else:
+        content = t_or_content or ""
+    k = kimlik.oku(content)
+    out = set()
+    a = _kimlik_anahtari(k)
+    if a:
+        out.add(a)
+    barkod = (k or {}).get("barkod") or extract_barcode_from_text(content) or extract_barcode_from_text(baslik)
+    if barkod and len(barkod) >= 11:
+        out.add(("BARKOD", barkod))
+    if (k or {}).get("uets_no"):
+        out.add(("UETSNO", k["uets_no"]))
+    return out
+
+
+def _ayni_is_mi(a1, t2):
+    """a1: açılacak görevin anahtar kümesi; t2: mevcut görev. Tür uyuşmazlığı (EK vs TEBLİGAT) eşleşme sayılmaz."""
+    a2 = gorev_anahtarlari(t2)
+    if not (a1 & a2):
+        return False
+    tur1 = next((x[0] for x in a1 if x[0] in kimlik.TURLER), None)
+    tur2 = next((x[0] for x in a2 if x[0] in kimlik.TURLER), None)
+    if tur1 and tur2 and tur1 != tur2:
+        return False
+    if tur1 and not tur2:
+        # Kimliksiz eski görev: EK alt görevleri "📎" ile başlar
+        baslik = (t2.get("title") or "")
+        if (tur1 == "EK") != baslik.lstrip().startswith("📎"):
+            return False
+    return True
+
+
 def ayni_kimlikli_aktif(content):
-    """Tüm listelerdeki aktif görevlerde aynı kimlik anahtarlı görev (yoksa None)."""
-    anahtar = _kimlik_anahtari(kimlik.oku(content or ""))
-    if not anahtar:
+    """Tüm listelerdeki aktif görevlerde aynı işi gösteren görev (kimlik ya da barkod; başlıktan bağımsız)."""
+    anahtarlar = gorev_anahtarlari(content or "")
+    if not anahtarlar:
         return None
     for t in tum_aktif_gorevler():
-        if _kimlik_anahtari(kimlik.oku(t.get("content") or "")) == anahtar:
+        if _ayni_is_mi(anahtarlar, t):
             return t
     return None
 
@@ -464,16 +509,15 @@ def uyap_evrak_gorevi(birim, dosya_no, tur, aciklama="", tarih="", son_gun_iso="
 
 def kapali_kopya_bul(payload):
     """Açılmak üzere olan görevin TAMAMLANMIŞ ya da YAPILMAYACAK bir kopyası var mı (kimlik satırıyla)? Varsa döndürür."""
-    k = kimlik.oku((payload or {}).get("content") or "")
-    anahtar = _kimlik_anahtari(k)
-    if not anahtar:
+    anahtarlar = gorev_anahtarlari((payload or {}).get("content") or "", (payload or {}).get("title") or "")
+    if not anahtarlar:
         return None
     try:
         kapali = get_completed_tasks_live()
     except Exception:  # noqa: BLE001
         return None
     for t in kapali:
-        if _kimlik_anahtari(kimlik.oku(t.get("content") or "")) == anahtar:
+        if _ayni_is_mi(anahtarlar, t):
             return t
     return None
 

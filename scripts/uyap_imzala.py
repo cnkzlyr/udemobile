@@ -21,10 +21,19 @@ import requests
 EIMZA_SERVICE_URL = "http://127.0.0.1:5975"
 MIMZA_SERVICE_URL = "http://127.0.0.1:5976"
 
-DEFAULT_PIN = os.getenv("EIMZA_PIN", "455625")
-DEFAULT_GSM = os.getenv("MIMZA_GSM", "05525286225")
-DEFAULT_TCKN = os.getenv("MIMZA_TCKN", "39412276734")
-DEFAULT_OP = int(os.getenv("MIMZA_OP", "2"))  # 1: Turkcell, 2: Turk Telekom, 3: Vodafone
+try:  # v4.10.0: kişisel değerler koda yazılmaz (bkz. asistan/kisisel_ayar.py)
+    import kisisel_ayar as _ka
+except ImportError:
+    import sys as _sys_ka
+    for _p in (Path(__file__).resolve().parents[2], Path(__file__).resolve().parents[1] / "asistan"):
+        if (_p / "kisisel_ayar.py").is_file():
+            _sys_ka.path.insert(0, str(_p))
+            break
+    import kisisel_ayar as _ka
+DEFAULT_PIN = _ka.al("pin")
+DEFAULT_GSM = _ka.al("gsm")
+DEFAULT_TCKN = _ka.al("tc")
+DEFAULT_OP = _ka.operator_kodu()  # 1: Turkcell, 2: Turk Telekom, 3: Vodafone
 
 
 def get_active_card_certificate():
@@ -159,9 +168,9 @@ def main():
     parser = argparse.ArgumentParser(description="UYAP UDF E-İmza & Mobil İmza Aracı")
     parser.add_argument("udf_file", help="İmzalanacak UDF dosyasının yolu")
     parser.add_argument("-o", "--output", help="Çıktı UDF dosyasının yolu (varsayılan: <dosya>_IMZALI.udf)")
-    parser.add_argument("-p", "--pin", default=DEFAULT_PIN, help="E-İmza PIN kodu (varsayılan: 455625)")
+    parser.add_argument("-p", "--pin", default=DEFAULT_PIN, help="E-İmza PIN kodu (varsayılan: EIMZA_PIN / ~/.caneditor/kisisel.json)")
     parser.add_argument("-m", "--mobil", action="store_true", help="Doğrudan Mobil İmza isteği gönder")
-    parser.add_argument("--gsm", default=DEFAULT_GSM, help="Mobil İmza GSM numarası (varsayılan: 05525286225)")
+    parser.add_argument("--gsm", default=DEFAULT_GSM, help="Mobil İmza GSM numarası (varsayılan: UYAP_GSM / kisisel.json)")
     parser.add_argument("--operator", type=int, default=DEFAULT_OP, help="Mobil İmza Operatör Kodu (1: Turkcell, 2: Türk Telekom, 3: Vodafone)")
     parser.add_argument("--pdf", action="store_true", help="İmzaladıktan sonra PDF önizlemesini de üret")
     

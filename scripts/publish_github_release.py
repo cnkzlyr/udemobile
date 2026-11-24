@@ -17,72 +17,9 @@ with open(os.path.join(os.path.dirname(__file__), "..", "package.json")) as f:
 TAG = f"v{VERSION}"
 NAME = f"CanEditor v{VERSION} — Birleşik Hukuk Platformu, Termux'suz Asistan ve Çapraz Platform UYAP Editörü"
 
-BODY = f"""# CanEditor v{VERSION} — Birleşik Hukuk Platformu & Çapraz Platform UYAP Editörü
-
-## 🌟 v{VERSION} ile Gelen Yenilikler ve Düzeltmeler
-
-### 1. ✍️ Çoklu E-İmza & Birlikte İmza (Co-signing) & Sürücüsüz Token Desteği
-- **Çift Smart Kart & Hotplug Desteği:** İki e-imza tokenı aynı anda takıldığında veya biri çıkarıldığında sistem çıkarılan cihazı anında bellekten temizler, kalan/takılan yeni kartı anında aktif eder.
-- **Birlikte İmzalama (Co-signing):** Önceden imzalanmış bir belgeye ikinci bir avukat/yetkili imza atmak istediğinde karşılaşılan `"Bu belge imzalı ve değişiklik yaptınız"` engeli giderildi. Belge içeriği snapshot karşılaştırmasıyla doğrulanarak imzalı belgenin e-imza zarfına (`sign.sgn`) ikinci imza blokları eklendi.
-- **Android Bağımsız İmza Birleştirme:** Android cihazlarda yerel mikroservis portuna ihtiyaç kalmadan WebView içindeki `window.ESign.combineB64` köprüsüyle doğrudan uygulama içinde imza birleştirilir.
-
-### 2. 📄 Sayfalama Motoru & Yetim Başlık Koruması (Keep-With-Next)
-- **Yetim Başlık Koruması:** `NETİCE-İ TALEP:`, `SONUÇ VE İSTEM:`, `AÇIKLAMALAR:` gibi hukuki başlıkların sayfa dibinde tek satır kalması engellendi. Başlıklar otomatik olarak bir sonraki paragrafla birlikte yeni sayfaya taşınır.
-- **Akıllı Bölme Sınırları:** Başlık niteliğindeki satırlarda paragraf bölme devre dışı bırakıldı.
-
-### 3. 🖼️ Taranmış PDF ve TIFF Görüntüleyici Düzeltmesi (GPU Bellek Aşımı)
-- **Beyaz / Boş Sayfa Çözümü:** CamScanner veya tarayıcılardan gelen yüksek çözünürlüklü (3000x4000+) makbuz ve evrakların Android WebView doku sınırını (4096px) aşması nedeniyle oluşan beyaz sayfa hatası giderildi. Maksimum tuval boyutu güvenli 2048px ile sınırlandı ve arka plan beyazla dolduruldu.
-
-### 4. 🐍 Java Bağımsız Saf Python UDF → PDF Motoru (ReportLab)
-- **Java Yokken Bile PDF Çıktısı:** Sistemde Java/JRE bulunmadığında devreye giren saf Python ReportLab motoru eklendi. UDF XML verisi doğrudan okunarak standart A4 PDF üretilir.
-
-### 5. 🔍 Genişletilmiş Türkçe UYAP Evrak Araması
-- **10 Farklı Alanda Tam Arama:** Evrak arama; evrak türü, açıklama, gönderen, mahkeme birimi, dosya esas no, taraflar ve müvekkil alanlarının tamamında arama yapar.
-- **Türkçe Karakter Duyarsızlığı:** Türkçe İ/ı, Ş/s, Ğ/g, Ç/c, Ö/o, Ü/u harfleri SQLite LIKE sorgularında çapraz varyantlarla desteklenir.
-
-### 6. 🔔 Yeni Evraklar Toplu Yönetimi & Sayfalama
-- **Toplu Seçim:** Her evrak için onay kutusu (checkbox) ve "Tümünü Seç" kutusu eklendi.
-- **Toplu Eylemler:** "Seçilenleri İndir", "Seçilenleri PDF'e Dönüştür", "Drive'a Gönder" ve "Görüldü Say" işlemleri eklendi.
-- **Doğrudan İndirme:** Henüz indirilmemiş evraklar için tek tıkla `⬇️ İndir` butonu ve mahkemeye doğrudan gidiş bağlantısı eklendi.
-- **Sayfalama:** 2000+ yeni evrak bulunan durumlarda WebView donmasını önleyen +50'şer dinamik sayfalama getirildi.
-
-### 7. 📁 Dosyalar Sekmesi: Kart, Tablo, Ağaç (Hiyerarşik) ve Dosya Hesapları
-- **4 Farklı Görünüm:** Kart, Tablo, Ağaç (Ceza / Hukuk / İcra / İdare / BAM hiyerarşisi) ve Dosya Hesapları modları arasında tek tıkla geçiş.
-- **Gelişmiş Filtreleme:** Yargı türü (Ceza, Hukuk, İcra, İdare, BAM) ve sıralama seçenekleri.
-
-### 8. 💰 İcra & Dosya Hesapları Paneli
-- **Finansal Göstergeler:** Toplam Takip & Alacak, Tahsil Edilen Tutar (% tahsilat oranı), Kalan Tahsil Edilmemiş Bakiye ve Mahkemede Artan Gider Avansı kartları.
-- **Ayrıntılı Hesap Tablosu:** Asıl alacak, işlemiş faiz, vekalet ücreti, masraf/harç, toplam borç, tahsilat ve bakiye borç dökümü.
-- **Dışa Aktarım:** Tüm dosya hesaplarını tek tıkla Türkçe Excel / CSV olarak indirme.
-
-### 9. ☁️ Kesintisiz Google Drive Sync & Webhook Rehberi
-- **Sürekli Durum Rozeti:** Asistan başlığında her an canlı Drive senkronizasyon durumu (Bulut / Bağlı / Salt Okunur / Boşta) gösterilir.
-- **Adım Adım Kurulum Kılavuzu:** Telefon tarayıcısından 1 dakikada kurulabilen Google Apps Script Web App rehberi ve URL doğrulama denetimleri.
-
-### 10. ⚖️ Zenginleştirilmiş HAYFA İçtihat & Uygulama İçi Mevzuat Okuyucusu
-- **Yargıtay Daire & Konu Filtreleri:** 1-12. Hukuk, 1-16. Ceza, HGK, CGK daire filtreleri ve hızlı konu etiketleri.
-- **Asla Anonimleştirilmeyen Metin:** Kararlar tüm gerekçe, taraf ve kanun maddeleriyle sansürsüz ve tam metin olarak sunulur.
-- **Uygulama İçi Mevzuat Okuyucusu:** Kanun ve yönetmelikler harici tarayıcıya gitmeden uygulama içinde okunabilir ve dilekçeye aktarılabilir.
-
-### 11. 📅 Ajanda & Süreli İşler
-- **Hızlı Tarih Filtreleri:** Son 1 Gün, 3 Gün, 1 Hafta, 2 Hafta, 1 Ay, 3 Ay, 6 Ay ve özel tarih aralığı butonları.
-- **UETS Yasal Süre Sayacı:** Kalan gün sayacı ve son gün renkli uyarı rozetleri.
-
-### 12. 📊 Rolling Loglama & Hata Teşhis ZIP Paketi
-- **Otomatik Rotasyon:** 2MB boyut sınırıyla 10 adet yedekli dönen log sistemi.
-- **Tek Tıkla İndirme:** Destek ve hata çözümü için tüm logları ve sistem tanısını içeren `CanEditor_Loglar.zip` paketi indirme imkanı.
-
-### 13. 🚀 Android Ana Ekrandan Doğrudan Hukuk Asistanı
-- **Tek Dokunuşla Asistan:** `MainActivity` açılış ekranına eklenen "⚖️ CanEditor Hukuk Asistanı" butonuyla editöre girmeden dosyalara, ajandaya ve içtihatlara erişim.
-- **UDF ve USF Varsayılan Açıcı:** Android sisteminde `.udf` ve `.usf` dosyaları CanEditor ile doğrudan ilişkilendirildi.
-
-## 📦 İndirme Bağlantıları
-- **Android:** `CanEditor-v{VERSION}.apk` / `CanEditor-latest.apk`
-- **Windows:** `CanEditor_{VERSION}_x64-setup.exe` (NSIS) / `CanEditor_{VERSION}_x64_en-US.msi` (MSI)
-- **macOS:** `CanEditor_{VERSION}_universal.dmg` (Apple Silicon & Intel)
-- **Linux:** `CanEditor_{VERSION}_amd64.AppImage` / `CanEditor_{VERSION}_amd64.deb` / `CanEditor-{VERSION}-1.x86_64.rpm`
-- **Taşınabilir Web:** `CanEditor-Portable-Web-GUI-v{VERSION}.zip`
-"""
+_NOT = os.path.join(os.path.dirname(__file__), "..", "docs", "surum-notlari", f"v{VERSION}.md")
+# Sürüm notları tek kaynaktan (docs/surum-notlari/vX.Y.Z.md — CI de aynı dosyayı kullanır)
+BODY = open(_NOT, encoding="utf-8").read() if os.path.exists(_NOT) else f"CanEditor v{VERSION}"
 
 def request(url, data=None, headers=None, method="GET"):
     h = {

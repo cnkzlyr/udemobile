@@ -62,11 +62,20 @@ def _load_mobile_config() -> Dict[str, str]:
                 pass
     return config
 
+try:  # v4.10.0: kişisel değerler koda yazılmaz (bkz. asistan/kisisel_ayar.py)
+    import kisisel_ayar as _ka
+except ImportError:
+    import sys as _sys_ka
+    for _p in (Path(__file__).resolve().parents[2], Path(__file__).resolve().parents[1] / "asistan"):
+        if (_p / "kisisel_ayar.py").is_file():
+            _sys_ka.path.insert(0, str(_p))
+            break
+    import kisisel_ayar as _ka
 _CONF = _load_mobile_config()
 
-DEFAULT_PIN = os.getenv("EIMZA_PIN", "455625")
-DEFAULT_GSM = os.getenv("MIMZA_GSM", _CONF.get("GSMNo", "05525286225"))
-DEFAULT_TCKN = os.getenv("MIMZA_TCKN", _CONF.get("TCKNo", "39412276734"))
+DEFAULT_PIN = _ka.al("pin")
+DEFAULT_GSM = _ka.al("gsm", _CONF.get("GSMNo", ""))
+DEFAULT_TCKN = _ka.al("tc", _CONF.get("TCKNo", ""))
 
 def _resolve_operator(op_str: Optional[str]) -> int:
     if not op_str:
@@ -429,10 +438,10 @@ def main():
     uyap-imzala dilekce.udf
 
     # 2. Belirli bir PIN ile imzala:
-    uyap-imzala dilekce.udf --pin 455625
+    uyap-imzala dilekce.udf --pin <PIN>   (ya da EIMZA_PIN / ~/.caneditor/kisisel.json)
 
     # 3. Doğrudan UYAP Mobil İmza isteği gönder:
-    uyap-imzala dilekce.udf --mobil --operator 2 --gsm 05525286225
+    uyap-imzala dilekce.udf --mobil --operator 2 --gsm 05XXXXXXXXX
 
     # 4. İmzala ve anında PDF önizlemesini de üret:
     uyap-imzala dilekce.udf --pdf

@@ -29,8 +29,11 @@ for extra in ("fonts",):
         datas.append((str(ROOT / extra), extra))
 
 hidden = [
-    "katalog_gui", "evrak_katalog", "evrak_turleri", "donusturucu", "sag_tik", "gui_ekler",
+    "baslat", "katalog_gui", "katalog_tabs", "evrak_katalog", "evrak_turleri", "donusturucu", "sag_tik", "gui_ekler",
     "uyap_indirici", "tebligat_yoneticisi", "enrich_and_rename_documents",
+    "dosya_arsivle", "drive_arsiv_esitle", "drive_arsiv_denetle", "drive_aktarici",
+    "uyap_imzala", "uyap_watcher", "uyap_finans_safahat", "uyap_sure_analiz", "uyap_ai", "uyap_entegrasyon",
+    "dosya_tazele", "evrak_onizle", "oncelik_kuyruk", "google_drive_entegrasyonu",
     "PIL.Image", "PIL.ImageSequence", "pypdf", "websocket", "requests", "sqlite3",
 ]
 

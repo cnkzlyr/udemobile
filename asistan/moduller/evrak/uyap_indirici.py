@@ -107,6 +107,41 @@ if not DEFAULT_E_IMZA_PIN:
 SIGN_CHALLENGE = "QWRhbGV0IEJha2FubMSxxJ/EsSBCaWxnaSDEsMWfbGVtIEdlbmVsIE3DvGTDvHJsw7zEn8O8IHRhcmFmxLFuZGFuIGdlbGnFn3RpcmlsZW4gdXlndWxhbWF5YSBlLWltemEgZ2lyacWfIHlhcG1hayBpc3RpeW9ydW0u"
 
 
+def win_extended_path(p: Path | str) -> str:
+    """Windows MAX_PATH (260 karakter) sınırlamasını aşmak için \\\\?\\ önekini uygular."""
+    sp = str(p)
+    if os.name == "nt":
+        abs_p = os.path.abspath(sp)
+        if not abs_p.startswith("\\\\?\\"):
+            if abs_p.startswith("\\\\"):
+                return "\\\\?\\UNC\\" + abs_p[2:]
+            return "\\\\?\\" + abs_p
+        return abs_p
+    return sp
+
+
+def safe_write_bytes(path: Path | str, data: bytes) -> Path:
+    """Windows'ta 260 karakterden uzun yollara dahi güvenli atomik dosya yazar."""
+    p = Path(path)
+    ext_p = win_extended_path(p)
+    parent_dir = os.path.dirname(ext_p)
+    if parent_dir:
+        os.makedirs(parent_dir, exist_ok=True)
+    with open(ext_p, "wb") as f:
+        f.write(data)
+    return p
+
+
+def safe_replace_file(src: Path | str, dst: Path | str) -> None:
+    """Windows ve POSIX üzerinde uzun yollu dosyayı güvenle taşır/değiştirir."""
+    ext_src = win_extended_path(src)
+    ext_dst = win_extended_path(dst)
+    parent_dir = os.path.dirname(ext_dst)
+    if parent_dir:
+        os.makedirs(parent_dir, exist_ok=True)
+    os.replace(ext_src, ext_dst)
+
+
 def load_user_config() -> dict:
     if CONFIG_FILE.exists():
         try:
@@ -3306,19 +3341,22 @@ class UyapDownloaderApp:
         ident = tokens["is_emir_no"] or tokens["evrak_id"]
         # v4.9.3: Windows MAX_PATH (260) — AppData altındaki kökle birlikte "Avukat Evrak Kaydi (İstinaf Ba..."
         # gibi uzun klasör adları sınırı aşıyor, "[Errno 2] No such file or directory" ile İşlemlerim çöküyordu.
-        # EN: shrink folder parts and file stem until the absolute path fits in 240 chars (unique ident kept).
-        sinir = 240
+        # EN: shrink folder parts and file stem until the absolute path fits in 230 chars (.part suffix included).
+        sinir = 230
         def _tam(pp):
-            return len(str(base_dir.joinpath(*pp[:-1]))) + 1 + len(f"{pp[-1]}_{ident}{ext}")
-        uzunluk = 60
+            return len(str(base_dir.joinpath(*pp[:-1]))) + 1 + len(f"{pp[-1]}_{ident}{ext}.part")
+        uzunluk = 50
         while _tam(parts) > sinir and uzunluk >= 12:
             parts = [x[:uzunluk].rstrip(". _") or "Klasor" for x in parts]
-            uzunluk -= 8
+            uzunluk -= 6
         if _tam(parts) > sinir:
-            parts = parts[:1] + [parts[-1][:40]]
+            parts = parts[:1] + [parts[-1][:35]]
         filename_stem = f"{parts[-1]}_{ident}"
         folder_path = base_dir.joinpath(*parts[:-1])
-        folder_path.mkdir(parents=True, exist_ok=True)
+        try:
+            os.makedirs(win_extended_path(folder_path), exist_ok=True)
+        except Exception:
+            folder_path.mkdir(parents=True, exist_ok=True)
         return folder_path / f"{filename_stem}{ext}"
 
     def on_choose_dir(self):
@@ -3477,17 +3515,20 @@ class UyapDownloaderApp:
 
                             ext = guess_extension(cd_filename, ct, raw_bytes)
                             target_path = self.build_target_filepath(item, ext)
-                            target_path.parent.mkdir(parents=True, exist_ok=True)
 
                             # Atomik dosya kaydı: Önce .part dosyasına yaz, sonra doğrula ve taşı
                             tmp_path = target_path.with_suffix(target_path.suffix + ".part")
-                            tmp_path.write_bytes(raw_bytes)
+                            safe_write_bytes(tmp_path, raw_bytes)
 
-                            if tmp_path.exists() and tmp_path.stat().st_size == len(raw_bytes):
-                                tmp_path.replace(target_path)
+                            ext_tmp = win_extended_path(tmp_path)
+                            if os.path.exists(ext_tmp) and os.path.getsize(ext_tmp) == len(raw_bytes):
+                                safe_replace_file(tmp_path, target_path)
                             else:
-                                target_path.write_bytes(raw_bytes)
-                                tmp_path.unlink(missing_ok=True)
+                                safe_write_bytes(target_path, raw_bytes)
+                                try:
+                                    os.unlink(ext_tmp)
+                                except OSError:
+                                    pass
 
                             auto_convert_udf_to_pdf(target_path)
 
@@ -4197,11 +4238,8 @@ def run_cli_dosyalar_mode(args, bridge, app_helper, download_dir, tckn):
                     print(f"[=] Mükerrer (aynı içerik zaten var, yazılmadı): {item['evrak_adi']} → {ayni.name}")
                     success = True
                     break
-                target_folder.mkdir(parents=True, exist_ok=True)
-
-                # Geçici dosyaya yazıp içeriği analiz et ve zenginleştir
                 tmp_path = target_folder / f"temp_{doc_num}{clean_ext}.part"
-                tmp_path.write_bytes(raw_bytes)
+                safe_write_bytes(tmp_path, raw_bytes)
 
                 meta = {}
                 if clean_ext == ".udf":
@@ -4236,10 +4274,15 @@ def run_cli_dosyalar_mode(args, bridge, app_helper, download_dir, tckn):
                 )
 
                 target_path = target_folder / file_name
-                if tmp_path.exists():
-                    tmp_path.replace(target_path)
+                ext_tmp = win_extended_path(tmp_path)
+                if os.path.exists(ext_tmp) and os.path.getsize(ext_tmp) == len(raw_bytes):
+                    safe_replace_file(tmp_path, target_path)
                 else:
-                    target_path.write_bytes(raw_bytes)
+                    safe_write_bytes(target_path, raw_bytes)
+                    try:
+                        os.unlink(ext_tmp)
+                    except OSError:
+                        pass
 
                 auto_convert_udf_to_pdf(target_path)
 
@@ -5043,16 +5086,19 @@ def run_cli_mode(args):
                     break
 
                 target_path = app_helper.build_target_filepath(item, ext, override_dir=download_dir)
-                target_path.parent.mkdir(parents=True, exist_ok=True)
 
                 tmp_path = target_path.with_suffix(target_path.suffix + ".part")
-                tmp_path.write_bytes(raw_bytes)
+                safe_write_bytes(tmp_path, raw_bytes)
 
-                if tmp_path.exists() and tmp_path.stat().st_size == len(raw_bytes):
-                    tmp_path.replace(target_path)
+                ext_tmp = win_extended_path(tmp_path)
+                if os.path.exists(ext_tmp) and os.path.getsize(ext_tmp) == len(raw_bytes):
+                    safe_replace_file(tmp_path, target_path)
                 else:
-                    target_path.write_bytes(raw_bytes)
-                    tmp_path.unlink(missing_ok=True)
+                    safe_write_bytes(target_path, raw_bytes)
+                    try:
+                        os.unlink(ext_tmp)
+                    except OSError:
+                        pass
 
                 auto_convert_udf_to_pdf(target_path)
 

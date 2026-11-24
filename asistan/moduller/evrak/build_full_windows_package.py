@@ -109,7 +109,7 @@ pause
 
     guide_md = f"""# UYAP & Antigravity Windows 11 Tam Aktarım ve Kullanım Kılavuzu
 
-**Kullanıcı:** Av. Can KIZILYAR (TCKN: `39412276734`)  
+**Kullanıcı:** Av. Can KIZILYAR  
 **Tarih:** 14 Kasım 2026  
 **Oturum ID:** `{conv_id}`  
 **GitHub Deposu:** https://github.com/cnkzlyr/uyap-evrak-indirici  

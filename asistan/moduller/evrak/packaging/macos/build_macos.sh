@@ -26,6 +26,27 @@ Kurulum: uygulamayı Applications klasörüne sürükleyin. İlk açılışta ma
 uygulamaya sağ tıklayıp "Aç" deyin. UDF -> PDF için UYAP Editör kütüphanelerini
 ~/Library/Application Support/UYAPEvrak/jars klasörüne koyun.
 EOF
-hdiutil create -volname "UYAP Evrak Yöneticisi" -srcfolder "$STAGE" -ov -format UDZO \
-  "dist/UYAPEvrak-${VER}-macOS-${ARCH}.dmg"
+sync 2>/dev/null || true
+sleep 3
+
+DMG_TARGET="dist/UYAPEvrak-${VER}-macOS-${ARCH}.dmg"
+rm -f "$DMG_TARGET"
+
+SUCCESS=0
+for i in 1 2 3 4 5; do
+  echo "DMG oluşturuluyor (Deneme $i/5)..."
+  if hdiutil create -volname "UYAP Evrak Yöneticisi" -srcfolder "$STAGE" -ov -format UDZO "$DMG_TARGET"; then
+    SUCCESS=1
+    break
+  fi
+  echo "hdiutil meşgul (Resource busy), beklenip tekrar denenecek..."
+  sleep 4
+done
+
+if [ $SUCCESS -ne 1 ]; then
+  echo "Hata: 5 denemede de DMG oluşturulamadı!"
+  exit 1
+fi
+
 ls -la dist
+

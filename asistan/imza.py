@@ -56,7 +56,7 @@ def imzala(govde: Dict[str, Any]) -> Dict[str, Any]:
     CanEditor /api/imza/imzala uç noktası.
     Girdi Parametreleri:
         udf: İmzalanacak UDF dosyasının tam veya göreli yolu
-        pin: E-İmza PIN kodu (varsayılan: 455625)
+        pin: E-İmza PIN kodu (varsayılan: EIMZA_PIN / ~/.caneditor/kisisel.json)
         yontem: 'oto' (takılıysa sessiz e-imza, yoksa mobil) | 'eimza' | 'mobil'
         gsm: Mobil imza telefon no
         operator: 1 (Turkcell), 2 (Türk Telekom), 3 (Vodafone)
@@ -76,6 +76,14 @@ def imzala(govde: Dict[str, Any]) -> Dict[str, Any]:
     pin = str(govde.get("pin") or uyap_imzala.DEFAULT_PIN).strip()
     yontem = str(govde.get("yontem") or "oto").lower()
     force_mobile = (yontem == "mobil")
+    # v4.10.0: PIN ayarlı değilse kart HİÇ denenmez (yanlış/boş PIN kartı bloke edebilir) → doğrudan Mobil İmza.
+    # EN: never probe the card without a configured PIN; fall back to mobile signature in 'oto' mode.
+    if not pin:
+        if yontem == "eimza":
+            raise ValueError("E-imza PIN'i ayarlı değil: EIMZA_PIN ortam değişkeni ya da ~/.caneditor/kisisel.json 'pin'.")
+        force_mobile = True
+    if force_mobile and not str(govde.get("gsm") or uyap_imzala.DEFAULT_GSM).strip():
+        raise ValueError("Mobil İmza için GSM numarası ayarlı değil (UYAP_GSM ya da kisisel.json 'gsm').")
     gsm = str(govde.get("gsm") or uyap_imzala.DEFAULT_GSM).strip()
     operator = int(govde.get("operator") or uyap_imzala.DEFAULT_OP)
     generate_pdf = bool(govde.get("pdf", False))

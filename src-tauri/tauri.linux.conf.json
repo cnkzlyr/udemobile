@@ -11,13 +11,19 @@
           "pcscd",
           "libccid",
           "libpcsclite1"
-        ]
+        ],
+        "files": {
+          "/usr/bin/caneditor": "../asistan/caneditor"
+        }
       },
       "rpm": {
         "depends": [
           "pcsc-lite",
           "pcsc-lite-ccid"
-        ]
+        ],
+        "files": {
+          "/usr/bin/caneditor": "../asistan/caneditor"
+        }
       }
     }
   }

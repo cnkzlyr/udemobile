@@ -79,7 +79,7 @@ bat_lines = [
 # 4. İnsan tarafından okunabilir özet & proje durum raporu
 summary_md = f"""# Antigravity Sohbet ve UYAP İndirici Proje Durum Özeti
 **Oturum ID:** `{conv_id}`  
-**Kullanıcı:** Av. Can KIZILYAR (TCKN: `39412276734`)  
+**Kullanıcı:** Av. Can KIZILYAR  
 **Proje Deposu:** https://github.com/cnkzlyr/uyap-evrak-indirici  
 **Tarih:** 14 Kasım 2026
 

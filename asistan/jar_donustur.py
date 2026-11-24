@@ -54,7 +54,9 @@ def java_yolu() -> str | None:
 def jar_dizini() -> Path | None:
     """Resmî Havelsan UYAP Editör JAR klasörünü bulur."""
     adaylar: list[Path] = []
-    for env_key in ("UYAP_JARS", "CANASISTAN_UYAP_JARS"):
+    # v4.10.0: paket içi resmî jar'lar (asistan/jars/uyap-editor) her zaman son çaredir; kullanıcının
+    # indirdiği/kurduğu daha yeni editör önceliklidir. EN: bundled official jars as guaranteed fallback.
+    for env_key in ("UYAP_JARS", "CANASISTAN_UYAP_JARS", "CANASISTAN_PAKET_JARS"):
         v = os.environ.get(env_key)
         if v:
             adaylar.append(Path(v))
@@ -80,9 +82,10 @@ def jar_dizini() -> Path | None:
         if pf:
             for ad in ("UYAP Editor", "UYAP Editör", "UYAPEditor", "UYAP\\UYAP Editor", "Uyap", "UYAP"):
                 adaylar += [Path(pf) / ad / "lib", Path(pf) / ad / "jars", Path(pf) / ad]
+    adaylar.append(KOK / "jars" / "uyap-editor")
     for d in adaylar:
         try:
-            if d and d.is_dir() and any(d.glob("editor*.jar")):
+            if d and d.is_dir() and (d / "editor_lib.jar").is_file():
                 return d
         except OSError:
             continue
@@ -111,6 +114,8 @@ def _batch_class_root() -> Path | None:
 def _font_dizinleri() -> list[str]:
     out = []
     for aday in (
+        Path(os.environ["CANASISTAN_FONTS"]) if os.environ.get("CANASISTAN_FONTS") else KOK / "fonts",
+        KOK / "fonts",
         PROJE_KOK / "frontend" / "public" / "fonts",
         PROJE_KOK / "android" / "assets" / "editor" / "fonts",
         KOK / "fonts",

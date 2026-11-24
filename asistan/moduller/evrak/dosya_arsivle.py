@@ -7,7 +7,7 @@ Copyright (c) 2026 Av. Can KIZILYAR. Tüm hakları saklıdır.
 
 Kullanım Örnekleri:
   python3 dosya_arsivle.py 2022/504
-  python3 dosya_arsivle.py --query "Ankara Batı 1. Asliye Hukuk 2022/504" --pin 455625
+  python3 dosya_arsivle.py --query "Ankara Batı 1. Asliye Hukuk 2022/504" --pin <PIN>
   python3 dosya_arsivle.py 2022/504 --no-drive
 """
 
@@ -50,10 +50,19 @@ logging.basicConfig(
 )
 logger = logging.getLogger("dosya_arsivle")
 
-DEFAULT_WEBHOOK = "https://script.google.com/macros/s/AKfycbz8r1AxGBR9QGCSulz5Hja35VkOWCe2VjfcDvHr6ArumkrFU4YJ2yd-uhccMJ6FIUKN/exec"
-DEFAULT_TELEGRAM_BOT = "9031616625:AAGicZqCwanTLoiLUjjzTisvBiJIx1fbZc8"
-DEFAULT_TELEGRAM_CHAT = "8636345885"
-DEFAULT_PIN = "455625"
+try:  # v4.10.0: kişisel değerler koda yazılmaz (bkz. asistan/kisisel_ayar.py)
+    import kisisel_ayar as _ka
+except ImportError:
+    import sys as _sys_ka
+    for _p in (Path(__file__).resolve().parents[2], Path(__file__).resolve().parents[1] / "asistan"):
+        if (_p / "kisisel_ayar.py").is_file():
+            _sys_ka.path.insert(0, str(_p))
+            break
+    import kisisel_ayar as _ka
+DEFAULT_WEBHOOK = _ka.al("drive_webhook")
+DEFAULT_TELEGRAM_BOT = _ka.al("telegram_token")
+DEFAULT_TELEGRAM_CHAT = _ka.al("telegram_chat")
+DEFAULT_PIN = _ka.al("pin")
 
 
 def tr_lower(text: str) -> str:
@@ -532,7 +541,7 @@ def main():
         print(rapor_md)
         if args.telegram:
             send_telegram_message(rapor_md)
-            print("[✓] Rapor Telegram adresinize (@can_kizilyar / chat_id 8636345885) iletildi.")
+            print("[✓] Rapor Telegram adresinize (TELEGRAM_CHAT_ID) iletildi.")
 
 
 if __name__ == "__main__":
