@@ -98,6 +98,55 @@ def safe_part(value, max_len: int = 60, default: str = "_") -> str:
     return s or default
 
 
+def win_extended_path(p: Path | str) -> str:
+    """Windows MAX_PATH (260 karakter) sınırlamasını aşmak için \\\\?\\ önekini uygular."""
+    sp = str(p)
+    if os.name == "nt":
+        abs_p = os.path.abspath(sp)
+        if not abs_p.startswith("\\\\?\\"):
+            if abs_p.startswith("\\\\"):
+                return "\\\\?\\UNC\\" + abs_p[2:]
+            return "\\\\?\\" + abs_p
+        return abs_p
+    return sp
+
+
+def safe_write_bytes(path: Path | str, data: bytes) -> Path:
+    """Windows'ta 260 karakterden uzun yollara dahi güvenli dosya yazar."""
+    p = Path(path)
+    ext_p = win_extended_path(p)
+    parent_dir = os.path.dirname(ext_p)
+    if parent_dir:
+        os.makedirs(parent_dir, exist_ok=True)
+    with open(ext_p, "wb") as f:
+        f.write(data)
+    return p
+
+
+def safe_replace_file(src: Path | str, dst: Path | str) -> None:
+    """Windows ve POSIX üzerinde uzun yollu dosyayı güvenle taşır/değiştirir."""
+    ext_src = win_extended_path(src)
+    ext_dst = win_extended_path(dst)
+    parent_dir = os.path.dirname(ext_dst)
+    if parent_dir:
+        os.makedirs(parent_dir, exist_ok=True)
+    for deneme in range(3):
+        try:
+            os.replace(ext_src, ext_dst)
+            return
+        except OSError:
+            if deneme == 2:
+                try:
+                    if os.path.exists(ext_dst):
+                        os.remove(ext_dst)
+                    os.replace(ext_src, ext_dst)
+                    return
+                except Exception:
+                    pass
+                raise
+            time.sleep(0.1 * (deneme + 1))
+
+
 _EXT_RX = re.compile(r"\.(tiff?|pdf|udf|eyp|jpe?g|png|gif|bmp|docx?|xlsx?|odt|rtf|txt|zip|rar|7z|mp3|mp4|wav|avi|mov|xml|html?)$", re.I)
 
 
@@ -135,7 +184,7 @@ PRAGMA synchronous=NORMAL;
 CREATE TABLE IF NOT EXISTS dosya(
   dkey TEXT PRIMARY KEY, birim TEXT, dosya_no TEXT, dosya_tur TEXT, durum TEXT, yargi TEXT,
   acilis TEXT, dosya_id TEXT, taraflar TEXT, taraf_ara TEXT, muvekkil TEXT, muvekkil_ara TEXT,
-  evrak_sayisi INTEGER DEFAULT 0, taranma TEXT, oturum TEXT);
+  evrak_sayisi INTEGER DEFAULT 0, taranma TEXT, tarama TEXT, oturum TEXT);
 CREATE TABLE IF NOT EXISTS evrak(
   id INTEGER PRIMARY KEY, skey TEXT UNIQUE NOT NULL, dkey TEXT, grup TEXT, is_ek INTEGER,
   parent_skey TEXT, sira INTEGER, tur TEXT, ust_tur TEXT, aciklama TEXT, tarih TEXT, tip TEXT,
@@ -236,7 +285,13 @@ class Katalog:
 
     def set_tarama(self, dkey: str, durum: str):
         with self.db:
-            self.db.execute("UPDATE dosya SET tarama=? WHERE dkey=?", (durum, dkey))
+            cur = self.db.execute("UPDATE dosya SET tarama=? WHERE dkey=?", (durum, dkey))
+            if cur.rowcount == 0:
+                self.db.execute(
+                    "INSERT INTO dosya(dkey, birim, dosya_no, tarama) VALUES(?, 'Bilinmeyen', 'Bilinmeyen', ?) "
+                    "ON CONFLICT(dkey) DO UPDATE SET tarama=excluded.tarama",
+                    (dkey, durum)
+                )
 
     def eksik_dkeys(self) -> set:
         return {r[0] for r in self.db.execute(
@@ -844,30 +899,38 @@ class Katalog:
     def cloud_backup(self, target_path: Path | str) -> bool:
         """SQLite yerleşik backup API'si ile çalışan veritabanını kilitlemeden
         Google Drive veya hedef klasöre tutarlı anlık yedek çıkarır.
-        v4.9.3: "with sqlite3.connect()" bağlantıyı KAPATMIYORDU; Windows'ta .tmp.db açık kaldığı için yeniden
-        adlandırma "[WinError 32] başka bir işlem tarafından kullanılıyor" ile düşüyor, Drive'da yarım
-        uyap_katalog_yedek.tmp.db kalıyordu. Artık geçici kopya YEREL veri klasöründe hazırlanır, bağlantı açıkça
-        kapatılır ve Drive'a tek adımda kopyalanır (Drive istemcisi kilitliyse birkaç kez denenir)."""
+        v4.9.4: Windows ve bulut sürücülerinde (Google Drive, OneDrive) doğrudan yerel hazırlık dosyasından
+        hedefe kopyalanır. Sanal sürücü içerisinde .tmp.db oluşturup os.replace yapmak bulut senkronizasyon
+        istemcilerinin dosyayı kilitlemesi nedeniyle [WinError 32] hatası veriyordu."""
         import shutil
         try:
             target = Path(target_path)
-            target.parent.mkdir(parents=True, exist_ok=True)
+            target_ext = win_extended_path(target)
+            target_parent = os.path.dirname(target_ext)
+            if target_parent:
+                os.makedirs(target_parent, exist_ok=True)
             yerel = DATA_DIR / "uyap_katalog_yedek.hazirlik.db"
             dst = sqlite3.connect(str(yerel))
             try:
                 self.db.backup(dst, pages=100)
             finally:
                 dst.close()
-            eski_tmp = target.with_suffix(".tmp.db")
+            # Varsa eski kalmış .tmp.db'yi temizle
+            try:
+                eski_tmp = target.with_suffix(".tmp.db")
+                if os.path.exists(win_extended_path(eski_tmp)):
+                    os.unlink(win_extended_path(eski_tmp))
+            except OSError:
+                pass
+            # Bulut istemcisi kilitliyse kısa aralıklarla dene
             for deneme in range(5):
                 try:
-                    shutil.copyfile(yerel, eski_tmp)
-                    os.replace(eski_tmp, target)
+                    shutil.copyfile(str(yerel), target_ext)
                     break
-                except PermissionError:
+                except OSError:
                     if deneme == 4:
                         raise
-                    time.sleep(3 * (deneme + 1))
+                    time.sleep(1.5 * (deneme + 1))
             try:
                 yerel.unlink()
             except OSError:
@@ -911,21 +974,22 @@ def target_path_for(row, base: Path, ext: str) -> Path:
     if row["is_ek"]:
         stem = f"{stem}__EK{int(row['sira'] or 0):02d}_{safe_part(strip_ext(row['tur']), 40)}"
     ext = ext if ext.startswith(".") else f".{ext}"
-    # Windows yol sınırı (260): adı gerekirse kısalt
-    room = 245 - len(str(folder)) - len(ext) - 1
-    if room < 40:
-        room = 40
+    # Windows yol sınırı (260): adı gerekirse kısalt (.part ve uzantı için pay bırak)
+    room = 230 - len(str(folder)) - len(ext) - 6
+    if room < 25:
+        room = 25
     if len(stem) > room:
         stem = stem[:room].rstrip(". _")
     return folder / f"{stem}{ext}"
 
 
 def unique_path(p: Path) -> Path:
-    if not p.exists():
+    ext_p = win_extended_path(p)
+    if not os.path.exists(ext_p):
         return p
     for i in range(2, 1000):
         q = p.with_name(f"{p.stem}_{i}{p.suffix}")
-        if not q.exists():
+        if not os.path.exists(win_extended_path(q)):
             return q
     return p
 
@@ -943,11 +1007,12 @@ def tiff_to_pdf(src: Path) -> Path | None:
     except ImportError:
         return None
     dst = src.with_suffix(".pdf")
-    if dst.exists() and dst.stat().st_size > 0:
+    ext_dst = win_extended_path(dst)
+    if os.path.exists(ext_dst) and os.path.getsize(ext_dst) > 0:
         return dst
     pages = []
     try:
-        with Image.open(src) as im:
+        with Image.open(win_extended_path(src)) as im:
             for frame in ImageSequence.Iterator(im):
                 fr = frame.copy()
                 mode = "1" if fr.mode == "1" else ("L" if fr.mode in ("L", "P", "LA", "I;16", "I") else "RGB")
@@ -964,8 +1029,8 @@ def tiff_to_pdf(src: Path) -> Path | None:
         if not pages:
             return None
         tmp = dst.with_suffix(".pdf.part")
-        pages[0].save(tmp, "PDF", resolution=200.0, save_all=True, append_images=pages[1:])
-        tmp.replace(dst)
+        pages[0].save(win_extended_path(tmp), "PDF", resolution=200.0, save_all=True, append_images=pages[1:])
+        safe_replace_file(tmp, dst)
         return dst
     except Exception:
         return None
@@ -1610,7 +1675,7 @@ class Motor:
         for eid in ids:
             if self.stop_flag.is_set():
                 break
-            if self._kesilsin_mi():
+            if len(ids) > 1 and self._kesilsin_mi():
                 self.log("⚡ Öncelikli indirme isteği geldi: bu paket yarıda bırakıldı (kalanlar sonra iner).")
                 break
             done += 1
@@ -1665,17 +1730,17 @@ class Motor:
                             canli_harita[self._imza(row)] = (dup["skey"], dup["path"])
                     else:
                         path = unique_path(target_path_for(row, self.base, ext))
-                        path.parent.mkdir(parents=True, exist_ok=True)
+                        os.makedirs(win_extended_path(path.parent), exist_ok=True)
                         if from_cache:
                             cpdf = Path(row["cache_path"]).with_suffix(".pdf")
-                            shutil.move(row["cache_path"], path)
-                            if cpdf.exists():
-                                shutil.move(str(cpdf), str(path.with_suffix(".pdf")))
+                            safe_replace_file(row["cache_path"], path)
+                            if os.path.exists(win_extended_path(cpdf)):
+                                safe_replace_file(str(cpdf), str(path.with_suffix(".pdf")))
                             stats["onbellek"] += 1
                         else:
                             tmp = path.with_name(path.name + ".part")
-                            tmp.write_bytes(raw)
-                            tmp.replace(path)
+                            safe_write_bytes(tmp, raw)
+                            safe_replace_file(tmp, path)
                         pending_folders.add(path.parent)
                         pdf = path.with_suffix(".pdf") if path.with_suffix(".pdf").exists() else None
                         if ext.lower() in (".tif", ".tiff") and not pdf:

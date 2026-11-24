@@ -427,53 +427,149 @@ def _kimlik_anahtari(k):
     return None
 
 
+def gorev_anahtarlari(t_or_content, baslik=""):
+    """Bir görevin (ya da açılacak görev notunun) BAŞLIKTAN BAĞIMSIZ tüm eşleşme anahtarları.
+
+    v4.10.0: Eskiden yalnız kimlik satırına bakılıyordu. Kullanıcı notu düzenleyip kimlik satırını sildiyse ya da
+    görev kimlik düzeninden önce açılmışsa, tamamlanmış/yapılmayacak kopyası TANINMIYOR ve aynı tebligat için yeni
+    görev açılıyordu. Artık şu anahtarların HERHANGİ BİRİ tutarsa aynı iş sayılır:
+      1. kimlik satırı anahtarı (_kimlik_anahtari)
+      2. ("BARKOD", barkod): başlıkta ya da notta geçen UETS/PTT barkodu (tebligat ve EK alt görevi aynı barkodu
+         taşır; bu yüzden tür ayrımı yapılmaz — barkod tek başına benzersizdir)
+      3. ("UETSNO", no)
+    EN: title-independent match keys; any shared key means the same piece of work."""
+    if isinstance(t_or_content, dict):
+        # Kontrol listeli (CHECKLIST) görevlerde TickTick notu "desc" alanında tutar: ikisi de okunur
+        content = "\n".join(x for x in (t_or_content.get("content"), t_or_content.get("desc")) if x)
+        baslik = t_or_content.get("title") or ""
+    else:
+        content = t_or_content or ""
+    k = kimlik.oku(content)
+    out = set()
+    a = _kimlik_anahtari(k)
+    if a:
+        out.add(a)
+    barkod = (k or {}).get("barkod") or extract_barcode_from_text(content) or extract_barcode_from_text(baslik)
+    if barkod and len(barkod) >= 11:
+        out.add(("BARKOD", barkod))
+    if (k or {}).get("uets_no"):
+        out.add(("UETSNO", k["uets_no"]))
+    return out
+
+
+def _ayni_is_mi(a1, t2):
+    """a1: açılacak görevin anahtar kümesi; t2: mevcut görev. Tür uyuşmazlığı (EK vs TEBLİGAT) eşleşme sayılmaz."""
+    a2 = gorev_anahtarlari(t2)
+    if not (a1 & a2):
+        return False
+    tur1 = next((x[0] for x in a1 if x[0] in kimlik.TURLER), None)
+    tur2 = next((x[0] for x in a2 if x[0] in kimlik.TURLER), None)
+    if tur1 and tur2 and tur1 != tur2:
+        return False
+    if tur1 and not tur2:
+        # Kimliksiz eski görev: EK alt görevleri "📎" ile başlar
+        baslik = (t2.get("title") or "")
+        if (tur1 == "EK") != baslik.lstrip().startswith("📎"):
+            return False
+    return True
+
+
 def ayni_kimlikli_aktif(content):
-    """Tüm listelerdeki aktif görevlerde aynı kimlik anahtarlı görev (yoksa None)."""
-    anahtar = _kimlik_anahtari(kimlik.oku(content or ""))
-    if not anahtar:
+    """Tüm listelerdeki aktif görevlerde aynı işi gösteren görev (kimlik ya da barkod; başlıktan bağımsız)."""
+    anahtarlar = gorev_anahtarlari(content or "")
+    if not anahtarlar:
         return None
     for t in tum_aktif_gorevler():
-        if _kimlik_anahtari(kimlik.oku(t.get("content") or "")) == anahtar:
+        if _ayni_is_mi(anahtarlar, t):
             return t
     return None
 
 
+TOPLU_EVRAK_KONU = "UYAP evrakları"
+
+
+def _evrak_kalemi(tur, tarih, aciklama=""):
+    """Toplu görevdeki kontrol listesi satırı: "[YYYY-AA-GG] Tür — açıklama". Başı (tarih+tür) kimliktir."""
+    bas = f"[{str(tarih or '')[:10]}] {(tur or 'Evrak').strip()}"
+    return bas, (bas + (f" — {aciklama.strip()[:140]}" if aciklama and aciklama.strip() else ""))[:250]
+
+
 def uyap_evrak_gorevi(birim, dosya_no, tur, aciklama="", tarih="", son_gun_iso="", oncelik=3, etiketler=None, detay=""):
-    """UYAP'a düşen yeni evrak için STANDART görev: dosya kartının ALT görevi, kimlik satırlı (EVRAK · mahkeme ·
-    esas · konu=tür+tarih). Aynı evrak için aktif, tamamlanmış ya da yapılmayacak görev varsa YENİSİ AÇILMAZ.
-    (Eskiden her yeni evrak kimliksiz, kartsız, tekrar kontrolsüz '📄 ...' görevi açıyordu: mükerrerlerin kaynağı.)"""
-    konu = f"{(tur or 'Evrak').strip()} {str(tarih or '')[:10]}".strip()
-    kim = kimlik.satir("EVRAK", mahkeme=birim, esas=dosya_no, konu=konu)
-    var = ayni_kimlikli_aktif(kim) or kapali_kopya_bul({"content": kim})
+    """UYAP'a düşen evrak için görev — v4.10.0: EVRAK BAŞINA GÖREV AÇILMAZ.
+
+    Her dosya için tek bir "📥 UYAP evrakları - <mahkeme> - <esas> Esas" toplu görevi tutulur (dosya kartının alt
+    görevi, kimlik: EVRAK · konu "UYAP evrakları"); her evrak bu görevin KONTROL LİSTESİNE bir satır olarak eklenir.
+    Neden: 23.11.2026'da tek dosyada 2020'den beri gelen 165 evrakın her biri için ayrı görev ve bugünden
+    hesaplanmış sahte son gün açılmıştı. Kurallar:
+      * Aynı evrak (tarih+tür) aktif toplu görevde, tamamlanmış/yapılmayacak toplu görevlerde ya da eski evrak-başı
+        görevlerde (aktif/tamamlanan/yapılmayacak) zaten varsa hiçbir şey eklenmez (başlıktan bağımsız).
+      * Toplu görev tamamlanmışsa yeni evrak için yeni toplu görev açılır (eskiler tekrar listelenmez).
+      * Son gün yalnız süreli ve yeni evrakta (entegrasyon._yasal_son_gun_iso) yazılır; daha erkense öne çekilir.
+    EN: one aggregate task per case with a checklist item per document; never one task per document."""
+    bas_anahtar, kalem = _evrak_kalemi(tur, tarih, aciklama)
+    # 1) Eski düzende (v4.6–v4.9) açılmış evrak-başı görev varsa yeni kayıt yok
+    eski = kimlik.satir("EVRAK", mahkeme=birim, esas=dosya_no, konu=f"{(tur or 'Evrak').strip()} {str(tarih or '')[:10]}".strip())
+    var = ayni_kimlikli_aktif(eski) or kapali_kopya_bul({"content": eski})
     if var:
         return {"ok": True, "gorev": var, "mevcut": True}
+    kim = kimlik.satir("EVRAK", mahkeme=birim, esas=dosya_no, konu=TOPLU_EVRAK_KONU)
+    anahtar = _kimlik_anahtari(kimlik.oku(kim))
+    katla = lambda x: clean_text(x or "")  # noqa: E731
+    # 2) Kapalı toplu görevlerde zaten listelenmiş mi?
+    try:
+        kapali = get_completed_tasks_live()
+    except Exception:  # noqa: BLE001
+        kapali = []
+    for t in kapali:
+        if _kimlik_anahtari(kimlik.oku((t.get("content") or "") + "\n" + (t.get("desc") or ""))) == anahtar and \
+                any(katla(i.get("title", "")).startswith(katla(bas_anahtar)) for i in (t.get("items") or [])):
+            return {"ok": True, "gorev": t, "mevcut": True}
+    # 3) Aktif toplu görev varsa kontrol listesine ekle
+    aktif = ayni_kimlikli_aktif(kim)
+    if aktif:
+        tam = gorev_getir(aktif.get("projectId"), aktif["id"]) or aktif
+        kalemler = list(tam.get("items") or [])
+        if any(katla(i.get("title", "")).startswith(katla(bas_anahtar)) for i in kalemler):
+            return {"ok": True, "gorev": tam, "mevcut": True}
+        kalemler.append({"title": kalem, "status": 0})
+        payload = {"id": tam["id"], "projectId": tam.get("projectId"), "items": kalemler,
+                   "title": f"📥 UYAP evrakları ({len(kalemler)}) - {birim} - {dosya_no} Esas"[:250]}
+        if son_gun_iso:
+            yeni_due = son_gun_iso if "T" in son_gun_iso else f"{son_gun_iso}T17:00:00+0300"
+            if not tam.get("dueDate") or yeni_due[:10] < str(tam.get("dueDate"))[:10]:
+                payload.update({"dueDate": yeni_due, "isAllDay": False})
+        g = tt_post(f"{CONFIG['TICKTICK_API_BASE']}/task/{tam['id']}", payload, what="UYAP evrak listesi")
+        return {"ok": bool(g), "gorev": g or tam, "mevcut": False, "eklendi": kalem}
+    # 4) Yeni toplu görev
     liste = determine_list(birim)
     pid = PROJECT_IDS.get(liste) or PROJECT_IDS.get("Inbox") or "inbox"
     kart, kart_pid = find_or_create_parent_task(birim, dosya_no, pid)
-    payload = {"title": f"📥 {(tur or 'UYAP evrakı').strip()} - {birim} - {dosya_no} Esas"[:250],
-               "projectId": kart_pid or pid, "content": kim + "\n\n" + (detay or aciklama or "").strip(),
+    payload = {"title": f"📥 UYAP evrakları (1) - {birim} - {dosya_no} Esas"[:250],
+               "projectId": kart_pid or pid,
+               "desc": kim + "\n\nBu dosyaya UYAP'tan düşen evraklar aşağıdaki listede. Evrak başına ayrı görev açılmaz.\n\n"
+                          + (detay or aciklama or "").strip(),
+               "items": [{"title": kalem, "status": 0}], "kind": "CHECKLIST",
                "priority": int(oncelik or 0), "tags": list(etiketler or ["uyap"]), "timeZone": "Europe/Istanbul"}
     if kart:
         payload["parentId"] = kart
     if son_gun_iso:
         payload["dueDate"] = son_gun_iso if "T" in son_gun_iso else f"{son_gun_iso}T17:00:00+0300"
         payload["isAllDay"] = False
-    g = tt_post(f"{CONFIG['TICKTICK_API_BASE']}/task", payload, what="UYAP evrak görevi")
-    return {"ok": bool(g), "gorev": g, "mevcut": False}
+    g = tt_post(f"{CONFIG['TICKTICK_API_BASE']}/task", payload, what="UYAP evrak listesi")
+    return {"ok": bool(g), "gorev": g, "mevcut": False, "eklendi": kalem}
 
 
 def kapali_kopya_bul(payload):
     """Açılmak üzere olan görevin TAMAMLANMIŞ ya da YAPILMAYACAK bir kopyası var mı (kimlik satırıyla)? Varsa döndürür."""
-    k = kimlik.oku((payload or {}).get("content") or "")
-    anahtar = _kimlik_anahtari(k)
-    if not anahtar:
+    anahtarlar = gorev_anahtarlari((payload or {}).get("content") or "", (payload or {}).get("title") or "")
+    if not anahtarlar:
         return None
     try:
         kapali = get_completed_tasks_live()
     except Exception:  # noqa: BLE001
         return None
     for t in kapali:
-        if _kimlik_anahtari(kimlik.oku(t.get("content") or "")) == anahtar:
+        if _ayni_is_mi(anahtarlar, t):
             return t
     return None
 

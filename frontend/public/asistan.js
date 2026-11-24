@@ -478,7 +478,7 @@
     ['Diğer araçlar', [['uyap', '🔐 UYAP Giriş'], ['yeni', '🔔 Yeni Evrak'], ['ajanda', '📅 Ajanda'], ['evrak', '🗂️ Evrak Ara'],
       ['sure', '⏱️ Süre'], ['hesap', '🧮 Hesapla'], ['hesaplar', '💰 Dosya Hesapları'], ['a4', '📄 A4 PDF'], ['jar', '🔄 JAR Dönüştür'],
       ['hayfa', '📰 HAYFA / İçtihat'], ['drive', '☁️ Drive Ayarları'], ['entegrasyon', '📋 Notion / TickTick / Telegram'],
-      ['gorev', '⚙️ Görevler'], ['baglanti', '🔌 Bağlantı']]]
+      ['gorev', '⚙️ Görevler'], ['baglanti', '🔌 Bağlantı'], ['saglik', '🩺 Sağlık / Günlük']]]
   ];
   const SEKMELER = SEKME_GRUPLARI.flatMap(([, l]) => l);
 
@@ -823,7 +823,8 @@
       gorev: gorevSekmesi,
       tebligat: tebligatSekmesi,
       ana: anaEkran,
-      baglanti: baglantiSekmesi
+      baglanti: baglantiSekmesi,
+      saglik: saglikSekmesi
     };
     // Sekme değişince içerik başa sarılır, yükleme göstergesi çıkar ve son sekme hatırlanır.
     ic.scrollTop = 0;
@@ -1441,6 +1442,84 @@
   // yerinde kalır (eskiden her yenilemede başa zıplıyordu); en alttaysanız yeni satırları izler.
   const OTOMATIK_GOREVLER = ['evrak-akis', 'uets-senkron', 'hesap-tara', 'notion-esitle', 'ticktick-duzen'];
   const GIZLI_GOREVLER = ['asistan-gui', 'evrak-katalog'];   // eski masaüstü pencereleri: yerlerini paneller aldı
+  // v4.10.0 — 🩺 SAĞLIK / GÜNLÜK: öz-denetim raporu (oz_denetim.py) + tüm modüllerin birleşik günlüğü.
+  // Uygulama her 3 saatte bir kendini sınar ve onarır (PDF motoru, bozuk PDF'ler, veritabanı bütünlüğü, katalog,
+  // TickTick düzeni...). Bu sekme son raporu gösterir, elle çalıştırır ve günlüğü kaynak/seviye/metinle süzer.
+  // Terminal karşılığı: `caneditor oz-denetim` ve `caneditor log -f`.
+  // EN: health tab — last self-test report, run now, unified log with level/source/text filters.
+  async function saglikSekmesi(ic) {
+    const SEV = { tamam: ['✓', 'tamam'], uyari: ['⚠', 'uyari'], hata: ['✕', 'hata'] };
+    ic.innerHTML = `<div class="ca-kart">
+        <h3 style="margin-top:0">🩺 Öz-denetim</h3>
+        <p class="ca-soluk">CanEditor kendini düzenli aralıklarla sınar ve bulduğu tutarsızlıkları onarır. Hiçbir belge silinmez;
+        onarımlar tekrar tekrar çalıştırılabilir. Terminal: <code>caneditor oz-denetim</code></p>
+        <div class="ca-sira" style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="ca-btn ana" type="button" id="sg-onar" data-ipucu="Tüm denetimleri çalıştırır ve bulunan sorunları onarır: bozuk/boş PDF'leri resmî motorla yeniden üretir, diskte olmayan evrakları yeniden indirme kuyruğuna alır, veritabanını onarır, TickTick düzenini başlatır.">🛠️ Şimdi denetle ve onar</button>
+          <button class="ca-btn" type="button" id="sg-oku" data-ipucu="Yalnız rapor üretir; hiçbir şeyi değiştirmez.">🔍 Yalnız denetle</button>
+        </div>
+        <div id="sg-rapor" style="margin-top:10px"><p class="ca-soluk">Rapor yükleniyor…</p></div>
+      </div>
+      <div class="ca-kart">
+        <h3 style="margin-top:0">📜 Birleşik günlük</h3>
+        <div class="ca-filtre-cipler" id="sg-sev">${[['', 'Tümü'], ['HATA', '✕ Hatalar'], ['UYARI', '⚠ Uyarılar'], ['BILGI', 'ℹ Bilgi']].map(([k, a]) => `<button type="button" data-k="${k}">${a}</button>`).join('')}</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin:6px 0">
+          <select id="sg-kaynak" data-ipucu="Günlüğü üreten modüle göre süz (sunucu, görevler, dönüştürücü, imza, CLI...)"><option value="">Tüm kaynaklar</option></select>
+          <input id="sg-q" placeholder="Günlükte ara (Türkçe karakter duyarsız)…" style="flex:1;min-width:180px" data-ipucu="Yazdığınız kelimeleri içeren satırlar kalır; -kelime yazarsanız o kelimeyi içerenler çıkarılır.">
+          <button class="ca-btn kucuk" type="button" id="sg-yenile" data-ipucu="Günlüğü yeniden yükle (her 5 sn'de kendiliğinden de yenilenir)">⟳</button>
+        </div>
+        <pre id="sg-log" style="max-height:420px;overflow:auto;white-space:pre-wrap;font-size:12px"></pre>
+      </div>`;
+    const raporEl = ic.querySelector('#sg-rapor'), logEl = ic.querySelector('#sg-log');
+    let satirlar = [], sev = '';
+    const katla = t => String(t || '').toLocaleLowerCase('tr').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/ı/g, 'i');
+    const raporCiz = v => {
+      const r = (v && v.rapor) || {};
+      if (!r.denetimler) { raporEl.innerHTML = '<p class="ca-soluk">Henüz rapor yok. “Şimdi denetle ve onar”a basın.</p>'; return; }
+      const o = r.ozet || {};
+      raporEl.innerHTML = `<div class="ca-soluk" style="margin-bottom:6px">Son denetim: <b>${esc((r.zaman || '').replace('T', ' '))}</b> · ✓ ${o.tamam || 0} · ⚠ ${o.uyari || 0} · ✕ ${o.hata || 0} · 🛠️ onarılan ${o.onarilan || 0}${v.calisiyor ? ' · <b>şu an çalışıyor…</b>' : ''}</div>
+        <table class="ca-tablo"><tr><th>Denetim</th><th>Durum</th><th>Ayrıntı</th></tr>${Object.entries(r.denetimler).map(([ad, d]) => {
+          const [ik, sn] = SEV[d.durum] || ['?', ''];
+          const ayr = Object.entries(d).filter(([k]) => !['durum', 'sure_sn'].includes(k)).map(([k, x]) => `${esc(k)}: ${esc(typeof x === 'object' ? JSON.stringify(x) : x)}`).join(' · ');
+          return `<tr><td><b>${esc(ad)}</b></td><td><span class="gv-rozet ${sn === 'tamam' ? 'tamam' : sn === 'hata' ? 'hata' : 'calisiyor'}">${ik} ${esc(d.durum)}</span></td><td class="ca-soluk" style="font-size:12px">${ayr.slice(0, 600)}</td></tr>`;
+        }).join('')}</table>`;
+    };
+    const logCiz = () => {
+      const q = ic.querySelector('#sg-q').value, ks = ic.querySelector('#sg-kaynak').value;
+      const art = katla(q).split(/\s+/).filter(x => x && !x.startsWith('-')), eks = katla(q).split(/\s+/).filter(x => x.length > 1 && x.startsWith('-')).map(x => x.slice(1));
+      const l = satirlar.filter(s => (!sev || s.includes(`[${sev}]`)) && (!ks || s.includes(`] ${ks}`))
+        && art.every(x => katla(s).includes(x)) && !eks.some(x => katla(s).includes(x)));
+      logEl.textContent = l.slice(-600).join('\n') || 'Eşleşen günlük satırı yok.';
+      logEl.scrollTop = logEl.scrollHeight;
+    };
+    const yukle = async () => {
+      try {
+        const v = await api('/api/oz-denetim?satir=1500');
+        raporCiz(v);
+        satirlar = v.gunluk || [];
+        const sel = ic.querySelector('#sg-kaynak'), mevcut = sel.value;
+        const kaynaklar = [...new Set(satirlar.map(s => (s.match(/\] ([^:]+):/) || [])[1]).filter(Boolean))].sort();
+        sel.innerHTML = '<option value="">Tüm kaynaklar</option>' + kaynaklar.map(k => `<option${k === mevcut ? ' selected' : ''}>${esc(k)}</option>`).join('');
+        logCiz();
+      } catch (e) { raporEl.innerHTML = `<div class="ca-hata">${esc(e.message || e)}</div>`; }
+    };
+    ic.querySelectorAll('#sg-sev button').forEach(b => b.onclick = () => {
+      sev = b.dataset.k; ic.querySelectorAll('#sg-sev button').forEach(x => x.classList.toggle('secili', x === b)); logCiz();
+    });
+    ic.querySelector('#sg-sev button').classList.add('secili');
+    ic.querySelector('#sg-q').oninput = logCiz;
+    ic.querySelector('#sg-kaynak').onchange = logCiz;
+    ic.querySelector('#sg-yenile').onclick = yukle;
+    const calistir = async salt => {
+      raporEl.innerHTML = '<p class="ca-soluk">Denetim çalışıyor (PDF motoru, veritabanları, katalog, TickTick)…</p>';
+      try { raporCiz({ rapor: await api('/api/oz-denetim', { method: 'POST', govde: { bekle: true, salt_oku: salt } }) }); } catch (e) { raporEl.innerHTML = `<div class="ca-hata">${esc(e.message || e)}</div>`; }
+      yukle();
+    };
+    ic.querySelector('#sg-onar').onclick = () => calistir(false);
+    ic.querySelector('#sg-oku').onclick = () => calistir(true);
+    await yukle();
+    const z = setInterval(() => { if (!document.body.contains(ic) || aktifSekme !== 'saglik') return clearInterval(z); yukle(); }, 5000);
+  }
+
   async function gorevSekmesi(ic) {
     ic.innerHTML = '<p class="ca-soluk">Görevler yükleniyor…</p>';
     let kurulu = false;

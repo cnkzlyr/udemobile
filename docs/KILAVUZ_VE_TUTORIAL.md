@@ -88,7 +88,7 @@ uyap-imzala Mazeret_Dilekcesi.udf
 
 Özel bir PIN belirtmek isterseniz:
 ```bash
-uyap-imzala Mazeret_Dilekcesi.udf --pin 455625
+uyap-imzala Mazeret_Dilekcesi.udf --pin <PIN>
 ```
 
 ---
@@ -101,7 +101,7 @@ uyap-imzala Mazeret_Dilekcesi.udf
 ```
 Veya doğrudan mobil imzayı zorlamak için:
 ```bash
-uyap-imzala Mazeret_Dilekcesi.udf --mobil --operator 2 --gsm 05525286225
+uyap-imzala Mazeret_Dilekcesi.udf --mobil --operator 2 --gsm 05XXXXXXXXX
 ```
 *(Operatör kodları: 1 = Turkcell, 2 = Türk Telekom, 3 = Vodafone)*
 

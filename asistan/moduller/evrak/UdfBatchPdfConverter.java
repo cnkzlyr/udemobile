@@ -20,6 +20,48 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class UdfBatchPdfConverter {
 
     private static final PrintStream CONSOLE = System.out;
+    /** Havelsan günlükleri susturulsa da hatalar bu akışa yazılır. EN: real stderr kept for error reports. */
+    private static final PrintStream ERR = System.err;
+
+    /**
+     * v4.10.0 KÖK NEDEN DÜZELTMESİ (bozuk PDF):
+     * TR: Havelsan FontMapper'ı (b.c.awtToPdf) fontu java.awt.Font.getFontName() ile arar. Başsız Linux/macOS/
+     *     Android'de "Times New Roman" sistemde kurulu değilse AWT bunu "Dialog"a çevirir; eşleşme bulunamaz ve
+     *     motor gömülmemiş Helvetica (Cp1254) kullanır: satır kırılımları, harf genişlikleri ve Türkçe glifler
+     *     UYAP Editör çıktısından farklılaşır. Çözüm: UYAP_FONT_DIR'deki TTF'ler JVM'e GraphicsEnvironment
+     *     .registerFont ile kaydedilir; böylece AWT gerçek "Times New Roman"ı bulur, FontMapper da aynı adı.
+     * EN: register bundled TTFs with the JVM so AWT resolves "Times New Roman" instead of falling back to Dialog,
+     *     which made the Havelsan mapper emit non-embedded Helvetica.
+     */
+    private static int registerAwtFonts() {
+        int n = 0;
+        List<String> dirs = new ArrayList<>();
+        String extra = System.getenv("UYAP_FONT_DIR");
+        if (extra != null) for (String d : extra.split(java.util.regex.Pattern.quote(File.pathSeparator))) dirs.add(d.trim());
+        String home = System.getProperty("user.home", "");
+        dirs.add(home + "/.fonts/microsoft");
+        dirs.add(home + "/.fonts");
+        java.awt.GraphicsEnvironment ge;
+        try { ge = java.awt.GraphicsEnvironment.getLocalGraphicsEnvironment(); } catch (Throwable t) { return 0; }
+        Set<String> installed = new HashSet<>(Arrays.asList(ge.getAvailableFontFamilyNames()));
+        for (String dir : dirs) {
+            File d = new File(dir);
+            File[] fs = d.isDirectory() ? d.listFiles() : null;
+            if (fs == null) continue;
+            for (File f : fs) {
+                String ad = f.getName().toLowerCase(Locale.ROOT);
+                if (!(ad.endsWith(".ttf") || ad.endsWith(".otf"))) continue;
+                try {
+                    java.awt.Font font = java.awt.Font.createFont(java.awt.Font.TRUETYPE_FONT, f);
+                    if (ge.registerFont(font)) n++;
+                } catch (Throwable ignored) {}
+            }
+        }
+        if (!installed.contains("Times New Roman") && !new HashSet<>(Arrays.asList(ge.getAvailableFontFamilyNames())).contains("Times New Roman")) {
+            ERR.println("[UYARI] Times New Roman bulunamadı: PDF Helvetica ile üretilecek. UYAP_FONT_DIR ile TTF klasörü gösterin.");
+        }
+        return n;
+    }
 
     public static void main(String[] args) throws Exception {
         String targetPathStr = null;
@@ -51,7 +93,8 @@ public class UdfBatchPdfConverter {
             System.exit(1);
         }
 
-        // 1. Havelsan FontMapper'ını Termux & Android sistem fontlarıyla başlat
+        // 0. TTF'leri JVM'e kaydet (bkz. registerAwtFonts) — 1. Havelsan FontMapper'ını fontlarla başlat
+        registerAwtFonts();
         initHavelsanFonts();
 
         List<File> allUdfs = new ArrayList<>();
@@ -150,12 +193,13 @@ public class UdfBatchPdfConverter {
             java.util.HashMap map = (java.util.HashMap) getA.invoke(cObj);
 
             Class<?> dClass = Class.forName("tr.com.havelsan.uyap.system.editor.b.d");
+            // d.a:Z = embedded, d.b:Z = cached (BaseFont.createFont(ad, kodlama, embedded, cached, ttf, pfb)).
+            // Eskiden yalnız İLK boolean alan ayarlanıyordu; yansıma sırası garanti olmadığından ikisi de true yapılır.
             for (java.lang.reflect.Field f : dClass.getFields()) {
                 if (f.getType() == boolean.class) {
                     for (Object dObj : map.values()) {
                         f.setBoolean(dObj, true); // embedded = true: Türkçe karakterler ve TrueType fontu PDF içine göm
                     }
-                    break;
                 }
             }
         } catch (Throwable ignored) {}
@@ -229,10 +273,20 @@ public class UdfBatchPdfConverter {
                     if (pdfFile.exists() && pdfFile.length() > 0) {
                         successCounter.incrementAndGet();
                     } else {
+                        pdfFile.delete();  // 0 baytlık "başarılı" PDF bırakma (eskiden kalıyordu)
                         failCounter.incrementAndGet();
+                        ERR.println("[HATA] " + udf.getAbsolutePath() + ": boş PDF üretildi (UDF biçimi tanınmadı)");
                     }
                 } catch (Throwable t) {
                     failCounter.incrementAndGet();
+                    Throwable kok = t;
+                    while (kok.getCause() != null) kok = kok.getCause();
+                    try {
+                        String p0 = udf.getAbsolutePath();
+                        File bos = new File(p0.substring(0, p0.lastIndexOf('.')) + ".pdf");
+                        if (bos.exists() && bos.length() == 0) bos.delete();
+                    } catch (Throwable ignored) {}
+                    ERR.println("[HATA] " + udf.getAbsolutePath() + ": " + kok);
                 } finally {
                     int done = processedCounter.incrementAndGet();
                     if (allUdfs.size() > 1 && (done % 50 == 0 || done == totalToConvert)) {
@@ -254,6 +308,7 @@ public class UdfBatchPdfConverter {
         }
 
         executor.shutdown();
+        // Çıkış kodu: 0 = hepsi başarılı, 3 = en az bir hata (Python tarafı yedek motoru buna göre seçer)
         long totalElapsed = System.currentTimeMillis() - startTime;
         double totalSec = totalElapsed / 1000.0;
 
@@ -266,6 +321,8 @@ public class UdfBatchPdfConverter {
             String p = allUdfs.get(0).getAbsolutePath();
             CONSOLE.println("[✓] PDF oluşturuldu: " + p.substring(0, p.lastIndexOf('.')) + ".pdf");
         }
+        CONSOLE.flush();
+        System.exit(failCounter.get() > 0 ? 3 : 0);
     }
 
     private static void initHavelsanFonts() {
@@ -281,7 +338,7 @@ public class UdfBatchPdfConverter {
             String extraDirs = System.getenv("UYAP_FONT_DIR");
             String homeDir = System.getProperty("user.home", "");
             String[] fontDirs = {
-                extraDirs != null ? extraDirs.split(java.util.regex.Pattern.quote(File.pathSeparator))[0] : "",
+                extraDirs != null ? extraDirs : "",
                 "/usr/share/fonts", "/usr/local/share/fonts", homeDir + "/.fonts", homeDir + "/.local/share/fonts",
                 "/Library/Fonts", "/System/Library/Fonts", homeDir + "/Library/Fonts",
                 "/data/data/com.termux/files/home/.fonts/microsoft",
@@ -291,7 +348,9 @@ public class UdfBatchPdfConverter {
             };
 
             int totalLoaded = 0;
-            for (String dir : fontDirs) {
+            List<String> tum = new ArrayList<>();
+            for (String dir : fontDirs) tum.addAll(Arrays.asList(dir.split(java.util.regex.Pattern.quote(File.pathSeparator))));
+            for (String dir : tum) {
                 try {
                     File d = new File(dir);
                     if (d.exists() && d.isDirectory()) {
@@ -305,19 +364,12 @@ public class UdfBatchPdfConverter {
             HashMap<?, ?> map = (HashMap<?, ?>) getA.invoke(cObj);
 
             Class<?> dClass = Class.forName("tr.com.havelsan.uyap.system.editor.b.d");
-            Field embeddedField = null;
-            for (Field f : dClass.getFields()) {
-                if (f.getType() == boolean.class) {
-                    embeddedField = f;
-                    break;
-                }
-            }
-
-            if (embeddedField != null && map != null) {
-                for (Object dObj : map.values()) {
-                    try {
-                        embeddedField.setBoolean(dObj, true);
-                    } catch (Exception ignored) {}
+            if (map != null) {
+                for (Field f : dClass.getFields()) {
+                    if (f.getType() != boolean.class) continue;
+                    for (Object dObj : map.values()) {
+                        try { f.setBoolean(dObj, true); } catch (Exception ignored) {}
+                    }
                 }
             }
 

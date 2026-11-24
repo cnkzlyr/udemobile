@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # ================================================================
-#  UYAP UDF E-İmza & Mobil İmza Evrensel İmzalatıcı (Unix / macOS / Linux / Termux)
+#  UYAP UDF E-İmza & Mobil İmza Evrensel İmzalatıcı (Termux / Linux / macOS)
 #  © 2026 Av. Can KIZILYAR — Tüm hakları saklıdır.
 # ================================================================
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REAL_PATH="$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || echo "${BASH_SOURCE[0]}")"
+SCRIPT_DIR="$(cd "$(dirname "$REAL_PATH")" && pwd)"
 exec python3 "$SCRIPT_DIR/uyap_imzala.py" "$@"

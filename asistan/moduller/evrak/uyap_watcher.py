@@ -129,6 +129,12 @@ class TelegramClient:
             resp = requests.post(url, json=payload, timeout=15)
             if resp.status_code == 200:
                 return True
+            if parse_mode and "can't parse entities" in resp.text.lower():
+                payload["parse_mode"] = ""
+                payload["text"] = re.sub(r"<[^>]+>", "", text)
+                resp2 = requests.post(url, json=payload, timeout=15)
+                if resp2.status_code == 200:
+                    return True
             logger.error("Telegram mesaj hatası: %s - %s", resp.status_code, resp.text)
         except Exception as e:
             logger.error("Telegram bağlantı hatası: %s", e)
@@ -142,13 +148,31 @@ class TelegramClient:
         if not p.exists() or p.stat().st_size == 0:
             return False
         url = f"https://api.telegram.org/bot{self.bot_token}/sendDocument"
-        data = {"chat_id": self.chat_id, "caption": caption[:1000], "parse_mode": "HTML"}
+        # Telegram caption sınırı 1024 karakter. HTML tag'leri bölünürse 400 hatası vermesin:
+        safe_caption = caption.strip()
+        if len(safe_caption) > 1000:
+            plain = re.sub(r"<[^>]+>", "", safe_caption)
+            safe_caption = plain[:990] + "..."
+            parse_mode = None
+        else:
+            parse_mode = "HTML" if "<" in safe_caption else None
+
+        data = {"chat_id": self.chat_id, "caption": safe_caption}
+        if parse_mode:
+            data["parse_mode"] = parse_mode
         try:
             with open(p, "rb") as f:
                 files = {"document": (p.name, f)}
                 resp = requests.post(url, data=data, files=files, timeout=45)
                 if resp.status_code == 200:
                     return True
+                if parse_mode and "can't parse entities" in resp.text.lower():
+                    f.seek(0)
+                    data["caption"] = re.sub(r"<[^>]+>", "", safe_caption)[:990]
+                    data.pop("parse_mode", None)
+                    resp2 = requests.post(url, data=data, files=files, timeout=45)
+                    if resp2.status_code == 200:
+                        return True
                 logger.error("Telegram evrak gönderme hatası: %s - %s", resp.status_code, resp.text)
         except Exception as e:
             logger.error("Telegram dosya aktarım hatası: %s", e)
@@ -900,8 +924,11 @@ class UyapWatcher:
         dk, sk = self._oncelik_oku()
         if not (dk or sk or self._oncelik_kat):
             return False
-        # İşi bitmiş (listesi alınmış, bekleyen evrakı kalmamış) kayıtlar kesmeye yol açmasın
-        return bool(self._oncelik_idleri(dk, sk, sinir=1)) or any(not self._tarama_tamam(d) for d in dk)
+        # İşi bitmiş (listesi alınmış veya denenmiş, bekleyen evrakı kalmamış) kayıtlar kesmeye yol açmasın
+        denendi = getattr(self, "_liste_denendi", set())
+        has_pending_docs = bool(self._oncelik_idleri(dk, sk, sinir=1))
+        has_unscanned_files = any(not self._tarama_tamam(d) and d not in denendi for d in dk)
+        return has_pending_docs or has_unscanned_files
 
     def _kesme(self) -> bool:
         return not getattr(self, "_oncelikte", False) and self._oncelik_var()
@@ -974,9 +1001,7 @@ class UyapWatcher:
                     self.motor.scan(include_closed=True, only_dkeys=set(listesiz))
                     for d in listesiz:     # UYAP listede vermediyse sonsuza dek beklenmesin
                         if not self._tarama_tamam(d):
-                            with self.katalog.db:
-                                self.katalog.db.execute("UPDATE dosya SET tarama='hata: öncelikli liste alınamadı' "
-                                                        "WHERE dkey=? AND COALESCE(tarama,'')<>'tamam'", (d,))
+                            self.katalog.set_tarama(d, "hata: öncelikli liste alınamadı")
                 # 100'lük parçalar: büyük toplu istek (binlerce tebligat) sürerken yeni gelen tek dosya isteği araya girer
                 ids = self._oncelik_idleri(dk, sk, sinir=100)
                 if ids:
@@ -990,7 +1015,7 @@ class UyapWatcher:
                     logger.info("⚡ Öncelikli indirme bitti: %d indirildi, %d mükerrer (aynısı zaten var), %d hata.",
                                 n, st.get("mukerrer", 0), st.get("hata", 0) + st.get("yok", 0))
                 kalan = set(self._oncelik_idleri(dk, sk, kategoriler=[]))
-                bitmis_dk = [d for d in dk if self._tarama_tamam(d) and not self._oncelik_idleri([d], [], sinir=1, kategoriler=[])]
+                bitmis_dk = [d for d in dk if (self._tarama_tamam(d) or d in denendi) and not self._oncelik_idleri([d], [], sinir=1, kategoriler=[])]
                 bitmis_sk = [x for x in sk if not self.katalog.db.execute(
                     "SELECT 1 FROM evrak WHERE skey=? AND id IN (%s)" % (",".join(map(str, kalan)) or "0"), (x,)).fetchone()]
                 self._oncelik_temizle(bitmis_dk, bitmis_sk)

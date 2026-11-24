@@ -12,7 +12,9 @@ alt dizin olarak taşındı.
 | `naps-uyap-thunar-tools` | `asistan/moduller/a4` | NAPS2 yöntemli A4 PDF motoru (+ Thunar sağ tık eylemleri) |
 | `uyap-editor-modern` | `platform/uyap-editor-modern` | Resmî UYAP Editörü için modernleştirici + paketler (ayrı etiket) |
 | `uyap-termux-pro` | `platform/termux` | Android/Termux'ta resmî UYAP Editörü + USB e-imza |
-| UYAP Editör (resmî, Havelsan) | dağıtılmaz | CanEditor "Orijinal UYAP Editöründe Aç" ile çağırır; jar'lar lisanslıdır |
+| UYAP Editör (resmî, Havelsan 5.4.20) | `asistan/jars/uyap-editor` | v4.10.0'dan itibaren jar'lar depoya ve paketlere gömülü: UDF→PDF/ODT/DOCX kurulum gerektirmez |
+| `eimza-one` | `platform/eimza-one` | Android ara yazılımsız e-imza (ArkSigner/TBB/Kamu SM); `v*` sürümüne E-Imza-One APK'sı eklenir |
+| `hayfahukuk` | `asistan/hayfa_kopru.py` | Haber, içtihat, mevzuat (madde metni araması), Resmî Gazete, adliye rehberi |
 | `libreofficemobile` | — | Depo boştu. Ofis belgesi ihtiyacını CanEditor'un DOCX/ODT desteği karşılar |
 
 ## Katmanlar
@@ -122,3 +124,13 @@ TZ=Europe/Istanbul node --test tests/*.test.cjs                    # arayüz sü
 | `v*` | `desktop-release.yml` | CanEditor: APK, exe/msi, dmg, deb/rpm/AppImage, taşınabilir web |
 | `evrak-v*` | `uyap-evrak-paketleri.yml` | Bağımsız UYAP Evrak Yöneticisi kurulumları |
 | `editor-modern-v*` | `uyap-editor-modern.yml` | Resmî UYAP Editörü modernleştirici paketleri |
+
+## v4.10.0 eklemeleri
+
+| Bileşen | Dosya | Görev |
+|---|---|---|
+| Birleşik terminal | `asistan/caneditor_cli.py` + `caneditor`, `caneditor.bat`, `caneditor.ps1` | GUI'nin kullandığı `/api` uç noktalarını aynen çağırır; çalışan sunucu yoksa süreç içinde geçici sunucu açar |
+| Öz-denetim | `asistan/oz_denetim.py` (`/api/oz-denetim`, Asistan → 🩺 Sağlık) | 3 saatte bir test + onarım, birleşik günlük (`gunluk/caneditor.log`) |
+| Kişisel ayarlar | `asistan/kisisel_ayar.py` | PIN/TC/GSM/Telegram/Drive webhook tek kaynak; koda hiçbir kişisel değer yazılmaz |
+| İpuçları/süzgeçler | `frontend/public/ipucu.js` | Her kontrol için ayrıntılı ipucu (+kısayol +CLI), tablo süzgeci/sıralama, hızlı tarih çipleri |
+| PDF motoru | `moduller/evrak/donusturucu.py`, `UdfBatchPdfConverter.java` | Resmî motor + gömülü TTF (JVM'e kayıt); yedek motor UDF ofset modelini ve biçimi korur |

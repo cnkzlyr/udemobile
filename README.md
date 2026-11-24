@@ -1,6 +1,7 @@
 # ⚖️ CanEditor (UdeMobile) — Birleşik Hukuk Platformu & Çapraz Platform UYAP Editörü
 
-[![Sürüm](https://img.shields.io/badge/Sürüm-v4.9.4-c8a45a.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v4.9.4)
+[![Sürüm](https://img.shields.io/badge/Sürüm-v4.10.0-c8a45a.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v4.10.0)
+[![CLI](https://img.shields.io/badge/Terminal-caneditor-333.svg)](#3-️-caneditor--arayüzün-yaptığı-her-şey-terminalde-windows--macos--linux--androidtermux)
 [![Platformlar](https://img.shields.io/badge/Platformlar-Android%20%7C%20Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Web-0f2341.svg)](https://github.com/cnkzlyr/udemobile/releases)
 [![UYAP](https://img.shields.io/badge/Format-UYAP_UDF_v1.8-0D47A1.svg)](https://uyap.gov.tr)
 [![Word](https://img.shields.io/badge/Format-MS_DOCX_OpenXML-2B579A.svg?logo=microsoft-word&logoColor=white)](https://microsoft.com)
@@ -23,6 +24,73 @@
 
 ---
 
+## 🧩 v4.10.0: Tek Depo, Tek Uygulama — Birleşik Terminal (`caneditor`), Bozuk PDF'in Kökten Çözümü, Gömülü Resmî UYAP Jar'ları, Öz-Denetim ve Ayrıntılı İpuçları
+
+Bu sürümde dağınık depolardaki (`uyap-evrak-indirici`, `avukatasistan`, `eimza-one`, `hayfahukuk`, `uyap-editor-modern`, `uyap-termux-pro`, `naps-uyap-thunar-tools`) **bütün özellikler CanEditor'da toplandı**; grafik arayüzün yaptığı her şey artık **her platformda terminalden** de yapılabiliyor.
+
+### 1. 📦 Depolar birleştirildi
+| Kaynak depo | CanEditor içindeki yeri | Bu sürümde gelen |
+|---|---|---|
+| `uyap-evrak-indirici` | `asistan/moduller/evrak` | Drive arşiv denetimi/eşitleyici (`drive_arsiv_denetle.py`, `drive_arsiv_esitle.py`, `uyap-drive-*`), `tarama_tamamla.py`, öncelik kilitlenmesi, Windows MAX_PATH ve Google Drive kilit düzeltmeleri, Java 8 uyumlu dönüştürücü, GUI/Terminal başlatıcıları (3 yönlü birleştirme; CanEditor'daki yerel düzeltmeler korundu) |
+| `eimza-one` | `platform/eimza-one` | Android'de ArkSigner / TÜRKTRUST TBB / Kamu SM tokenları için ara yazılımsız e-imza uygulaması: kaynak + **tüm jar'lar**. Her `v*` sürümünde `E-Imza-One-v<sürüm>.apk` olarak aynı Release'e eklenir (`.github/workflows/eimza-one.yml`) |
+| `hayfahukuk` | `asistan/hayfa_kopru.py` | Mevzuat arşivinde **madde metni içinde** arama (`yer=madde`) |
+| `uyap-editor-modern`, `uyap-termux-pro`, `naps-uyap-thunar-tools`, `avukatasistan` | `platform/…`, `asistan/moduller/…` | Farklar denetlendi: CanEditor kopyaları güncel |
+
+### 2. 📄 "PDF bozuk çevriliyor" — kök neden bulundu ve giderildi
+Üç ayrı hata üst üste biniyordu:
+1. **Yanlış argüman:** `sunucu.py` dönüştürücüyü `udf_to_pdf(udf, hedef_pdf)` diye çağırıyordu; işlevin ikinci parametresi `timeout` olduğu için hedef yol zaman aşımı sanılıyor, Java çağrısı `TypeError` ile düşüyor, hata **sessizce yutuluyor** ve her UDF yedek motora gidiyordu.
+2. **Bozuk yedek motor:** Yedek (ReportLab) motor `content.xml`'deki bütün metni tek paragraf olarak **Helvetica** ile basıyordu: satır sonları kayboluyor, `ş ğ ı İ` kara kutu oluyor, hizalama/kalın/girinti yok sayılıyordu. Baştan yazıldı: UDF'in UTF-16 ofset modeli, hizalama (0/1/2/3), sol/sağ/ilk satır girintisi, önce/sonra boşluk, satır aralığı, kalın/italik/altı çizili, tablolar ve sayfa kenar boşlukları okunur; Times New Roman/Arial TTF gömülür.
+3. **Font eşleşmesi:** Resmî Havelsan motoru, Times New Roman sistemde kurulu değilse (Linux/macOS/Android başsız Java) gömülmemiş Helvetica'ya düşüyordu. `UdfBatchPdfConverter` artık pakete gömülü TTF'leri JVM'e kaydediyor → **Times New Roman gömülü, Türkçe birebir**. Hatalar artık gizlenmiyor; 0 baytlık PDF bırakılmıyor; çıkış kodu anlamlı.
+
+**Resmî UYAP Editör jar'ları (5.4.20) depoya ve tüm masaüstü paketlerine gömüldü** (`asistan/jars/uyap-editor`, ~46 MB) — UDF→PDF/ODT/DOCX için UYAP Editör kurmak gerekmez. Daha önce bozuk üretilmiş PDF'ler öz-denetim tarafından bulunup **resmî motorla yeniden üretilir**.
+
+### 3. ⌨️ `caneditor` — arayüzün yaptığı her şey terminalde (Windows · macOS · Linux · Android/Termux)
+Arayüzdeki her düğme yerel Hukuk Asistanı sunucusunun bir `/api` uç noktasını çağırır; `caneditor` **aynı uç noktaları** çağırır. Açık bir CanEditor varsa ona bağlanır; yoksa sunucuyu kendi içinde geçici olarak açar. Python yoksa paketteki Python'suz ikiliyle çalışır.
+
+```bash
+caneditor durum                                   # sunucu, UYAP/UETS oturumu, e-imza, Java/jar
+caneditor uyap giris                              # arka planda: kart takılıysa e-imza, yoksa Mobil İmza
+caneditor evrak ara "bilirkişi" --kategori bilirkisi --baslangic 2026-11-01 --muvekkil "Ahmet"
+caneditor pdf ~/UYAP_Indirilenler                 # klasördeki UDF/TIFF/görüntü/Office → PDF
+caneditor donustur dilekce.udf --bicim docx       # resmî Havelsan motoru
+caneditor imzala dilekce.udf                      # oto: kart → sessiz e-imza, yoksa Mobil İmza
+caneditor uets senkron                            # UETS tebligatları → süre → TickTick/Notion
+caneditor ticktick denetle                        # mükerrer/eksik raporu (değişiklik yapmaz)
+caneditor ticktick duzenle                        # uygular (tamamlanan + yapılmayacak görevler dahil)
+caneditor gorev evrak-nobetci --izle              # Görevler sekmesindeki herhangi bir görev
+caneditor hayfa mevzuat "kira" --madde            # HAYFA mevzuat arşivinde madde metninde ara
+caneditor ajanda --gun 30 · caneditor sure 20.11.2026 · caneditor a4 *.jpg -o ek.pdf
+caneditor oz-denetim                              # kendini test et + onar
+caneditor log -f --kaynak gorev/uets-senkron      # birleşik günlüğü canlı izle
+caneditor api GET /api/dosyalar q=2026/12         # her uç nokta doğrudan
+caneditor --json …                                # betikler için ham JSON
+```
+
+### 4. 🩺 Kendi kendini denetleyen ve onaran uygulama + birleşik günlük
+`asistan/oz_denetim.py` sunucu açıkken **her 3 saatte bir** çalışır (Asistan → **🩺 Sağlık / Günlük** ya da `caneditor oz-denetim`): Python modülleri, Java + resmî jar + fontlar, örnek UDF ile **gerçek PDF testi** (Türkçe metin + gömülü font doğrulanır), eski bozuk/0 baytlık PDF'lerin yeniden üretilmesi, SQLite bütünlüğü (bozuksa yedek + REINDEX), katalog tutarlılığı (diskte olmayan indirmeler yeniden kuyruğa, mükerrer ekler işaretlenir — kataloğun kendi onarımları çağrılır, dosya silinmez), kişisel ayarların varlığı, TickTick düzeninin 6 saatten eski olmaması ve disk alanı. Bütün modüllerin çıktısı tek günlükte (`gunluk/caneditor.log`, dönerli), kaynak/seviye/metinle süzülebilir; PIN'ler maskelenir.
+
+### 5. ✅ TickTick: başlık değişse de mükerrer açılmaz, evrak başına görev açılmaz
+- Eşleşme başlıktan **bağımsızdır**: kimlik satırı + **barkod** (+ UETS no). Kullanıcı başlığı değiştirse ya da kimlik satırını silse bile **tamamlanan** ve **yapılmayacak** (status −1) görevler tanınır; aynı tebligat için yeni görev açılmaz (`gorev_anahtarlari`, `_ayni_is_mi`). EK alt görevi tebligatı engellemez.
+- **Evrak başına görev açılmaz:** UYAP evrakları dosya başına TEK bir "📥 UYAP evrakları (N)" görevinin kontrol listesinde toplanır (aynı evrak iki kez eklenmez; kapanmış toplu görevlerdeki evraklar yeniden listelenmez).
+- **Sahte son gün yok:** Tahmini yasal son gün artık evrak tarihinden hesaplanır; 45 günden eski evraka son gün yazılmaz (eskiden yıllar önceki evraka bugünden hesaplanmış son gün yazılıyordu).
+- Düzen turu yalnız TickTick bağlıyken de çalışır (öz-denetim başlatır).
+
+### 6. 🖱️ Arayüz: her düğmede ayrıntılı açıklama, her listede pratik süzgeç
+- **İpuçları (`ipucu.js`):** Fareyle üzerine gelince (dokunmatikte uzun basınca) "ne yapar · klavye kısayolu · terminal karşılığı" kartı. Editördeki 317 kontrolün 315'i ayrıntılı açıklamalı (UYAP paragraf seçeneklerinin nk/cm karşılıkları ve UYAP varsayılanları dahil).
+- **Her tabloda süzgeç + sıralama:** Asistan/HAYFA tablolarının üstünde "bu tabloda süz" kutusu (Türkçe-duyarsız, `-kelime` hariç tutar); sütun başlığına tıklayınca tarih/sayı/metin olarak sıralar.
+- **Hızlı tarih çipleri:** İki tarih alanı olan her süzgece "Bugün · Son 7/30 gün · Önümüzdeki 7/30 gün · Bu ay · Geçen ay · Bu yıl · Temizle". Ayrıntılı süzgeçler (müvekkil, kategori, tür, durum, dosya durumu) aynen duruyor.
+
+### 7. 🔐 Kişisel bilgiler koddan çıkarıldı
+E-imza PIN'i, TC, GSM, Telegram bot anahtarı ve Drive webhook adresi bazı betiklerde **sabit yazılıydı**. Hepsi `asistan/kisisel_ayar.py` üzerinden ortam değişkeni ya da `~/.caneditor/kisisel.json` (izin 600) / `.uyap_config.json` / `~/.uki/mobileConfig`'den okunur. PIN tanımlı değilse kart **hiç denenmez** (bloke riski yok), doğrudan Mobil İmza kullanılır.
+
+```json
+// ~/.caneditor/kisisel.json
+{ "pin": "<e-imza PIN>", "tc": "<TC>", "gsm": "05XXXXXXXXX", "operator": "turktelekom",
+  "telegram_token": "<bot token>", "telegram_chat": "<chat id>", "drive_webhook": "<Apps Script URL>" }
+```
+
+---
+
 ## 🔐 v4.9.5: Sessiz (Headless) USB E-İmza & Çapraz Platform UDF İmzalatıcı
 
 CanEditor Hukuk Asistanı ve komut satırı aracı (`uyap-imzala`), **Termux (Android)**, **Windows**, **Linux (Ubuntu / Fedora)** ve **macOS** üzerinde UDF belgelerini tek komutta resmi CAdES-BES formatında imzalar ve doğrular.
@@ -42,7 +110,7 @@ CanEditor Hukuk Asistanı ve komut satırı aracı (`uyap-imzala`), **Termux (An
                        │                                                             │
          ┌─────────────┴─────────────┐                                 ┌─────────────┴─────────────┐
          │ • Sıfır popup, sıfır onay │                                 │ • OTA Binary SMS / STK    │
-         │ • APDU VERIFY PIN (455625)│                                 │ • Ekranda zorunlu PIN     │
+         │ • APDU VERIFY PIN (******)│                                 │ • Ekranda zorunlu PIN     │
          │ • 0.3 sn sürede imzalama  │                                 │ • 5070 s. Kanun gereği    │
          │ • %100 Arka Planda Sessiz │                                 │ • Donanım yokken Yedek    │
          └─────────────┬─────────────┘                                 └─────────────┬─────────────┘
@@ -67,7 +135,7 @@ CanEditor Hukuk Asistanı ve komut satırı aracı (`uyap-imzala`), **Termux (An
 #### ⚡ USB E-İmzada (ArkSigner / CCID SmartCard) Neden %100 Sessiz İmza Mümkündür?
 İşte tam olarak bu nedenle USB E-İmza (ArkSigner, Akis vb.) otomasyon ve arka plan işleri için biçilmiş kaftandır:
 * **Doğrudan CCID / PC/SC APDU İletişimi:** Telefona OTG ile veya bilgisayara USB portundan bağlanan token ile doğrudan standart ISO 7816 akıllı kart APDU komutlarıyla haberleşilir.
-* **Sıfır Ekran, Sıfır Popup:** PIN kodunuz (ör. `455625`) komut satırından veya arka uç API'sinden karta doğrudan kriptografik APDU paketi olarak gönderilir (`VERIFY PIN`). Ekranda hiçbir onay kutusu, bildirim veya açılır pencere belirmez.
+* **Sıfır Ekran, Sıfır Popup:** PIN kodunuz (ör. `<PIN>`) komut satırından veya arka uç API'sinden karta doğrudan kriptografik APDU paketi olarak gönderilir (`VERIFY PIN`). Ekranda hiçbir onay kutusu, bildirim veya açılır pencere belirmez.
 * **Sub-second (0.3 saniye) Hız:** Dosyayı gönderdiğiniz an 0.3 - 0.5 saniye içinde tamamen sessizce CAdES-BES imzası üretilir.
 * **UYAP & CanEditor Birebir Uyumluluğu:** Adalet E-İmza servisinin `POST /api/v1/docsignature/signdigest` uç noktası doğrudan `content.xml` belgesinin SHA-256 özetini imzalar; bu sayede CanEditor veya UYAP Editör'de açıldığında **"İçerik özeti uyuşmuyor"** hatası asla yaşanmaz.
 
@@ -94,10 +162,10 @@ CanEditor Hukuk Asistanı ve komut satırı aracı (`uyap-imzala`), **Termux (An
 uyap-imzala dilekce.udf
 
 # 2. Özel PIN belirterek imzalama
-uyap-imzala dilekce.udf --pin 455625
+uyap-imzala dilekce.udf --pin <PIN>
 
 # 3. Donanım kartını atlayıp doğrudan UYAP Mobil İmza ile imzalama
-uyap-imzala dilekce.udf --mobil --operator 2 --gsm 05525286225
+uyap-imzala dilekce.udf --mobil --operator 2 --gsm 05XXXXXXXXX
 
 # 4. İmzalandıktan sonra anında vektörel PDF önizlemesini de üretme
 uyap-imzala dilekce.udf --pdf
@@ -123,7 +191,7 @@ CanEditor Asistan (`sunucu.py`) arka ucuna tam entegre edilen uç noktalar:
   ```json
   {
     "udf": "C:/Dava/Dilekce.udf",
-    "pin": "455625",
+    "pin": "<PIN>",
     "yontem": "oto",
     "pdf": true
   }
@@ -398,7 +466,7 @@ Ayrıntılı mimari: [`docs/BIRLESIK_MIMARI.md`](docs/BIRLESIK_MIMARI.md) · Han
 | **Bağlantı & Rolling Log** | Sistem sağlık paneli, kesintisiz Google Drive sync göstergesi, 2MB rotasyonlu otomatik loglama ve tek tıkla Log ZIP indirme |
 | **Android Başlatıcı & USF** | Ana ekrandan tek tıkla Hukuk Asistanı'nı açan buton, sistemde `.udf` ve `.usf` varsayılan açıcı ilişkilendirmesi |
 
-## 🚀 Hızlı İndirme (v4.9.4)
+## 🚀 Hızlı İndirme (v4.10.0)
 
 Kurulum paketleri **her şeyi içinde taşır**: Python, Java, görünmez Chrome ve sürücüsüz e-imza altyapısı. Ayrıca bir şey kurmanız gerekmez.
 
@@ -1171,6 +1239,29 @@ CanEditor, modern web teknolojileri (HTML5, WebAssembly, Canvas, SVG) üzerinde 
 4. Düzenlemenizi yaptıktan sonra tek tıkla **"UDF Kaydet"**, **"DOCX Kaydet"** veya **"📕 PDF İndir"** butonlarına basarak dosyanızı anında indirebilirsiniz.
 
 ---
+
+### ⌨️ 6. Terminalden Kullanım (`caneditor`) — Tüm Platformlar
+
+Arayüzün yaptığı her şey terminalde de yapılabilir. Komutların tam listesi: `caneditor --help`, her komutun ayrıntısı: `caneditor <komut> --help`.
+
+* **Linux (.deb / .rpm):** Kurulumla `/usr/bin/caneditor` gelir. Terminalde `caneditor durum` yazın.
+* **Linux AppImage / macOS / kaynak kod:** Python 3.9+ ile depo kökünden:
+  ```bash
+  git clone https://github.com/cnkzlyr/udemobile && cd udemobile
+  pip install -r asistan/requirements.txt
+  ./caneditor durum
+  ```
+  Kalıcı kısayol: `sudo ln -s "$PWD/caneditor" /usr/local/bin/caneditor`
+* **Windows:** Kurulum klasöründeki `asistan\caneditor.bat` (ya da depo kökündeki `caneditor.bat`). PowerShell'de `.\caneditor.ps1 durum`. Python yoksa paketteki `asistan-sunucu.exe` kendiliğinden kullanılır.
+* **Android (Termux):**
+  ```bash
+  pkg install python git openjdk-17
+  git clone https://github.com/cnkzlyr/udemobile ~/udemobile
+  pip install -r ~/udemobile/asistan/requirements.txt
+  ln -s ~/udemobile/caneditor $PREFIX/bin/caneditor
+  caneditor durum
+  ```
+* **Kişisel ayarlar (bir kez):** `~/.caneditor/kisisel.json` dosyasına PIN/TC/GSM/operatör yazın ya da `EIMZA_PIN`, `UYAP_TC`, `UYAP_GSM`, `UYAP_OPERATOR` ortam değişkenlerini tanımlayın. PIN yoksa giriş ve imza Mobil İmza ile yapılır.
 
 ## 🏛️ Temel Yetenekler & Özellikler
 

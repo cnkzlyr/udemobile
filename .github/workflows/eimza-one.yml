@@ -1,0 +1,67 @@
+name: E-Imza One (Android surucusuz e-imza) APK
+
+# platform/eimza-one: ArkSigner / TURKTRUST TBB / Kamu SM tokenlarini Android'de ara yazilimsiz
+# kullanan imzalama uygulamasi. CanEditor surumlerinde desktop-release.yml'deki 'eimza-one' isi APK'yi
+# ayni release'e ekler; bu dosya yalniz eimza-one-v* etiketiyle tek basina yayin icindir.
+# EN: builds platform/eimza-one and attaches the APK to the CanEditor release (non-blocking for desktop jobs).
+
+on:
+  push:
+    tags:
+      - 'eimza-one-v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  eimza-one:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    defaults:
+      run:
+        working-directory: platform/eimza-one
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+      - name: Gradle wrapper
+        run: gradle wrapper --gradle-version 8.10.2 && chmod +x gradlew
+      - name: Surucu dogrulama testleri (ATR, CCID, AKIS, imza)
+        run: |
+          chmod +x tools/*.sh
+          for t in tools/test-*.sh; do echo "== $t"; bash "$t"; done
+      - name: Imza anahtari
+        env:
+          KS_B64: ${{ secrets.KEYSTORE_BASE64 }}
+          KS_PASS: ${{ secrets.KEYSTORE_PASSWORD }}
+          KS_ALIAS: ${{ secrets.KEY_ALIAS }}
+          K_PASS: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          if [ -n "$KS_B64" ]; then
+            echo "$KS_B64" | base64 -d > "$RUNNER_TEMP/eo.keystore"
+            { echo "KEYSTORE_FILE=$RUNNER_TEMP/eo.keystore"; echo "KEYSTORE_PASSWORD=$KS_PASS"; echo "KEY_ALIAS=$KS_ALIAS"; echo "KEY_PASSWORD=$K_PASS"; } >> "$GITHUB_ENV"
+          else
+            keytool -genkeypair -keystore "$RUNNER_TEMP/eo.jks" -alias eimzaone -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass eimzaone123 -keypass eimzaone123 -dname "CN=E-Imza One, O=CanEditor, C=TR"
+            { echo "KEYSTORE_FILE=$RUNNER_TEMP/eo.jks"; echo "KEYSTORE_PASSWORD=eimzaone123"; echo "KEY_ALIAS=eimzaone"; echo "KEY_PASSWORD=eimzaone123"; } >> "$GITHUB_ENV"
+          fi
+      - name: APK derle
+        run: ./gradlew assembleRelease --stacktrace
+      - name: Paketle
+        run: |
+          V=$(grep versionName app/build.gradle | head -1 | sed "s/.*['\"]\(.*\)['\"].*/\1/")
+          mkdir -p "$GITHUB_WORKSPACE/dist"
+          cp "$(find app/build/outputs/apk/release -name '*.apk' | head -1)" "$GITHUB_WORKSPACE/dist/E-Imza-One-v${V}.apk"
+          ls -la "$GITHUB_WORKSPACE/dist"
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          files: dist/*.apk
+          fail_on_unmatched_files: false

@@ -62,11 +62,43 @@ def main():
     _prepare_environment()
     args = sys.argv[1:]
     if not args or args[0] in ("--katalog", "--gui"):
-        import katalog_gui
-        katalog_gui.main()
-        return
+        try:
+            import katalog_gui
+            katalog_gui.main()
+            return
+        except Exception as e:
+            # Grafik ekran yoksa (ör. SSH / headless sunucu) terminal menüsüne geç
+            print(f"[i] Grafik arayüz başlatılamadı ({e}), terminal konsoluna geçiliyor...")
+            import baslat
+            baslat.main()
+            return
+
     a0 = args[0]
-    if a0 == "--pdf":
+    if a0 in ("--cli", "--terminal", "--konsol", "-c"):
+        sys.argv = [sys.argv[0]] + args[1:]
+        import baslat
+        baslat.main()
+    elif a0 in ("--arsiv", "--dosya-arsivle"):
+        sys.argv = [sys.argv[0]] + args[1:]
+        import dosya_arsivle
+        dosya_arsivle.main()
+    elif a0 == "--drive-esitle":
+        sys.argv = [sys.argv[0]] + args[1:]
+        import drive_arsiv_esitle
+        drive_arsiv_esitle.main()
+    elif a0 == "--drive-denetle":
+        sys.argv = [sys.argv[0]] + args[1:]
+        import drive_arsiv_denetle
+        drive_arsiv_denetle.main()
+    elif a0 in ("--imzala", "--uyap-imzala"):
+        sys.argv = [sys.argv[0]] + args[1:]
+        import uyap_imzala
+        uyap_imzala.main()
+    elif a0 in ("--nobetci", "--watcher"):
+        sys.argv = [sys.argv[0]] + args[1:]
+        import uyap_watcher
+        uyap_watcher.main()
+    elif a0 == "--pdf":
         import sag_tik
         sag_tik.run_gui(args[1:])
     elif a0 == "--sag-tik-kur":

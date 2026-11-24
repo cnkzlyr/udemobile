@@ -58,7 +58,7 @@ UYAP sisteminde hazırlanan dilekçe, layihâ ve mazeret belgeleri `.udf` (Uyap 
                        │                                                             │
          ┌─────────────┴─────────────┐                                 ┌─────────────┴─────────────┐
          │ • Sıfır popup, sıfır onay │                                 │ • OTA Binary SMS / STK    │
-         │ • APDU VERIFY PIN (455625)│                                 │ • Ekranda zorunlu PIN     │
+         │ • APDU VERIFY PIN (******)│                                 │ • Ekranda zorunlu PIN     │
          │ • 0.3 sn sürede imzalama  │                                 │ • 5070 s. Kanun gereği    │
          │ • %100 Arka Planda Sessiz │                                 │ • Donanım yokken Yedek    │
          └─────────────┬─────────────┘                                 └─────────────┬─────────────┘
@@ -83,7 +83,7 @@ UYAP sisteminde hazırlanan dilekçe, layihâ ve mazeret belgeleri `.udf` (Uyap 
 #### ⚡ USB E-İmzada (ArkSigner / CCID SmartCard) Neden %100 Sessiz İmza Mümkündür?
 İşte tam olarak bu nedenle USB E-İmza (ArkSigner, Akis vb.) otomasyon ve arka plan işleri için biçilmiş kaftandır:
 * **Doğrudan CCID / PC/SC APDU İletişimi:** Telefona OTG ile veya bilgisayara USB portundan bağlanan token ile doğrudan standart ISO 7816 akıllı kart APDU komutlarıyla haberleşilir.
-* **Sıfır Ekran, Sıfır Popup:** PIN kodunuz (ör. `455625`) komut satırından veya arka uç API'sinden karta doğrudan kriptografik APDU paketi olarak gönderilir (`VERIFY PIN`). Ekranda hiçbir onay kutusu, bildirim veya açılır pencere belirmez.
+* **Sıfır Ekran, Sıfır Popup:** PIN kodunuz (ör. `<PIN>`) komut satırından veya arka uç API'sinden karta doğrudan kriptografik APDU paketi olarak gönderilir (`VERIFY PIN`). Ekranda hiçbir onay kutusu, bildirim veya açılır pencere belirmez.
 * **Sub-second (0.3 saniye) Hız:** Dosyayı gönderdiğiniz an 0.3 - 0.5 saniye içinde tamamen sessizce CAdES-BES imzası üretilir.
 * **UYAP & CanEditor Birebir Uyumluluğu:** Adalet E-İmza servisinin `POST /api/v1/docsignature/signdigest` uç noktası doğrudan `content.xml` belgesinin SHA-256 özetini imzalar; bu sayede CanEditor veya UYAP Editör'de açıldığında **"İçerik özeti uyuşmuyor"** hatası asla yaşanmaz.
 
@@ -110,10 +110,10 @@ UYAP sisteminde hazırlanan dilekçe, layihâ ve mazeret belgeleri `.udf` (Uyap 
 uyap-imzala dilekce.udf
 
 # 2. Özel PIN belirterek imzalama
-uyap-imzala dilekce.udf --pin 455625
+uyap-imzala dilekce.udf --pin <PIN>
 
 # 3. Donanım kartını atlayıp doğrudan UYAP Mobil İmza ile imzalama
-uyap-imzala dilekce.udf --mobil --operator 2 --gsm 05525286225
+uyap-imzala dilekce.udf --mobil --operator 2 --gsm 05XXXXXXXXX
 
 # 4. İmzalandıktan sonra anında vektörel PDF önizlemesini de üretme
 uyap-imzala dilekce.udf --pdf
@@ -139,7 +139,7 @@ CanEditor Asistan (`sunucu.py`) arka ucuna tam entegre edilen uç noktalar sayes
   ```json
   {
     "udf": "C:/Dava/Dilekce.udf",
-    "pin": "455625",
+    "pin": "<PIN>",
     "yontem": "oto",
     "pdf": true
   }
@@ -396,32 +396,44 @@ msedge.exe --remote-debugging-port=9223 --user-data-dir="%LOCALAPPDATA%\Microsof
 
 ---
 
-### 3. Adım 2: İnteraktif Windows Menüsü ile Kullanım (`baslat_windows.bat`)
+### 3. Kullanım Seçenekleri: Modern GUI veya Sadeleştirilmiş Terminal Konsolu
 
-Proje klasöründeki **`baslat_windows.bat`** dosyasına çift tıklayarak tüm işlemleri menüden yönetebilirsiniz:
+Artık karmaşık onlarca çalıştırma seçeneği yerine **2 ana seçenek** mevcuttur ve **her ikisi de aynı işlerin tamamını** yapabilmektedir:
+
+#### Seçenek A: 🖥️ Grafik Kullanıcı Arayüzü (Modern GUI — Önerilen)
+Evrak kataloğu, üç durumlu filtreler, önizleme, indirme, dava arşivleme, Drive eşitleme ve e-imza araçlarının tamamını tek pencerede sunar:
+- **Windows:** `UYAPEvrak.exe` veya `baslat_windows.bat` çalıştırıp `G` tuşlayın.
+- **Python:** `python uygulama.py` veya `python baslat.py --gui`
+
+#### Seçenek B: 💻 Sadeleştirilmiş Terminal / Konsol Arayüzü (CLI)
+Tüm yetenekleri 9 temiz kategoride toplayan, klavyeyle hızlı ve akıcı yönetilen interaktif konsol:
+- **Windows:** `baslat_windows.bat`
+- **Linux / macOS:** `./baslat.sh`
+- **Python / Termux:** `python baslat.py`
 
 ```text
-==================================================================
-   UYAP Avukat Portal Evrak Indirici - Windows 11
-==================================================================
+======================================================================
+       ⚖️  UYAP EVRAK YÖNETİCİSİ & HUKUK ASİSTANI (v3.0.0)
+       © 2026 Av. Can KIZILYAR — Tüm hakları saklıdır.
+======================================================================
+  [1] ⚡ İŞLEMLERİM İNDİRİCİ (Son 1 Yıl / Özel Tarih Aralığı)
+  [2] 📂 DAVA DOSYALARI (Tüm Evrak ve Ekleri İndir / Tür Filtreli)
+  [3] 🔍 EVRAK KATALOĞU (Tüm Portalı Hızlı Tara & İndeksle)
+  [4] ☁️  DAVA ARŞİVLEME & GOOGLE DRIVE EŞİTLEME (Otonom Senkron)
+  [5] 🔄 UDF / TIFF / ÇOKLU FORMAT -> PDF TOPLU DÖNÜŞTÜRÜCÜ
+  [6] ⏳ TEBLİGAT, SÜRE & DURUŞMA TAKVİMİ (.ics + CSV + Mazbata)
+  [7] ✍️  E-İMZA & OTURUM (ArkSigner Sessiz Giriş / Mobil İmza / İmzala)
+  [8] 🤖 UYAP NÖBETÇİ BOT (7/24 Arka Planda İzleme & Keep-Alive)
+  [9] ⚙️  AYARLAR & TARAYICI MODU (Gizli Headless / Görünür)
 
-  1) Islemlerim Indirici (Son 1 Yil - Hizli)
-  2) Islemlerim Indirici (Gecmis Yillar / Ozel Tarih Araligi)
-  3) Dava Dosyalarindan Belirli Evrak Indir (Durusma, Rapor, Karar vb.)
-  4) Dava Dosyalarindan TUM Evraklari ve EKLERI Indir (Toplu Arsiv)
-  5) Dava & Cevap Layihalari (Dava, Cevap, Bilirkisi Itiraz, Beyan)
-  6) Tebligat & Mazbatalar (Fiziki PTT + UETS - 5 Gün, 1-2 Hafta, 30-90 Gün Seçimli)
-  7) Durusma Takvimi Olustur (.ics / Google & Outlook Takvim + CSV)
-  8) Indirilen UDF'leri PDF'e Donustur (TrueType Embedded PDF)
-  9) Tebligat & Sure Analizi Calistir (tebligat_takip_listesi.csv)
- 10) Evrak Zenginlestirme & Akilli Isimlendirme (enrich_and_rename)
- 11) Chrome / Edge UYAP Oturumu Baslat (Port 9223)
-==================================================================
+  [G] 🖥️  GRAFİK KULLANICI ARAYÜZÜ (Modern GUI Aç)
+  [0] 🚪 Çıkış
+======================================================================
 ```
 
 ---
 
-### 4. Adım 3: Doğrudan Komut Satırı (PowerShell / CMD) Kullanımı
+### 4. Doğrudan Komut Satırı (PowerShell / Terminal) ile Çalıştırma
 
 Terminalden doğrudan hedefli görevler çalıştırmak için aşağıdaki komutları kullanabilirsiniz:
 

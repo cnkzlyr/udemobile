@@ -133,13 +133,72 @@ jobs:
           fi
           ls -l out
 
+      # Sürüm notları docs/surum-notlari/<etiket>.md'den (README'deki sürüm bölümüyle aynı içerik); yoksa kısa not.
+      - name: Surum notlari
+        run: |
+          f="docs/surum-notlari/${TAG}.md"
+          if [ -f "$f" ]; then cp "$f" "$RUNNER_TEMP/notlar.md"; else echo "CanEditor ${TAG}" > "$RUNNER_TEMP/notlar.md"; fi
+
       - name: Upload to GitHub release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.TAG }}
           name: CanEditor ${{ env.TAG }}
           target_commitish: ${{ github.sha }}
+          body_path: ${{ runner.temp }}/notlar.md
           files: out/*
+          fail_on_unmatched_files: false
+
+  # v4.10.0: platform/eimza-one (Android surucusuz e-imza) APK'si her CanEditor surumune eklenir.
+  # Basarisiz olsa da masaustu/Android paketlerini engellemez (continue-on-error).
+  eimza-one:
+    needs: build-android
+    if: ${{ always() && needs.build-android.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    continue-on-error: true
+    permissions:
+      contents: write
+    env:
+      TAG: ${{ needs.build-android.outputs.tag || github.event.inputs.tag || github.ref_name }}
+    defaults:
+      run:
+        working-directory: platform/eimza-one
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+      - name: Surucu testleri + APK
+        env:
+          KS_B64: ${{ secrets.KEYSTORE_BASE64 }}
+          KS_PASS: ${{ secrets.KEYSTORE_PASSWORD }}
+          KS_ALIAS: ${{ secrets.KEY_ALIAS }}
+          K_PASS: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          gradle wrapper --gradle-version 8.10.2 && chmod +x gradlew tools/*.sh
+          for t in tools/test-*.sh; do echo "== $t"; bash "$t"; done
+          if [ -n "$KS_B64" ]; then
+            echo "$KS_B64" | base64 -d > "$RUNNER_TEMP/eo.keystore"
+            export KEYSTORE_FILE="$RUNNER_TEMP/eo.keystore" KEYSTORE_PASSWORD="$KS_PASS" KEY_ALIAS="$KS_ALIAS" KEY_PASSWORD="$K_PASS"
+          else
+            keytool -genkeypair -keystore "$RUNNER_TEMP/eo.jks" -alias eimzaone -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass eimzaone123 -keypass eimzaone123 -dname "CN=E-Imza One, O=CanEditor, C=TR"
+            export KEYSTORE_FILE="$RUNNER_TEMP/eo.jks" KEYSTORE_PASSWORD=eimzaone123 KEY_ALIAS=eimzaone KEY_PASSWORD=eimzaone123
+          fi
+          ./gradlew assembleRelease --stacktrace
+          V=$(grep versionName app/build.gradle | head -1 | sed "s/.*['\"]\(.*\)['\"].*/\1/")
+          mkdir -p "$GITHUB_WORKSPACE/eo-dist"
+          cp "$(find app/build/outputs/apk/release -name '*.apk' | head -1)" "$GITHUB_WORKSPACE/eo-dist/E-Imza-One-v${V}.apk"
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.TAG }}
+          files: eo-dist/*.apk
           fail_on_unmatched_files: false
 
   build-desktop:

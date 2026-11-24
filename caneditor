@@ -1,0 +1,37 @@
+#!/usr/bin/env sh
+# caneditor — CanEditor'un terminal arayüzü (Linux, macOS, Android/Termux).
+# Python 3 varsa kaynak kodla, yoksa paketteki Python'suz asistan-sunucu ikilisiyle çalışır.
+# EN: CanEditor command-line front-end; works with system Python or the bundled Python-less sidecar.
+# Kullanım: caneditor --help   |   caneditor durum   |   caneditor pdf ~/UYAP_Indirilenler
+set -e
+# Depo kökündeki kısayol: asistan/caneditor ile aynıdır.
+bul_kok() {
+  # 1) betiğin yanındaki asistan/ (kaynak ağacı, Termux, taşınabilir) 2) kurulu paketler
+  s="$0"
+  while [ -h "$s" ]; do l=$(readlink "$s"); case "$l" in /*) s="$l";; *) s="$(dirname "$s")/$l";; esac; done
+  d=$(cd "$(dirname "$s")" && pwd)
+  for k in "$d" "$d/asistan" /usr/lib/CanEditor/asistan /usr/lib/can-editor/asistan /opt/CanEditor/asistan \
+           "/Applications/CanEditor.app/Contents/Resources/asistan" "$HOME/Applications/CanEditor.app/Contents/Resources/asistan"; do
+    [ -f "$k/caneditor_cli.py" ] && { echo "$k"; return; }
+    [ -f "$k/_up_/asistan/caneditor_cli.py" ] && { echo "$k/_up_/asistan"; return; }
+  done
+}
+KOK=$(bul_kok)
+[ -n "$KOK" ] || { echo "caneditor: asistan/caneditor_cli.py bulunamadı" >&2; exit 2; }
+RES=$(dirname "$KOK")
+# Pakete gömülü resmî jar'lar, fontlar ve Java (masaüstü kurulumlarında)
+[ -z "$CANASISTAN_PAKET_JARS" ] && [ -d "$KOK/jars/uyap-editor" ] && export CANASISTAN_PAKET_JARS="$KOK/jars/uyap-editor"
+[ -z "$CANASISTAN_FONTS" ] && [ -d "$KOK/fonts" ] && export CANASISTAN_FONTS="$KOK/fonts"
+for j in "$RES/eimza/jre" "$RES/eimza/jre-$(uname -m)"; do
+  [ -z "$CANASISTAN_JAVA_HOME" ] && [ -x "$j/bin/java" ] && export CANASISTAN_JAVA_HOME="$j" && export JAVA_HOME="$j"
+done
+for p in python3 python; do
+  if command -v "$p" >/dev/null 2>&1 && "$p" -c 'import sys; sys.exit(0 if sys.version_info>=(3,9) else 1)' 2>/dev/null; then
+    exec "$p" "$KOK/caneditor_cli.py" "$@"
+  fi
+done
+for s in "$RES"/sidecar/asistan-sunucu-*/asistan-sunucu; do
+  [ -x "$s" ] && exec "$s" --calistir "$KOK/caneditor_cli.py" "$@"
+done
+echo "caneditor: Python 3.9+ ya da CanEditor masaüstü paketi gerekli." >&2
+exit 2

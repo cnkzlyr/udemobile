@@ -117,10 +117,16 @@ def mukerrer_temizle(uygula, rapor):
     aktif = ts.tum_aktif_gorevler(force=True)
     kapali = ts.get_completed_tasks_live(force_refresh=True)
     kapali_anahtar = {}
+    kapali_barkod = {}
     for t in kapali:
         a = ts._kimlik_anahtari(_baslik_kimlik(t))
         if a:
             kapali_anahtar.setdefault(a, t)
+        # v4.10.0: başlığı/kimlik satırı değişmiş kapalı görevler barkodla da tanınır (EK alt görevleri hariç)
+        if not (t.get("title") or "").lstrip().startswith("📎"):
+            for x in ts.gorev_anahtarlari(t):
+                if x[0] == "BARKOD":
+                    kapali_barkod.setdefault(x[1], t)
     gruplar: dict = {}
     for t in aktif:
         if t.get("status", 0) != 0:
@@ -133,6 +139,8 @@ def mukerrer_temizle(uygula, rapor):
     for a, liste in gruplar.items():
         # (a) kapatılmış görevin yeniden açılmış kopyaları
         kt = kapali_anahtar.get(a)
+        if not kt and a[0] == "TEBLİGAT" and len(a) > 2 and a[1] == "B":
+            kt = kapali_barkod.get(a[2])
         if kt and a[0] in ("TEBLİGAT", "EK"):
             lbl = "yapılmayacak" if kt.get("status") == -1 else "tamamlandı"
             for t in liste:

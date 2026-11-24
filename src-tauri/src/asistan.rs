@@ -112,6 +112,19 @@ fn ortam_ekle(app: &tauri::AppHandle, c: &mut Command, veri: &PathBuf) {
     if let Ok(d) = app.path().app_data_dir() {
         c.env("CANASISTAN_UYAP_JARS", d.join("uyap-editor").join("editor"));
     }
+    // v4.10.0: resmî Havelsan UYAP Editör jar'ları ve Times New Roman/Arial TTF'leri pakete gömülüdür
+    // (asistan/jars/uyap-editor, asistan/fonts). UDF→PDF artık kullanıcının UYAP Editör kurmasını beklemez;
+    // fontlar JVM'e kaydedildiği için PDF Helvetica'ya düşmez (bozuk dönüşümün kök nedeni).
+    // EN: bundled official jars + fonts so UDF->PDF never falls back to the lossy path.
+    if let Ok(r) = app.path().resource_dir() {
+        for kok in [r.join("asistan"), r.join("_up_").join("asistan")] {
+            if kok.join("jars").join("uyap-editor").join("editor_lib.jar").is_file() {
+                c.env("CANASISTAN_PAKET_JARS", kok.join("jars").join("uyap-editor"));
+                c.env("CANASISTAN_FONTS", kok.join("fonts"));
+                break;
+            }
+        }
+    }
     // Gömülü görünmez tarayıcı (Chrome for Testing: chrome-headless-shell + chromedriver):
     // kullanıcı Chrome kurmaz, tarayıcı hiçbir zaman ön planda açılmaz.
     if let Ok(r) = app.path().resource_dir() {

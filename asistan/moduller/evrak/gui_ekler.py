@@ -421,6 +421,12 @@ def arac_komutlari() -> dict:
         "tebligat": script("tebligat_yoneticisi"),
         "zenginlestir": script("enrich_and_rename_documents"),
         "tarayici": _uygulama_komutu("--browser-only"),
+        "dosya_arsivle": script("dosya_arsivle"),
+        "drive_esitle": script("drive_arsiv_esitle"),
+        "drive_denetle": script("drive_arsiv_denetle"),
+        "nobetci": script("uyap_watcher"),
+        "uyap_imzala": script("uyap_imzala"),
+        "dava_dosyalari_tumu": _uygulama_komutu("--cli", "--mode", "dosyalar", "--evrak-turu", "tumu", "--include-attachments"),
     }
 
 

@@ -482,12 +482,25 @@ def baglanti_testi(avukat_dir: Path) -> dict:
     return sonuc
 
 
-def _yasal_son_gun_iso(merci: str, teblig_mi: bool = False) -> str:
+def _yasal_son_gun_iso(merci: str, teblig_mi: bool = False, evrak_tarihi: str = "") -> str:
+    """Tahmini yasal son gün. v4.10.0: süre EVRAK TARİHİNDEN hesaplanır (eskiden BUGÜNDEN hesaplanıyordu:
+    2021 tarihli bir tebligata 2026 son günü yazılıyordu). Evrak 45 günden eskiyse süre çoktan dolmuştur ya
+    da iş görülmüştür → "" döner (görevde sahte son gün olmaz). EN: deadline from document date, none if stale."""
     mf = _fold(merci)
     gun = 7 if any(k in mf for k in ("icra", "ceza", "sorusturma", "savcilik", "kira")) else (
         30 if any(k in mf for k in ("idare", "vergi", "danistay", "bim")) else 14
     )
-    bas = dt.date.today() + dt.timedelta(days=5 if teblig_mi else 0)
+    bas = dt.date.today()
+    if evrak_tarihi:
+        try:
+            et = dt.date.fromisoformat(str(evrak_tarihi)[:10]) if str(evrak_tarihi)[4:5] == "-" else \
+                dt.datetime.strptime(str(evrak_tarihi)[:10].replace("/", "."), "%d.%m.%Y").date()
+            if (dt.date.today() - et).days > 45:
+                return ""
+            bas = et
+        except ValueError:
+            pass
+    bas = bas + dt.timedelta(days=5 if teblig_mi else 0)
     hedef = bas + dt.timedelta(days=gun)
     if hedef.weekday() == 5:
         hedef += dt.timedelta(days=2)
@@ -502,7 +515,7 @@ def uyap_otomatik_aktar(avukat_dir: Path, birim: str, dosya_no: str, tur: str,
     sonuc = {"notion": None, "ticktick": None, "telegram": None, "hatalar": []}
     e = env_oku(avukat_dir)
     teblig_mi = any(k in _fold(f"{tur} {aciklama}") for k in ("tebligat", "uets", "mazbata"))
-    son_gun = _yasal_son_gun_iso(birim, teblig_mi=teblig_mi)
+    son_gun = _yasal_son_gun_iso(birim, teblig_mi=teblig_mi, evrak_tarihi=tarih)
     ozet_baslik = f"📄 {tur or 'UYAP Evrakı'} — {birim} {dosya_no}".strip()
     detay = "\n".join(filter(None, [
         f"Mahkeme/Birim: {birim}" if birim else "",
@@ -511,7 +524,7 @@ def uyap_otomatik_aktar(avukat_dir: Path, birim: str, dosya_no: str, tur: str,
         f"Evrak Türü: {tur}" if tur else "",
         f"Tarih: {tarih}" if tarih else "",
         f"Açıklama: {aciklama}" if aciklama else "",
-        f"Tahmini Yasal Son Gün: {son_gun} 17:00",
+        f"Tahmini Yasal Son Gün: {son_gun} 17:00" if son_gun else "",
     ]))
 
     if e.get("NOTION_TOKEN"):

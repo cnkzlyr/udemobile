@@ -88,7 +88,7 @@ uyap-imzala Mazeret_Dilekcesi.udf
 
 Özel bir PIN belirtmek isterseniz:
 ```bash
-uyap-imzala Mazeret_Dilekcesi.udf --pin 455625
+uyap-imzala Mazeret_Dilekcesi.udf --pin <PIN>
 ```
 
 ---
@@ -101,7 +101,7 @@ uyap-imzala Mazeret_Dilekcesi.udf
 ```
 Veya doğrudan mobil imzayı zorlamak için:
 ```bash
-uyap-imzala Mazeret_Dilekcesi.udf --mobil --operator 2 --gsm 05525286225
+uyap-imzala Mazeret_Dilekcesi.udf --mobil --operator 2 --gsm 05XXXXXXXXX
 ```
 *(Operatör kodları: 1 = Turkcell, 2 = Türk Telekom, 3 = Vodafone)*
 
@@ -157,6 +157,8 @@ uyap-imzala --durum
 | Senaryo | Android (Termux) | Windows (CMD / PowerShell) | Linux / macOS Terminal |
 |---|---|---|---|
 | **Dosya Arşivle & Drive'a At** | `uyap-arsiv 2022/504` | `uyap-arsiv.bat 2022/504` *(veya `.\uyap-arsiv.ps1`)* | `./uyap-arsiv 2022/504` |
+| **Drive Arşivini Denetle (Rapor)** | `uyap-drive-denetle` | `uyap-drive-denetle.bat` | `./uyap-drive-denetle` |
+| **Eksikleri Drive'a Eşitle** | `uyap-drive-esitle --asama 1ay` | `uyap-drive-esitle.bat --asama 1ay` | `./uyap-drive-esitle --asama 1ay` |
 | **Sessiz E-İmza ile İmzala** | `uyap-imzala dilekce.udf` | `uyap-imzala.bat dilekce.udf` | `./uyap-imzala dilekce.udf` |
 | **Mobil İmza ile İmzala** | `uyap-imzala dilekce.udf -m` | `uyap-imzala.bat dilekce.udf -m` | `./uyap-imzala dilekce.udf -m` |
 | **İmza + Vektörel PDF Al** | `uyap-imzala dilekce.udf --pdf` | `uyap-imzala.bat dilekce.udf --pdf` | `./uyap-imzala dilekce.udf --pdf` |
@@ -165,7 +167,72 @@ uyap-imzala --durum
 
 ---
 
-## 🛠️ 4. Sık Karşılaşılan Sorular ve Çözümleri (SSS)
+## 🔍 4. Google Drive Arşiv Denetimi & Raporlama (`uyap-drive-denetle`)
+
+Google Drive'a aktarılan veya yerelde saklanan evrakları otomatik olarak tarar, analiz eder ve durum raporları üretir:
+
+```bash
+uyap-drive-denetle
+```
+
+### Yapılan Otomatik Kontroller:
+1. **Bozuk Dosya Tespiti:** 0 bayt dosyalar, oturum düşmesi sonucu inen sahte HTML hata sayfaları ve bozuk PDF/ZIP dosyaları ayıklanır.
+2. **Mükerrerlik (Duplicate) Tespiti:** Kriptografik SHA-256 özeti ve UYAP evrak kimliği bazında çift dosyalar listelenir.
+3. **Adlandırma ve Formatlama Standardı:** Standart `YYYY-AA-GG_Tür_Açıklama.ext` kuralına uymayan ve `@`, `+` gibi karmaşık semboller içeren dosyalar tespit edilir.
+4. **Drive Senkronizasyon Durumu:** Toplam evrakların hangilerinin Drive'da yüklü olduğu, hangilerinin eksik kaldığı kontrol edilir.
+5. **CSV ve JSON Dışa Aktarımı:**
+   - `drive_durum_raporu.json`: Genel sağlık özeti ve durum analizleri.
+   - `arsiv_mevcut_dosyalar.csv`: Yerelde ve Drive'da bulunan tüm geçerli evraklar.
+   - `arsiv_sorunlu_dosyalar.csv`: Bozuk, mükerrer veya standart dışı adlandırılmış dosyalar.
+   - `arsiv_eksik_dosyalar.csv`: Katalogda olup henüz Drive'a aktarılmamış eksik evraklar.
+
+---
+
+## ☁️ 5. Eksik Evrakları Aşamalı Olarak Drive'a Eşitleme (`uyap-drive-esitle`)
+
+Eksik evrakları zamana göre sıralı aşamalarla Google Drive'a aktarır ve belirli dosyaları ("baydar", "casmoni", "emre oral", "turan solmaz") otomatik filtreler:
+
+```bash
+# Son 1 gün içindeki eksikleri Drive'a yükle
+uyap-drive-esitle --asama 1gun
+
+# Son 1 hafta içindeki eksikleri Drive'a yükle
+uyap-drive-esitle --asama 1hafta
+
+# Son 1 ay (30 gün) içindeki eksikleri yükle
+uyap-drive-esitle --asama 1ay
+
+# Son 2 ay (60 gün) içindeki eksikleri yükle
+uyap-drive-esitle --asama 2ay
+
+# Tüm arşivdeki eksikleri yükle (varsayılan limit: 50 dosya)
+uyap-drive-esitle --asama hepsi --limit 100
+
+# Gerçek yükleme yapmadan önce planlanan dosyaları listele (Simülasyon)
+uyap-drive-esitle --asama 1ay --dry-run
+```
+
+---
+
+## ✍️ 6. UdeMobile Gelişmiş Paragraf ve Biçimlendirme Motoru
+
+CanEditor / UdeMobile doküman editörü resmi UYAP Doküman Editörü ile %100 uyumlu biçimlendirme araçlarıyla güçlendirildi:
+
+1. **Bağımsız Paragraf Boşlukları (Önce & Sonra):**
+   - **Önceki Boşluk (`space-before`):** Hem `Biçim` menüsünden (`0, 2, 4, 6, 8, 12, 18 nk`), hem de Paragraf Ayarları penceresinden doğrudan elle rakam girilerek veya `+` / `−` butonlarıyla ayarlanabilir.
+   - **Sonraki Boşluk (`space-after`):** Bağımsız olarak UYAP standartlarında (`0, 4, 8, 12, 18 nk`) veya istenen hassas değerde ayarlanabilir.
+2. **Girinti Ayarları (İlk Satır / Sol / Sağ):**
+   - İlk satır girintisi (UYAP standart 1.25 cm).
+   - Sol girinti ve yeni eklenen **Sağ Girinti (`p-right-indent`)** desteği.
+3. **Satır Aralığı:**
+   - 1.0 (Tek), 1.15, 1.16 (UYAP tam orantı), 1.35 (UYAP standart), 1.5 ve 2.0 (Çift) katmanları.
+4. **Kaydetme & İmzalamada Revert (Eskiye Dönme) Hatasının Kesin Çözümü:**
+   - Evrak düzenlenip kaydedildiğinde güncel UDF baytları anında orijinal tampon belleğe (`currentDocOriginalBuffer`) işlenir.
+   - Düzenleme yapılmış belgelerde imzalama veya farklı kaydetme sırasında eski açılış dosyasına dönme hatası kökten giderilmiştir; her zaman kullanıcının son kaydettiği güncel içerik imzalanır ve saklanır.
+
+---
+
+## 🛠️ 7. Sık Karşılaşılan Sorular ve Çözümleri (SSS)
 
 ### S1: "Takılı Kart Bulunamadı" uyarısı alıyorum, ne yapmalıyım?
 * **Çözüm (Android/Termux):** OTG adaptörünün ve ArkSigner USB token'ının telefona tam oturduğundan emin olun. Telefonun OTG ayarının açık olduğunu kontrol edin. Kart takılı değilse komut kendiliğinden Mobil İmza kanalına geçer.

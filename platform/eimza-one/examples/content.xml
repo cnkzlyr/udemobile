@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<template format_id="1.8">
+  <properties>
+    <pageFormat leftMargin="70.86" rightMargin="70.86" topMargin="70.86" bottomMargin="70.86"/>
+  </properties>
+  <elements>
+    <paragraph alignment="2"><content fontName="Times New Roman" fontSize="14" bold="true" italic="false" underline="false" foreground="-16777216">E-İMZA ONE TEST UDF</content></paragraph>
+    <paragraph alignment="0"><content fontName="Times New Roman" fontSize="12" bold="false" italic="false" underline="false" foreground="-16777216">Bu dosya yalnızca uygulamanın UDF açma, önizleme ve imzalama akışını denemek için hazırlanmış örnek bir belgedir.</content></paragraph>
+    <paragraph alignment="0"><content fontName="Times New Roman" fontSize="12" bold="true" italic="false" underline="false" foreground="-16777216">Tarih: 11.10.2026</content></paragraph>
+  </elements>
+</template>
