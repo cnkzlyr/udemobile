@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# ================================================================
+#  UYAP Dosya Arşivleyici, Dönüştürücü ve Google Drive Senkronizasyonu
+#  © 2026 Av. Can KIZILYAR — Tüm hakları saklıdır.
+# ================================================================
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+exec python3 "$SCRIPT_DIR/dosya_arsivle.py" "$@"
