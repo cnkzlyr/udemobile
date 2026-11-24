@@ -160,21 +160,52 @@
     </div>
     <div class="ce-menu"><button type="button" class="ce-menu-title">Biçim</button>
       <div class="ce-menu-pop">
-        <button onmousedown="event.preventDefault(); recordCurrentSelection();" onclick="openParagraphModal()">Paragraf…</button>
-        <div class="ce-sub"><span>Satır Aralığı</span>
+        <button onmousedown="event.preventDefault(); recordCurrentSelection();" onclick="openParagraphModal()">Paragraf Seçenekleri…</button>
+        <div class="ce-sub"><span>Önceki Paragraf Boşluğu</span>
           <div class="ce-menu-pop ce-sub-pop">
-            <button onmousedown="event.preventDefault(); recordCurrentSelection();" onclick="changeLineSpacing('1.0')">1,0</button>
-            <button onmousedown="event.preventDefault(); recordCurrentSelection();" onclick="changeLineSpacing('1.15')">1,15</button>
-            <button onmousedown="event.preventDefault(); recordCurrentSelection();" onclick="changeLineSpacing('1.5')">1,5</button>
-            <button onmousedown="event.preventDefault(); recordCurrentSelection();" onclick="changeLineSpacing('2.0')">2,0</button>
+            <button onmousedown="event.preventDefault(); recordCurrentSelection();" onclick="setParagraphSpaceBefore(0)">0 nk</button>
+            <button onmousedown="event.preventDefault(); recordCurrentSelection();" onclick="setParagraphSpaceBefore(2)">2 nk</button>
+            <button onmousedown="event.preventDefault(); recordCurrentSelection();" onclick="setParagraphSpaceBefore(4)">4 nk (UYAP)</button>
+            <button onmousedown="event.preventDefault(); recordCurrentSelection();" onclick="setParagraphSpaceBefore(6)">6 nk</button>
+            <button onmousedown="event.preventDefault(); recordCurrentSelection();" onclick="setParagraphSpaceBefore(8)">8 nk</button>
+            <button onmousedown="event.preventDefault(); recordCurrentSelection();" onclick="setParagraphSpaceBefore(12)">12 nk</button>
+            <button onmousedown="event.preventDefault(); recordCurrentSelection();" onclick="setParagraphSpaceBefore(18)">18 nk</button>
+            <hr>
+            <button onmousedown="event.preventDefault(); recordCurrentSelection();" onclick="openParagraphModal()">Özel Boşluk Gir…</button>
           </div>
         </div>
-        <div class="ce-sub"><span>Paragraf Boşluğu</span>
+        <div class="ce-sub"><span>Sonraki Paragraf Boşluğu</span>
           <div class="ce-menu-pop ce-sub-pop">
-            <button onmousedown="event.preventDefault(); recordCurrentSelection();" onclick="changeParagraphSpacing('0,0')">Önce 0 / Sonra 0 nk</button>
-            <button onmousedown="event.preventDefault(); recordCurrentSelection();" onclick="changeParagraphSpacing('0,4')">0 / 4 nk</button>
-            <button onmousedown="event.preventDefault(); recordCurrentSelection();" onclick="changeParagraphSpacing('4,8')">4 / 8 nk</button>
-            <button onmousedown="event.preventDefault(); recordCurrentSelection();" onclick="changeParagraphSpacing('6,12')">6 / 12 nk</button>
+            <button onmousedown="event.preventDefault(); recordCurrentSelection();" onclick="setParagraphSpaceAfter(0)">0 nk</button>
+            <button onmousedown="event.preventDefault(); recordCurrentSelection();" onclick="setParagraphSpaceAfter(2)">2 nk</button>
+            <button onmousedown="event.preventDefault(); recordCurrentSelection();" onclick="setParagraphSpaceAfter(4)">4 nk</button>
+            <button onmousedown="event.preventDefault(); recordCurrentSelection();" onclick="setParagraphSpaceAfter(6)">6 nk</button>
+            <button onmousedown="event.preventDefault(); recordCurrentSelection();" onclick="setParagraphSpaceAfter(8)">8 nk (UYAP)</button>
+            <button onmousedown="event.preventDefault(); recordCurrentSelection();" onclick="setParagraphSpaceAfter(12)">12 nk</button>
+            <button onmousedown="event.preventDefault(); recordCurrentSelection();" onclick="setParagraphSpaceAfter(18)">18 nk</button>
+            <hr>
+            <button onmousedown="event.preventDefault(); recordCurrentSelection();" onclick="openParagraphModal()">Özel Boşluk Gir…</button>
+          </div>
+        </div>
+        <div class="ce-sub"><span>Satır Aralığı</span>
+          <div class="ce-menu-pop ce-sub-pop">
+            <button onmousedown="event.preventDefault(); recordCurrentSelection();" onclick="changeLineSpacing('1.0')">1,0 (Tek)</button>
+            <button onmousedown="event.preventDefault(); recordCurrentSelection();" onclick="changeLineSpacing('1.15')">1,15</button>
+            <button onmousedown="event.preventDefault(); recordCurrentSelection();" onclick="changeLineSpacing('1.16')">1,16 (UYAP Hassas)</button>
+            <button onmousedown="event.preventDefault(); recordCurrentSelection();" onclick="changeLineSpacing('1.35')">1,35 (UYAP Standart)</button>
+            <button onmousedown="event.preventDefault(); recordCurrentSelection();" onclick="changeLineSpacing('1.5')">1,5</button>
+            <button onmousedown="event.preventDefault(); recordCurrentSelection();" onclick="changeLineSpacing('2.0')">2,0 (Çift)</button>
+            <hr>
+            <button onmousedown="event.preventDefault(); recordCurrentSelection();" onclick="openParagraphModal()">Özel Satır Aralığı…</button>
+          </div>
+        </div>
+        <div class="ce-sub"><span>İlk Satır Girintisi</span>
+          <div class="ce-menu-pop ce-sub-pop">
+            <button onmousedown="event.preventDefault(); recordCurrentSelection();" onclick="setFirstLineIndent(0)">0 cm</button>
+            <button onmousedown="event.preventDefault(); recordCurrentSelection();" onclick="setFirstLineIndent(0.5)">0,5 cm</button>
+            <button onmousedown="event.preventDefault(); recordCurrentSelection();" onclick="setFirstLineIndent(1.0)">1,0 cm</button>
+            <button onmousedown="event.preventDefault(); recordCurrentSelection();" onclick="setFirstLineIndent(1.25)">1,25 cm (UYAP)</button>
+            <button onmousedown="event.preventDefault(); recordCurrentSelection();" onclick="setFirstLineIndent(1.5)">1,5 cm</button>
           </div>
         </div>
         <div class="ce-sub"><span>Harf Düzeni</span>
@@ -531,41 +562,45 @@
           <div class="param-col">
             <label class="modal-label">Önceki Boşluk (nk / UYAP):</label>
             <div class="stepper-box">
-              <button type="button" class="stepper-btn" onclick="stepParagraphValue('space-before', -2)">−</button>
-              <input type="number" id="p-space-before" class="stepper-input" value="4" min="0" max="72" step="2">
-              <button type="button" class="stepper-btn" onclick="stepParagraphValue('space-before', 2)">+</button>
+              <button type="button" class="stepper-btn" onclick="stepParagraphValue('space-before', -1)">−</button>
+              <input type="number" id="p-space-before" class="stepper-input" value="4" min="0" max="72" step="1" oninput="updateParagraphPreview()">
+              <button type="button" class="stepper-btn" onclick="stepParagraphValue('space-before', 1)">+</button>
             </div>
             <div class="quick-chips">
               <span class="chip" onclick="setStepperVal('p-space-before', 0)">0 nk</span>
               <span class="chip" onclick="setStepperVal('p-space-before', 2)">2 nk</span>
               <span class="chip" onclick="setStepperVal('p-space-before', 4)">4 nk (UYAP)</span>
               <span class="chip" onclick="setStepperVal('p-space-before', 6)">6 nk</span>
+              <span class="chip" onclick="setStepperVal('p-space-before', 8)">8 nk</span>
+              <span class="chip" onclick="setStepperVal('p-space-before', 12)">12 nk</span>
             </div>
           </div>
 
           <div class="param-col">
             <label class="modal-label">Sonraki Boşluk (nk / UYAP):</label>
             <div class="stepper-box">
-              <button type="button" class="stepper-btn" onclick="stepParagraphValue('space-after', -2)">−</button>
-              <input type="number" id="p-space-after" class="stepper-input" value="8" min="0" max="72" step="2">
-              <button type="button" class="stepper-btn" onclick="stepParagraphValue('space-after', 2)">+</button>
+              <button type="button" class="stepper-btn" onclick="stepParagraphValue('space-after', -1)">−</button>
+              <input type="number" id="p-space-after" class="stepper-input" value="8" min="0" max="72" step="1" oninput="updateParagraphPreview()">
+              <button type="button" class="stepper-btn" onclick="stepParagraphValue('space-after', 1)">+</button>
             </div>
             <div class="quick-chips">
               <span class="chip" onclick="setStepperVal('p-space-after', 0)">0 nk</span>
               <span class="chip" onclick="setStepperVal('p-space-after', 4)">4 nk</span>
+              <span class="chip" onclick="setStepperVal('p-space-after', 6)">6 nk</span>
               <span class="chip" onclick="setStepperVal('p-space-after', 8)">8 nk (UYAP)</span>
               <span class="chip" onclick="setStepperVal('p-space-after', 12)">12 nk</span>
+              <span class="chip" onclick="setStepperVal('p-space-after', 18)">18 nk</span>
             </div>
           </div>
         </div>
 
-        <!-- Girintiler (İlk Satır / Asılı / Sol / Sağ) -->
+        <!-- Girintiler (İlk Satır / Sol / Sağ) -->
         <div class="param-grid-2" style="margin-top: 10px;">
           <div class="param-col">
             <label class="modal-label">İlk Satır Girintisi (cm):</label>
             <div class="stepper-box">
               <button type="button" class="stepper-btn" onclick="stepParagraphValue('first-line', -0.25)">−</button>
-              <input type="number" id="p-first-line" class="stepper-input" value="1.25" min="0" max="10" step="0.25">
+              <input type="number" id="p-first-line" class="stepper-input" value="1.25" min="0" max="10" step="0.25" oninput="updateParagraphPreview()">
               <button type="button" class="stepper-btn" onclick="stepParagraphValue('first-line', 0.25)">+</button>
             </div>
             <div class="quick-chips">
@@ -576,10 +611,10 @@
           </div>
 
           <div class="param-col">
-            <label class="modal-label">Sol / Asılı Girinti (cm):</label>
+            <label class="modal-label">Sol Girinti (cm):</label>
             <div class="stepper-box">
               <button type="button" class="stepper-btn" onclick="stepParagraphValue('left-indent', -0.25)">−</button>
-              <input type="number" id="p-left-indent" class="stepper-input" value="0.00" min="0" max="10" step="0.25">
+              <input type="number" id="p-left-indent" class="stepper-input" value="0.00" min="0" max="10" step="0.25" oninput="updateParagraphPreview()">
               <button type="button" class="stepper-btn" onclick="stepParagraphValue('left-indent', 0.25)">+</button>
             </div>
             <div class="quick-chips">
@@ -590,19 +625,35 @@
           </div>
         </div>
 
-        <!-- Satır Aralığı & Hizalama -->
+        <!-- Sağ Girinti ve Satır Aralığı -->
         <div class="param-grid-2" style="margin-top: 10px;">
+          <div class="param-col">
+            <label class="modal-label">Sağ Girinti (cm):</label>
+            <div class="stepper-box">
+              <button type="button" class="stepper-btn" onclick="stepParagraphValue('right-indent', -0.25)">−</button>
+              <input type="number" id="p-right-indent" class="stepper-input" value="0.00" min="0" max="10" step="0.25" oninput="updateParagraphPreview()">
+              <button type="button" class="stepper-btn" onclick="stepParagraphValue('right-indent', 0.25)">+</button>
+            </div>
+            <div class="quick-chips">
+              <span class="chip" onclick="setStepperVal('p-right-indent', 0)">0 cm</span>
+              <span class="chip" onclick="setStepperVal('p-right-indent', 0.5)">0.5 cm</span>
+              <span class="chip" onclick="setStepperVal('p-right-indent', 1.0)">1.0 cm</span>
+            </div>
+          </div>
+
           <div class="param-col">
             <label class="modal-label">Satır Aralığı (satır):</label>
             <select id="p-line-spacing" class="modal-input" onchange="updateParagraphPreview()">
               <option value="1.0">1.0 satır (Tek)</option>
               <option value="1.15">1.15 satır</option>
               <option value="1.16">1.16 satır (Havelsan UYAP LineSpacing 0.16)</option>
+              <option value="1.25">1.25 satır</option>
               <option value="1.35" selected>1.35 satır (UYAP Standart)</option>
               <option value="1.5">1.5 satır (Geniş)</option>
               <option value="2.0">2.0 satır (Çift)</option>
             </select>
           </div>
+        </div>
 
           <div class="param-col">
             <label class="modal-label">Paragraf Hizalaması:</label>

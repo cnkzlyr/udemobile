@@ -549,30 +549,24 @@
    * Belge imzalı ve değiştirilmemişse ORİJİNAL content.xml baytları kullanılır (önceki imzalar geçerli kalır).
    */
   async function prepareSource() {
-    const modified = window.isDocumentModified ? window.isDocumentModified() : true;
+    const modified = (window.__userHasEditedDocument === true) || (window.isDocumentModified ? window.isDocumentModified() : false);
     const orig = window.currentDocOriginalBuffer || (typeof currentDocOriginalBuffer !== 'undefined' ? currentDocOriginalBuffer : null);
     const name = String(window.currentDocFileName || (typeof currentDocFileName !== 'undefined' ? currentDocFileName : '') || '');
-    if (orig && /\.udf$/i.test(name)) {
+    if (!modified && orig && /\.udf$/i.test(name)) {
       try {
         const zip = await JSZip.loadAsync(orig);
         const sgnF = zip.file('sign.sgn');
         const cF = zip.file('content.xml');
         if (sgnF && cF) {
-          if (modified) {
-            const currentSnap = window.snapshotDocument ? window.snapshotDocument() : null;
-            if (currentSnap && window.__origDocSnapshot && currentSnap === window.__origDocSnapshot) {
-              if (window.markDocumentPristine) window.markDocumentPristine();
-            } else {
-              throw new Error('Bu belge imzalı ve imzadan sonra değiştirildi. Değiştirilmiş belgeye ek imza atılırsa önceki imzalar geçersiz olur. Önce belgeyi "Kaydet" ile kaydedin (önceki imzalar kaldırılır) veya değişiklik yapmadan yeniden açıp imzalayın.');
-            }
-          }
           const content = await cF.async('uint8array'), existingSgn = await sgnF.async('uint8array');
           let oncekiImzaci = 0;
           try { oncekiImzaci = ((await verify(content, existingSgn)).signers || []).length; } catch (e) {}
           return { zip, content, existingSgn, oncekiImzaci };
         }
-        if (!modified && cF) return { zip, content: await cF.async('uint8array'), existingSgn: null };
-      } catch (e) { if (/imzalı/.test(e.message)) throw e; }
+        if (cF) return { zip, content: await cF.async('uint8array'), existingSgn: null };
+      } catch (e) {
+        console.warn('Orijinal UDF zip okunamadı, yeniden üretilecek:', e);
+      }
     }
     const getDoc = window.getStructuredDocument || (typeof getStructuredDocument === 'function' ? getStructuredDocument : null);
     const blob = await generateUdfBlob(getDoc ? getDoc() : null);

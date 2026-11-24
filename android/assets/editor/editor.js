@@ -1571,6 +1571,7 @@ function format(cmd, val = null) {
 
   updateActiveButtons();
   updateCounts();
+  if (typeof markDirty === 'function') markDirty();
 }
 
 /**
@@ -1758,15 +1759,64 @@ function changeParagraphSpacing(val) {
     p.style.marginBottom = afterPt;
     p.setAttribute('data-orig-mt', beforePt);
     p.setAttribute('data-orig-mb', afterPt);
+    syncParagraphOrigMetricsFromStyle(p);
   });
+  if (typeof markDirty === 'function') markDirty();
   updateCounts();
   debouncedPagination();
   setTimeout(restoreCurrentSelection, 50);
   if (window.CanHistory) CanHistory.commit();
 }
+window.changeParagraphSpacing = changeParagraphSpacing;
+
+// UYAP Editör: Yalnızca Önceki Paragraf Boşluğu Ayarı (nk)
+function setParagraphSpaceBefore(valPt) {
+  if (valPt === 'custom') {
+    openParagraphModal();
+    return;
+  }
+  const ptStr = (parseFloat(valPt) || 0) + 'pt';
+  const targets = getSelectedParagraphs();
+  targets.forEach(p => {
+    p.style.marginTop = ptStr;
+    p.setAttribute('data-orig-mt', ptStr);
+    syncParagraphOrigMetricsFromStyle(p);
+  });
+  if (typeof markDirty === 'function') markDirty();
+  updateCounts();
+  debouncedPagination();
+  setTimeout(restoreCurrentSelection, 50);
+  if (window.CanHistory) CanHistory.commit();
+}
+window.setParagraphSpaceBefore = setParagraphSpaceBefore;
+
+// UYAP Editör: Yalnızca Sonraki Paragraf Boşluğu Ayarı (nk)
+function setParagraphSpaceAfter(valPt) {
+  if (valPt === 'custom') {
+    openParagraphModal();
+    return;
+  }
+  const ptStr = (parseFloat(valPt) || 0) + 'pt';
+  const targets = getSelectedParagraphs();
+  targets.forEach(p => {
+    p.style.marginBottom = ptStr;
+    p.setAttribute('data-orig-mb', ptStr);
+    syncParagraphOrigMetricsFromStyle(p);
+  });
+  if (typeof markDirty === 'function') markDirty();
+  updateCounts();
+  debouncedPagination();
+  setTimeout(restoreCurrentSelection, 50);
+  if (window.CanHistory) CanHistory.commit();
+}
+window.setParagraphSpaceAfter = setParagraphSpaceAfter;
 
 // Satır Aralığı (Yalnızca Seçili Paragraflara Uygulanır)
 function changeLineSpacing(val) {
+  if (val === 'custom') {
+    openParagraphModal();
+    return;
+  }
   const targets = getSelectedParagraphs();
   targets.forEach(p => {
     p.style.lineHeight = val;
@@ -1774,12 +1824,15 @@ function changeLineSpacing(val) {
     if (p.dataset) {
       p.dataset.udfLinespacing = numLh > 1.15 ? String(Math.max(0, Math.round((numLh - 1.15) * 100) / 100)) : '0.0';
     }
+    syncParagraphOrigMetricsFromStyle(p);
   });
+  if (typeof markDirty === 'function') markDirty();
   updateCounts();
   debouncedPagination();
   setTimeout(restoreCurrentSelection, 50);
   if (window.CanHistory) CanHistory.commit();
 }
+window.changeLineSpacing = changeLineSpacing;
 
 // --- SAYFA YAPISI VE KENAR BOŞLUKLARI MOTORU ---
 function applyPageSetup(left, right, top, bottom, orientation, header, footer) {
@@ -2799,6 +2852,7 @@ function setFullParagraphIndent(targetLeftCm, preservedTextIndentCm) {
 
 function setLeftIndent(cm) {
   setFullParagraphIndent(cm);
+  if (typeof markDirty === 'function') markDirty();
 }
 
 function setRightIndent(cm) {
@@ -2807,6 +2861,7 @@ function setRightIndent(cm) {
     p.style.marginRight = cm + 'cm';
     syncParagraphOrigMetricsFromStyle(p);
   });
+  if (typeof markDirty === 'function') markDirty();
   updateCounts();
 }
 
@@ -2819,6 +2874,7 @@ function openParagraphModal() {
   let after = 8;
   let firstLine = 1.25;
   let left = 0;
+  let right = 0;
   let lineSpacing = '1.35';
   let align = 'justify';
 
@@ -2827,15 +2883,25 @@ function openParagraphModal() {
     if (p.style.marginBottom) after = parseFloat(p.style.marginBottom) || 0;
     if (p.style.textIndent) firstLine = parseToCm(p.style.textIndent);
     if (p.style.marginLeft) left = parseToCm(p.style.marginLeft);
+    if (p.style.marginRight) right = parseToCm(p.style.marginRight);
     if (p.style.lineHeight) lineSpacing = p.style.lineHeight;
     if (p.style.textAlign) align = p.style.textAlign;
   }
 
-  document.getElementById('p-space-before').value = before;
-  document.getElementById('p-space-after').value = after;
-  document.getElementById('p-first-line').value = firstLine;
-  document.getElementById('p-left-indent').value = left;
-  document.getElementById('p-line-spacing').value = lineSpacing;
+  const elBefore = document.getElementById('p-space-before');
+  const elAfter = document.getElementById('p-space-after');
+  const elFirst = document.getElementById('p-first-line');
+  const elLeft = document.getElementById('p-left-indent');
+  const elRight = document.getElementById('p-right-indent');
+  const elLine = document.getElementById('p-line-spacing');
+
+  if (elBefore) elBefore.value = before;
+  if (elAfter) elAfter.value = after;
+  if (elFirst) elFirst.value = firstLine;
+  if (elLeft) elLeft.value = left;
+  if (elRight) elRight.value = right;
+  if (elLine) elLine.value = lineSpacing;
+
   setPAlign(align);
   setParagraphScope('selected');
 
@@ -2879,26 +2945,29 @@ function updateParagraphPreview() {
   const preview = document.getElementById('p-live-preview');
   if (!preview) return;
 
-  const before = document.getElementById('p-space-before').value + 'pt';
-  const after = document.getElementById('p-space-after').value + 'pt';
-  const firstLine = document.getElementById('p-first-line').value + 'cm';
-  const left = document.getElementById('p-left-indent').value + 'cm';
-  const lineSpacing = document.getElementById('p-line-spacing').value;
+  const before = (document.getElementById('p-space-before')?.value || 0) + 'pt';
+  const after = (document.getElementById('p-space-after')?.value || 0) + 'pt';
+  const firstLine = (document.getElementById('p-first-line')?.value || 0) + 'cm';
+  const left = (document.getElementById('p-left-indent')?.value || 0) + 'cm';
+  const right = (document.getElementById('p-right-indent')?.value || 0) + 'cm';
+  const lineSpacing = document.getElementById('p-line-spacing')?.value || '1.35';
 
   preview.style.marginTop = before;
   preview.style.marginBottom = after;
   preview.style.textIndent = firstLine;
   preview.style.marginLeft = left;
+  preview.style.marginRight = right;
   preview.style.lineHeight = lineSpacing;
   preview.style.textAlign = currentPAlign;
 }
 
 function applyParagraphSettings() {
-  const before = document.getElementById('p-space-before').value + 'pt';
-  const after = document.getElementById('p-space-after').value + 'pt';
-  const firstLine = document.getElementById('p-first-line').value + 'cm';
-  const left = document.getElementById('p-left-indent').value + 'cm';
-  const lineSpacing = document.getElementById('p-line-spacing').value;
+  const before = (document.getElementById('p-space-before')?.value || 0) + 'pt';
+  const after = (document.getElementById('p-space-after')?.value || 0) + 'pt';
+  const firstLine = (document.getElementById('p-first-line')?.value || 0) + 'cm';
+  const left = (document.getElementById('p-left-indent')?.value || 0) + 'cm';
+  const right = (document.getElementById('p-right-indent')?.value || 0) + 'cm';
+  const lineSpacing = document.getElementById('p-line-spacing')?.value || '1.35';
 
   let targets = [];
   if (paragraphScope === 'all') {
@@ -2917,6 +2986,7 @@ function applyParagraphSettings() {
     p.setAttribute('data-orig-mb', after);
     p.style.textIndent = firstLine;
     p.style.marginLeft = left;
+    p.style.marginRight = right;
     p.style.lineHeight = lineSpacing;
     const numLh = parseFloat(lineSpacing) || 0;
     if (p.dataset) {
@@ -2926,6 +2996,7 @@ function applyParagraphSettings() {
     syncParagraphOrigMetricsFromStyle(p);
   });
 
+  if (typeof markDirty === 'function') markDirty();
   closeModal('modal-paragraph-settings');
   updateRulerFromActiveParagraph();
   updateCounts();

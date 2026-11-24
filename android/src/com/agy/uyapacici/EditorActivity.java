@@ -662,10 +662,9 @@ public class EditorActivity extends Activity {
                 return;
             }
 
-            // İmzalı ve değiştirilmemiş belge (editörün kendi kontrolü): orijinal baytlar aynen yazılır, imzalar korunur.
-            // Eskiden karar yalnızca currentFile'a bakıyordu; belge editör içinden açıldıysa currentFile boş kalıyor,
-            // "Kaydet" belgeyi yeniden üretip TÜM imzaları siliyordu.
-            if (!isDocx && rawResult.contains("__IMZALI_KORU__")) {
+            // İmzalı ve değiştirilmemiş belge: orijinal baytlar aynen yazılır, imzalar korunur.
+            // Kullanıcı belgede değişiklik yaptıysa (docModified == true) kesinlikle eski baytlar korunmaz, güncel içerik kaydedilir.
+            if (!isDocx && !docModified && rawResult.contains("__IMZALI_KORU__")) {
                 editorWebView.evaluateJavascript("imzaliBelgeyiKoruyarakKaydet(false);", null);
                 tvSaveStatus.setText("✓ İmzalı belge korundu");
                 return;
@@ -1306,12 +1305,15 @@ public class EditorActivity extends Activity {
     }
 
     /**
-     * Belge daha önce imzalanmışsa (sign.sgn varsa), ORİJİNAL content.xml baytlarını
-     * aynen kullanır. Böylece önceki imzacıların özeti bozulmaz ve yeni imza onlarla birleştirilir (UYAP çoklu imza standardı).
+     * İmzalanacak içerik kaynağını hazırlar.
+     * Yalnızca belge değiştirilmemişse (docModified == false) ve daha önce imzalanmışsa
+     * Havelsan çoklu imza kuralı gereğince orijinal content.xml ve mevcut sign.sgn korunur.
+     * Belgede değişiklik yapılmışsa (docModified == true) her zaman güncel cleanJson'dan
+     * yeni content.xml üretilir ve önceki imza geçersiz olduğundan temizlenir.
      */
     private SignSource prepareSignSource(String cleanJson) throws Exception {
         SignSource s = new SignSource();
-        if (currentFile != null && currentFile.exists() && currentFile.getName().toLowerCase(Locale.ROOT).endsWith(".udf")) {
+        if (!docModified && currentFile != null && currentFile.exists() && currentFile.getName().toLowerCase(Locale.ROOT).endsWith(".udf")) {
             byte[] oc = null, os = null;
             try (ZipFile zip = new ZipFile(currentFile)) {
                 ZipEntry ce = zip.getEntry("content.xml");
@@ -1320,7 +1322,7 @@ public class EditorActivity extends Activity {
                 if (se != null) os = UdfEngine.readZipEntryFully(zip, se);
             } catch (Exception ignored) {}
             if (os != null && os.length > 0 && oc != null && oc.length > 0) {
-                // Havelsan çoklu imza: orijinal content.xml ve mevcut sign.sgn korunur
+                // Havelsan çoklu imza: yalnızca ve yalnızca doküman değiştirilmediğinde korunur
                 s.contentXml = oc;
                 s.existingSgn = os;
                 s.sourceZip = currentFile;
@@ -1328,6 +1330,8 @@ public class EditorActivity extends Activity {
             }
         }
         s.contentXml = UdfEngine.generateContentXmlBytes(cleanJson);
+        s.existingSgn = null;
+        s.sourceZip = (currentFile != null && currentFile.exists()) ? currentFile : null;
         return s;
     }
 

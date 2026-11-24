@@ -4369,10 +4369,16 @@ async function triggerOpenDocument() {
  */
 function imzaliBelgeKorunurMu() {
   try {
+    // Kullanıcı belgede herhangi bir değişiklik yaptıysa eski imza kesinlikle korunamaz!
+    if (window.__userHasEditedDocument === true) return false;
+    if (window.isDocumentModified && window.isDocumentModified()) return false;
+    if (typeof window.snapshotDocument === 'function' && window.__origDocSnapshot) {
+      const curSnap = window.snapshotDocument();
+      if (curSnap !== null && curSnap !== window.__origDocSnapshot) return false;
+    }
     if (!currentDocOriginalBuffer) return false;
     const ad = String(currentDocFileName || window.currentDocFileName || "");
     if (!/\.udf$/i.test(ad)) return false;
-    if (window.isDocumentModified && window.isDocumentModified()) return false;
     const u8 = new Uint8Array(currentDocOriginalBuffer);
     if (!(u8[0] === 0x50 && u8[1] === 0x4B)) return false;
     const aranan = [0x73, 0x69, 0x67, 0x6E, 0x2E, 0x73, 0x67, 0x6E]; // "sign.sgn"
@@ -4487,6 +4493,19 @@ async function triggerSaveUdf(forceDialog) {
   const blob = await generateUdfBlob(docData);
 
   if (!(await saveBytesSmart(blob, name, "application/octet-stream", __saveOpts))) return;
+
+  // Yeni kaydedilen güncel içeriği asıl bellek tamponu (original buffer) olarak sakla:
+  try {
+    const newBuf = await blob.arrayBuffer();
+    currentDocOriginalBuffer = newBuf.slice(0);
+    window.currentDocOriginalBuffer = newBuf.slice(0);
+  } catch (e) {
+    console.warn("currentDocOriginalBuffer güncelleme hatası:", e);
+  }
+
+  currentDocFileName = name;
+  window.currentDocFileName = name;
+
   if (window.markDocumentPristine) window.markDocumentPristine();
   const statusEl = document.getElementById("desktopStatusMsg");
   if (statusEl) statusEl.innerText = "✓ UDF Kaydedildi";
