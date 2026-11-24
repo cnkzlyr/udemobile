@@ -171,6 +171,8 @@ jobs:
           distribution: temurin
           java-version: '17'
       - uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-35 platforms;android-34 build-tools;35.0.0'
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.10.2'
@@ -354,3 +356,24 @@ jobs:
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}
+
+  # tauri-action release gövdesini kendi kısa metniyle günceller; sürüm notları (docs/surum-notlari/<etiket>.md)
+  # tüm paketler yüklendikten SONRA yeniden uygulanır. EN: re-apply release notes after desktop uploads.
+  surum-notlari:
+    needs: [build-android, eimza-one, build-desktop]
+    if: ${{ always() && needs.build-android.result == 'success' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      TAG: ${{ needs.build-android.outputs.tag || github.event.inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Notlar
+        run: |
+          f="docs/surum-notlari/${TAG}.md"
+          if [ -f "$f" ]; then cp "$f" "$RUNNER_TEMP/notlar.md"; else echo "CanEditor ${TAG}" > "$RUNNER_TEMP/notlar.md"; fi
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.TAG }}
+          body_path: ${{ runner.temp }}/notlar.md
