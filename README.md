@@ -71,7 +71,8 @@ caneditor --json …                                # betikler için ham JSON
 
 ### 5. ✅ TickTick: başlık değişse de mükerrer açılmaz, evrak başına görev açılmaz
 - Eşleşme başlıktan **bağımsızdır**: kimlik satırı + **barkod** (+ UETS no). Kullanıcı başlığı değiştirse ya da kimlik satırını silse bile **tamamlanan** ve **yapılmayacak** (status −1) görevler tanınır; aynı tebligat için yeni görev açılmaz (`gorev_anahtarlari`, `_ayni_is_mi`). EK alt görevi tebligatı engellemez.
-- UYAP'tan gelen her evrak için kendiliğinden görev **açılmaz**; görevler yalnız tebligat (süreli iş), duruşma ve dosya kartı için ve elle "TickTick'e aktar" denince açılır.
+- **Evrak başına görev açılmaz:** UYAP evrakları dosya başına TEK bir "📥 UYAP evrakları (N)" görevinin kontrol listesinde toplanır (aynı evrak iki kez eklenmez; kapanmış toplu görevlerdeki evraklar yeniden listelenmez).
+- **Sahte son gün yok:** Tahmini yasal son gün artık evrak tarihinden hesaplanır; 45 günden eski evraka son gün yazılmaz (eskiden yıllar önceki evraka bugünden hesaplanmış son gün yazılıyordu).
 - Düzen turu yalnız TickTick bağlıyken de çalışır (öz-denetim başlatır).
 
 ### 6. 🖱️ Arayüz: her düğmede ayrıntılı açıklama, her listede pratik süzgeç

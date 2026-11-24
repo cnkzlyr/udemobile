@@ -42,3 +42,41 @@ def test_aktif_kopya_basliktan_bagimsiz(monkeypatch):
     aktif = _gorev("Yeniden adlandırılmış", "kullanıcı notu 5003283066058")
     monkeypatch.setattr(ts, "tum_aktif_gorevler", lambda force=False: [aktif])
     assert ts.ayni_kimlikli_aktif(yeni) is aktif
+
+
+def test_evrak_basina_gorev_acilmaz_toplu_liste(monkeypatch):
+    """v4.10.0: aynı dosyaya gelen evraklar tek '📥 UYAP evrakları' görevinin kontrol listesinde toplanır."""
+    gorevler, istekler = {}, []
+
+    def tt_post(url, payload, what="", timeout=12):
+        istekler.append((url, payload))
+        if url.endswith("/task"):
+            t = dict(payload, id=f"g{len(gorevler) + 1}", status=0)
+            gorevler[t["id"]] = t
+            return t
+        t = gorevler[payload["id"]]
+        t.update(payload)
+        return t
+
+    monkeypatch.setattr(ts, "tt_post", tt_post)
+    monkeypatch.setattr(ts, "tum_aktif_gorevler", lambda force=False: [t for t in gorevler.values() if t["status"] == 0])
+    monkeypatch.setattr(ts, "get_completed_tasks_live", lambda force_refresh=False: [])
+    monkeypatch.setattr(ts, "gorev_getir", lambda pid, tid: gorevler.get(tid))
+    monkeypatch.setattr(ts, "find_or_create_parent_task", lambda *a, **k: ("kart", "p"))
+    for tur, tarih in (("Tensip Zaptı", "2020-03-10"), ("Bilirkişi Raporu", "2026-11-20"), ("Tensip Zaptı", "2020-03-10")):
+        ts.uyap_evrak_gorevi("Kırıkkale 3. Asliye Hukuk Mahkemesi", "2026/419", tur, tarih=tarih)
+    assert len(gorevler) == 1, "evrak başına görev açılmamalı"
+    g = next(iter(gorevler.values()))
+    assert len(g["items"]) == 2, "aynı evrak iki kez listelenmemeli"
+    assert g["parentId"] == "kart" and "(2)" in g["title"]
+
+
+def test_eski_evraka_sahte_son_gun_yazilmaz():
+    import sys as _s
+    from pathlib import Path as _P
+    _s.path.insert(0, str(_P(__file__).resolve().parents[3]))
+    import entegrasyon
+    assert entegrasyon._yasal_son_gun_iso("Kırıkkale 3. Asliye Hukuk", True, "2021-02-18") == ""
+    import datetime as _dt
+    bugun = _dt.date.today().isoformat()
+    assert entegrasyon._yasal_son_gun_iso("Kırıkkale 3. Asliye Hukuk", False, bugun) > bugun
