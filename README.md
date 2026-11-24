@@ -18,6 +18,9 @@
 - **Notion & TickTick canlı yönetimi + otomatik aktarım**
 - **`hayfahukuk.com` entegrasyonu** (Yargıtay İçtihat Arama, uygulama içi Mevzuat Okuyucusu, Hukuk Haberleri, günlük Resmî Gazete, **%100 çevrimdışı Adliye & IBAN Rehberi**, 7 hukuki hesaplayıcı)
 
+> [!TIP]
+> 📖 **Adım Adım Kolay Tutorial:** Tek komutla dosya arşivleme (`uyap-arsiv`) ve sessiz e-imza (`uyap-imzala`) adım adım resimli kullanım kılavuzu için: **[docs/KILAVUZ_VE_TUTORIAL.md](docs/KILAVUZ_VE_TUTORIAL.md)**
+
 ---
 
 ## 🔐 v4.9.5: Sessiz (Headless) USB E-İmza & Çapraz Platform UDF İmzalatıcı
