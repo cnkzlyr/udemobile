@@ -1,14 +1,13 @@
 name: E-Imza One (Android surucusuz e-imza) APK
 
 # platform/eimza-one: ArkSigner / TURKTRUST TBB / Kamu SM tokenlarini Android'de ara yazilimsiz
-# kullanan imzalama uygulamasi. CanEditor v* etiketinde ayni release'e E-Imza-One-v<surum>.apk
-# olarak eklenir; eimza-one-v* etiketiyle tek basina da yayinlanabilir.
+# kullanan imzalama uygulamasi. CanEditor surumlerinde desktop-release.yml'deki 'eimza-one' isi APK'yi
+# ayni release'e ekler; bu dosya yalniz eimza-one-v* etiketiyle tek basina yayin icindir.
 # EN: builds platform/eimza-one and attaches the APK to the CanEditor release (non-blocking for desktop jobs).
 
 on:
   push:
     tags:
-      - 'v*'
       - 'eimza-one-v*'
   workflow_dispatch:
 
