@@ -61,7 +61,7 @@ if hasattr(sys.stderr, "reconfigure"):
         pass
 from pathlib import Path
 
-SURUM = "4.10.1"
+SURUM = "4.10.2"
 KOK = Path(__file__).resolve().parent
 if str(KOK) not in sys.path:
     sys.path.insert(0, str(KOK))
@@ -1848,6 +1848,8 @@ GOREVLER: dict[str, dict] = {
     "evrak-durusmalar": {"ad": "UYAP: duruşma listesini çek", "cwd": EVRAK_DIR, "cmd": [*PY, "uyap_indirici.py", "--cli", "--mode", "durusmalar"], "cdp": True},
     "evrak-nobetci":    {"ad": "UYAP nöbetçi: tek tarama turu", "cwd": EVRAK_DIR, "cmd": [*PY, "uyap_watcher.py", "--once"], "cdp": True},
     # Sürekli UYAP → Google Drive akışı (Senkron düğmesi): arşiv durmadan iner, açık dosyalar aralıkla taranır
+    "arsiv-onar":       {"ad": "Arşiv onarımı: bozuk/eksik PDF'leri resmî motorla yeniden üret, Drive'da değiştir", "cwd": EVRAK_DIR, "cmd": [*PY, "arsiv_onar.py", "--sinir", "2000"]},
+    "drive-ic-ice":     {"ad": "Drive: iç içe UYAP_Arsiv klasörlerini birleştir", "cwd": EVRAK_DIR, "cmd": [*PY, "arsiv_onar.py", "--ic-ice-duzelt", "--salt-oku", "--drive-yok"]},
     "evrak-akis":       {"ad": "UYAP → Drive sürekli senkronizasyon", "cwd": EVRAK_DIR, "cmd": [*PY, "uyap_watcher.py"], "cdp": True},
     # Tüm dosyaların GERÇEK UYAP hesapları (icra kapak hesabı, tahsilat/reddiyat, harçlar, artan avans)
     "hesap-tara":       {"ad": "UYAP dosya hesaplarını çek (icra, avans, harç)", "cwd": EVRAK_DIR, "cmd": [*PY, "uyap_finans_safahat.py", "--saat", "12"], "cdp": True},
@@ -2062,6 +2064,14 @@ class Gorev:
                 "kullanilamaz": self.kullanilamama_nedeni(),
                 "calisiyor": self.calisiyor(), "baslangic": self.baslangic, "bitis": self.bitis, "kod": self.kod,
                 "gunluk": list(self.gunluk)[-satir:]}
+
+
+def _tebligat_arsivi():
+    """moduller/avukatasistan/tebligat_arsiv.py (veri klasörüne eşitlenmiş kopyası)."""
+    if str(AVUKAT_DIR) not in sys.path:
+        sys.path.insert(0, str(AVUKAT_DIR))
+    import tebligat_arsiv  # type: ignore
+    return tebligat_arsiv
 
 
 def android_soket_adi() -> str:
@@ -2929,6 +2939,12 @@ class Isleyici(BaseHTTPRequestHandler):
                 return self._json(pano())
             if yol == "/api/hayfa/karar-istatistik":
                 return self._json(_hayfa_kopru.karar_istatistik(veri_dizini(), yenile=q.get("yenile") == "1"))
+            if yol == "/api/tebligat/arsiv":
+                # v4.10.2: UETS tebligat arşivi (Drive'daki CSV/EYP/ek/JSON/özet kaydı) — arama + süzgeç
+                return self._json(_tebligat_arsivi().ara(q.get("q", ""), q.get("mahkeme", ""), q.get("baslangic", ""),
+                                                         q.get("bitis", ""), q.get("durum", ""), int(q.get("limit") or 200)))
+            if yol == "/api/tebligat/arsiv/detay":
+                return self._json(_tebligat_arsivi().detay(q.get("anahtar", "")))
             if yol == "/api/ajanda":
                 return self._json(ajanda(int(q.get("gun") or 60), q.get("baslangic", ""), q.get("bitis", "")))
             if yol == "/api/uets/ayar":

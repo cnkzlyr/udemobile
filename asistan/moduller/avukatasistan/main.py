@@ -188,6 +188,7 @@ def run_synchronization(csv_path=None, force=False):
     #    paket yeniden açılmaz. EN: the fresh CSV is the source of truth; local EYPs only enrich CSV rows.
     eyp_paths = scan_all_eyp_files()
     eyp_items = []
+    eyp_map = {}  # barkod / "UETS:<no>" → yerel EYP yolu (tebligat arşivi için)
     if eyp_paths and csv_items:
         from uets_downloader import eyp_barkod_dizini
         dizin = eyp_barkod_dizini(eyp_paths, parse_eyp_file)
@@ -195,6 +196,9 @@ def run_synchronization(csv_path=None, force=False):
         csv_uets = {c.get("uets_no") for c in csv_items if c.get("uets_no")}
         secili = [dizin[b] for b in csv_barkod if b in dizin and os.path.exists(dizin[b])]
         secili += [p for p in eyp_paths if os.path.splitext(os.path.basename(p))[0] in csv_uets and p not in secili]
+        eyp_map = {b: dizin[b] for b in csv_barkod if b in dizin and os.path.exists(dizin[b])}
+        eyp_map.update({f"UETS:{os.path.splitext(os.path.basename(p))[0]}": p for p in eyp_paths
+                        if os.path.splitext(os.path.basename(p))[0] in csv_uets})
         for p in secili:
             res = parse_eyp_file(p, extract_files=False)
             if res:
@@ -215,9 +219,21 @@ def run_synchronization(csv_path=None, force=False):
     # 3. Çapraz Eşleştirme ve Doğrulama
     all_tebligatlar = merge_and_cross_validate(csv_items, eyp_items)
     print(f"\n📊 Toplam İncelenecek Tekil Tebligat Sayısı: {len(all_tebligatlar)}")
-    
+
+    def _arsivle():
+        # v4.10.2: taze CSV + CSV'deki her tebligat (EYP, ekler, JSON, özet) Google Drive arşivine — TickTick
+        # aktarımından SONRA (görev kimliği de kayda girsin). Arşiv hatası senkronu bozmaz.
+        if not (csv_path and csv_items):
+            return
+        try:
+            import tebligat_arsiv
+            tebligat_arsiv.tur(latest_csv, all_tebligatlar or csv_items, eyp_map)
+        except Exception as e_ars:  # noqa: BLE001
+            print(f"⚠️ Tebligat arşivi bu tur tamamlanamadı: {e_ars}")
+
     if not all_tebligatlar:
         print("✨ İşlenecek yeni veya okunmamış tebligat bulunmuyor.")
+        _arsivle()
         return
         
     # 4. Notion Veritabanını Önbelleğe Al
@@ -319,6 +335,11 @@ def run_synchronization(csv_path=None, force=False):
         if notion_case and not notion_case.get("client_tag") and defter_kaydi and defter_kaydi.get("muvekkil_etiket"):
             notion_case["client_tag"] = defter_kaydi["muvekkil_etiket"]
             notion_case["client_name"] = notion_case.get("client_name") or defter_kaydi.get("muvekkil")
+        if notion_case:
+            item["notion_url"] = notion_case.get("url") or ""
+            item["client_name"] = notion_case.get("client_name") or ""
+        elif defter_kaydi:
+            item["client_name"] = defter_kaydi.get("muvekkil") or ""
         if notion_case:
             court = notion_case["court"] # Mahkeme adını standartlaştır
             client_tag = notion_case["client_tag"]
@@ -497,6 +518,7 @@ def run_synchronization(csv_path=None, force=False):
                     update_notion_durusma_column(i_pid, i_hdate, i_htime)
 
     print(f"\n🎉 SENKRONİZASYON TAMAMLANDI! (Yeni Eklenen: {yeni_eklenen}, Doğrulanan: {guncellenen})")
+    _arsivle()
     
     # 6. Bütünlük denetimi: mükerrer tebligat/duruşma/dava kartı, yarım kalmış yazmalar (Notion taraması izleyicide)
     import butunluk

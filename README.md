@@ -1,6 +1,6 @@
 # ⚖️ CanEditor (UdeMobile) — Birleşik Hukuk Platformu & Çapraz Platform UYAP Editörü
 
-[![Sürüm](https://img.shields.io/badge/Sürüm-v4.10.1-c8a45a.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v4.10.1)
+[![Sürüm](https://img.shields.io/badge/Sürüm-v4.10.2-c8a45a.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v4.10.2)
 [![CLI](https://img.shields.io/badge/Terminal-caneditor-333.svg)](#3-️-caneditor--arayüzün-yaptığı-her-şey-terminalde-windows--macos--linux--androidtermux)
 [![Platformlar](https://img.shields.io/badge/Platformlar-Android%20%7C%20Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Web-0f2341.svg)](https://github.com/cnkzlyr/udemobile/releases)
 [![UYAP](https://img.shields.io/badge/Format-UYAP_UDF_v1.8-0D47A1.svg)](https://uyap.gov.tr)
@@ -21,6 +21,29 @@
 
 > [!TIP]
 > 📖 **Adım Adım Kolay Tutorial:** Tek komutla dosya arşivleme (`uyap-arsiv`) ve sessiz e-imza (`uyap-imzala`) adım adım resimli kullanım kılavuzu için: **[docs/KILAVUZ_VE_TUTORIAL.md](docs/KILAVUZ_VE_TUTORIAL.md)**
+
+---
+
+## 🗄️ v4.10.2: Tebligat arşivi Google Drive'da, bozuk PDF onarımı, Drive klasör düzeni
+
+
+> ⚠️ **Bir kerelik yapılacak:** Asistan → ☁️ Drive Ayarları → **📋 Yeni betiği kopyala** → script.google.com'da eski kodun yerine yapıştırın → *Dağıt > Dağıtımları yönet > ✏️ > Sürüm: Yeni sürüm > Dağıt*. Adres değişmez. Betik v3 olmadan onarılan PDF'ler Drive'daki bozukların **üzerine yazılamaz** ve iç içe klasörler birleştirilemez.
+
+### 🗄️ UETS tebligat arşivi Google Drive'da
+- Her UETS turunda indirilen **CSV** `UYAP_Arsiv/UETS_Tebligat/_CSV/<YYYY-AA>/` altında birikir (aynı liste iki kez yüklenmez).
+- CSV'deki **her tebligat** için `UYAP_Arsiv/UETS_Tebligat/<Mahkeme>/<Esas>/<GelişTarihi>_<Barkod>/` klasörü: özgün **EYP**, `ekler/` altında ayıklanmış **üstyazı ve ekler** (UDF'ler resmî motorla PDF'leriyle birlikte), çıkarılan tüm bilgileri içeren **`tebligat.json`** (gönderen, konu, mahkeme, esas, barkod, UETS no, geliş/tebliğ/7-14-30 gün/hedef süreler, taraflar, evrak listesi, dosya SHA-256'ları, TickTick görev kimliği ve durumu, Notion bağlantısı) ve TickTick'tekinden ayrıntılı okunur **`ozet.md`**.
+- **Kayıt defteri** (`tebligat_arsiv.db`): asistan Tebligatlar → **🗄️ Tebligat Arşivi**'nde arar (JSON içeriği dahil, tarih aralığı, durum), ayrıntıyı ve Drive dosyalarını gösterir. Terminal: `caneditor tebligat arsiv "tensip"`, `caneditor tebligat arsiv --barkod 500…`.
+- Arşivin asıl yeri Drive: arşivlenmiş EYP'ler 30 gün sonra yerelden kaldırılır (`TEBLIGAT_YEREL_GUN`); Drive'da olan EYP yerelde yok diye yeniden indirilmez. Drive tanımlı değilse aynı düzen yerelde kurulur.
+
+### 🛠️ Bozuk / eksik PDF'lerin toplu onarımı
+- Drive'daki PDF'ler incelendi: 24.11 öncesi PDF'ler resmî motorla (**iText 2.1.7, Times New Roman gömülü**, ~100 KB) üretilmiş; sonrası **ReportLab + gömülmemiş Helvetica** (2-3 KB, Türkçe harfler `■`, tek paragraf). v4.10.0 dönüştürücüyü düzeltmişti; bu sürüm **arşivde kalmış bozukları** onarır.
+- `arsiv_onar.py` (Sağlık → **🛠️ Arşivdeki bozuk PDF'leri onar**, `caneditor arsiv onar`, öz-denetim her 3 saatte): katalogdaki her UDF/TIFF/görselin PDF'i **yok / boş / çok küçük / eski bozuk motor / TIFF sayfa sayısı uyuşmuyor** ise resmî Havelsan motoruyla birebir yeniden üretilir ve Drive'daki aynı adlı dosyanın **üzerine yazılır** (eskisi çöp kutusuna, 30 gün). Drive'daki küçük PDF'ler de indirilip denetlenir. Kaynağı yerelde olmayan evrak UYAP'tan **yeniden indirme kuyruğuna** alınır.
+- **TIFF/görseller** yeniden eskiden iyi sonuç veren **NAPS2 yöntemli A4 motoruyla** çevrilir; sayfa sayısı TIFF kare sayısıyla doğrulanır (Pillow yalnız yedek).
+
+### 🗂️ Drive klasör düzeni
+- Kök neden: betik "UYAP_Arsiv" adlı **herhangi** bir klasörü kök alıyordu; bazı modüller yolu `UYAP_Arsiv/...` diye gönderince **UYAP_Arsiv/UYAP_Arsiv/…** iç içe klasörler oluşuyor, kök rastgele seçildiği için **aynı evrak iki ayrı klasöre ikişer kopya** düşüyordu.
+- Betik v3: kök sabit (Drive'ım'ın doğrudan altındaki UYAP_Arsiv), yol başındaki UYAP_Arsiv atılır, dosya türü uzantıdan, aynı adlı dosyanın üzerine yazma.
+- Sağlık → **🗂️ Drive klasörlerini birleştir** (`caneditor arsiv ic-ice-duzelt`): iç içe UYAP_Arsiv klasörleri tek köke birleştirilir; aynı ad+boyut kopyalar çöp kutusuna taşınır.
 
 ---
 
@@ -486,7 +509,7 @@ Ayrıntılı mimari: [`docs/BIRLESIK_MIMARI.md`](docs/BIRLESIK_MIMARI.md) · Han
 | **Bağlantı & Rolling Log** | Sistem sağlık paneli, kesintisiz Google Drive sync göstergesi, 2MB rotasyonlu otomatik loglama ve tek tıkla Log ZIP indirme |
 | **Android Başlatıcı & USF** | Ana ekrandan tek tıkla Hukuk Asistanı'nı açan buton, sistemde `.udf` ve `.usf` varsayılan açıcı ilişkilendirmesi |
 
-## 🚀 Hızlı İndirme (v4.10.1)
+## 🚀 Hızlı İndirme (v4.10.2)
 
 Kurulum paketleri **her şeyi içinde taşır**: Python, Java, görünmez Chrome ve sürücüsüz e-imza altyapısı. Ayrıca bir şey kurmanız gerekmez.
 

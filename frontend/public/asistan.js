@@ -1351,8 +1351,42 @@
       <div class="ca-kart"><div id="tb-muv"></div>
         <div style="display:grid;grid-template-columns:2fr 1fr;gap:8px"><input id="tb-q" placeholder="Mahkeme, esas no, barkod, müvekkil ara…">
           <select id="tb-f"><option value="">Tüm tebligatlar</option><option value="sure">Süresi işleyenler (son gün geçmemiş)</option><option value="gecmis">Son günü geçmiş</option><option value="eksik">TickTick'te eksik / ek bekleyen</option><option value="eypyok">EYP paketi inmemiş</option></select></div>
-        <div id="tb-liste" style="margin-top:8px" class="ca-soluk">Tebligat durumu yükleniyor…</div></div>`;
+        <div id="tb-liste" style="margin-top:8px" class="ca-soluk">Tebligat durumu yükleniyor…</div></div>
+      <div class="ca-kart"><b>🗄️ Tebligat Arşivi (Google Drive)</b>
+        <p class="ca-soluk" style="margin:6px 0">Her UETS turunda indirilen liste (CSV) ve her tebligatın EYP paketi, ayıklanan üstyazı ve ekleri (UDF'ler PDF'leriyle), tüm bilgileri içeren <code>tebligat.json</code> ve okunur <code>ozet.md</code> Drive'da <code>UYAP_Arsiv/UETS_Tebligat/&lt;Mahkeme&gt;/&lt;Esas&gt;/&lt;tarih&gt;_&lt;barkod&gt;/</code> klasörüne arşivlenir. Terminal: <code>caneditor tebligat arsiv</code></p>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:flex-end">
+          <input id="tb-ar-q" placeholder="Arşivde ara: mahkeme, esas, barkod, konu, müvekkil, evrak adı… (-kelime hariç)" style="flex:2;min-width:220px" data-ipucu="Arşiv defterinin tamamında (JSON içeriği dahil) Türkçe-duyarsız arama.">
+          <div><label>Başlangıç</label><input type="date" id="tb-ar-t1"></div><div><label>Bitiş</label><input type="date" id="tb-ar-t2"></div>
+          <select id="tb-ar-d" data-ipucu="Arşiv durumu"><option value="">Tümü</option><option value="arsivlendi">EYP arşivde</option><option value="eyp_yok">EYP'siz (yalnız bilgi)</option></select>
+          <button class="ca-btn" type="button" id="tb-ar-ara">🔍 Ara</button>
+        </div>
+        <div id="tb-ar-liste" class="ca-soluk" style="margin-top:8px">Arşiv yükleniyor…</div>
+        <div id="tb-ar-detay" style="margin-top:8px"></div></div>`;
     const islem = ic.querySelector('#tb-islem'), liste = ic.querySelector('#tb-liste'), gl = ic.querySelector('#tb-gunluk');
+    // v4.10.2: tebligat arşivi görünümü
+    const arListe = ic.querySelector('#tb-ar-liste'), arDetay = ic.querySelector('#tb-ar-detay');
+    const arsivAra = async () => {
+      arListe.textContent = 'Aranıyor…';
+      try {
+        const v = await api(`/api/tebligat/arsiv?limit=300&q=${encodeURIComponent(ic.querySelector('#tb-ar-q').value)}&baslangic=${ic.querySelector('#tb-ar-t1').value}&bitis=${ic.querySelector('#tb-ar-t2').value}&durum=${ic.querySelector('#tb-ar-d').value}`);
+        const l = v.tebligatlar || [];
+        arListe.innerHTML = l.length ? `<div class="ca-soluk">${v.toplam} kayıt</div><table class="ca-tablo"><tr><th>Geliş</th><th>Mahkeme / Esas</th><th>Konu</th><th>Son gün</th><th>Arşiv</th></tr>${l.map(t => `<tr><td>${esc(t.gelis || '')}</td><td><b>${esc(t.mahkeme || t.gonderen || '')}</b><div class="ca-soluk">${esc(t.esas || '')} · ${esc(t.barkod || t.uets_no || '')}${t.muvekkil ? ' · ' + esc(t.muvekkil) : ''}</div></td><td>${esc((t.konu || '').slice(0, 90))}</td><td>${esc(t.son_gun || '')}</td><td>${t.durum === 'arsivlendi' ? '✅' : 'ℹ️'} ${t.ek_sayisi || 0} dosya <button class="ca-btn kucuk" type="button" data-ar-detay="${esc(t.anahtar)}" data-ipucu="Arşiv kaydının özetini, çıkarılan bilgileri ve Drive'daki dosyaları gösterir.">Ayrıntı</button></td></tr>`).join('')}</table>`
+          : '<p class="ca-soluk">Arşivde kayıt yok. Bir UETS turundan sonra tebligatlar burada birikir.</p>';
+      } catch (e) { arListe.innerHTML = `<div class="ca-hata">${esc(e.message || e)}</div>`; }
+    };
+    arListe.addEventListener('click', async e => {
+      const b = e.target.closest('[data-ar-detay]'); if (!b) return;
+      try {
+        const d = await api(`/api/tebligat/arsiv/detay?anahtar=${encodeURIComponent(b.dataset.arDetay)}`);
+        const k = d.kayit || {};
+        arDetay.innerHTML = `<div class="ca-kart"><pre style="white-space:pre-wrap;font-size:12.5px">${esc(d.ozet_md || '')}</pre>
+          <div class="ca-soluk">Drive: <code>UYAP_Arsiv/${esc(d.drive_klasor || '')}</code></div>
+          ${(k.dosyalar || []).map(f => `<div>📎 ${String(f.yer || '').startsWith('http') ? `<a href="${esc(f.yer)}" target="_blank" rel="noopener">${esc(f.ad)}</a>` : esc(f.ad)} <span class="ca-soluk">${f.boyut} bayt</span></div>`).join('')}</div>`;
+      } catch (err) { arDetay.innerHTML = `<div class="ca-hata">${esc(err.message || err)}</div>`; }
+    });
+    ic.querySelector('#tb-ar-ara').onclick = arsivAra;
+    ic.querySelector('#tb-ar-q').addEventListener('keydown', e => { if (e.key === 'Enter') arsivAra(); });
+    arsivAra();
     liste.addEventListener('click', e => { const b = e.target.closest('[data-bul-no]'); if (b) dosyaPenceresiBul(b.dataset.bulBirim, b.dataset.bulNo); });
     let veri = [];
     const renk = { green: '#16a34a', blue: '#2563eb', orange: '#d97706', red: '#dc2626', gray: '#64748b' };
@@ -1455,6 +1489,8 @@
         <div class="ca-sira" style="display:flex;gap:8px;flex-wrap:wrap">
           <button class="ca-btn ana" type="button" id="sg-onar" data-ipucu="Tüm denetimleri çalıştırır ve bulunan sorunları onarır: bozuk/boş PDF'leri resmî motorla yeniden üretir, diskte olmayan evrakları yeniden indirme kuyruğuna alır, veritabanını onarır, TickTick düzenini başlatır.">🛠️ Şimdi denetle ve onar</button>
           <button class="ca-btn" type="button" id="sg-oku" data-ipucu="Yalnız rapor üretir; hiçbir şeyi değiştirmez.">🔍 Yalnız denetle</button>
+          <button class="ca-btn" type="button" id="sg-arsiv" data-ipucu="UYAP arşivinin TAMAMINI tarar: bozuk (eski ReportLab/Helvetica), boş ya da eksik PDF'leri resmî Havelsan motoruyla birebir yeniden üretir ve Google Drive'daki bozuk kopyanın ÜZERİNE yazar. Kaynak UDF yerelde yoksa evrak UYAP'tan yeniden indirilir. Terminal: caneditor arsiv onar">🛠️ Arşivdeki bozuk PDF'leri onar</button>
+          <button class="ca-btn" type="button" id="sg-icice" data-ipucu="Google Drive'daki iç içe UYAP_Arsiv/UYAP_Arsiv/... klasörlerini tek kökte birleştirir; aynı ad ve boyuttaki kopyaları çöp kutusuna taşır (30 gün geri alınabilir). Drive betiği v3 gerekir. Terminal: caneditor arsiv ic-ice-duzelt">🗂️ Drive klasörlerini birleştir</button>
         </div>
         <div id="sg-rapor" style="margin-top:10px"><p class="ca-soluk">Rapor yükleniyor…</p></div>
       </div>
@@ -1513,6 +1549,13 @@
       try { raporCiz({ rapor: await api('/api/oz-denetim', { method: 'POST', govde: { bekle: true, salt_oku: salt } }) }); } catch (e) { raporEl.innerHTML = `<div class="ca-hata">${esc(e.message || e)}</div>`; }
       yukle();
     };
+    const gorevBaslat = async (kimlik, ad) => {
+      try { await api(`/api/gorev/${kimlik}`, { method: 'POST', govde: {} }); raporEl.insertAdjacentHTML('afterbegin', `<p class="ca-soluk">▶ ${esc(ad)} başlatıldı; ilerleme aşağıdaki günlükte (kaynak: gorev/${esc(kimlik)}).</p>`); }
+      catch (e) { raporEl.insertAdjacentHTML('afterbegin', `<div class="ca-hata">${esc(e.message || e)}</div>`); }
+      ic.querySelector('#sg-kaynak').value = ''; yukle();
+    };
+    ic.querySelector('#sg-arsiv').onclick = () => gorevBaslat('arsiv-onar', 'Arşiv onarımı');
+    ic.querySelector('#sg-icice').onclick = () => gorevBaslat('drive-ic-ice', 'Drive klasör birleştirme');
     ic.querySelector('#sg-onar').onclick = () => calistir(false);
     ic.querySelector('#sg-oku').onclick = () => calistir(true);
     await yukle();

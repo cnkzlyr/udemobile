@@ -44,7 +44,7 @@ class SahteBulut:
     def __init__(self):
         self.yuklenen = []
 
-    def upload_file(self, p, remote_folder_path=""):
+    def upload_file(self, p, remote_folder_path="", uzerine_yaz=False):
         self.yuklenen.append((Path(p).name, remote_folder_path))
 
 

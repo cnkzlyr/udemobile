@@ -208,7 +208,13 @@ def _katalog_yolu() -> Path | None:
     return None
 
 
-def _bozuk_pdf_mi(p: Path) -> str:
+def _bozuk_pdf_mi(p: Path) -> str:  # geriye uyum: testler
+    _evrak_modulu()
+    import arsiv_onar  # noqa: WPS433
+    return arsiv_onar.bozuk_mu(p) if p.exists() else ""
+
+
+def _eski_bozuk_pdf_mi(p: Path) -> str:
     """'' = sağlam; aksi hâlde neden. Eski (v4.2–v4.9.4) yedek motor ReportLab + gömülmemiş Helvetica üretiyordu."""
     try:
         if p.stat().st_size == 0:
@@ -221,42 +227,17 @@ def _bozuk_pdf_mi(p: Path) -> str:
     return ""
 
 
-def d_bozuk_pdf(onar: bool, sinir: int = 400, **_):
-    kat = _katalog_yolu()
-    if not kat:
+def d_bozuk_pdf(onar: bool, sinir: int = 300, **_):
+    """Arşivdeki bozuk/eksik PDF'ler — tek kaynak moduller/evrak/arsiv_onar.py (aynı mantık iki yerde olmasın).
+    Yerel katalog + Drive indeksindeki küçük PDF'ler; onarımda resmî motorla yeniden üretilir, Drive'da üzerine yazılır."""
+    _evrak_modulu()
+    import arsiv_onar  # noqa: WPS433
+    if not _katalog_yolu():
         return "tamam", {"not": "katalog yok"}, 0
-    dn = _evrak_modulu()
-    bozuk, onarilan = [], 0
-    con = sqlite3.connect(str(kat), timeout=30)
-    try:
-        satirlar = con.execute("SELECT skey, path, pdf_path FROM evrak WHERE path LIKE '%.udf' AND COALESCE(pdf_path,'')<>''").fetchall()
-    except sqlite3.Error as e:
-        con.close()
-        return "uyari", {"hata": str(e)}, 0
-    con.close()
-    for skey, udf, pdf in satirlar:
-        pp = Path(pdf)
-        if not pp.exists():
-            continue
-        neden = _bozuk_pdf_mi(pp)
-        if not neden:
-            continue
-        bozuk.append({"skey": skey, "pdf": pdf, "neden": neden})
-        if onar and onarilan < sinir and Path(udf).is_file():
-            try:
-                yedek = pp.with_suffix(".bozuk.pdf")
-                shutil.move(str(pp), str(yedek))
-                yeni = dn.udf_to_pdf(Path(udf), pp, timeout=120)
-                if yeni and Path(yeni).is_file() and not _bozuk_pdf_mi(Path(yeni)):
-                    yedek.unlink(missing_ok=True)
-                    onarilan += 1
-                    kaydet("oz-denetim", f"PDF yeniden üretildi: {pp.name} ({neden})")
-                else:
-                    shutil.move(str(yedek), str(pp))
-            except Exception as e:  # noqa: BLE001
-                kaydet("oz-denetim", f"PDF onarılamadı {pp.name}: {e}", "HATA")
-    durum = "tamam" if len(bozuk) == onarilan else "uyari"
-    return durum, {"bozuk": len(bozuk), "ornekler": bozuk[:20]}, onarilan
+    r = arsiv_onar.onar(sinir=sinir, salt_oku=not onar, drive_tara=True, log=lambda m: kaydet("arsiv-onar", m))
+    kalan = r["bozuk"] + r["drive_bozuk"] - r["onarilan"] - r["yeniden_indirilecek"] - r["drive_guncellenen"]
+    durum = "tamam" if kalan <= 0 else ("uyari" if r["onarilamayan"] == 0 else "hata")
+    return durum, r, r["onarilan"] + r["yeniden_indirilecek"]
 
 
 def d_sqlite_butunluk(onar: bool, **_):

@@ -245,6 +245,17 @@ def k_ajanda(b: Baglanti, a):
 
 
 def k_tebligat(b: Baglanti, a):
+    if a.islem == "arsiv":
+        # caneditor tebligat arsiv [sorgu] [--mahkeme ...] [--baslangic ...] [--bitis ...] | --barkod B (detay)
+        if a.barkod:
+            d = b.istek("GET", "/api/tebligat/arsiv/detay", params={"anahtar": a.barkod})
+            if not JSON_CIKTI and d.get("ozet_md"):
+                print(d["ozet_md"])
+                print(f"Drive klasörü: UYAP_Arsiv/{d.get('drive_klasor')}")
+                return
+            return yaz(d)
+        return yaz(b.istek("GET", "/api/tebligat/arsiv", params={"q": " ".join(a.sorgu), "mahkeme": a.mahkeme,
+                                                                  "baslangic": a.baslangic, "bitis": a.bitis}), "Tebligat arşivi")
     if a.islem == "liste":
         return yaz(b.istek("POST", "/api/tebligat/liste", {"tazele": a.tazele}), "UETS tebligatları")
     return yaz(b.istek("POST", f"/api/tebligat/{a.islem}", {"barkod": a.barkod or ""}))
@@ -350,6 +361,17 @@ def k_hayfa(b: Baglanti, a):
     yaz(b.istek("GET", yol[0], params=yol[1]), f"HAYFA {a.islem}")
 
 
+def k_arsiv(b: Baglanti, a):
+    """UYAP arşivi: bozuk/eksik PDF denetimi ve onarımı (resmî Havelsan motoru), Drive iç içe klasör düzeltmesi."""
+    sys.path.insert(0, str(KOK / "moduller" / "evrak"))
+    os.environ.setdefault("UYAP_VERI_DIZINI", str(KOK / "moduller" / "evrak"))
+    import arsiv_onar
+    if a.islem == "ic-ice-duzelt":
+        d = arsiv_onar._drive_istemci()
+        return yaz(d.ic_ice_duzelt() if d and d.webhook_url else {"hata": "Drive webhook tanımlı değil"}, "Drive iç içe klasörler")
+    yaz(arsiv_onar.onar(sinir=a.sinir, salt_oku=(a.islem == "denetle"), drive_tara=not a.drive_yok), "Arşiv " + a.islem)
+
+
 def k_icra(b: Baglanti, a):
     yaz(b.istek("GET", "/api/icra/analiz"), "İcra analizi")
 
@@ -440,8 +462,11 @@ def ayrıştırıcı() -> argparse.ArgumentParser:
     p = ekle("ajanda", k_ajanda, "Duruşma + tebligat süreleri ajandası")
     p.add_argument("--gun", type=int, default=60); p.add_argument("--baslangic", default=""); p.add_argument("--bitis", default="")
 
-    p = ekle("tebligat", k_tebligat, "UETS tebligat paneli: liste | indir | isle | ... (barkod ile)")
-    p.add_argument("islem"); p.add_argument("--barkod", default=""); p.add_argument("--tazele", action="store_true")
+    p = ekle("tebligat", k_tebligat, "UETS tebligatları: liste | arsiv [sorgu] (Drive arşivi) | zorla --barkod B | temizle")
+    p.add_argument("islem"); p.add_argument("sorgu", nargs="*"); p.add_argument("--barkod", default="")
+    p.add_argument("--tazele", action="store_true")
+    for o in ("mahkeme", "baslangic", "bitis"):
+        p.add_argument("--" + o, default="")
 
     p = ekle("pdf", k_pdf, "Dosya/klasördeki UDF, TIFF, görüntü ve Office belgelerini PDF'e çevir (yerel)", True)
     p.add_argument("yollar", nargs="+")
@@ -479,6 +504,9 @@ def ayrıştırıcı() -> argparse.ArgumentParser:
     p.add_argument("--alan", default=""); p.add_argument("--il", default=""); p.add_argument("--madde", action="store_true",
                                                                                           help="Mevzuatta madde METNİ içinde ara")
 
+    p = ekle("arsiv", k_arsiv, "UYAP arşivi: denetle | onar (bozuk/eksik PDF → resmî motor, Drive'da üzerine yaz) | ic-ice-duzelt", True)
+    p.add_argument("islem", choices=["denetle", "onar", "ic-ice-duzelt"]); p.add_argument("--sinir", type=int, default=500)
+    p.add_argument("--drive-yok", action="store_true", help="Drive indeksindeki PDF'leri tarama")
     ekle("icra", k_icra, "İcra dosyaları kesinleşme / takipsizlik analizi")
     p = ekle("denetim", k_denetim, "Katalog/defter bütünlük denetimi (--calistir ile yeniden çalıştır)")
     p.add_argument("--calistir", action="store_true")

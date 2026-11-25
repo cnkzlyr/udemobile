@@ -899,9 +899,14 @@ def login_and_download(headless=False, count=None, auto_sync=True, external_driv
             _yerel = eyp_barkod_dizini(scan_all_eyp_files(), parse_eyp_file)
             _secili = {id(it) for _, it in missing_rows}
             _kapsam = csv_items[:count] if (count and count > 0) else csv_items
+            try:
+                from tebligat_arsiv import arsivde_mi as _arsivde
+            except Exception:  # noqa: BLE001
+                _arsivde = lambda b: False  # noqa: E731
             for _i, _it in enumerate(_kapsam):
                 _b = _it.get("barcode")
-                if _b and id(_it) not in _secili and not (_b in _yerel and os.path.exists(_yerel[_b])):
+                # Drive arşivinde olan EYP yerelde yoksa da indirilmez (arşivin asıl yeri Drive)
+                if _b and id(_it) not in _secili and not (_b in _yerel and os.path.exists(_yerel[_b])) and not _arsivde(_b):
                     missing_rows.append((_i, _it))
                     print(f"   📂 {_it.get('court', '')} [{_it.get('esas_no', '')}] (Barkod: {_b}) -> EYP yerelde yok (indirilecek).")
 

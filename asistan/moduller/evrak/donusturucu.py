@@ -402,15 +402,52 @@ def udf_to_pdf(path: Path, dst=None, timeout: int = 120, **_eski) -> Path | None
 # ---------------------------------------------------------------------------
 # Görüntü -> PDF
 # ---------------------------------------------------------------------------
-def images_to_pdf(src: Path) -> Path | None:
-    """TIF/TIFF (çok sayfalı) ve diğer görüntüleri A4 boyutlu PDF'e çevirir."""
+def _a4_motoru():
+    """NAPS2 yöntemli A4 PDF motoru (moduller/a4) — eskiden iyi sonuç veren TIFF/görsel yolu."""
+    for d in (_paket_koku() / "moduller" / "a4" / "python", Path(__file__).resolve().parents[1] / "a4" / "python"):
+        if (d / "a4_pdf_engine.py").is_file():
+            if str(d) not in sys.path:
+                sys.path.insert(0, str(d))
+            import a4_pdf_engine  # type: ignore
+            return a4_pdf_engine
+    return None
+
+
+def images_to_pdf(src: Path, hedef: Path | None = None, zorla: bool = False) -> Path | None:
+    """TIF/TIFF (çok sayfalı) ve diğer görüntüleri A4 boyutlu PDF'e çevirir.
+    v4.10.2: önce NAPS2 yöntemli A4 motoru (moduller/a4: sayfa yönü, DPI, çok sayfalı faks TIFF'leri doğru);
+    olmazsa Pillow. zorla=True var olan (bozuk) PDF'in yerine yenisini üretir; sayfa sayısı TIFF kare sayısıyla
+    denetlenir. EN: prefer the NAPS2-style A4 engine; Pillow as fallback; verifies page count."""
+    src = Path(src)
+    dst = Path(hedef) if hedef else src.with_suffix(".pdf")
+    if dst.exists() and dst.stat().st_size > 0 and not zorla:
+        return dst
+    motor = _a4_motoru()
+    if motor is not None:
+        tmp = dst.with_name(dst.name + ".a4.part")
+        try:
+            motor.merge_all_to_single_pdf([str(src)], str(tmp))
+            if tmp.exists() and tmp.stat().st_size > 0:
+                try:
+                    from PIL import Image
+                    from pypdf import PdfReader
+                    with Image.open(src) as im:
+                        kare = getattr(im, "n_frames", 1)
+                    if len(PdfReader(str(tmp)).pages) != kare:
+                        raise ValueError("sayfa sayısı uyuşmadı")
+                except ImportError:
+                    pass
+                os.replace(tmp, dst)
+                return dst
+        except Exception as e:  # noqa: BLE001
+            _gunluk(f"[a4] {src.name}: {e} → Pillow yedeği")
+        finally:
+            if tmp.exists():
+                tmp.unlink()
     try:
         from PIL import Image, ImageSequence
     except ImportError:
         return None
-    dst = src.with_suffix(".pdf")
-    if dst.exists() and dst.stat().st_size > 0:
-        return dst
     pages = []
     try:
         with Image.open(src) as im:

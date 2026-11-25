@@ -888,7 +888,8 @@ class UyapWatcher:
         except sqlite3.DatabaseError as e:
             logger.warning("Drive defteri açılamadı: %s", e)
             c = None
-        sonuc = self.cloud.upload_file(yol, remote_folder_path=rel_folder) or {}
+        # v4.10.2: aynı adlı (ör. eski bozuk) PDF varsa ÜZERİNE yazılır; yanına ikinci kopya açılmaz (betik v3)
+        sonuc = self.cloud.upload_file(yol, remote_folder_path=rel_folder, uzerine_yaz=True) or {}
         if c is not None and sonuc.get("status") == "success":
             c.execute("INSERT OR REPLACE INTO drive_yukleme VALUES (?,?,?,?,?,?)",
                       (str(evrak_id), Path(yol).stat().st_size, f"{rel_folder}/{Path(yol).name}", str(sonuc.get("fileId") or ""),
