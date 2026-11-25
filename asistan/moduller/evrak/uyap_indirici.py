@@ -1223,14 +1223,30 @@ class UyapBrowserBridge:
             return False, f"ArkSigner yanıt vermedi (HTTP {r.status_code})."
         return True, "ArkSigner hazır."
 
-    def kart_takili_mi(self) -> bool:
-        """e-İmza istemcisinde (5975) sertifikası okunabilen hazır bir kart var mı?"""
+    def kart_durumu(self) -> tuple[bool, str]:
+        """(kart_hazir, neden). v4.10.1: e-İmza neden kullanılmadı, günlükte AÇIKÇA yazsın (eskiden sessizce Mobil
+        İmzaya geçiliyor, sebebi görünmüyordu). EN: card readiness with a human-readable reason."""
         try:
             r = self._http.get(f"{ARKSIGNER_URL}/api/v1/signature/getCertificates", timeout=6)
+        except requests.exceptions.RequestException:
+            return False, f"e-İmza servisi ({ARKSIGNER_URL}) yanıt vermiyor — CanEditor'un e-İmza bileşeni ya da Adalet E-İmza çalışmıyor"
+        try:
             kartlar = (r.json() or {}).get("data") or [] if r.status_code == 200 else []
-        except (requests.exceptions.RequestException, ValueError):
-            return False
-        return any(k.get("ready") is not False and k.get("certificates") for k in kartlar)
+        except ValueError:
+            kartlar = []
+        if r.status_code != 200:
+            return False, f"e-İmza servisi HTTP {r.status_code} döndü"
+        if not kartlar:
+            return False, "e-İmza servisi çalışıyor ama takılı kart/okuyucu görünmüyor"
+        if not any(k.get("certificates") for k in kartlar):
+            return False, "kart görünüyor ama sertifikası okunamadı (okuyucu/kart sürücüsü)"
+        if not any(k.get("ready") is not False and k.get("certificates") for k in kartlar):
+            return False, "kart hazır değil (başka bir uygulama kullanıyor olabilir)"
+        return True, "kart hazır"
+
+    def kart_takili_mi(self) -> bool:
+        """e-İmza istemcisinde (5975) sertifikası okunabilen hazır bir kart var mı?"""
+        return self.kart_durumu()[0]
 
     def akilli_oturum_ac(self, pin: str = "", tc: str = "", gsm: str = "", operator: str = "",
                          status_cb=None, sure_siniri_s: float | None = None, dur=None,
@@ -1266,7 +1282,20 @@ class UyapBrowserBridge:
             except Exception:  # tarayıcı/bağlantı geçici olarak yoksa giriş denemesi zaten yeniden kurar
                 pass
             pin_hash = hashlib.sha256(pin.encode("utf-8")).hexdigest() if pin else ""
-            if pin and pin_hash not in self._rejected_pins and self.kart_takili_mi():
+            kart_hazir = bool(pin and pin_hash not in self._rejected_pins and self.kart_takili_mi())
+            kart_neden = ""
+            if pin and not kart_hazir and pin_hash not in self._rejected_pins:
+                try:
+                    kart_neden = self.kart_durumu()[1]
+                except Exception:  # noqa: BLE001 — teşhis satırı girişi asla engellemesin
+                    kart_neden = "takılı kart bulunamadı"
+            if pin and pin_hash in self._rejected_pins:
+                kart_neden = "kart bu PIN'i daha önce reddetti (bloke olmasın diye yeniden denenmiyor)"
+            elif not pin:
+                kart_neden = "e-İmza PIN'i tanımlı değil"
+            if not kart_hazir and mobil_var:
+                bildir(f"ℹ️ e-İmza kullanılmıyor: {kart_neden} → Mobil İmza")
+            if kart_hazir:
                 bildir("🔑 e-İmza kartı takılı: e-İmza ile oturum açılıyor…")
                 ok, msg = self.auto_relogin(pin=pin)
                 if ok:
@@ -1862,9 +1891,22 @@ class UyapBrowserBridge:
                             return False, "Test: form dolduruldu, gönderilmedi."
                         filled_at = time.time()
                         log_msg("[*] Mobil İmza formu gönderildi, telefon bildirimi bekleniyor...")
+                    elif waiting_shown or fp_shown:
+                        # v4.10.1 (saha günlüğü 24-25.11): onay bekleme ekranından ~40 sn sonra e-Devlet formu
+                        # yeniden açılıyordu (telefondaki istek reddedildi / operatör zaman aşımı / iptal). Eskiden
+                        # bu fark edilmeyip süre dolana kadar ~3 dk boşuna beklenip sonra yeni bildirim atılıyordu.
+                        # Artık e-Devlet'in mesajı hemen okunur, kullanıcıya gösterilir ve dış döngü (kademeli
+                        # bekleme) yeniden dener. EN: form reappeared after the waiting screen -> fail fast with
+                        # e-Devlet's own message instead of idling until the deadline.
+                        why = self._edevlet_page_message() or st.get("error") or ""
+                        log_msg("[!] Telefon onayı tamamlanmadı: e-Devlet Mobil İmza formu yeniden açıldı"
+                                + (f" — e-Devlet mesajı: {why}" if why else " (mesaj yok: istek reddedildi ya da operatör süresi doldu)"))
+                        return False, ("e-Devlet: " + why) if why else \
+                            "Telefondaki Mobil İmza isteği onaylanmadı (reddedildi ya da operatör süresi doldu)."
                     elif time.time() - filled_at > 45:
                         why = self._edevlet_page_message()
-                        if why and ("zaman aşımı" in why.lower() or "hata" in why.lower()):
+                        if why:
+                            log_msg(f"[!] e-Devlet formu gönderimden sonra açık kaldı: {why}")
                             return False, f"e-Devlet: {why}"
 
                 elif page == "taahhut":

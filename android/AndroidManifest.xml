@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.agy.uyapacici"
-    android:versionCode="98"
-    android:versionName="4.10.0">
+    android:versionCode="99"
+    android:versionName="4.10.1">
 
     <uses-sdk
         android:minSdkVersion="21"
@@ -253,18 +253,8 @@
                  dinamik alıcı + UsbManager.requestPermission ile algılanır. -->
         </activity>
 
-        <!-- ⚖️ Ayrı başlatıcı simgesi: "Hukuk Asistanı" — editör açılmadan doğrudan asistan ana ekranı -->
-        <activity-alias
-            android:name=".AsistanGiris"
-            android:targetActivity=".EditorActivity"
-            android:label="Hukuk Asistanı"
-            android:icon="@mipmap/ic_launcher"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity-alias>
+        <!-- v4.10.1: TEK UYGULAMA, TEK SİMGE. Ayrı "Hukuk Asistanı" başlatıcısı (AsistanGiris) kaldırıldı:
+             editör ve asistan aynı CanEditor'dur; asistan uygulama içindeki "Asistan" düğmesiyle açılır. -->
 
         <!-- 🏛️ Adalet E-İmza (Termux'suz): yönetim ekranı, ön plan servisi, PIN penceresi -->
         <activity

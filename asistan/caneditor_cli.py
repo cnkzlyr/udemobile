@@ -306,7 +306,7 @@ def k_uyap(b: Baglanti, a):
 def k_uets(b: Baglanti, a):
     if a.islem == "otp":
         return yaz(b.istek("POST", "/api/uets/otp", {"kod": a.kod}))
-    a.ad = {"senkron": "uets-senkron", "cevrimdisi": "uets-cevrimdisi", "otokontrol": "uets-otokontrol"}[a.islem]
+    a.ad = {"senkron": "uets-senkron", "otokontrol": "uets-otokontrol"}[a.islem]
     a.izle, a.durdur = True, False
     return k_gorev(b, a)
 
@@ -462,8 +462,8 @@ def ayrıştırıcı() -> argparse.ArgumentParser:
 
     p = ekle("uyap", k_uyap, "UYAP oturumu: durum | giris (e-imza, olmazsa Mobil İmza) | simdi | canli")
     p.add_argument("islem", choices=["durum", "giris", "simdi", "canli"])
-    p = ekle("uets", k_uets, "UETS: senkron | cevrimdisi | otokontrol | otp KOD")
-    p.add_argument("islem", choices=["senkron", "cevrimdisi", "otokontrol", "otp"]); p.add_argument("kod", nargs="?", default="")
+    p = ekle("uets", k_uets, "UETS: senkron (her seferinde taze CSV + eksik EYP → TickTick) | otokontrol | otp KOD")
+    p.add_argument("islem", choices=["senkron", "otokontrol", "otp"]); p.add_argument("kod", nargs="?", default="")
 
     p = ekle("ticktick", k_ticktick, "TickTick: gorevler | denetle | duzenle | ekle")
     p.add_argument("islem", choices=["gorevler", "denetle", "duzenle", "ekle"]); p.add_argument("--limit", type=int, default=80)

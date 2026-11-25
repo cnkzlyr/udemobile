@@ -1,6 +1,6 @@
 # ⚖️ CanEditor (UdeMobile) — Birleşik Hukuk Platformu & Çapraz Platform UYAP Editörü
 
-[![Sürüm](https://img.shields.io/badge/Sürüm-v4.10.0-c8a45a.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v4.10.0)
+[![Sürüm](https://img.shields.io/badge/Sürüm-v4.10.1-c8a45a.svg)](https://github.com/cnkzlyr/udemobile/releases/tag/v4.10.1)
 [![CLI](https://img.shields.io/badge/Terminal-caneditor-333.svg)](#3-️-caneditor--arayüzün-yaptığı-her-şey-terminalde-windows--macos--linux--androidtermux)
 [![Platformlar](https://img.shields.io/badge/Platformlar-Android%20%7C%20Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Web-0f2341.svg)](https://github.com/cnkzlyr/udemobile/releases)
 [![UYAP](https://img.shields.io/badge/Format-UYAP_UDF_v1.8-0D47A1.svg)](https://uyap.gov.tr)
@@ -21,6 +21,26 @@
 
 > [!TIP]
 > 📖 **Adım Adım Kolay Tutorial:** Tek komutla dosya arşivleme (`uyap-arsiv`) ve sessiz e-imza (`uyap-imzala`) adım adım resimli kullanım kılavuzu için: **[docs/KILAVUZ_VE_TUTORIAL.md](docs/KILAVUZ_VE_TUTORIAL.md)**
+
+---
+
+## 🩹 v4.10.1: UETS her seferinde taze liste, Mobil İmza girişi, tek CanEditor
+
+### 📨 UETS tebligat kontrolü — tek kural
+- **Her çalışmada UETS'ye girilir ve GÜNCEL tebligat listesi (CSV) indirilir.** Liste indirilemezse eski yerel CSV ile **devam edilmez**; görev açıkça "liste alınamadı" der ve bir sonraki turda yeniden girer. (Eskiden indirme başarısız olunca sessizce klasördeki eski CSV ile çalışılıyordu.)
+- **Kaynak yalnız bu taze CSV'dir.** Yerel EYP paketleri yalnızca CSV'deki tebligatların barkoduyla eşleştirilir; CSV'de olmayan yerel EYP'ler artık tebligat sayılıp işlenmez.
+- **EYP'si yerelde olan indirilmez, olmayan indirilir** — TickTick'te görevi tam olsa bile EYP yerel arşivde yoksa indirilir. Eksik/yeni tebligatlar TickTick'e eklerle aktarılır.
+- Arayüzdeki "UETS: yerel CSV/arşivle işle (portala bağlanmadan)" seçeneği **kaldırıldı**.
+
+### 📲 UYAP girişi (Mobil İmza / e-İmza) — arka planda
+- Günlükte görülen hata: bildirim telefona gidiyor, ~40 sn sonra e-Devlet formu yeniden açılıyordu (istek reddedildi/operatör süresi doldu); program bunu fark etmeyip **3 dakika boşuna bekliyor**, sonra yeni bildirim atıyordu. Artık form geri geldiği anda e-Devlet'in kendi mesajı okunup günlüğe yazılıyor ve kademeli bekleme ile hemen yeniden deneniyor.
+- e-İmza neden kullanılmadıysa günlükte **açıkça** yazar (servis yanıt vermiyor / kart görünmüyor / sertifika okunamadı / PIN reddedilmişti / PIN yok). Eskiden sessizce Mobil İmzaya geçiliyordu.
+
+### 📱 Telefonda "CanEditor uygulamasını yeniden açın" hatası
+- Asistan sunucusu gizli tarayıcıdan önce başlarsa UYAP/UETS görevleri kalıcı olarak kilitleniyordu. Gizli tarayıcının soket adı artık her durumda veriliyor (sunucu da kendisi hesaplıyor); görevler kilitlenmez.
+
+### 🧩 Tek uygulama
+- Android'deki ayrı **"Hukuk Asistanı"** simgesi kaldırıldı: tek **CanEditor** simgesi; editör ve asistan aynı uygulama (asistan, uygulama içindeki "Asistan" düğmesiyle açılır).
 
 ---
 
@@ -466,7 +486,7 @@ Ayrıntılı mimari: [`docs/BIRLESIK_MIMARI.md`](docs/BIRLESIK_MIMARI.md) · Han
 | **Bağlantı & Rolling Log** | Sistem sağlık paneli, kesintisiz Google Drive sync göstergesi, 2MB rotasyonlu otomatik loglama ve tek tıkla Log ZIP indirme |
 | **Android Başlatıcı & USF** | Ana ekrandan tek tıkla Hukuk Asistanı'nı açan buton, sistemde `.udf` ve `.usf` varsayılan açıcı ilişkilendirmesi |
 
-## 🚀 Hızlı İndirme (v4.10.0)
+## 🚀 Hızlı İndirme (v4.10.1)
 
 Kurulum paketleri **her şeyi içinde taşır**: Python, Java, görünmez Chrome ve sürücüsüz e-imza altyapısı. Ayrıca bir şey kurmanız gerekmez.
 

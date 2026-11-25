@@ -166,7 +166,9 @@ final class AsistanServisi {
         env.put("CANASISTAN_ANAHTAR", anahtar);
         env.put("CANASISTAN_ANDROID", "1");
         env.put("CANASISTAN_DNS", UyapMobil.dnsSunuculari(c));
-        if (GizliTarayici.hazir()) env.put("CANASISTAN_WEBVIEW_SOKET", GizliTarayici.soketAdi());
+        // v4.10.1: soket adı süreç numarasından belirlenir; gizli tarayıcı sunucudan SONRA hazırlansa bile verilir
+        // (eskiden verilmiyordu ve UYAP/UETS görevleri "CanEditor'u yeniden açın" diye kalıcı olarak kilitleniyordu).
+        env.put("CANASISTAN_WEBVIEW_SOKET", GizliTarayici.soketAdi());
         env.put("UYAP_VERI_DIZINI", new File(v, "uyap").getAbsolutePath());
         env.put("CANASISTAN_PYTHON_KOMUT", new JSONArray(pythonKomutu(c)).toString());
         pb.redirectErrorStream(true);

@@ -893,6 +893,17 @@ def login_and_download(headless=False, count=None, auto_sync=True, external_driv
             csv_items = parse_csv_file(downloaded_csv_path)
 
             missing_rows = check_missing_tebligatlar_in_ticktick(csv_items, limit=count)
+            # v4.10.1: TickTick'te tam olsa bile EYP paketi YEREL ARŞİVDE yoksa o da indirilir (kural: CSV'deki
+            # her tebligatın EYP'si yerelde bulunsun; yerelde olan tekrar indirilmez).
+            # EN: also fetch EYPs that are missing locally even if the TickTick task is complete.
+            _yerel = eyp_barkod_dizini(scan_all_eyp_files(), parse_eyp_file)
+            _secili = {id(it) for _, it in missing_rows}
+            _kapsam = csv_items[:count] if (count and count > 0) else csv_items
+            for _i, _it in enumerate(_kapsam):
+                _b = _it.get("barcode")
+                if _b and id(_it) not in _secili and not (_b in _yerel and os.path.exists(_yerel[_b])):
+                    missing_rows.append((_i, _it))
+                    print(f"   📂 {_it.get('court', '')} [{_it.get('esas_no', '')}] (Barkod: {_b}) -> EYP yerelde yok (indirilecek).")
 
             if not missing_rows:
                 print(f"\n✨ [SONUÇ]: Son tebligatların tümü TickTick'te zaten mevcut ve eksiksiz!")

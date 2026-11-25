@@ -182,10 +182,28 @@ def run_synchronization(csv_path=None, force=False):
     else:
         print("ℹ️ Download klasöründe 'tebligatlar*.csv' bulunamadı.")
         
-    # 2. Download Klasöründeki EYP Paketlerinin Başlıklarını Hızlı Oku (extract_files=False)
+    # 2. EYP paketleri — v4.10.1: CSV KAYNAKTIR. Yerel EYP'ler yalnızca bu CSV'deki tebligatların barkoduyla
+    #    (barkodsuzlarda UETS mesaj no = dosya adı) eşleştirilir. CSV'de olmayan yerel EYP artık "tebligat" sayılıp
+    #    işlenmez (eskiden klasördeki TÜM EYP'ler taranıp listeye karışıyordu). Barkod dizini kalıcıdır: değişmeyen
+    #    paket yeniden açılmaz. EN: the fresh CSV is the source of truth; local EYPs only enrich CSV rows.
     eyp_paths = scan_all_eyp_files()
     eyp_items = []
-    if eyp_paths:
+    if eyp_paths and csv_items:
+        from uets_downloader import eyp_barkod_dizini
+        dizin = eyp_barkod_dizini(eyp_paths, parse_eyp_file)
+        csv_barkod = {c.get("barcode") for c in csv_items if c.get("barcode")}
+        csv_uets = {c.get("uets_no") for c in csv_items if c.get("uets_no")}
+        secili = [dizin[b] for b in csv_barkod if b in dizin and os.path.exists(dizin[b])]
+        secili += [p for p in eyp_paths if os.path.splitext(os.path.basename(p))[0] in csv_uets and p not in secili]
+        for p in secili:
+            res = parse_eyp_file(p, extract_files=False)
+            if res:
+                eyp_items.append(res)
+        print(f"📦 CSV'deki {len(csv_items)} tebligatın {len(eyp_items)} tanesinin EYP paketi yerelde var "
+              f"(CSV'de olmayan {max(0, len(eyp_paths) - len(secili))} yerel paket yok sayıldı).")
+    elif eyp_paths and not csv_items:
+        print("ℹ️ CSV yok: yerel EYP paketleri tek başına işlenmez (tebligat listesinin kaynağı UETS CSV'sidir).")
+    elif eyp_paths:
         print(f"📦 Bulunan Benzersiz EYP Paket Sayısı: {len(eyp_paths)}")
         for p in eyp_paths:
             res = parse_eyp_file(p, extract_files=False)
@@ -554,7 +572,12 @@ def _main(args):
                 active_csv = dl_csv
         except Exception as dl_err:
             print(f"⚠️ UETS canlı indirme sırasında hata: {dl_err}")
-            print("   ↳ Çevrimdışı/arşivdeki en güncel CSV aranıyor...")
+        # v4.10.1 KURAL: taze CSV inmediyse ESKİ YEREL CSV İLE DEVAM EDİLMEZ (eskiden sessizce eski CSV ve yerel
+        # EYP'lerle çalışıp yanlış/eksik görev açıyordu). Bir sonraki tur yeniden girer.
+        if not active_csv:
+            print("🛑 UETS'den yeni tebligat listesi (CSV) alınamadı; eski yerel CSV kullanılmadı. "
+                  "Bir sonraki turda yeniden denenecek.")
+            sys.exit(4)
 
     if args.watch:
         print("👀 Sürekli İzleme Modu Aktif (Çıkış için Ctrl+C)...")

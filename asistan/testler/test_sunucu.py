@@ -163,18 +163,18 @@ class SunucuTest(unittest.TestCase):
         finally:
             del sunucu.GOREV_DURUM["deneme"]
 
-    def test_android_tarayicili_gorevler_kullanilamaz(self):
+    def test_android_tarayicili_gorevler_kilitlenmez(self):
+        """v4.10.1: soket adı uygulama pid'inden türetildiği için UYAP/UETS görevleri Android'de kilitlenmez;
+        yalnız masaüstü pencereleri kullanılamaz."""
         eski = sunucu.ANDROID
         sunucu.ANDROID = True
         try:
-            k, v, _ = self.istek("/api/gorev/uets-senkron", "POST", govde={})
-            self.assertEqual(k, 400)
-            # v4.3.2: UETS telefonda gizli WebView ile çalışır; soket yoksa "gizli tarayıcı hazır değil" der
-            self.assertIn("Gizli tarayıcı", v["hata"])
             g = {g["kimlik"]: g for g in self.istek("/api/gorevler")[1]["gorevler"]}
-            self.assertTrue(g["evrak-islemlerim"]["kullanilamaz"])
+            self.assertFalse(g["evrak-islemlerim"]["kullanilamaz"])
+            self.assertFalse(g["uets-senkron"]["kullanilamaz"])
             self.assertTrue(g["evrak-katalog"]["kullanilamaz"])          # masaüstü penceresi
-            self.assertFalse(g["uets-cevrimdisi"]["kullanilamaz"])       # tarayıcısız görev çalışır
+            self.assertNotIn("uets-cevrimdisi", g)                       # eski yerel-CSV seçeneği kaldırıldı
+            self.assertTrue(sunucu.android_soket_adi().startswith("webview_devtools_remote_"))
         finally:
             sunucu.ANDROID = eski
 

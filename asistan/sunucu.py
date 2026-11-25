@@ -61,7 +61,7 @@ if hasattr(sys.stderr, "reconfigure"):
         pass
 from pathlib import Path
 
-SURUM = "4.10.0"
+SURUM = "4.10.1"
 KOK = Path(__file__).resolve().parent
 if str(KOK) not in sys.path:
     sys.path.insert(0, str(KOK))
@@ -1837,7 +1837,6 @@ if os.environ.get("CANASISTAN_PYTHON_KOMUT"):
 ANDROID = os.environ.get("CANASISTAN_ANDROID") == "1"
 GOREVLER: dict[str, dict] = {
     "uets-senkron":     {"ad": "UETS tebligatlarını indir ve işle", "cwd": AVUKAT_DIR, "cmd": [*PY, "main.py", "--headless"], "tarayici": True},
-    "uets-cevrimdisi":  {"ad": "UETS: yerel CSV/arşivle işle (portala bağlanmadan)", "cwd": AVUKAT_DIR, "cmd": [*PY, "main.py", "--offline"]},
     "uets-otokontrol":  {"ad": "Tebligat otokontrol raporu", "cwd": AVUKAT_DIR, "cmd": [*PY, "main.py", "--autocontrol", "--offline"]},
     "asistan-gui":      {"ad": "Avukat Asistanı penceresi", "cwd": AVUKAT_DIR, "cmd": [*PY, "avukat_gui.py"], "pencere": True},
     "evrak-katalog":    {"ad": "UYAP Evrak Kataloğu penceresi", "cwd": EVRAK_DIR, "cmd": [*PY, "katalog_gui.py"], "pencere": True},
@@ -2001,12 +2000,10 @@ class Gorev:
         self.oturum_satir = ""
 
     def kullanilamama_nedeni(self) -> str:
-        """Android'de tarayıcı otomasyonu ve masaüstü pencereleri yoktur; bu görevler masaüstünde çalışır."""
-        if ANDROID and self.tanim.get("cdp") and not os.environ.get("CANASISTAN_WEBVIEW_SOKET"):
-            return "Gizli UYAP tarayıcısı hazır değil; CanEditor uygulamasını yeniden açın."
-        if ANDROID and self.tanim.get("tarayici") and not os.environ.get("CANASISTAN_WEBVIEW_SOKET"):
-            # UETS artık telefonda da çalışır (cdp_surucu: gizli WebView'ı Selenium gibi sürer)
-            return "Gizli tarayıcı hazır değil; CanEditor uygulamasını yeniden açın."
+        """Bir görevin bu cihazda çalışamama nedeni ('' = çalışır).
+        v4.10.1: Android'de gizli tarayıcı soketi eksik diye görev artık KİLİTLENMEZ: soket adı uygulama sürecinin
+        numarasından türetilir (android_soket_adi) ve görev, tarayıcı hazır olana kadar kendisi bekler. Eskiden
+        sunucu tarayıcıdan önce başlarsa UYAP/UETS kalıcı olarak "CanEditor uygulamasını yeniden açın" diyordu."""
         if ANDROID and self.tanim.get("pencere"):
             return "Telefonda bu pencerenin işlevleri asistan panelindedir."
         return ""
@@ -2066,6 +2063,15 @@ class Gorev:
                 "calisiyor": self.calisiyor(), "baslangic": self.baslangic, "bitis": self.bitis, "kod": self.kod,
                 "gunluk": list(self.gunluk)[-satir:]}
 
+
+def android_soket_adi() -> str:
+    """Gizli WebView'ın DevTools soketi: 'webview_devtools_remote_<uygulama pid>'. Sunucu uygulama sürecinin
+    çocuğudur, dolayısıyla getppid() uygulamanın pid'idir (GizliTarayici.soketAdi ile aynı kural)."""
+    return os.environ.get("CANASISTAN_WEBVIEW_SOKET") or f"webview_devtools_remote_{os.getppid()}"
+
+
+if ANDROID and not os.environ.get("CANASISTAN_WEBVIEW_SOKET"):
+    os.environ["CANASISTAN_WEBVIEW_SOKET"] = android_soket_adi()
 
 GOREV_DURUM: dict[str, Gorev] = {k: Gorev(k, v) for k, v in GOREVLER.items()}
 
