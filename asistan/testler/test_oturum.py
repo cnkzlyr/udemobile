@@ -2,7 +2,9 @@
 """UYAP oturum kuralı (uyap_indirici.UyapBrowserBridge.akilli_oturum_ac):
 
   * e-İmza kartı takılıysa e-İmza ile girilir.
-  * Kart takılı değilse ya da bağlantı koptuysa oturum açılana kadar Mobil İmza gönderilir.
+  * Otomatik Mobil İmza KAPALIDIR: kart takılı değilse ya da hata verirse kullanıcı onayı olmadan
+    asla Mobil İmza gönderilmez.
+  * Yalnızca confirm_mobil açıkça onay verirse gönderilir (True ise en fazla 1 kez, döngüye girmez).
   * Beklerken kart takılırsa hemen e-İmzaya dönülür.
   * Kartın reddettiği PIN asla yeniden denenmez.
 
@@ -50,7 +52,9 @@ class SahteKopru(ui.UyapBrowserBridge):
         self.oturum = ok
         return ok, msg
 
-    def login_with_mobil_imza(self, tc, gsm, operator="", status_cb=None, timeout_s=240.0):
+    def login_with_mobil_imza(self, tc, gsm, operator="", status_cb=None, timeout_s=240.0, confirmed=False, confirm_cb=None):
+        if not confirmed and not (confirm_cb and confirm_cb()):
+            return False, "Otomatik mobil imza kapalı"
         self.olaylar.append(("mobil", round(self.saat.t)))
         ok, msg = self.mobil_sonuclari.pop(0) if self.mobil_sonuclari else (False, "telefon onaylanmadı")
         self.saat.t += 30  # telefon onayı beklemesi
@@ -78,36 +82,54 @@ class OturumKuraliTest(unittest.TestCase):
         self.assertTrue(ok)
         self.assertEqual([o[0] for o in k.olaylar], ["eimza"])
 
-    def test_kart_yoksa_baglanana_kadar_mobil_imza(self):
-        k = SahteKopru(self.saat, mobil_sonuclari=[(False, "zaman aşımı"), (False, "onaylanmadı"), (True, "Mobil İmza ile girildi")])
-        ok, msg = self.ac(k, pin="1234")
+    def test_kart_yoksa_otomatik_mobil_imza_gonderilmez(self):
+        k = SahteKopru(self.saat, mobil_sonuclari=[(True, "Mobil İmza ile girildi")])
+        ok, msg = self.ac(k, pin="")
+        self.assertFalse(ok)
+        self.assertIn("kapalı", msg.lower())
+        self.assertEqual(k.olaylar, [])
+
+    def test_confirm_mobil_true_yalnizca_tek_istek_gonderir(self):
+        k = SahteKopru(self.saat, mobil_sonuclari=[(False, "zaman aşımı"), (True, "Mobil İmza ile girildi")])
+        ok, _ = self.ac(k, pin="", confirm_mobil=True)
+        self.assertFalse(ok)
+        self.assertEqual([o[0] for o in k.olaylar], ["mobil"])
+
+    def test_confirm_mobil_callback_her_seferinde_onay_ister(self):
+        onaylar = [True, True, False]
+        k = SahteKopru(self.saat, mobil_sonuclari=[(False, "zaman aşımı"), (True, "Mobil İmza ile girildi")])
+        ok, msg = self.ac(k, pin="", confirm_mobil=lambda: onaylar.pop(0))
         self.assertTrue(ok, msg)
-        self.assertEqual([o[0] for o in k.olaylar], ["mobil", "mobil", "mobil"])
-        # Telefon bildirimle boğulmasın: denemeler arasında kademeli bekleme
+        self.assertEqual([o[0] for o in k.olaylar], ["mobil", "mobil"])
         araliklar = [b[1] - a[1] for a, b in zip(k.olaylar, k.olaylar[1:])]
         self.assertGreaterEqual(araliklar[0], 60 + 30)
-        self.assertGreaterEqual(araliklar[1], 120 + 30)
 
     def test_beklerken_kart_takilirsa_eimzaya_donulur(self):
-        k = SahteKopru(self.saat, kart=lambda t: t >= 50, mobil_sonuclari=[(False, "onaylanmadı")])
-        ok, _ = self.ac(k, pin="1234")
+        k = SahteKopru(self.saat, kart=lambda t: t >= 50, mobil_sonuclari=[(True, "Mobil")])
+        ok, _ = self.ac(k, pin="1234", sure_siniri_s=500)
         self.assertTrue(ok)
-        self.assertEqual([o[0] for o in k.olaylar], ["mobil", "eimza"])
-        self.assertLess(k.olaylar[1][1], 30 + 60)  # tam bekleme bitmeden
+        self.assertEqual([o[0] for o in k.olaylar], ["eimza"])
 
-    def test_eimza_baglanti_hatasinda_mobile_gecilir(self):
+    def test_eimza_baglanti_hatasinda_otomatik_mobile_gecilmez(self):
         k = SahteKopru(self.saat, kart=lambda t: True, eimza_sonucu=(False, "ArkSigner'a imza isteği gönderilemedi"),
                        mobil_sonuclari=[(True, "Mobil İmza ile girildi")])
-        ok, _ = self.ac(k, pin="1234")
+        ok, _ = self.ac(k, pin="1234", sure_siniri_s=100)
+        self.assertFalse(ok)
+        self.assertNotIn("mobil", [o[0] for o in k.olaylar])
+
+    def test_eimza_hatasinda_onayli_mobile_gecilebilir(self):
+        k = SahteKopru(self.saat, kart=lambda t: True, eimza_sonucu=(False, "ArkSigner'a imza isteği gönderilemedi"),
+                       mobil_sonuclari=[(True, "Mobil İmza ile girildi")])
+        ok, _ = self.ac(k, pin="1234", confirm_mobil=True)
         self.assertTrue(ok)
         self.assertEqual([o[0] for o in k.olaylar], ["eimza", "mobil"])
 
     def test_reddedilen_pin_tekrar_denenmez(self):
         k = SahteKopru(self.saat, kart=lambda t: True, eimza_sonucu=(False, "e-İmza PIN hatası: yanlış PIN"),
-                       mobil_sonuclari=[(False, "x"), (False, "y"), (True, "girildi")])
+                       mobil_sonuclari=[(True, "girildi")])
         ok, _ = self.ac(k, pin="9999")
-        self.assertTrue(ok)
-        self.assertEqual([o[0] for o in k.olaylar].count("eimza"), 1)
+        self.assertFalse(ok)
+        self.assertEqual([o[0] for o in k.olaylar], ["eimza"])
 
     def test_oturum_zaten_aciksa_hicbir_sey_gonderilmez(self):
         k = SahteKopru(self.saat)
@@ -116,15 +138,15 @@ class OturumKuraliTest(unittest.TestCase):
         self.assertEqual(k.olaylar, [])
 
     def test_sure_siniri_ve_bilgi_yoksa(self):
-        k = SahteKopru(self.saat)
-        ok, msg = self.ac(k, pin="1234", sure_siniri_s=1000)
+        k = SahteKopru(self.saat, kart=lambda t: False)
+        ok, msg = self.ac(k, pin="1234", tc="", gsm="", sure_siniri_s=1000)
         self.assertFalse(ok)
         self.assertIn("süre doldu", msg)
-        self.assertGreater(len(k.olaylar), 2)
+        self.assertEqual(k.olaylar, [])
         k2 = SahteKopru(self.saat)
         ok, msg = k2.akilli_oturum_ac(pin="", tc="", gsm="", status_cb=lambda m: None)
         self.assertFalse(ok)
-        self.assertIn("tanımlı değil", msg)
+        self.assertIn("kapalı", msg.lower())
 
     def test_yalniz_eimza_tanimliysa_kart_beklenir(self):
         k = SahteKopru(self.saat, kart=lambda t: t >= 500)

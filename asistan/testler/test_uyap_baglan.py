@@ -54,6 +54,28 @@ class AyarTesti(unittest.TestCase):
         with self.assertRaises(ValueError):
             sunucu.uyap_ayar_yaz({"gsm": "2121234567"})
 
+    def test_mobil_gonder_onay_sarti(self):
+        with self.assertRaises(ValueError):
+            sunucu.BAGLI_TUT.mobil_gonder({})
+        with self.assertRaises(ValueError):
+            sunucu.BAGLI_TUT.mobil_gonder({"onay": False})
+        sunucu.uyap_ayar_yaz({"tc": "12345678901", "gsm": "5321234567", "operator": "turktelekom"})
+        import uyap_indirici as _ui
+        eski_son, eski_durum = sunucu.NABIZ.son, sunucu.NABIZ.son_durum
+        try:
+            with mock.patch.object(_ui.UyapBrowserBridge, "login_with_mobil_imza", return_value=(True, "ok")) as m:
+                r = sunucu.BAGLI_TUT.mobil_gonder({"onay": True})
+                self.assertTrue(r.get("baslatildi"))
+                for _ in range(30):
+                    if not sunucu.BAGLI_TUT.mobil_durum.get("calisiyor"):
+                        break
+                    time.sleep(0.05)
+                m.assert_called_once()
+                self.assertEqual(m.call_args.kwargs.get("confirmed"), True)
+        finally:
+            sunucu.NABIZ.son, sunucu.NABIZ.son_durum = eski_son, eski_durum
+            sunucu.BAGLI_TUT.mobil_durum = {"calisiyor": False, "son_mesaj": "", "son_zaman": 0.0, "ok": None}
+
     def test_bagli_tut_kapatilabilir(self):
         sunucu.uyap_ayar_yaz({"pin": "1111", "bagli_tut": False})
         ok, neden = sunucu.BAGLI_TUT.etkin()

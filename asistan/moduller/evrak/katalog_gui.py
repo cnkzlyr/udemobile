@@ -1074,7 +1074,8 @@ class KatalogApp:
                 ok, msg = self.bridge.auto_relogin(m[1])
             else:
                 self.log("[*] Mobil İmza ile giriş: telefonunuza gelen onayı verin...")
-                ok, msg = self.bridge.login_with_mobil_imza(m[1], m[2], m[3], status_cb=self.log)
+                self.login_method = None
+                ok, msg = self.bridge.login_with_mobil_imza(m[1], m[2], m[3], status_cb=self.log, confirmed=True)
             self.log(("[✓] " if ok else "[x] ") + str(msg))
             if ok:
                 info = self.bridge.check_login_and_user()
@@ -1223,6 +1224,8 @@ class KatalogApp:
                 t, g = tc.get().strip(), gsm.get().strip().lstrip("0")
                 if len(t) != 11 or not t.isdigit() or len(g) != 10 or not g.startswith("5"):
                     messagebox.showwarning("Bilgi", "TC 11 hane, GSM 5 ile başlayan 10 hane olmalı.", parent=w)
+                    return
+                if not messagebox.askyesno("Mobil İmza Onayı", f"Mobil imza isteği gönderilsin mi? ({g})", parent=w):
                     return
                 self.ui.save_user_config({"tc": t, "gsm": g, "operator": op.get()})
                 box["method"] = ("mobil", t, g, op.get())

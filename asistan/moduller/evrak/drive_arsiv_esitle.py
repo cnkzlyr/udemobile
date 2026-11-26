@@ -222,13 +222,18 @@ def ensure_uyap_session(bridge) -> bool:
         except Exception:
             pass
 
-        # 2. Öncelik: Mobil İmza (SIM onaylı)
+        # 2. Öncelik: Mobil İmza (SIM onaylı — yalnızca etkileşimli açık kullanıcı onayıyla)
+        from uyap_indirici import ask_mobil_imza_onayi
+        if not ask_mobil_imza_onayi(gsm=USER_GSM):
+            logger.info("[i] Otomatik mobil imza kapalı: 'Mobil imza isteği gönderilsin mi?' onayı verilmedi.")
+            return False
         logger.info(f"[*] Mobil İmza isteği gönderiliyor (GSM: {USER_GSM})...")
         ok_m, msg_m = bridge.login_with_mobil_imza(
             tc=USER_TC,
             gsm=USER_GSM,
             operator=USER_OPERATOR,
-            timeout_s=120.0
+            timeout_s=120.0,
+            confirmed=True,
         )
         if ok_m:
             logger.info(f"[✓] Mobil İmza ile oturum açıldı: {msg_m}")

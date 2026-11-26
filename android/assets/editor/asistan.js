@@ -1031,17 +1031,18 @@
     const a = v.ayar || {};
     ic.innerHTML = `<div class="ca-kart" id="ca-uyap-durum"></div>
       <div class="ca-kart"><b>Giriş bilgileri</b>
-        <p class="ca-soluk">e-İmza kartı takılıysa PIN ile e-İmza; takılı değilse ya da bağlantı koparsa Mobil İmza gönderilir ve oturum açılana kadar denenir. Bilgiler yalnızca bu cihazda saklanır.</p>
+        <p class="ca-soluk">e-İmza kartı takılıysa PIN ile e-İmza kullanılır. <b>Otomatik Mobil İmza kapalıdır:</b> oturum kapalıysa kendiliğinden istek gönderilmez; yalnızca aşağıdaki "Mobil İmza İsteği Gönder" butonuna basıp onayladığınızda tek seferlik gönderilir. Bilgiler yalnızca bu cihazda saklanır.</p>
         <div class="ca-satir">
           <div><label>T.C. Kimlik No (Mobil İmza)</label><input id="ca-u-tc" inputmode="numeric" maxlength="11" placeholder="${a.tc_var ? esc(a.tc) + ' (kayıtlı)' : '11 hane'}"></div>
           <div><label>GSM</label><input id="ca-u-gsm" inputmode="tel" placeholder="${a.gsm_var ? esc(a.gsm) + ' (kayıtlı)' : '5321234567'}"></div>
           <div><label>Operatör</label><select id="ca-u-op">${[['turkcell', 'Turkcell'], ['turktelekom', 'Türk Telekom'], ['vodafone', 'Vodafone']].map(([k, ad]) => `<option value="${k}"${a.operator === k ? ' selected' : ''}>${ad}</option>`).join('')}</select></div>
           <div><label>e-İmza PIN</label><input id="ca-u-pin" type="password" autocomplete="off" placeholder="${a.pin_var ? '•••• (kayıtlı)' : 'isteğe bağlı'}"></div>
         </div>
-        <label style="display:flex;gap:8px;align-items:center;color:inherit;font-size:14px"><input type="checkbox" id="ca-u-tut" style="width:auto"${a.bagli_tut !== false ? ' checked' : ''}> Oturumu sürekli açık tut (koptukça yeniden bağlan)</label>
+        <label style="display:flex;gap:8px;align-items:center;color:inherit;font-size:14px"><input type="checkbox" id="ca-u-tut" style="width:auto"${a.bagli_tut !== false ? ' checked' : ''}> Oturumu açık tut (yalnızca e-İmza ile otomatik yenile; Mobil İmza otomatik gönderilmez)</label>
         <div style="max-width:220px"><label>Kontrol aralığı (dakika)</label><input id="ca-u-ara" type="number" min="3" max="240" value="${a.aralik_dk || 10}"></div>
         <button class="ca-btn ana" type="button" id="ca-u-kaydet">💾 Kaydet ve bağlan</button>
-        <button class="ca-btn" type="button" id="ca-u-simdi">🔄 Şimdi bağlan</button>
+        <button class="ca-btn" type="button" id="ca-u-simdi">🔄 Şimdi kontrol et</button>
+        <button class="ca-btn" type="button" id="ca-u-mobil" ${a.tc_var && a.gsm_var ? '' : 'disabled title="Önce T.C. ve GSM kaydedin"'}>📲 Mobil İmza İsteği Gönder</button>
         <span id="ca-u-mesaj" class="ca-soluk"></span></div>`;
     // v4.9.3: kart her 4 sn'de innerHTML ile YENİDEN ÇİZİLİYORDU → günlük başa zıplıyor, okunamıyordu; ayrıca
     // sürekli senkron "çalışıyor" olduğu için oturum açıkken bile "Bağlanılıyor…" yazıyordu. Artık iskelet bir kez
@@ -1050,17 +1051,22 @@
       const k = ic.querySelector('#ca-uyap-durum'); if (!k) return;
       if (!k.dataset.kurulu) {
         k.innerHTML = `<div class="ca-hedef" style="font-size:18px" data-r></div><div class="ca-uyari" data-n hidden></div>
-          <div class="ca-uyari" style="border-color:#dc2626" data-h hidden></div><p class="ca-soluk" data-z></p>
+          <div class="ca-uyari" style="border-color:#dc2626" data-h hidden></div><div class="ca-uyari" data-m hidden></div><p class="ca-soluk" data-z></p>
           <details data-l><summary class="ca-soluk" style="cursor:pointer">Günlük</summary><pre class="ca-gunluk" style="max-height:220px"></pre></details>`;
         k.dataset.kurulu = '1';
       }
       const rozet = d.oturum === true ? '🟢 UYAP oturumu açık'
-        : d.oturum === false ? (d.calisiyor ? '🟠 Oturum düştü — yeniden bağlanılıyor (e-İmza / Mobil İmza)…' : '🔴 Oturum açılamadı — yeniden denenecek')
+        : d.oturum === false ? (d.mobil_durum && d.mobil_durum.calisiyor ? '📲 Mobil İmza onayı bekleniyor…' : '🔴 Oturum kapalı — Mobil İmza göndermek için butona basın')
         : d.calisiyor ? '⏳ Oturum kontrol ediliyor…'
         : d.etkin ? '⚪ Sıradaki kontrol bekleniyor' : /kapalı/.test(d.neden || '') ? '⚪ Bağlı tut kapalı' : '⚪ Giriş bilgisi girilmedi';
       k.querySelector('[data-r]').textContent = rozet;
       const n = k.querySelector('[data-n]'); n.hidden = !d.neden; n.textContent = d.neden || '';
       const h = k.querySelector('[data-h]'); h.hidden = !d.son_hata; h.textContent = d.son_hata ? '⚠️ Son turda hata: ' + d.son_hata : '';
+      const md = d.mobil_durum || {};
+      const mEl = k.querySelector('[data-m]');
+      if (mEl) { mEl.hidden = !md.son_mesaj; mEl.textContent = md.son_mesaj || ''; }
+      const mBtn = ic.querySelector('#ca-u-mobil');
+      if (mBtn && d.ayar) { mBtn.disabled = !(d.ayar.tc_var && d.ayar.gsm_var) || !!md.calisiyor; }
       k.querySelector('[data-z]').textContent = (d.oturum_zaman ? `Oturum durumu: ${zamanYaz(d.oturum_zaman)} — ${d.oturum_satir || ''} · ` : '')
         + `Senkron başlangıcı: ${zamanYaz(d.son_baslangic)}` + (d.nabiz && d.nabiz.son ? ` · Son nabız: ${zamanYaz(d.nabiz.son)}` : '');
       gunlukYaz(k.querySelector('pre'), d.gunluk || [], 'Henüz çıktı yok.');
@@ -1073,12 +1079,23 @@
       const tc = ic.querySelector('#ca-u-tc').value.trim(), gsm = ic.querySelector('#ca-u-gsm').value.trim(), pin = ic.querySelector('#ca-u-pin').value;
       if (tc) g.tc = tc; if (gsm) g.gsm = gsm; if (pin) g.pin = pin;
       mesaj.textContent = 'Kaydediliyor…';
-      try { await api('/api/uyap/ayar', { method: 'POST', govde: g }); mesaj.textContent = '✓ Kaydedildi; bağlantı başlatılıyor.'; uyapSekmesi(ic); }
+      try { await api('/api/uyap/ayar', { method: 'POST', govde: g }); mesaj.textContent = '✓ Kaydedildi.'; uyapSekmesi(ic); }
       catch (e) { mesaj.innerHTML = `<span class="ca-hata">${esc(e.message)}</span>`; }
     };
     ic.querySelector('#ca-u-simdi').onclick = async () => {
-      try { durumCiz(await api('/api/uyap/simdi', { method: 'POST', govde: {} })); mesaj.textContent = '✓ Bağlantı denemesi başlatıldı.'; }
+      try { durumCiz(await api('/api/uyap/simdi', { method: 'POST', govde: {} })); mesaj.textContent = '✓ Kontrol başlatıldı.'; }
       catch (e) { mesaj.innerHTML = `<span class="ca-hata">${esc(e.message)}</span>`; }
+    };
+    ic.querySelector('#ca-u-mobil').onclick = async () => {
+      if (!confirm('Mobil imza isteği gönderilsin mi?')) return;
+      mesaj.textContent = 'Mobil İmza isteği gönderiliyor…';
+      try {
+        const r = await api('/api/uyap/mobil-gonder', { method: 'POST', govde: { onay: true } });
+        mesaj.textContent = r.mesaj || '✓ Mobil İmza isteği gönderildi; telefonunuzu kontrol edin.';
+        durumCiz(await api('/api/uyap'));
+      } catch (e) {
+        mesaj.innerHTML = `<span class="ca-hata">${esc(e.message)}</span>`;
+      }
     };
     gorevIzleDurdur();
     izleZam = setInterval(() => { api('/api/uyap').then(durumCiz).catch(() => {}); }, 4000);

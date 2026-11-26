@@ -2158,6 +2158,51 @@ class BagliTutucu:
         self.olay = threading.Event()
         self.sonraki = 0.0
         self.son_neden = ""
+        self._mobil_lock = threading.Lock()
+        self.mobil_durum: dict = {"calisiyor": False, "son_mesaj": "", "son_zaman": 0.0, "ok": None}
+
+    def mobil_gonder(self, govde: dict | None = None) -> dict:
+        """Kullanıcının UI butonundan açık onay vermesiyle TEK SEFERLİK Mobil İmza isteği gönderir."""
+        govde = govde or {}
+        if not govde.get("onay"):
+            raise ValueError("Mobil imza için açık kullanıcı onayı gereklidir ('Mobil imza isteği gönderilsin mi?').")
+        c = _uyap_cfg()
+        tc = str(c.get("tc") or "").strip()
+        gsm = str(c.get("gsm") or "").strip()
+        op = str(c.get("operator") or "turktelekom").strip()
+        if not (tc and gsm):
+            raise ValueError("Mobil İmza bilgileri (T.C. ve GSM) kayıtlı değil.")
+        if not self._mobil_lock.acquire(blocking=False):
+            return {"baslatildi": False, "zaten_calisiyor": True, "mesaj": "Bir Mobil İmza isteği zaten onay bekliyor.", "mobil_durum": dict(self.mobil_durum)}
+
+        self.mobil_durum = {"calisiyor": True, "son_mesaj": "Mobil İmza isteği gönderiliyor...", "son_zaman": time.time(), "ok": None}
+
+        def _calis():
+            try:
+                if str(EVRAK_DIR) not in sys.path:
+                    sys.path.insert(0, str(EVRAK_DIR))
+                import uyap_indirici as _ui
+                bridge = _ui.UyapBrowserBridge(port=_ui.CDP_PORT)
+                ok_g, msg_g = bridge.login_with_mobil_imza(
+                    tc=tc,
+                    gsm=gsm,
+                    operator=op,
+                    status_cb=lambda m: self.mobil_durum.update({"son_mesaj": str(m), "son_zaman": time.time()}),
+                    timeout_s=180.0,
+                    confirmed=True,
+                )
+                self.mobil_durum = {"calisiyor": False, "son_mesaj": str(msg_g), "son_zaman": time.time(), "ok": bool(ok_g)}
+                if ok_g:
+                    NABIZ.son = time.time()
+                    NABIZ.son_durum = True
+                    self.uyandir()
+            except Exception as e:  # noqa: BLE001
+                self.mobil_durum = {"calisiyor": False, "son_mesaj": f"Hata: {e}", "son_zaman": time.time(), "ok": False}
+            finally:
+                self._mobil_lock.release()
+
+        threading.Thread(target=_calis, daemon=True, name="mobil-imza-tekil").start()
+        return {"baslatildi": True, "mesaj": "Mobil İmza isteği başlatıldı; telefonunuzu kontrol edin.", "mobil_durum": dict(self.mobil_durum)}
 
     def uyandir(self):
         self.sonraki = 0.0
@@ -2196,6 +2241,7 @@ class BagliTutucu:
                 "son_baslangic": g.baslangic, "son_bitis": g.bitis, "son_kod": g.kod, "oturum": oturum,
                 "oturum_zaman": g.oturum_zaman, "oturum_satir": g.oturum_satir,
                 "sonraki": self.sonraki if ok else None, "gunluk": gunluk[-40:], "ayar": uyap_ayar_oku(),
+                "mobil_durum": dict(self.mobil_durum),
                 "nabiz": {"son": NABIZ.son or None, "oturum_acik": NABIZ.son_durum, "basarili": NABIZ.basarili}}
 
     def dongu(self):
@@ -2992,6 +3038,8 @@ class Isleyici(BaseHTTPRequestHandler):
             if yol == "/api/uyap/simdi":
                 BAGLI_TUT.uyandir()
                 return self._json(BAGLI_TUT.durum())
+            if yol == "/api/uyap/mobil-gonder":
+                return self._json(BAGLI_TUT.mobil_gonder(govde))
             if yol == "/api/dosya/not":
                 return self._json(dosya_not_ekle(govde))
             if yol == "/api/pano/duzen":

@@ -182,13 +182,31 @@ def sign_content_with_card(content_bytes: bytes, cert_id: str, pin: str = DEFAUL
     return sig_bytes
 
 
-def sign_content_with_mobile(content_bytes: bytes, phone: str = DEFAULT_GSM, operator: int = DEFAULT_OP, service_url: str = MIMZA_SERVICE_URL) -> bytes:
+def ask_mobil_imza_onayi(phone: str = "", confirm_cb=None, confirmed: bool = False) -> bool:
+    """Kullanıcı 'Mobil imza isteği gönderilsin mi?' sorusunu açıkça onaylamadıkça False döner."""
+    if confirmed:
+        return True
+    if confirm_cb is not None:
+        return bool(confirm_cb())
+    if sys.stdin is not None and sys.stdin.isatty():
+        try:
+            ans = input(f"📲 Mobil imza isteği gönderilsin mi? ({phone or 'kayıtlı GSM'}) [e/H]: ").strip().lower()
+            return ans in ("e", "evet", "y", "yes")
+        except (EOFError, KeyboardInterrupt):
+            return False
+    return False
+
+
+def sign_content_with_mobile(content_bytes: bytes, phone: str = DEFAULT_GSM, operator: int = DEFAULT_OP, service_url: str = MIMZA_SERVICE_URL, confirmed: bool = False, confirm_cb=None) -> bytes:
     """UYAP Mobil İmza servisi (Havelsan port 5976) üzerinden içeriği imzalatır."""
     clean_phone = "".join(filter(str.isdigit, phone))
     if clean_phone.startswith("90") and len(clean_phone) == 12:
         clean_phone = clean_phone[2:]
     if clean_phone.startswith("0") and len(clean_phone) == 11:
         clean_phone = clean_phone[1:]
+
+    if not ask_mobil_imza_onayi(phone=clean_phone, confirm_cb=confirm_cb, confirmed=confirmed):
+        raise RuntimeError("Otomatik mobil imza kapalı: 'Mobil imza isteği gönderilsin mi?' onayı verilmedi.")
 
     payload = {
         "content": base64.b64encode(content_bytes).decode("ascii"),
@@ -311,7 +329,9 @@ def sign_udf(
     force_mobile: bool = False,
     operator: int = DEFAULT_OP,
     phone: str = DEFAULT_GSM,
-    generate_pdf: bool = False
+    generate_pdf: bool = False,
+    confirm_mobile: bool = False,
+    confirm_cb=None,
 ) -> Tuple[Path, Dict[str, Any]]:
     """Belirtilen UDF dosyasını donanım e-imza veya mobil imza ile imzalar."""
     udf_path = Path(udf_path).resolve()
@@ -349,15 +369,23 @@ def sign_udf(
             signer_name = owner
         except Exception as e:
             print(f"⚠️ Donanım kartı ile imzalama başarısız oldu: {e}")
-            print("💡 Mobil İmza yedek kanalına geçiliyor...")
-            sig_bytes = sign_content_with_mobile(content_xml, phone, operator)
-            used_method = "Mobil İmza (Yedek Fallback)"
+            if not ask_mobil_imza_onayi(phone=phone, confirm_cb=confirm_cb, confirmed=confirm_mobile):
+                raise RuntimeError(
+                    f"Donanım kartı ile imzalama başarısız ({e}) ve otomatik Mobil İmza kapalı."
+                ) from e
+            print("💡 Kullanıcı onayıyla Mobil İmza kanalına geçiliyor...")
+            sig_bytes = sign_content_with_mobile(content_xml, phone, operator, confirmed=True)
+            used_method = "Mobil İmza (Kullanıcı Onaylı Fallback)"
     else:
         if force_mobile:
-            print("📱 Kullanıcı isteği ile doğrudan UYAP Mobil İmza kanalına bağlanılıyor...")
+            print("📱 Mobil İmza seçildi; gönderim öncesi onay doğrulanıyor...")
         else:
-            print("💡 Donanım kartı takılı değil -> UYAP Mobil İmza kanalına geçiliyor.")
-        sig_bytes = sign_content_with_mobile(content_xml, phone, operator)
+            print("💡 Donanım kartı takılı değil — otomatik Mobil İmza devre dışı.")
+        if not ask_mobil_imza_onayi(phone=phone, confirm_cb=confirm_cb, confirmed=confirm_mobile):
+            raise RuntimeError(
+                "Donanım kartı takılı değil ve 'Mobil imza isteği gönderilsin mi?' onayı verilmedi."
+            )
+        sig_bytes = sign_content_with_mobile(content_xml, phone, operator, confirmed=True)
         used_method = "Mobil İmza"
 
     # UDF paketle

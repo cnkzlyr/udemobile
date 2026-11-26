@@ -768,6 +768,21 @@ def _host_of(url: str) -> str:
     return (m.group(1).lower() if m else "")
 
 
+def ask_mobil_imza_onayi(gsm: str = "", confirm_cb=None, confirmed: bool = False) -> bool:
+    """Kullanıcı 'Mobil imza isteği gönderilsin mi?' sorusunu açıkça onaylamadıkça True dönmez."""
+    if confirmed:
+        return True
+    if confirm_cb is not None:
+        return bool(confirm_cb())
+    if sys.stdin is not None and sys.stdin.isatty():
+        try:
+            ans = input(f"📲 Mobil imza isteği gönderilsin mi? ({gsm or 'kayıtlı GSM'}) [e/H]: ").strip().lower()
+            return ans in ("e", "evet", "y", "yes")
+        except (EOFError, KeyboardInterrupt):
+            return False
+    return False
+
+
 class UyapBrowserBridge:
     """Chromium ile CDP üzerinden haberleşen, e-İmza / Mobil İmza ile oturum açan köprü.
 
@@ -1234,12 +1249,12 @@ class UyapBrowserBridge:
 
     def akilli_oturum_ac(self, pin: str = "", tc: str = "", gsm: str = "", operator: str = "",
                          status_cb=None, sure_siniri_s: float | None = None, dur=None,
-                         beklemeler=MOBIL_IMZA_BEKLEMELERI, uyku=time.sleep) -> tuple[bool, str]:
+                         beklemeler=MOBIL_IMZA_BEKLEMELERI, uyku=time.sleep,
+                         confirm_mobil=None) -> tuple[bool, str]:
         """UYAP oturumunu açar/yeniler. Kural:
           * e-İmza kartı takılıysa (ve PIN varsa) e-İmza ile girilir — sorun yok.
-          * Kart takılı değilse ya da e-İmza girişi bağlantı/kart nedeniyle olmazsa Mobil İmza gönderilir.
-          * Oturum açılana kadar tekrarlanır (kopan bağlantı da böyle yeniden kurulur). Mobil İmza denemeleri
-            arasında MOBIL_IMZA_BEKLEMELERI kadar beklenir; beklerken kart takılırsa hemen e-İmzaya dönülür.
+          * Otomatik Mobil İmza KAPALIDIR: kart takılı değilse veya e-İmza başarısız olursa kendiliğinden
+            Mobil İmza isteği gönderilmez; yalnızca confirm_mobil açıkça onay verirse gönderilir.
           * Kartın reddettiği PIN asla yeniden denenmez (kart bloke olmasın).
         sure_siniri_s: toplam süre sınırı (None = sınırsız); dur: threading.Event — set edilince durur."""
         def bildir(m):
@@ -1250,9 +1265,9 @@ class UyapBrowserBridge:
             c_tc, c_gsm, c_op = mobil_imza_ayarlari()
             tc, gsm, operator = tc or c_tc, gsm or c_gsm, operator or c_op
         mobil_var = bool(tc and gsm)
-        if not pin and not mobil_var:
-            return False, ("Oturum açılamadı: e-İmza PIN'i de Mobil İmza bilgileri (TC + GSM) de tanımlı değil. "
-                           ".uyap_config.json içine tc/gsm/operator yazın ya da PIN'i girin.")
+        if not pin and not (mobil_var and confirm_mobil):
+            return False, ("Otomatik mobil imza kapalı: oturumu açmak için e-İmza PIN'i girin veya "
+                           "'Mobil imza isteği gönderilsin mi?' onayı verin.")
         bas = time.monotonic()
         deneme, son_hata = 0, ""
 
@@ -1273,20 +1288,36 @@ class UyapBrowserBridge:
                     return True, msg
                 son_hata = msg
                 bildir(f"⚠️ e-İmza ile girilemedi: {msg}")
-            if not mobil_var:
-                # Yalnız e-İmza tanımlı: kart takılana / bağlantı gelene kadar bekle
+            istek_onay = False
+            if mobil_var:
+                if callable(confirm_mobil):
+                    istek_onay = bool(confirm_mobil())
+                    if not istek_onay:
+                        confirm_mobil = False
+                elif confirm_mobil is True:
+                    istek_onay = True
+                    confirm_mobil = False
+            if mobil_var and istek_onay:
                 deneme += 1
-                bekle = beklemeler[min(deneme - 1, len(beklemeler) - 1)]
-                bildir(f"⏳ e-İmza kartı bekleniyor (Mobil İmza tanımlı değil); {bekle} sn sonra yeniden denenecek.")
-            else:
-                deneme += 1
-                bildir(f"📲 Mobil İmza gönderiliyor (deneme {deneme}) — telefonunuzdaki bildirimi onaylayın.")
-                ok, msg = self.login_with_mobil_imza(tc, gsm, operator or "turktelekom", status_cb=status_cb)
+                bildir(f"📲 Kullanıcı onayıyla Mobil İmza gönderiliyor (deneme {deneme}) — telefonunuzdaki bildirimi onaylayın.")
+                ok, msg = self.login_with_mobil_imza(
+                    tc, gsm, operator or "turktelekom", status_cb=status_cb, confirmed=True
+                )
                 if ok:
                     return True, msg
                 son_hata = msg
+                if not callable(confirm_mobil) and (not pin or pin_hash in self._rejected_pins):
+                    return False, f"Mobil İmza ile girilemedi (otomatik tekrar kapalı): {msg}"
                 bekle = beklemeler[min(deneme - 1, len(beklemeler) - 1)]
                 bildir(f"⚠️ Mobil İmza ile girilemedi: {msg} — {bekle} sn sonra yeniden denenecek.")
+            else:
+                if not pin or pin_hash in self._rejected_pins:
+                    bildir("⏸️ Oturum kapalı — otomatik Mobil İmza gönderilmiyor. İstek göndermek için kullanıcı onayı gereklidir.")
+                    return False, f"Oturum kapalı (otomatik mobil imza kapalı). {('Son hata: ' + son_hata) if son_hata else 'Onay bekleniyor.'}".strip()
+                # Yalnız e-İmza etkin: kart takılana / bağlantı gelene kadar bekle
+                deneme += 1
+                bekle = beklemeler[min(deneme - 1, len(beklemeler) - 1)]
+                bildir(f"⏳ e-İmza kartı bekleniyor (otomatik Mobil İmza kapalı); {bekle} sn sonra yeniden denenecek.")
             # Beklerken kart takılırsa ya da durdurulursa hemen dön
             hedef = time.monotonic() + bekle
             while time.monotonic() < hedef and not sure_doldu():
@@ -1672,6 +1703,8 @@ class UyapBrowserBridge:
         operator: str = "turktelekom",
         status_cb=None,
         timeout_s: float = 240.0,
+        confirmed: bool = False,
+        confirm_cb=None,
     ) -> tuple[bool, str]:
         """
         e-Devlet Mobil İmza ile UYAP Avukat Portal oturumu açar. Sayfa durumuna göre çalışan
@@ -1793,6 +1826,11 @@ class UyapBrowserBridge:
                 return {clicked: false};
             })()
             """
+
+            if not ask_mobil_imza_onayi(gsm=gsm_digits, confirm_cb=confirm_cb, confirmed=confirmed):
+                msg_block = "Otomatik mobil imza kapalı: 'Mobil imza isteği gönderilsin mi?' onayı verilmedi."
+                log_msg(f"[i] {msg_block}")
+                return False, msg_block
 
             log_msg("[*] UYAP Mobil İmza girişi başlatılıyor...")
             st0 = self.eval_js(self._JS_MOBIL_STATE, timeout=10.0, target="auto") or {}
@@ -4196,7 +4234,11 @@ def run_cli_dosyalar_mode(args, bridge, app_helper, download_dir, tckn):
                     print(f"[!] UYARI: Evrak alınamadı ({item['evrak_adi']}) - {reason} [Deneme {attempt}/{max_retries}]")
                     if attempt < max_retries:
                         # Kart takılıysa e-İmza, değilse oturum açılana kadar Mobil İmza
-                        m_ok, m_msg = bridge.akilli_oturum_ac(pin=DEFAULT_E_IMZA_PIN, status_cb=print)
+                        m_ok, m_msg = bridge.akilli_oturum_ac(
+                            pin=DEFAULT_E_IMZA_PIN,
+                            status_cb=print,
+                            confirm_mobil=(lambda: ask_mobil_imza_onayi(mobil_imza_ayarlari()[1])) if (sys.stdin and sys.stdin.isatty()) else False,
+                        )
                         if m_ok:
                             print(f"[✓] {m_msg}.")
                             refresh_dosya_ids_in_queue(bridge, download_queue, idx - 1)
@@ -4873,7 +4915,11 @@ def run_cli_mode(args):
             if is_session_expired:
                 print(f"\n[!] UYARI: UYAP oturum süresi doldu (HTTP {resp.get('status', '401')}).")
                 # Kart takılıysa e-İmza, değilse oturum açılana kadar Mobil İmza
-                m_ok, m_msg = bridge.akilli_oturum_ac(pin=pin if auto_relogin else "", status_cb=print)
+                m_ok, m_msg = bridge.akilli_oturum_ac(
+                    pin=pin if auto_relogin else "",
+                    status_cb=print,
+                    confirm_mobil=(lambda: ask_mobil_imza_onayi(mobil_imza_ayarlari()[1])) if (sys.stdin and sys.stdin.isatty()) else False,
+                )
                 if m_ok:
                     print(f"[✓] {m_msg}")
                     time.sleep(2.0)
@@ -5055,7 +5101,11 @@ def run_cli_mode(args):
                 print(f"[!] UYARI: UYAP oturumu sonlanmış ({reason}). Yeniden bağlanılıyor... [Deneme {attempt}/{max_retries}]")
                 if attempt < max_retries:
                     # Kart takılıysa e-İmza, değilse oturum açılana kadar Mobil İmza
-                    re_ok, re_msg = bridge.akilli_oturum_ac(pin=pin if auto_relogin else "", status_cb=print)
+                    re_ok, re_msg = bridge.akilli_oturum_ac(
+                        pin=pin if auto_relogin else "",
+                        status_cb=print,
+                        confirm_mobil=(lambda: ask_mobil_imza_onayi(mobil_imza_ayarlari()[1])) if (sys.stdin and sys.stdin.isatty()) else False,
+                    )
                     if re_ok:
                         print(f"[✓] {re_msg}. Evrak tekrar deneniyor...")
                         time.sleep(2.0)

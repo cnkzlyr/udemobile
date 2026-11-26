@@ -95,7 +95,8 @@ def imzala(govde: Dict[str, Any]) -> Dict[str, Any]:
         force_mobile=force_mobile,
         operator=operator,
         phone=gsm,
-        generate_pdf=generate_pdf
+        generate_pdf=generate_pdf,
+        confirm_mobile=bool(govde.get("mobil_onay")),
     )
 
     return {
